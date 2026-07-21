@@ -11,7 +11,7 @@ Estado: EM ANDAMENTO (preparação da fundação)
 | FND-002 | Concluída | Claude/junico | migrations aplicadas em PG18 real; app sobe; health UP | Perfis local/test/prod criados; ver evidências |
 | FND-003 | A fazer | — | — | — |
 | FND-004 | Concluída | Claude/junico | 401/403/erros em problem+json validados via curl | Problem Details RFC 9457 + traceId |
-| FND-005 | A fazer | — | — | Auditoria/observabilidade |
+| FND-005 | Concluída | Claude/junico | prometheus 200; ECS JSON; 6 testes verdes | Auditoria + observabilidade + mascaramento |
 | FND-006 | Concluída | Claude/junico | ver evidências abaixo | Baseline fixado e validado |
 | FND-007 | A fazer | — | — | — |
 
@@ -43,6 +43,15 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - `package-lock.json` versionado; `styles.scss` importa os tokens.
 - Evidência: `npm install` (459 pacotes), `npm run build` → bundle OK com lazy chunks `recipe-list-page` e `recipes-routes`; `npm test` → **2 arquivos, 2 testes verdes** (Vitest).
 - Pendente (refinamento): ESLint com regra de fronteira de import e `proxy.conf.json` para a API.
+
+### FND-005 — Auditoria e observabilidade (validado em 2026-07-21)
+
+- **traceId** centralizado em `shared/observability/Trace` (MDC); `RequestTraceIdFilter` e `ProblemDetails` passam a usá-lo. Presente no header `X-Trace-Id`, nas respostas de erro e no padrão de log (`%5p [traceId=%X{traceId:-}]`).
+- **Logs estruturados**: perfil `prod` emite ECS JSON (`logging.structured.format.console: ecs`); verificado com override no boot local (linhas JSON com `@timestamp`, `log.level`, `service.name`, `ecs.version`).
+- **Métricas**: dependência `micrometer-registry-prometheus`; `GET /actuator/prometheus` → **200**, formato Prometheus, 131 métricas (inclui `jvm_info` runtime Temurin 25). Exposição mínima: só `health`, `info` e `prometheus` são públicos; demais endpoints exigem autenticação.
+- **Auditoria**: módulo `audit` com porta `AuditTrail` + valor `AuditEvent` (exposed) e adapter `LoggingAuditTrail` (logger dedicado `AUDIT`, append-only). Fiado no comando crítico `recipe.create` (`CreateRecipeHandler`). Módulo Modulith verde com a dependência `recipe → audit`.
+- **Mascaramento**: `SensitiveDataMasker` (senha, token, authorization, cookie, secret, pepper, apikey…); aplicado nos metadados de auditoria.
+- Testes (6 verdes): `SensitiveDataMaskerTest` (leak), `LoggingAuditTrailTest` (não vaza segredo, mascara `token=***`), `CreateRecipeHandlerTest` (comando gera auditoria SUCCESS), além de Modulith e domínio.
 
 ### FND-002 — Ambiente local (validado em 2026-07-20)
 

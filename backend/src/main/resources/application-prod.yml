@@ -24,6 +24,12 @@ management:
       exposure:
         include: health,info,metrics,prometheus
 
+logging:
+  structured:
+    format:
+      # Logs estruturados (JSON ECS) no console; incluem o traceId do MDC.
+      console: ecs
+
 # Produção nunca usa filesystem: exige porta S3 compatível configurada por env.
 brassia:
   storage:

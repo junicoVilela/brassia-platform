@@ -34,7 +34,10 @@ class SecurityConfiguration {
                                 "/api/v1/security/login/mfa",
                                 "/api/v1/security/password/forgot",
                                 "/api/v1/security/password/reset").permitAll()
-                        .requestMatchers("/actuator/health/**").permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/actuator/health/**",
+                                "/actuator/info",
+                                "/actuator/prometheus").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(new ProblemDetailAuthenticationEntryPoint())

@@ -1,11 +1,11 @@
 package br.com.brew.brassia.shared.web;
 
+import br.com.brew.brassia.shared.observability.Trace;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
 import java.util.LinkedHashMap;
-import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -20,7 +20,6 @@ import org.springframework.http.ProblemDetail;
  */
 public final class ProblemDetails {
 
-    public static final String TRACE_ID_MDC_KEY = "traceId";
     private static final String TYPE_BASE = "https://brassia.brew.com.br/problems/";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -54,7 +53,6 @@ public final class ProblemDetails {
 
     /** Identificador de correlação da requisição atual; nunca nulo. */
     public static String currentTraceId() {
-        String traceId = MDC.get(TRACE_ID_MDC_KEY);
-        return traceId != null ? traceId : "unknown";
+        return Trace.currentTraceId();
     }
 }

@@ -1,12 +1,12 @@
 package br.com.brew.brassia.shared.web;
 
+import br.com.brew.brassia.shared.observability.Trace;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.UUID;
-import org.slf4j.MDC;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -26,12 +26,12 @@ public final class RequestTraceIdFilter extends OncePerRequestFilter {
         if (!StringUtils.hasText(traceId)) {
             traceId = UUID.randomUUID().toString();
         }
-        MDC.put(ProblemDetails.TRACE_ID_MDC_KEY, traceId);
+        Trace.put(traceId);
         response.setHeader(TRACE_ID_HEADER, traceId);
         try {
             chain.doFilter(request, response);
         } finally {
-            MDC.remove(ProblemDetails.TRACE_ID_MDC_KEY);
+            Trace.clear();
         }
     }
 }

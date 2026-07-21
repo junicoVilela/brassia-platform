@@ -34,3 +34,8 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus
+
+logging:
+  pattern:
+    # traceId visível em todo log; a trilha de auditoria usa o logger "AUDIT".
+    level: "%5p [traceId=%X{traceId:-}]"

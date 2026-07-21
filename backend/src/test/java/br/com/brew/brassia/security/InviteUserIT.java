@@ -12,14 +12,20 @@ import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppC
 
 import br.com.brew.brassia.security.application.port.inbound.InviteUserUseCase;
 import br.com.brew.brassia.security.application.port.inbound.InviteUserUseCase.Command;
+import br.com.brew.brassia.security.application.port.outbound.NotificationGateway;
+import br.com.brew.brassia.security.domain.EmailAddress;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
+import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -44,6 +50,7 @@ class InviteUserIT {
     @Autowired InviteUserUseCase inviteUser;
     @Autowired JdbcTemplate jdbc;
     @Autowired WebApplicationContext context;
+    @Autowired CapturingNotificationGateway capturedGateway;
     MockMvc mockMvc;
 
     @BeforeEach
@@ -91,6 +98,28 @@ class InviteUserIT {
         assertThat(count("security_user", "normalized_email = 'allowed@example.com' AND status = 'INVITED'")).isEqualTo(1);
     }
 
+    @Test
+    void acceptInvitationActivatesAccountThenRejectsReuse() throws Exception {
+        inviteUser.handle(new Command(UUID.randomUUID(), UUID.randomUUID(), "accept-it@example.com", "Accept IT"));
+        var rawToken = capturedGateway.lastRawToken;
+        assertThat(rawToken).isNotBlank();
+
+        mockMvc.perform(post("/api/v1/security/users/accept-invitation")
+                        .contentType("application/json")
+                        .content("{\"token\":\"" + rawToken + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+        assertThat(count("security_user", "normalized_email = 'accept-it@example.com' AND status = 'ACTIVE'")).isEqualTo(1);
+
+        // Token de uso único: a segunda tentativa é rejeitada com mensagem genérica.
+        mockMvc.perform(post("/api/v1/security/users/accept-invitation")
+                        .contentType("application/json")
+                        .content("{\"token\":\"" + rawToken + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("bad_request"));
+    }
+
     private Authentication principal(Set<String> permissions) {
         var securityPrincipal = new SecurityPrincipal(UUID.randomUUID(), UUID.randomUUID(), "Admin", permissions);
         return new UsernamePasswordAuthenticationToken(securityPrincipal, "n/a", Set.of());
@@ -98,5 +127,24 @@ class InviteUserIT {
 
     private int count(String table, String where) {
         return jdbc.queryForObject("SELECT count(*) FROM " + table + " WHERE " + where, Integer.class);
+    }
+
+    /** Captura o token bruto do convite para exercitar o aceite fim-a-fim. */
+    static final class CapturingNotificationGateway implements NotificationGateway {
+        volatile String lastRawToken;
+
+        @Override
+        public void sendInvitation(EmailAddress email, String rawToken, Instant expiresAt) {
+            this.lastRawToken = rawToken;
+        }
+    }
+
+    @TestConfiguration
+    static class TestGatewayConfig {
+        @Bean
+        @Primary
+        CapturingNotificationGateway capturingNotificationGateway() {
+            return new CapturingNotificationGateway();
+        }
     }
 }

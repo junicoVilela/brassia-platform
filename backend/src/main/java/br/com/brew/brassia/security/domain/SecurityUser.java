@@ -49,6 +49,30 @@ public final class SecurityUser {
         this.status = AccountStatus.ACTIVE;
     }
 
+    /** Bloqueia uma conta ativa (ex.: por decisão administrativa). */
+    public void block() {
+        if (status != AccountStatus.ACTIVE) {
+            throw new IllegalStateException("somente conta ativa pode ser bloqueada");
+        }
+        this.status = AccountStatus.LOCKED;
+    }
+
+    /** Desbloqueia uma conta bloqueada, retornando-a ao estado ativo. */
+    public void unblock() {
+        if (status != AccountStatus.LOCKED) {
+            throw new IllegalStateException("conta não está bloqueada");
+        }
+        this.status = AccountStatus.ACTIVE;
+    }
+
+    /** Desativa a conta (terminal). Uma conta já desativada não é reprocessada. */
+    public void disable() {
+        if (status == AccountStatus.DISABLED) {
+            throw new IllegalStateException("conta já desativada");
+        }
+        this.status = AccountStatus.DISABLED;
+    }
+
     public UserId id() { return id; }
     public EmailAddress email() { return email; }
     public DisplayName displayName() { return displayName; }

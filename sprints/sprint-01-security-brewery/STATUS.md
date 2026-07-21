@@ -6,7 +6,7 @@ Estado: EM ANDAMENTO
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| SEC-001 | Em progresso | Claude/junico | fatias de convite + aceite: domínio+aplicação+web+IT verdes | Convite (INVITED) e aceite (verifica e-mail + ACTIVE) entregues. Faltam bloquear/desbloquear, desativar (revogando sessões) e a UI. |
+| SEC-001 | Em progresso | Claude/junico | convite + aceite + administração: domínio+aplicação+web+IT verdes | Convite (INVITED), aceite (ACTIVE) e administração (bloquear/desbloquear/desativar) entregues. Falta a UI (tela de usuários). |
 | SEC-002 | A fazer | — | — | — |
 | SEC-003 | A fazer | — | — | — |
 | SEC-004 | A fazer | — | — | — |
@@ -44,6 +44,13 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Senha fica para a SEC-003**: aceitar o convite não define senha; ativa a conta. Consequência registrada: uma conta `ACTIVE` sem credencial de senha ainda não autentica (login é SEC-002).
 - **Mensagens genéricas** (anti-enumeração): token inválido/expirado/usado → `400 bad_request`; conta fora de `INVITED` → `409`.
 - Introduzido o **primeiro ciclo de update de agregado** (load→mutate→save) com **optimistic locking** via `@Version` no `security_user`; o `account_token` é consumido por atualização de `used_at`.
+
+### SEC-001 — fatia de administração de conta (2026-07-21)
+
+- Endpoints autenticados: `POST /api/v1/security/users/{id}/block` (ACTIVE→LOCKED, permissão `security.user.block`), `/unblock` (LOCKED→ACTIVE, `security.user.block`), `/disable` (→DISABLED + revoga sessões, `security.user.disable`). Um caso de uso `AdministerAccountUseCase` com `Operation` {BLOCK,UNBLOCK,DISABLE}, auditado por ação distinta.
+- Sem migration nova: o `CHECK` de `status` em `V3` já cobre `LOCKED`/`DISABLED`.
+- **Revogação de sessões**: porta `UserSessionRegistry`; adapter via Spring Session `FindByIndexNameSessionRepository` **opcional** (`ObjectProvider`). Enquanto não houver login (SEC-002) criando sessões indexadas pelo id do usuário, a revogação é um **no-op seguro**; passa a valer automaticamente quando o repositório indexado existir. Débito implícito rastreado por esta nota (efetivação plena com SEC-002/SEC-006).
+- Transições inválidas → `409` (ex.: desbloquear conta ativa, desativar conta já desativada); conta inexistente → `400`.
 
 ## Evidências de encerramento
 

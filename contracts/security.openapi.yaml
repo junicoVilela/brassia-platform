@@ -29,6 +29,30 @@ paths:
         '200': {description: Conta ativada (ACTIVE)}
         '400': {description: Convite inválido, expirado ou já utilizado (mensagem genérica)}
         '409': {description: Conta não está em estado de convite}
+  /api/v1/security/users/{userId}/block:
+    post:
+      summary: Bloqueia uma conta ativa (ACTIVE → LOCKED)
+      parameters: [{name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        '200': {description: Conta bloqueada (LOCKED)}
+        '403': {description: Sem permissão security.user.block}
+        '409': {description: Conta não está ativa}
+  /api/v1/security/users/{userId}/unblock:
+    post:
+      summary: Desbloqueia uma conta bloqueada (LOCKED → ACTIVE)
+      parameters: [{name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        '200': {description: Conta reativada (ACTIVE)}
+        '403': {description: Sem permissão security.user.block}
+        '409': {description: Conta não está bloqueada}
+  /api/v1/security/users/{userId}/disable:
+    post:
+      summary: Desativa a conta e revoga sessões (→ DISABLED)
+      parameters: [{name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        '200': {description: Conta desativada (DISABLED)}
+        '403': {description: Sem permissão security.user.disable}
+        '409': {description: Conta já desativada}
   /api/v1/security/login:
     post:
       summary: Inicia autenticação interna

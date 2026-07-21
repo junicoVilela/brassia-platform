@@ -42,6 +42,51 @@ class SecurityUserTest {
     }
 
     @Test
+    void blockActiveAccountLocksIt() {
+        var user = active();
+        user.block();
+        assertThat(user.status()).isEqualTo(AccountStatus.LOCKED);
+    }
+
+    @Test
+    void blockRejectsNonActiveAccount() {
+        var invited = SecurityUser.invite(new EmailAddress("brewer@example.com"), new DisplayName("Brewer"));
+        assertThatThrownBy(invited::block).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void unblockLockedAccountActivatesIt() {
+        var user = active();
+        user.block();
+        user.unblock();
+        assertThat(user.status()).isEqualTo(AccountStatus.ACTIVE);
+    }
+
+    @Test
+    void unblockRejectsAccountNotLocked() {
+        assertThatThrownBy(() -> active().unblock()).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void disableFromAnyLiveStatus() {
+        var user = active();
+        user.disable();
+        assertThat(user.status()).isEqualTo(AccountStatus.DISABLED);
+    }
+
+    @Test
+    void disableRejectsAlreadyDisabled() {
+        var user = active();
+        user.disable();
+        assertThatThrownBy(user::disable).isInstanceOf(IllegalStateException.class);
+    }
+
+    private static SecurityUser active() {
+        return SecurityUser.reconstitute(UserId.newId(), new EmailAddress("brewer@example.com"),
+                new DisplayName("Brewer"), AccountStatus.ACTIVE, Instant.now(), 1);
+    }
+
+    @Test
     void reconstitutePreservesState() {
         var id = UserId.newId();
         var verifiedAt = Instant.now();

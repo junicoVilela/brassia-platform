@@ -7,12 +7,14 @@ import br.com.brew.brassia.brewery.application.port.outbound.BreweryRepository;
 import br.com.brew.brassia.brewery.application.service.ListBreweriesHandler;
 import br.com.brew.brassia.brewery.application.service.RegisterBreweryHandler;
 import java.util.Objects;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(BreweryBootstrapProperties.class)
 class BreweryConfiguration {
     @Bean
     RegisterBreweryUseCase registerBreweryUseCase(

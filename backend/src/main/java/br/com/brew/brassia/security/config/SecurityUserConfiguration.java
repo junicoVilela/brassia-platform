@@ -3,6 +3,7 @@ package br.com.brew.brassia.security.config;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.security.application.port.inbound.AcceptInvitationUseCase;
 import br.com.brew.brassia.security.application.port.inbound.AdministerAccountUseCase;
+import br.com.brew.brassia.security.application.port.inbound.AuthenticateUserUseCase;
 import br.com.brew.brassia.security.application.port.inbound.InviteUserUseCase;
 import br.com.brew.brassia.security.application.port.inbound.ListUsersUseCase;
 import br.com.brew.brassia.security.application.port.outbound.AccountTokenRepository;
@@ -14,6 +15,7 @@ import br.com.brew.brassia.security.application.port.outbound.TokenHasher;
 import br.com.brew.brassia.security.application.port.outbound.UserSessionRegistry;
 import br.com.brew.brassia.security.application.service.AcceptInvitationHandler;
 import br.com.brew.brassia.security.application.service.AdministerAccountHandler;
+import br.com.brew.brassia.security.application.service.AuthenticateUserHandler;
 import br.com.brew.brassia.security.application.service.InviteUserHandler;
 import br.com.brew.brassia.security.application.service.ListUsersHandler;
 import java.util.Objects;
@@ -68,5 +70,18 @@ class SecurityUserConfiguration {
     @Bean
     ListUsersUseCase listUsersUseCase(SecurityUserRepository users) {
         return new ListUsersHandler(users);
+    }
+
+    @Bean
+    AuthenticateUserUseCase authenticateUserUseCase(
+            SecurityUserRepository users,
+            PasswordCredentialRepository credentials,
+            PasswordHasher passwordHasher,
+            AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new AuthenticateUserHandler(users, credentials, passwordHasher, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(
+                transaction.execute(status -> handler.handle(command)));
     }
 }

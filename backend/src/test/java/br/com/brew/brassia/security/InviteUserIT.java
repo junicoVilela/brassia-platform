@@ -163,6 +163,51 @@ class InviteUserIT {
                 .andExpect(jsonPath("$.code").value("forbidden"));
     }
 
+    @Test
+    void loginThenSessionThenLogoutFlow() throws Exception {
+        onboard("login-it@example.com", "segredo123");
+
+        var loginResult = mockMvc.perform(post("/api/v1/security/login")
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"email\":\"login-it@example.com\",\"password\":\"segredo123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").isNotEmpty())
+                .andExpect(jsonPath("$.permissions").isEmpty())
+                .andReturn();
+        var session = (org.springframework.mock.web.MockHttpSession) loginResult.getRequest().getSession(false);
+
+        mockMvc.perform(get("/api/v1/security/session").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.displayName").value("User"));
+
+        mockMvc.perform(post("/api/v1/security/logout").with(csrf()).session(session))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/security/session").session(session))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void loginRejectsWrongPassword() throws Exception {
+        onboard("wrongpass-it@example.com", "segredo123");
+
+        mockMvc.perform(post("/api/v1/security/login")
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"email\":\"wrongpass-it@example.com\",\"password\":\"errada00\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("invalid_credentials"));
+    }
+
+    /** Onboarding completo: convida e aceita (define a senha) via endpoint público. */
+    private void onboard(String email, String password) throws Exception {
+        inviteUser.handle(new Command(UUID.randomUUID(), UUID.randomUUID(), email, "User"));
+        var rawToken = capturedGateway.lastRawToken;
+        mockMvc.perform(post("/api/v1/security/users/accept-invitation")
+                        .contentType("application/json")
+                        .content("{\"token\":\"" + rawToken + "\",\"password\":\"" + password + "\"}"))
+                .andExpect(status().isOk());
+    }
+
     private org.springframework.test.web.servlet.ResultActions perform(UUID userId, String action, Set<String> permissions) throws Exception {
         return mockMvc.perform(post("/api/v1/security/users/" + userId + "/" + action)
                 .with(authentication(principal(permissions)))

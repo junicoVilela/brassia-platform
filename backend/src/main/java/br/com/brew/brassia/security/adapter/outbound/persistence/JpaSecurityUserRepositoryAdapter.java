@@ -24,6 +24,11 @@ class JpaSecurityUserRepositoryAdapter implements SecurityUserRepository {
     }
 
     @Override
+    public Optional<SecurityUser> findByNormalizedEmail(String normalizedEmail) {
+        return repository.findByNormalizedEmail(normalizedEmail).map(SecurityUserJpaEntity::toDomain);
+    }
+
+    @Override
     public Optional<SecurityUser> findById(UserId id) {
         return repository.findById(id.value()).map(SecurityUserJpaEntity::toDomain);
     }

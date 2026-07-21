@@ -1,5 +1,6 @@
 package br.com.brew.brassia.shared.security;
 
+import java.io.Serializable;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -9,12 +10,15 @@ import org.springframework.security.access.AccessDeniedException;
  * Identidade autenticada usada pelos casos de uso. {@code breweryId} é opcional:
  * enquanto a cervejaria ativa e as permissões (SEC-004/005) não são resolvidas,
  * o principal carrega apenas a identidade, sem tenant e sem permissões.
+ *
+ * <p>É {@link Serializable} porque vai no {@code SecurityContext} persistido na
+ * sessão (Spring Session JDBC).
  */
 public record SecurityPrincipal(
         UUID userId,
         UUID breweryId,
         String displayName,
-        Set<String> permissions) {
+        Set<String> permissions) implements Serializable {
 
     public SecurityPrincipal {
         Objects.requireNonNull(userId);

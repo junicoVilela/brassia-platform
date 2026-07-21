@@ -32,6 +32,14 @@ export class AuthService {
     );
   }
 
+  /** Troca a cervejaria ativa da sessão. */
+  switchBrewery(breweryId: string): Observable<SessionUser> {
+    return this.api.csrf().pipe(
+      switchMap(() => this.api.switchBrewery(breweryId)),
+      tap(user => this.userState.set(user)),
+    );
+  }
+
   /**
    * Resolve a sessão atual (uma vez): consulta o servidor se ainda não foi
    * resolvida. Emite o usuário (ou null se não autenticado).

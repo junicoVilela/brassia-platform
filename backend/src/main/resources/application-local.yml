@@ -30,3 +30,10 @@ brassia:
       email: ${BOOTSTRAP_ADMIN_EMAIL:admin@brassia.local}
       password: ${BOOTSTRAP_ADMIN_PASSWORD:admin-local-123}
       name: ${BOOTSTRAP_ADMIN_NAME:Administrador Local}
+  brewery:
+    # Cervejaria default para o login já ter uma cervejaria ativa em dev.
+    bootstrap:
+      enabled: ${BOOTSTRAP_BREWERY_ENABLED:true}
+      code: ${BOOTSTRAP_BREWERY_CODE:MATRIZ}
+      name: ${BOOTSTRAP_BREWERY_NAME:Cervejaria Matriz}
+      timezone: ${BOOTSTRAP_BREWERY_TIMEZONE:America/Sao_Paulo}

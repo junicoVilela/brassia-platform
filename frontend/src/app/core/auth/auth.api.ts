@@ -23,4 +23,8 @@ export class AuthApi {
   session() {
     return this.http.get<SessionUser>(`${this.baseUrl}/session`);
   }
+
+  switchBrewery(breweryId: string) {
+    return this.http.post<SessionUser>(`${this.baseUrl}/session/brewery`, { breweryId });
+  }
 }

@@ -21,6 +21,16 @@ class SecurityPrincipalTest {
     }
 
     @Test
+    void requireBreweryReturnsActiveOrDeniesWhenAbsent() {
+        var brewery = UUID.randomUUID();
+        var withBrewery = new SecurityPrincipal(UUID.randomUUID(), brewery, "Admin", Set.of());
+        assertThat(withBrewery.requireBrewery()).isEqualTo(brewery);
+
+        var identityOnly = SecurityPrincipal.identityOnly(UUID.randomUUID(), "Brewer");
+        assertThatThrownBy(identityOnly::requireBrewery).isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
     void requirePermissionPassesWhenGranted() {
         var principal = new SecurityPrincipal(UUID.randomUUID(), UUID.randomUUID(), "Admin",
                 Set.of("security.user.read"));

@@ -32,4 +32,12 @@ public record SecurityPrincipal(
             throw new AccessDeniedException("permission denied");
         }
     }
+
+    /** Cervejaria ativa da sessão; nega quando a operação exige tenant e não há. */
+    public UUID requireBrewery() {
+        if (breweryId == null) {
+            throw new AccessDeniedException("nenhuma cervejaria ativa");
+        }
+        return breweryId;
+    }
 }

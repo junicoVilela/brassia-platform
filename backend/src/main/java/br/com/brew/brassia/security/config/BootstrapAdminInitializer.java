@@ -94,10 +94,10 @@ class BootstrapAdminInitializer implements ApplicationRunner {
     private void ensureAdminMembership(UserId userId, EmailAddress email) {
         var groupId = memberships.groupIdByCode(ADMIN_GROUP)
                 .orElseThrow(() -> new IllegalStateException("grupo " + ADMIN_GROUP + " não semeado"));
-        if (memberships.hasMembership(userId, groupId)) {
+        if (memberships.hasActiveMembership(userId, groupId, null)) {
             return;
         }
-        memberships.addMembership(userId, groupId);
+        memberships.addMembership(userId, groupId, null);
         audit.record(AuditEvent.success(null, userId.value(), "security.bootstrap.admin",
                 "security_user", userId.value().toString(), Map.of("group", ADMIN_GROUP)));
         log.info("bootstrap-admin: {} associado ao grupo {}", email.normalized(), ADMIN_GROUP);

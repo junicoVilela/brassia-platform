@@ -16,8 +16,8 @@ npm test      # testes unitários (Vitest, via @angular/build:unit-test)
 ```
 
 O dev server faz proxy para a API? Ainda não: configure `proxy.conf.json` quando
-o backend expuser rotas consumidas pela UI. A API roda por padrão em `:8081` no
-perfil local do backend.
+o backend expuser rotas consumidas pela UI. A API roda por padrão em `:8080` no
+perfil local do backend (sobrescreva com `SERVER_PORT` se a porta estiver em uso).
 
 ## Estrutura (feature-first)
 

@@ -118,6 +118,21 @@ class SecurityUserConfiguration {
     }
 
     @Bean
+    br.com.brew.brassia.security.application.port.inbound.ChangePasswordUseCase changePasswordUseCase(
+            PasswordCredentialRepository credentials,
+            br.com.brew.brassia.security.application.port.outbound.PasswordHistoryRepository history,
+            PasswordHasher passwordHasher,
+            br.com.brew.brassia.security.application.service.PasswordPolicy passwordPolicy,
+            AuditTrail audit,
+            @org.springframework.beans.factory.annotation.Value("${brassia.security.password.history-size:5}") int historySize,
+            PlatformTransactionManager transactionManager) {
+        var handler = new br.com.brew.brassia.security.application.service.ChangePasswordHandler(
+                credentials, history, passwordHasher, passwordPolicy, audit, historySize);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
     SessionContextResolver sessionContextResolver(
             BreweryAccessRepository breweryAccess,
             br.com.brew.brassia.brewery.BreweryDirectory breweryDirectory,

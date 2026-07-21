@@ -2,6 +2,7 @@ package br.com.brew.brassia.security.adapter.inbound.web;
 
 import br.com.brew.brassia.brewery.BreweryRef;
 import br.com.brew.brassia.security.application.port.inbound.AuthenticateUserUseCase;
+import br.com.brew.brassia.security.application.port.inbound.ChangePasswordUseCase;
 import br.com.brew.brassia.security.application.service.SessionContext;
 import br.com.brew.brassia.security.application.service.SessionContextResolver;
 import br.com.brew.brassia.security.domain.UserId;
@@ -34,12 +35,15 @@ import org.springframework.web.bind.annotation.RestController;
 final class AuthenticationController {
     private final AuthenticateUserUseCase authenticate;
     private final SessionContextResolver sessionContext;
+    private final ChangePasswordUseCase changePassword;
     private final SecurityContextRepository contextRepository = new HttpSessionSecurityContextRepository();
     private final SecurityContextHolderStrategy holder = SecurityContextHolder.getContextHolderStrategy();
 
-    AuthenticationController(AuthenticateUserUseCase authenticate, SessionContextResolver sessionContext) {
+    AuthenticationController(AuthenticateUserUseCase authenticate, SessionContextResolver sessionContext,
+            ChangePasswordUseCase changePassword) {
         this.authenticate = authenticate;
         this.sessionContext = sessionContext;
+        this.changePassword = changePassword;
     }
 
     // Público: resolver o CsrfToken força a emissão do cookie XSRF-TOKEN.
@@ -84,6 +88,14 @@ final class AuthenticationController {
         return toResponse(principal, context);
     }
 
+    @PostMapping("/password/change")
+    ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        changePassword.handle(new ChangePasswordUseCase.Command(
+                principal.userId(), request.currentPassword(), request.newPassword()));
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/logout")
     ResponseEntity<Void> logout(HttpServletRequest httpRequest) {
         var session = httpRequest.getSession(false);
@@ -123,6 +135,8 @@ final class AuthenticationController {
     }
 
     record LoginRequest(@NotBlank String email, @NotBlank String password) {}
+
+    record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank String newPassword) {}
 
     record SwitchBreweryRequest(@NotNull UUID breweryId) {}
 

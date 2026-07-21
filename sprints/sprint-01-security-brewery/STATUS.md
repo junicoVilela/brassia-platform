@@ -10,7 +10,7 @@ Estado: EM ANDAMENTO
 | SEC-002 | Concluída | Claude/junico | backend (IT) + UI de login (Vitest) verdes | Autenticação por senha, sessão no Postgres (cookie), rotação, logout; página de login, guard de rota e sessão no header. |
 | SEC-003 | A fazer | — | — | — |
 | SEC-004 | Em progresso | Claude/junico | catálogo + resolução + bootstrap: AuthorizationIT verde | RBAC global: catálogo/grupo Administradores (seed V5), permissões resolvidas no login, admin de bootstrap por config. Destrava dados reais. Falta CRUD de grupos/membros. |
-| SEC-005 | A fazer | — | — | — |
+| SEC-005 | Concluída (fatia 1) | Claude/junico | cervejaria ativa + escopo: AuthorizationIT + Vitest verdes | Login resolve acessíveis/ativa + permissões escopadas; troca de cervejaria; FKs de tenant (V7); brewery_id do principal (não do corpo); seletor no header. access_scope MODULE/RESOURCE fica para depois. |
 | SEC-006 | A fazer | — | — | — |
 | SEC-007 | A fazer | — | — | — |
 | SEC-008 | A fazer | — | — | — |
@@ -91,6 +91,16 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - Auditoria `brewery.register`; conflito de código → 409; sem permissão → 403.
 - **Tela Cervejarias** no frontend (feature `brewery`, mesmo padrão de `security/users`) + item na sidebar.
 - Fora de escopo: vínculo do `brewery` ao principal (cervejaria ativa) e escopo por tenant/FKs do RBAC — **SEC-005**; unidades/moeda/políticas — **BRW-002**.
+
+### SEC-005 — Cervejaria ativa e escopo (2026-07-21)
+
+- **Fronteira de módulo**: `security` não lê a tabela `brewery`; usa a porta exposta `br.com.brew.brassia.brewery.BreweryDirectory` (`findAll`/`findById` + `BreweryRef`). A cervejaria **default** é criada por bootstrap do próprio módulo `brewery` (`brassia.brewery.bootstrap.*`, ligado no local — `MATRIZ`). Modulith: `security → brewery` (tipo exposto).
+- **Resolução escopada**: `EffectivePermissionsRepository.findByUserId(userId, activeBreweryId)` filtra `brewery_id IS NULL OR = ativa` (associação global vale sempre; escopada só na sua cervejaria). `BreweryAccessRepository` (JDBC): `hasGlobalMembership`/`scopedBreweryIds`.
+- **`SessionContextResolver`**: resolve acessíveis (global → todas; escopado → subconjunto), ativa (pedida se acessível, senão a primeira por código; pedida não acessível → `AccessDeniedException`/403) e permissões escopadas. Usado no login (default) e na troca.
+- **Endpoints**: `POST /api/v1/security/session/brewery {breweryId}` (troca, 403 se não acessível); `GET /session` passa a devolver `activeBrewery` + `accessibleBreweries` + `permissions`. O principal (`SecurityPrincipal.breweryId`) carrega a **cervejaria ativa**; novo `requireBrewery()`.
+- **Tenant como autoridade**: `brewery_id` vem do principal (não do corpo) — `RecipeController` passou a usar `requireBrewery()`. Migration **V7** amarra as FKs de tenant (`user_group_membership`/`security_group` → `brewery`).
+- **Frontend**: `AuthService.switchBrewery` + **seletor de cervejaria** no header (ativa + acessíveis).
+- Fora de escopo: `access_scope` MODULE/RESOURCE e checagem cruzada por recurso; preferência persistente de cervejaria ativa; refresh de sessão on mudança de escopo (SEC-006).
 
 ## Evidências de encerramento
 

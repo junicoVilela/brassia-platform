@@ -76,10 +76,26 @@ paths:
         '429': {description: Limite de tentativas excedido (SEC-012)}
   /api/v1/security/session:
     get:
-      summary: Retorna o principal, cervejaria ativa e capabilities
+      summary: Retorna o principal, cervejaria ativa, acessíveis e permissões
       responses:
-        '200': {description: Sessão atual}
+        '200': {description: Sessão atual (activeBrewery, accessibleBreweries, permissions)}
         '401': {description: Não autenticado}
+  /api/v1/security/session/brewery:
+    post:
+      summary: Troca a cervejaria ativa da sessão
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [breweryId]
+              properties:
+                breweryId: {type: string, format: uuid}
+      responses:
+        '200': {description: Sessão atualizada com a nova cervejaria ativa}
+        '401': {description: Não autenticado}
+        '403': {description: Cervejaria não acessível}
   /api/v1/security/logout:
     post:
       summary: Revoga a sessão atual

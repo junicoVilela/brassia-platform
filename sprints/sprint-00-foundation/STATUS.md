@@ -7,7 +7,7 @@ Estado: EM ANDAMENTO (preparação da fundação)
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
 | FND-000 | Parcial | Claude/junico | git local `main`, commit bootstrap | Remoto adiado por decisão do usuário (só local por enquanto) |
-| FND-001 | Em andamento | Claude/junico | backend compila + 3 testes verdes | Frontend Angular oficial ainda não gerado |
+| FND-001 | Concluída | Claude/junico | backend 3 testes verdes; frontend build+2 testes verdes | Angular 22 real gerado e integrado |
 | FND-002 | Concluída | Claude/junico | migrations aplicadas em PG18 real; app sobe; health UP | Perfis local/test/prod criados; ver evidências |
 | FND-003 | A fazer | — | — | — |
 | FND-004 | Concluída | Claude/junico | 401/403/erros em problem+json validados via curl | Problem Details RFC 9457 + traceId |
@@ -34,6 +34,15 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - `./mvnw -B clean compile` → BUILD SUCCESS.
 - `./mvnw -B test` → `Tests run: 3, Failures: 0, Errors: 0` (ModularityTest, RecipeTest x2). BUILD SUCCESS.
 - JDK usado: `openjdk 25.0.3 Temurin-25.0.3+9-LTS`.
+
+### FND-001 — Frontend Angular 22 (validado em 2026-07-21)
+
+- Projeto real gerado com Angular CLI **22.0.7** (`@angular/build`), **zoneless** (sem zone.js), TypeScript 6.0, **Vitest** como runner padrão (`@angular/build:unit-test` + jsdom).
+- Estrutura feature-first preservada do scaffold: `core/http` (ProblemDetails RFC 9457 + interceptor), `features/recipes` (domain, data-access com Signals, page). Shell `App` standalone com `<router-outlet />`; rota `recipes` com lazy-load.
+- `app.config.ts` compõe `provideZonelessChangeDetection`, `provideRouter`, `provideHttpClient(withInterceptors([...]))` e `provideBrowserGlobalErrorListeners`.
+- `package-lock.json` versionado; `styles.scss` importa os tokens.
+- Evidência: `npm install` (459 pacotes), `npm run build` → bundle OK com lazy chunks `recipe-list-page` e `recipes-routes`; `npm test` → **2 arquivos, 2 testes verdes** (Vitest).
+- Pendente (refinamento): ESLint com regra de fronteira de import e `proxy.conf.json` para a API.
 
 ### FND-002 — Ambiente local (validado em 2026-07-20)
 

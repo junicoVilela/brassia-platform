@@ -9,7 +9,7 @@ Estado: CONCLUÍDA com ressalvas (ver ACCEPTANCE — DEBT-CI-001 proteção da m
 | FND-000 | Concluída | Claude/junico | `github.com/junicoVilela/brassia-platform` (privado), `main` publicada | Proteção de branch fica para depois da CI (FND-003) |
 | FND-001 | Concluída | Claude/junico | backend 3 testes verdes; frontend build+2 testes verdes | Angular 22 real gerado e integrado |
 | FND-002 | Concluída | Claude/junico | migrations aplicadas em PG18 real; app sobe; health UP | Perfis local/test/prod criados; ver evidências |
-| FND-003 | Parcial | Claude/junico | CI verde (4 jobs); proteção da main BLOQUEADA (plano) | Ver bloqueio abaixo |
+| FND-003 | Concluída | Claude/junico | CI verde (4 jobs); proteção da main aplicada (repo público) | Ver evidência abaixo |
 | FND-004 | Concluída | Claude/junico | 401/403/erros em problem+json validados via curl | Problem Details RFC 9457 + traceId |
 | FND-005 | Concluída | Claude/junico | prometheus 200; ECS JSON; 6 testes verdes | Auditoria + observabilidade + mascaramento |
 | FND-006 | Concluída | Claude/junico | ver evidências abaixo | Baseline fixado e validado |
@@ -63,10 +63,11 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - Evidência: run **success** — https://github.com/junicoVilela/brassia-platform/actions/runs/29799869326 (backend 55s, frontend 38s).
 - `.github/dependabot.yml`: atualizações semanais de maven, npm e github-actions.
 
-**BLOQUEADO — Proteção da branch `main`.** A API de rulesets/branch protection retorna **HTTP 403**: "Upgrade to GitHub Pro or make this repository public to enable this feature." O plano Free não permite proteção em repositório **privado**. Desbloqueio (decisão do usuário), qualquer um destes:
-1. Assinar **GitHub Pro** e então rodar o ruleset (PR + 4 checks + bloqueio de force-push/deleção). O JSON pronto está em `/tmp/ruleset.json` / posso recriá-lo.
-2. Tornar o repositório **público** (proteção fica gratuita) — exige decidir licença antes.
-3. Manter sem proteção por ora (disciplina de PR manual).
+**Proteção da branch `main` — aplicada (2026-07-21).** Decisão do usuário: repositório
+tornado **público** (licença **proprietária**, sem LICENSE OSS) para habilitar a proteção
+gratuita. Ruleset ativo na `main`: exige **Pull Request** + os **4 checks** de CI verdes,
+bloqueia **force-push** (`non_fast_forward`) e **deleção**. A partir daqui, mudanças na `main`
+entram por PR. DEBT-CI-001 resolvido.
 
 ### FND-000 — Repositório remoto (criado em 2026-07-21)
 

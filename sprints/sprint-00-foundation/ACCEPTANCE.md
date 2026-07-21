@@ -39,7 +39,7 @@ limpo (`git clone` do remoto) em 2026-07-21.
 
 | ID | Débito | Critério de remoção |
 |---|---|---|
-| DEBT-CI-001 | Proteção da `main` não aplicada — rulesets exigem GitHub Pro em repo privado (HTTP 403). | Assinar Pro (ou tornar público) e aplicar ruleset: PR + 4 checks + bloqueio de force-push/deleção. |
+| ~~DEBT-CI-001~~ (RESOLVIDO 2026-07-21) | Proteção da `main` — repo tornado público (licença proprietária) e ruleset aplicado: PR + 4 checks + bloqueio de force-push/deleção. | — |
 | DEBT-FE-001 | Frontend sem ESLint com regra de fronteira de import (só Prettier presente). | Adicionar ESLint + regra de camadas (core/features) reprovando import proibido; incluir no job de CI do frontend. |
 | DEBT-FE-002 | Sem `proxy.conf.json` e sem verificação ponta-a-ponta frontend↔API. | Configurar proxy do dev server para a API (8081) e um teste/checagem da jornada de receitas. |
 | DEBT-DOC-001 | `.ai/DEFINITION_OF_DONE.md` não percorrido formalmente item a item. | Executar o checklist completo e anexar evidência ao encerramento. |

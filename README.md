@@ -9,10 +9,11 @@ projetos de código do produto. Foi inicializado a partir do
 `scaffold/` de referência foi promovido para `backend/` e `frontend/`. A
 documentação (ADRs, diagramas, roadmap e referências) foi consolidada sob `docs/`.
 
-> Estado atual: **esqueleto estruturado**. O código em `backend/` e `frontend/`
-> é a fatia de referência do scaffold, ainda não os projetos oficiais gerados.
-> Execute `sprints/sprint-00-foundation/RUNBOOK.md` para gerar os projetos reais,
-> banco migrado, contratos, observabilidade e CI verde.
+> Estado atual: **Sprint 00 (fundação) concluída**. Backend Spring Boot 4.1 e
+> frontend Angular 22 são projetos reais e executáveis; PostgreSQL 18 com migrations
+> Flyway, Problem Details (RFC 9457), auditoria/observabilidade e CI (GitHub Actions)
+> verdes. Débitos e ressalvas em `sprints/sprint-00-foundation/ACCEPTANCE.md`.
+> Próximo: Sprint 01 (segurança e cadastro de cervejaria).
 
 ## Identidade canônica
 
@@ -74,5 +75,12 @@ Consulte `docs/19_LOCAL_ENVIRONMENT.md` para subida, reset e diagnóstico.
 
 ## Próximo passo
 
-Executar `sprints/sprint-00-foundation/RUNBOOK.md` para transformar este
-esqueleto nos projetos oficiais executáveis.
+Iniciar a **Sprint 01** (segurança e cadastro de cervejaria) a partir de
+`sprints/sprint-01-security-brewery/`.
+
+## Licença
+
+Software **proprietário** — © Brew. Todos os direitos reservados. Este repositório
+é público apenas para fins operacionais; nenhum arquivo de licença de código aberto
+é concedido. O conteúdo (código, especificação, blueprints e documentação) não pode
+ser copiado, reutilizado ou redistribuído sem autorização expressa.

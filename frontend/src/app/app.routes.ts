@@ -15,6 +15,10 @@ export const routes: Routes = [
         loadChildren: () => import('./features/recipes/recipes.routes').then(m => m.RECIPE_ROUTES),
       },
       {
+        path: 'breweries',
+        loadChildren: () => import('./features/brewery/brewery.routes').then(m => m.BREWERY_ROUTES),
+      },
+      {
         path: 'security/users',
         loadChildren: () =>
           import('./features/security/users/security-users.routes').then(m => m.SECURITY_USERS_ROUTES),

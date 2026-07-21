@@ -22,7 +22,7 @@ Estado: EM ANDAMENTO
 | SEC-014 | A fazer | — | — | — |
 | SEC-015 | A fazer | — | — | — |
 | SEC-016 | A fazer | — | — | — |
-| BRW-001 | A fazer | — | — | — |
+| BRW-001 | Concluída | Claude/junico | backend (BreweryIT) + tela: verdes | Cadastro/listagem de cervejaria (código único, fuso), auditado; permissões brewery.* no catálogo; tela Cervejarias no shell. Vínculo ao principal/tenant é SEC-005. |
 | BRW-002 | A fazer | — | — | — |
 
 ## Decisões e bloqueios
@@ -84,6 +84,13 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Frontend `core/auth`**: `AuthApi` (csrf/login/logout/session), `AuthService` (Signals: `user`/`isAuthenticated`, `ensureSession` cacheia a consulta), `authGuard` (redireciona a `/login?returnUrl=` quando não autenticado).
 - **Página de login** (`features/auth/login-page`) no card fiel do tema Fila (rota pública `/login`, fora do shell); o shell passa a ser protegido pelo `authGuard`. O header mostra o nome do usuário e o botão **Sair** (logout → `/login`).
 - **Sem dados reais ainda**: após logar, as telas com endpoints permissionados seguem `403` até a SEC-004 (RBAC). Guard/login e identidade funcionam fim a fim.
+
+### BRW-001 — Cadastrar cervejaria (2026-07-21)
+
+- Novo módulo Modulith `brewery` (espelha `recipe`): agregado `Brewery` (code único normalizado, name, `Timezone` via `ZoneId`), `RegisterBreweryUseCase`/`ListBreweriesUseCase`, adapters JPA e `BreweryController` (`POST`/`GET /api/v1/breweries`). Migration `V6__brewery.sql` (tabela + seed das permissões `brewery.read`/`brewery.manage` no catálogo e no grupo Administradores).
+- Auditoria `brewery.register`; conflito de código → 409; sem permissão → 403.
+- **Tela Cervejarias** no frontend (feature `brewery`, mesmo padrão de `security/users`) + item na sidebar.
+- Fora de escopo: vínculo do `brewery` ao principal (cervejaria ativa) e escopo por tenant/FKs do RBAC — **SEC-005**; unidades/moeda/políticas — **BRW-002**.
 
 ## Evidências de encerramento
 

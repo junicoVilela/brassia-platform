@@ -23,6 +23,27 @@ paths:
       responses:
         '200': {description: Published}
         '409': {$ref: '#/components/responses/Problem'}
+  /breweries:
+    get:
+      operationId: listBreweries
+      parameters:
+        - {name: page, in: query, schema: {type: integer, default: 0}}
+        - {name: size, in: query, schema: {type: integer, default: 20}}
+      responses:
+        '200': {description: Página de cervejarias}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: registerBrewery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterBrewery'}
+      responses:
+        '201': {description: Cervejaria cadastrada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /brew-orders/{orderId}/start:
     post:
       operationId: startBrewOrder
@@ -45,6 +66,13 @@ paths:
         '201': {description: Recorded}
 components:
   schemas:
+    RegisterBrewery:
+      type: object
+      required: [code, name, timezone]
+      properties:
+        code: {type: string, maxLength: 40}
+        name: {type: string, maxLength: 160}
+        timezone: {type: string, maxLength: 80}
     Measurement:
       type: object
       required: [parameter, value, unit, measuredAt, source]

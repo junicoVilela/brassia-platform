@@ -88,6 +88,11 @@ class InviteUserHandlerTest {
         }
 
         @Override
+        public java.util.Optional<SecurityUser> findById(br.com.brew.brassia.security.domain.UserId id) {
+            return saved.stream().filter(u -> u.id().equals(id)).findFirst();
+        }
+
+        @Override
         public void save(SecurityUser user) {
             saved.add(user);
         }
@@ -99,6 +104,11 @@ class InviteUserHandlerTest {
         @Override
         public void save(AccountToken token) {
             saved.add(token);
+        }
+
+        @Override
+        public java.util.Optional<AccountToken> findInvitationByHash(String tokenHash) {
+            return saved.stream().filter(t -> t.tokenHash().equals(tokenHash)).findFirst();
         }
     }
 

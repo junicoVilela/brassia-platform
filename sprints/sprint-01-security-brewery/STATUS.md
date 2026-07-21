@@ -6,7 +6,7 @@ Estado: EM ANDAMENTO
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| SEC-001 | Em progresso | Claude/junico | fatia de convite: domínio+aplicação+web+IT verdes | Cadastro/convite entregue (INVITED + token hash + auditoria + 409). Faltam verificar/ativar/bloquear/desativar e a UI. |
+| SEC-001 | Em progresso | Claude/junico | fatias de convite + aceite: domínio+aplicação+web+IT verdes | Convite (INVITED) e aceite (verifica e-mail + ACTIVE) entregues. Faltam bloquear/desbloquear, desativar (revogando sessões) e a UI. |
 | SEC-002 | A fazer | — | — | — |
 | SEC-003 | A fazer | — | — | — |
 | SEC-004 | A fazer | — | — | — |
@@ -36,6 +36,14 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Entrega de e-mail adiada**: sem SMTP nesta sprint. `NotificationGateway` é um stub que loga (token bruto só em DEBUG, desligado em prod). A entrega real fica para sprint futura. Token nunca aparece em resposta HTTP nem na auditoria.
 - **Correção transversal**: `ApiExceptionHandler` passou a traduzir `AccessDeniedException` (lançada por `requirePermission` dentro do controller) em `403`; antes cairia no handler genérico (500). Beneficia também o `RecipeController`.
 - Migration nova: `V3__security__users.sql` (`security_user`, `account_token`).
+
+### SEC-001 — fatia de aceite/ativação (2026-07-21)
+
+- Endpoint **público** `POST /api/v1/security/users/accept-invitation`: valida o token de convite (hash, tipo, não usado, não expirado), verifica o e-mail e ativa a conta (`INVITED → ACTIVE`), consumindo o token (uso único). Auditoria `security.user.activate`.
+- **Público e isento de CSRF**: o convidado ainda não tem sessão; a requisição é autenticada pelo token do link (sem autoridade ambiente a proteger). Adicionado a `permitAll` e a `ignoringRequestMatchers`.
+- **Senha fica para a SEC-003**: aceitar o convite não define senha; ativa a conta. Consequência registrada: uma conta `ACTIVE` sem credencial de senha ainda não autentica (login é SEC-002).
+- **Mensagens genéricas** (anti-enumeração): token inválido/expirado/usado → `400 bad_request`; conta fora de `INVITED` → `409`.
+- Introduzido o **primeiro ciclo de update de agregado** (load→mutate→save) com **optimistic locking** via `@Version` no `security_user`; o `account_token` é consumido por atualização de `used_at`.
 
 ## Evidências de encerramento
 

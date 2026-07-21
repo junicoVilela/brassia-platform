@@ -2,6 +2,7 @@ package br.com.brew.brassia.security.adapter.outbound.persistence;
 
 import br.com.brew.brassia.security.application.port.outbound.AccountTokenRepository;
 import br.com.brew.brassia.security.domain.AccountToken;
+import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 // Não pode ser final: @Repository é proxiado (CGLIB) para tradução de exceções.
@@ -16,5 +17,11 @@ class JpaAccountTokenRepositoryAdapter implements AccountTokenRepository {
     @Override
     public void save(AccountToken token) {
         repository.save(AccountTokenJpaEntity.from(token));
+    }
+
+    @Override
+    public Optional<AccountToken> findInvitationByHash(String tokenHash) {
+        return repository.findByTokenHashAndTokenType(tokenHash, AccountToken.Type.INVITATION.name())
+                .map(AccountTokenJpaEntity::toDomain);
     }
 }

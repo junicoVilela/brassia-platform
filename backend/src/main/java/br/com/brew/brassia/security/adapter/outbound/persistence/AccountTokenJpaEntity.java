@@ -1,6 +1,7 @@
 package br.com.brew.brassia.security.adapter.outbound.persistence;
 
 import br.com.brew.brassia.security.domain.AccountToken;
+import br.com.brew.brassia.security.domain.UserId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -28,5 +29,15 @@ class AccountTokenJpaEntity {
         entity.expiresAt = token.expiresAt();
         entity.usedAt = token.usedAt();
         return entity;
+    }
+
+    AccountToken toDomain() {
+        return AccountToken.reconstitute(
+                id,
+                new UserId(userId),
+                AccountToken.Type.valueOf(tokenType),
+                tokenHash,
+                expiresAt,
+                usedAt);
     }
 }

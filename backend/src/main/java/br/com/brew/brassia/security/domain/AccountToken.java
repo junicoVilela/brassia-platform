@@ -32,6 +32,14 @@ public final class AccountToken {
         return new AccountToken(UUID.randomUUID(), userId, Type.INVITATION, tokenHash, expiresAt);
     }
 
+    /** Reconstrói o token a partir da persistência. */
+    public static AccountToken reconstitute(UUID id, UserId userId, Type type,
+            String tokenHash, Instant expiresAt, Instant usedAt) {
+        var token = new AccountToken(id, userId, type, tokenHash, expiresAt);
+        token.usedAt = usedAt;
+        return token;
+    }
+
     public boolean isExpired(Instant now) {
         return !now.isBefore(expiresAt);
     }

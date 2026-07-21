@@ -98,6 +98,8 @@ class AdministerAccountHandlerTest {
 
         @Override public boolean existsByNormalizedEmail(String normalizedEmail) { return false; }
         @Override public Optional<SecurityUser> findById(UserId id) { return Optional.ofNullable(store.get(id)); }
+        @Override public java.util.List<SecurityUser> findPage(int page, int size) { return java.util.List.copyOf(store.values()); }
+        @Override public long count() { return store.size(); }
         @Override public void save(SecurityUser user) { store.put(user.id(), user); }
     }
 

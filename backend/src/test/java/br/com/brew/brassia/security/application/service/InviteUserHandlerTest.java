@@ -93,6 +93,16 @@ class InviteUserHandlerTest {
         }
 
         @Override
+        public java.util.List<SecurityUser> findPage(int page, int size) {
+            return java.util.List.copyOf(saved);
+        }
+
+        @Override
+        public long count() {
+            return saved.size();
+        }
+
+        @Override
         public void save(SecurityUser user) {
             saved.add(user);
         }

@@ -1,0 +1,95 @@
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+
+/**
+ * Shell de layout (tema Fila): sidebar + header + área de conteúdo + footer.
+ * O colapso da sidebar usa o atributo `sidebar-data-theme=sidebar-hide` num
+ * ancestral de `.sidebar-area` (convenção do tema), aqui o host do componente.
+ */
+@Component({
+  selector: 'app-shell',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  host: {
+    '[attr.sidebar-data-theme]': "collapsed() ? 'sidebar-hide' : null",
+  },
+  template: `
+    <div class="sidebar-area" id="sidebar-area">
+      <div class="logo position-relative d-flex align-items-center justify-content-between">
+        <a routerLink="/" class="d-flex align-items-center gap-2 text-decoration-none">
+          <img src="assets/fila/images/logo-icon.png" alt="BrassIA" width="32" height="32">
+          <span class="logo-text text-secondary fw-semibold">BrassIA</span>
+        </a>
+        <button type="button" class="sidebar-burger-menu bg-transparent p-0 border-0 d-lg-none"
+                (click)="toggle()" aria-label="Alternar menu">
+          <i class="ri-menu-line fs-4"></i>
+        </button>
+      </div>
+
+      <aside id="layout-menu" class="layout-menu menu-vertical menu active">
+        <ul class="menu-inner">
+          <li class="menu-title small text-uppercase"><span class="menu-title-text">Operação</span></li>
+          <li class="menu-item">
+            <a routerLink="/recipes" routerLinkActive="active" class="menu-link">
+              <i class="ri-book-2-line menu-icon"></i>
+              <span class="title">Receitas</span>
+            </a>
+          </li>
+          <li class="menu-title small text-uppercase"><span class="menu-title-text">Segurança</span></li>
+          <li class="menu-item">
+            <a routerLink="/security/users" routerLinkActive="active" class="menu-link">
+              <i class="ri-group-line menu-icon"></i>
+              <span class="title">Usuários</span>
+            </a>
+          </li>
+        </ul>
+      </aside>
+    </div>
+
+    <div class="main-content d-flex flex-column">
+      <header class="header-area bg-white mb-4 rounded-10 border border-white" id="header-area">
+        <div class="d-md-flex align-items-center justify-content-between">
+          <div class="left-header-content">
+            <button type="button" class="header-burger-menu bg-transparent p-0 border-0"
+                    (click)="toggle()" aria-label="Alternar menu">
+              <i class="ri-menu-line fs-4"></i>
+            </button>
+          </div>
+          <div class="right-header-content mt-3 mt-md-0">
+            <ul class="d-flex align-items-center mb-0 ps-0 list-unstyled">
+              <li class="dropdown">
+                <a href="javascript:void(0);" class="dropdown-toggle d-flex align-items-center gap-2 text-decoration-none text-body"
+                   data-bs-toggle="dropdown" aria-expanded="false">
+                  <span class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
+                        style="width:36px;height:36px;">BR</span>
+                  <span class="d-none d-sm-inline fw-medium">Brewer</span>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li><span class="dropdown-item-text text-muted small">Sessão não iniciada (SEC-002)</span></li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </header>
+
+      <div class="main-content-container overflow-hidden">
+        <router-outlet />
+      </div>
+
+      <footer class="footer-area bg-white text-center rounded-10 rounded-bottom-0 mt-4">
+        <p class="mb-0 py-3 text-muted small">BrassIA — Plataforma inteligente de gestão cervejeira</p>
+      </footer>
+    </div>
+  `,
+  styles: `
+    :host { display: block; }
+  `,
+})
+export class ShellComponent {
+  protected readonly collapsed = signal(false);
+
+  protected toggle(): void {
+    this.collapsed.update(value => !value);
+  }
+}

@@ -6,7 +6,7 @@ Estado: EM ANDAMENTO
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| SEC-001 | Em progresso | Claude/junico | convite + aceite + administração: domínio+aplicação+web+IT verdes | Convite (INVITED), aceite (ACTIVE) e administração (bloquear/desbloquear/desativar) entregues. Falta a UI (tela de usuários). |
+| SEC-001 | Concluída | Claude/junico | convite + aceite + administração + UI: backend (IT) e frontend (Vitest) verdes | Ciclo de conta completo (convidar/verificar/ativar/bloquear/desbloquear/desativar) + GET de listagem + tela de usuários no shell do tema Fila. |
 | SEC-002 | A fazer | — | — | — |
 | SEC-003 | A fazer | — | — | — |
 | SEC-004 | A fazer | — | — | — |
@@ -51,6 +51,14 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - Sem migration nova: o `CHECK` de `status` em `V3` já cobre `LOCKED`/`DISABLED`.
 - **Revogação de sessões**: porta `UserSessionRegistry`; adapter via Spring Session `FindByIndexNameSessionRepository` **opcional** (`ObjectProvider`). Enquanto não houver login (SEC-002) criando sessões indexadas pelo id do usuário, a revogação é um **no-op seguro**; passa a valer automaticamente quando o repositório indexado existir. Débito implícito rastreado por esta nota (efetivação plena com SEC-002/SEC-006).
 - Transições inválidas → `409` (ex.: desbloquear conta ativa, desativar conta já desativada); conta inexistente → `400`.
+
+### SEC-001 — fatia de UI + shell de layout (2026-07-21)
+
+- **Endpoint de listagem**: `GET /api/v1/security/users` (paginado, permissão `security.user.read`) — necessário para a tabela. `ListUsersUseCase`/`ListUsersHandler` + `findPage`/`count` no repositório.
+- **Shell de layout** (`src/app/layout/shell.component.ts`) aplicando o **tema Fila** (Bootstrap 5 admin): sidebar (nav Receitas/Usuários) + header + footer; burger colapsa via atributo `sidebar-data-theme=sidebar-hide`. Todas as telas passam a viver no shell (rota pai).
+- **Tela de usuários** (`features/security/users`): tabela com status, formulário de convite e ações (bloquear/desbloquear/desativar por status); estados loading/vazio/erro/ação. Testada com Vitest + `HttpTestingController`.
+- **Tema pago em repo público**: os arquivos do Fila **não são versionados** (`/public/assets/fila/` no `.gitignore`); carregados em runtime por `theme-loader.ts`; setup em `frontend/THEME_SETUP.md`. Build/CI passam sem eles.
+- **Sem login ainda (SEC-002)**: a tela é construída/testada contra o contrato (HTTP mockado); ao vivo mostra o layout + estados, dados reais só com o login. Guarda de rota e dados ao vivo ficam para SEC-002.
 
 ## Evidências de encerramento
 

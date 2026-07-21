@@ -1,5 +1,8 @@
 # See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
+# Tema Fila (ThemeForest, pago) — não versionar em repo público. Ver THEME_SETUP.md.
+/public/assets/fila/
+
 # Compiled output
 /dist
 /tmp

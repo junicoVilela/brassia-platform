@@ -12,7 +12,7 @@ Estado: EM ANDAMENTO
 | SEC-004 | Em progresso (fatia 2) | Claude/junico | fatia1 + associações/catálogo: AccessManagementIT verde | RBAC: catálogo + resolução + bootstrap (fatia 1); leitura de permissões/grupos + associar/desassociar usuário↔grupo escopado à cervejaria ativa (fatia 2). Falta criar grupos/editar permissões (fatia 3) e a UI. |
 | SEC-005 | Concluída (fatia 1) | Claude/junico | cervejaria ativa + escopo: AuthorizationIT + Vitest verdes | Login resolve acessíveis/ativa + permissões escopadas; troca de cervejaria; FKs de tenant (V7); brewery_id do principal (não do corpo); seletor no header. access_scope MODULE/RESOURCE fica para depois. |
 | SEC-006 | Concluída (self-service) | Claude/junico | sessões + histórico: SessionIT verde | Habilitado Spring Session JDBC (sessão real no Postgres + repo indexado); listar/revogar as próprias sessões; histórico de login (login_event, IP/UA em hash). Admin-sobre-terceiros e dispositivos ficam para depois. |
-| SEC-007 | A fazer | — | — | — |
+| SEC-007 | Concluída | Claude/junico | persistência + consulta: AuditEventIT verde | Trilha `AuditTrail` agora persiste (append-only) em `audit_event` além de logar; diff mascarado, traceId; `GET /audit-events` por cervejaria (security.audit.read). Uma auditoria para todos os módulos. |
 | SEC-008 | A fazer | — | — | — |
 | SEC-009 | A fazer | — | — | — |
 | SEC-010 | A fazer | — | — | — |
@@ -126,6 +126,14 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Sessões** (self-service): `GET /sessions` lista as próprias com **ref mascarada** (prefixo do id — o id nunca é exposto); `DELETE /sessions/{ref}` revoga uma; `DELETE /sessions` revoga todas as outras (mantém a atual). Só opera sobre as sessões do próprio usuário (isolamento por índice de principal).
 - `SessionIT`: histórico sem plaintext; semear/listar/revogar sessões e isolamento entre usuários.
 - Fora de escopo: admin ver/revogar sessões e histórico de terceiros (fatia seguinte); dispositivos confiáveis, geolocalização e alertas de novo acesso (SEC-012); UI.
+
+### SEC-007 — Auditoria de segurança (2026-07-21)
+
+- **Persistência append-only**: o módulo `audit` ganhou `JdbcAuditTrail` (persiste em `audit_event` com metadados **mascarados** via `SensitiveDataMasker`, `trace_id` e `change_summary` jsonb) e um `CompositeAuditTrail` (`@Primary`) que registra **log + banco**. Todos os módulos (security/brewery/recipe) já usam `AuditTrail` → uma trilha única do sistema.
+- **Consulta**: porta exposta `AuditQuery` (`recent(breweryId, limit)`) + `JdbcAuditQuery`. `GET /api/v1/security/audit-events` (permissão `security.audit.read`, semeada na `V11`) devolve os eventos **da cervejaria ativa** (tenant-scoped; eventos globais como login ficam na visão de login-events da SEC-006).
+- Migration `V11__audit_event.sql` (tabela + seed da permissão). Sem FK para `brewery` (auditoria não acopla ao schema de outro módulo).
+- Testes: `JdbcAuditTrailTest` (metadados mascarados, sem segredo); `AuditEventIT` (ação auditada → persistida → `GET` tenant-scoped; global fora; `403` sem permissão).
+- Fora de escopo: filtros (ator/ação/intervalo), exportação, campos extras do modelo de referência (`actor_type`/`reason`/`ip_hash`), retenção e UI de auditoria.
 
 ## Evidências de encerramento
 

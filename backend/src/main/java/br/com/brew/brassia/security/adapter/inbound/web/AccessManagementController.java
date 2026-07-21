@@ -1,5 +1,6 @@
 package br.com.brew.brassia.security.adapter.inbound.web;
 
+import br.com.brew.brassia.audit.AuditQuery;
 import br.com.brew.brassia.security.application.port.inbound.AccessCatalogQuery;
 import br.com.brew.brassia.security.application.port.inbound.ManageMembershipUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
@@ -22,10 +23,20 @@ import org.springframework.web.bind.annotation.RestController;
 final class AccessManagementController {
     private final AccessCatalogQuery catalog;
     private final ManageMembershipUseCase manageMembership;
+    private final AuditQuery auditQuery;
 
-    AccessManagementController(AccessCatalogQuery catalog, ManageMembershipUseCase manageMembership) {
+    AccessManagementController(AccessCatalogQuery catalog, ManageMembershipUseCase manageMembership,
+            AuditQuery auditQuery) {
         this.catalog = catalog;
         this.manageMembership = manageMembership;
+        this.auditQuery = auditQuery;
+    }
+
+    @GetMapping("/audit-events")
+    List<AuditQuery.AuditEntry> auditEvents(@AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("security.audit.read");
+        // Tenant-scoped: só eventos da cervejaria ativa.
+        return auditQuery.recent(principal.requireBrewery(), 50);
     }
 
     @GetMapping("/permissions")

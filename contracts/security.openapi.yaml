@@ -3,6 +3,45 @@ info:
   title: BrassIA Security API
   version: 1.0.0
 paths:
+  /api/v1/security/permissions:
+    get:
+      summary: Catálogo de permissões (RBAC)
+      responses:
+        '200': {description: Lista de permissões}
+        '403': {description: Sem permissão security.permission.read}
+  /api/v1/security/groups:
+    get:
+      summary: Lista grupos com suas permissões
+      responses:
+        '200': {description: Lista de grupos}
+        '403': {description: Sem permissão security.group.read}
+  /api/v1/security/users/{userId}/memberships:
+    post:
+      summary: Associa o usuário a um grupo (na cervejaria ativa do ator)
+      parameters: [{name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [groupId]
+              properties:
+                groupId: {type: string, format: uuid}
+      responses:
+        '204': {description: Associado}
+        '403': {description: Sem permissão security.membership.manage}
+        '404': {description: Grupo ou usuário inexistente}
+        '409': {description: Associação já existe}
+  /api/v1/security/users/{userId}/memberships/{groupId}:
+    delete:
+      summary: Desassocia o usuário do grupo (na cervejaria ativa do ator)
+      parameters:
+        - {name: userId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: groupId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204': {description: Desassociado}
+        '403': {description: Sem permissão security.membership.manage}
   /api/v1/security/users:
     get:
       summary: Lista contas internas (visão administrativa, paginada)

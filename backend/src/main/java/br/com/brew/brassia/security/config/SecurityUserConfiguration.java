@@ -91,6 +91,26 @@ class SecurityUserConfiguration {
     }
 
     @Bean
+    br.com.brew.brassia.security.application.port.inbound.AccessCatalogQuery accessCatalogQuery(
+            br.com.brew.brassia.security.application.port.outbound.SecurityCatalogRepository catalog) {
+        return new br.com.brew.brassia.security.application.service.AccessCatalogQueryHandler(catalog);
+    }
+
+    @Bean
+    br.com.brew.brassia.security.application.port.inbound.ManageMembershipUseCase manageMembershipUseCase(
+            SecurityUserRepository users,
+            br.com.brew.brassia.security.application.port.outbound.GroupMembershipRepository memberships,
+            AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new br.com.brew.brassia.security.application.service.ManageMembershipHandler(users, memberships, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return new br.com.brew.brassia.security.application.port.inbound.ManageMembershipUseCase() {
+            @Override public void grant(Command c) { transaction.executeWithoutResult(s -> handler.grant(c)); }
+            @Override public void revoke(Command c) { transaction.executeWithoutResult(s -> handler.revoke(c)); }
+        };
+    }
+
+    @Bean
     SessionContextResolver sessionContextResolver(
             BreweryAccessRepository breweryAccess,
             br.com.brew.brassia.brewery.BreweryDirectory breweryDirectory,

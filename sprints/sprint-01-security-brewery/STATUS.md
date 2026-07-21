@@ -9,7 +9,7 @@ Estado: EM ANDAMENTO
 | SEC-001 | Concluída | Claude/junico | convite + aceite + administração + UI: backend (IT) e frontend (Vitest) verdes | Ciclo de conta completo (convidar/verificar/ativar/bloquear/desbloquear/desativar) + GET de listagem + tela de usuários no shell do tema Fila. |
 | SEC-002 | Concluída | Claude/junico | backend (IT) + UI de login (Vitest) verdes | Autenticação por senha, sessão no Postgres (cookie), rotação, logout; página de login, guard de rota e sessão no header. |
 | SEC-003 | A fazer | — | — | — |
-| SEC-004 | Em progresso | Claude/junico | catálogo + resolução + bootstrap: AuthorizationIT verde | RBAC global: catálogo/grupo Administradores (seed V5), permissões resolvidas no login, admin de bootstrap por config. Destrava dados reais. Falta CRUD de grupos/membros. |
+| SEC-004 | Em progresso (fatia 2) | Claude/junico | fatia1 + associações/catálogo: AccessManagementIT verde | RBAC: catálogo + resolução + bootstrap (fatia 1); leitura de permissões/grupos + associar/desassociar usuário↔grupo escopado à cervejaria ativa (fatia 2). Falta criar grupos/editar permissões (fatia 3) e a UI. |
 | SEC-005 | Concluída (fatia 1) | Claude/junico | cervejaria ativa + escopo: AuthorizationIT + Vitest verdes | Login resolve acessíveis/ativa + permissões escopadas; troca de cervejaria; FKs de tenant (V7); brewery_id do principal (não do corpo); seletor no header. access_scope MODULE/RESOURCE fica para depois. |
 | SEC-006 | A fazer | — | — | — |
 | SEC-007 | A fazer | — | — | — |
@@ -101,6 +101,14 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Tenant como autoridade**: `brewery_id` vem do principal (não do corpo) — `RecipeController` passou a usar `requireBrewery()`. Migration **V7** amarra as FKs de tenant (`user_group_membership`/`security_group` → `brewery`).
 - **Frontend**: `AuthService.switchBrewery` + **seletor de cervejaria** no header (ativa + acessíveis).
 - Fora de escopo: `access_scope` MODULE/RESOURCE e checagem cruzada por recurso; preferência persistente de cervejaria ativa; refresh de sessão on mudança de escopo (SEC-006).
+
+### SEC-004 — fatia 2: administração de acessos (2026-07-21)
+
+- **Leitura**: `GET /api/v1/security/permissions` (catálogo) e `GET /groups` (grupos + permissões via `array_agg`), com `security.permission.read`/`security.group.read`. `SecurityCatalogRepository` (JDBC) + `AccessCatalogQuery`.
+- **Associações**: `POST /users/{id}/memberships {groupId}` e `DELETE /users/{id}/memberships/{groupId}` (`security.membership.manage`). A associação é **sempre escopada à cervejaria ativa do principal** (`requireBrewery()`) — `brewery_id` não vem do corpo. Grupo inativo/inexistente e usuário inexistente rejeitados; duplicada → 409; auditoria `security.membership.grant|revoke`.
+- **Migration `V8`**: unicidade da associação por `(user_id, group_id, brewery_id)` (permite o mesmo grupo em cervejarias diferentes); seed das 3 permissões novas no catálogo + Administradores.
+- **Efeito ponta a ponta** (`AccessManagementIT`): usuário sem grupo → `GET /users` 403; admin associa ao grupo Administradores (cervejaria ativa) → ao relogar, `GET /users` 200.
+- Fora de escopo (fatia 3): criar grupos + editar permissões dos grupos; UI de gestão de acessos; associação global via UI (segue só no bootstrap).
 
 ## Evidências de encerramento
 

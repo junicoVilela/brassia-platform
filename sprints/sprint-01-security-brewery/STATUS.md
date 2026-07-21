@@ -9,7 +9,7 @@ Estado: EM ANDAMENTO
 | SEC-001 | Concluída | Claude/junico | convite + aceite + administração + UI: backend (IT) e frontend (Vitest) verdes | Ciclo de conta completo (convidar/verificar/ativar/bloquear/desbloquear/desativar) + GET de listagem + tela de usuários no shell do tema Fila. |
 | SEC-002 | Concluída | Claude/junico | backend (IT) + UI de login (Vitest) verdes | Autenticação por senha, sessão no Postgres (cookie), rotação, logout; página de login, guard de rota e sessão no header. |
 | SEC-003 | A fazer | — | — | — |
-| SEC-004 | A fazer | — | — | — |
+| SEC-004 | Em progresso | Claude/junico | catálogo + resolução + bootstrap: AuthorizationIT verde | RBAC global: catálogo/grupo Administradores (seed V5), permissões resolvidas no login, admin de bootstrap por config. Destrava dados reais. Falta CRUD de grupos/membros. |
 | SEC-005 | A fazer | — | — | — |
 | SEC-006 | A fazer | — | — | — |
 | SEC-007 | A fazer | — | — | — |
@@ -28,6 +28,15 @@ Estado: EM ANDAMENTO
 ## Decisões e bloqueios
 
 Registre aqui somente decisões temporárias, bloqueios e dependências. Decisão arquitetural permanente deve virar ADR; débito técnico deve ter identificador e critério de remoção.
+
+### SEC-004 — RBAC fatia 1 (2026-07-21)
+
+- **Migration `V5__security__rbac.sql`**: `permission_domain`, `security_permission`, `security_group`, `group_permission`, `user_group_membership`. Seed idempotente do catálogo (`recipe.create`, `security.user.read|invite|block|disable`) + grupo de sistema `ADMINISTRATORS` com todas as permissões.
+- **RBAC global nesta fatia**: `brewery_id` anulável e **sem FK** para `brewery` (que só existe na BRW-001). Escopo por cervejaria (`access_scope`) e tenant são SEC-005.
+- **Resolução no login**: `EffectivePermissionsRepository` (JDBC) junta associações ativas → grupos ativos → permissões ativas; `AuthenticateUserHandler` resolve e o `AuthenticationController` injeta as permissões no `SecurityPrincipal` da sessão. `GET /session` passa a listá-las. **Isto destrava os dados reais** nas telas permissionadas.
+- **Permissões cacheadas na sessão** (resolvidas no login). Re-resolução ao vivo após mudança de grupo é refinamento futuro (SEC-006).
+- **Bootstrap admin por config** (`brassia.security.bootstrap-admin.*`, ligado no perfil local): runner idempotente que garante uma conta ACTIVE + credencial no grupo `ADMINISTRATORS`. Resolve o ciclo inicial (convidar exige permissão). Conta/associação em transações separadas (a associação por FK exige a conta commitada). Credenciais locais descartáveis (`admin@brassia.local`).
+- Débito implícito: seed liga o admin a **todas** as permissões via `INSERT ... SELECT`; novas permissões futuras exigem re-seed/associação. Rastreado por esta nota; CRUD de grupos/permissões chega na próxima fatia.
 
 ### SEC-001 — fatia de convite (2026-07-21)
 

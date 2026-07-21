@@ -71,7 +71,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/LoginRequest'}
       responses:
-        '200': {description: Sessão criada; retorna identidade (sem cervejaria/permissões até SEC-004/005)}
+        '200': {description: Sessão criada; retorna identidade e permissões resolvidas dos grupos (cervejaria ativa é SEC-005)}
         '401': {description: Credenciais inválidas sem revelar a causa}
         '429': {description: Limite de tentativas excedido (SEC-012)}
   /api/v1/security/session:

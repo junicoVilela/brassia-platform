@@ -41,8 +41,11 @@ class AcceptInvitationHandlerTest {
         @Override public boolean needsUpgrade(String encoded) { return false; }
     };
 
+    private final java.util.Set<String> compromised = new java.util.HashSet<>();
+    private final PasswordPolicy passwordPolicy = new PasswordPolicy(compromised::contains);
+
     private AcceptInvitationHandler handler() {
-        return new AcceptInvitationHandler(users, tokens, credentials, tokenHasher, passwordHasher, audit);
+        return new AcceptInvitationHandler(users, tokens, credentials, tokenHasher, passwordHasher, passwordPolicy, audit);
     }
 
     private SecurityUser invited() {
@@ -67,6 +70,17 @@ class AcceptInvitationHandlerTest {
             assertThat(e.action()).isEqualTo("security.user.activate");
             assertThat(e.resourceType()).isEqualTo("security_user");
         });
+    }
+
+    @Test
+    void rejectsCompromisedPassword() {
+        var user = invited();
+        tokens.store.put("hash:raw", AccountToken.invitation(user.id(), "hash:raw", Instant.now().plus(Duration.ofHours(1))));
+        compromised.add("segredo1");
+
+        assertThatThrownBy(() -> handler().handle(new Command("raw", "segredo1")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(users.store.get(user.id()).status()).isEqualTo(AccountStatus.INVITED);
     }
 
     @Test

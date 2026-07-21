@@ -46,15 +46,22 @@ class SecurityUserConfiguration {
     }
 
     @Bean
+    br.com.brew.brassia.security.application.service.PasswordPolicy passwordPolicy(
+            br.com.brew.brassia.security.application.port.outbound.CompromisedPasswordChecker checker) {
+        return new br.com.brew.brassia.security.application.service.PasswordPolicy(checker);
+    }
+
+    @Bean
     AcceptInvitationUseCase acceptInvitationUseCase(
             SecurityUserRepository users,
             AccountTokenRepository tokens,
             PasswordCredentialRepository credentials,
             TokenHasher tokenHasher,
             PasswordHasher passwordHasher,
+            br.com.brew.brassia.security.application.service.PasswordPolicy passwordPolicy,
             AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new AcceptInvitationHandler(users, tokens, credentials, tokenHasher, passwordHasher, audit);
+        var handler = new AcceptInvitationHandler(users, tokens, credentials, tokenHasher, passwordHasher, passwordPolicy, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(
                 transaction.execute(status -> handler.handle(command)));

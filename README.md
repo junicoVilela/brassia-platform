@@ -5,9 +5,9 @@
 Este repositório reúne a especificação executável (fonte da verdade) e os
 projetos de código do produto. Foi inicializado a partir do
 *BrassIA AI Development Kit v6*: o pacote de especificação (`.ai/`, `docs/`,
-`adr/`, `contracts/`, `database/`, `sprints/`, `roadmap/`) foi trazido para
-dentro do repositório e o `scaffold/` de referência foi promovido para
-`backend/` e `frontend/`.
+`contracts/`, `database/`, `sprints/`) foi trazido para dentro do repositório e o
+`scaffold/` de referência foi promovido para `backend/` e `frontend/`. A
+documentação (ADRs, diagramas, roadmap e referências) foi consolidada sob `docs/`.
 
 > Estado atual: **esqueleto estruturado**. O código em `backend/` e `frontend/`
 > é a fatia de referência do scaffold, ainda não os projetos oficiais gerados.
@@ -42,14 +42,17 @@ brassia-platform/
 ├── e2e/           # jornadas críticas de ponta a ponta
 ├── contracts/     # OpenAPI, eventos e schemas
 ├── database/      # DDL inicial por domínio
-├── docs/          # arquitetura, domínio, regras, segurança, IA, testes, operação
-├── adr/           # decisões arquiteturais
-├── architecture/  # diagramas Mermaid
-├── roadmap/       # MVP, riscos, backlog e board de sprints
 ├── sprints/       # planejamento executável por sprint
-├── reference/     # blueprint e catálogo funcional consolidados
+├── docs/          # documentação viva (arquitetura, domínio, regras, segurança, IA, testes, operação)
+│   ├── adr/           # decisões arquiteturais
+│   ├── architecture/  # diagramas Mermaid
+│   ├── roadmap/       # MVP, riscos, backlog e board de sprints
+│   └── reference/     # blueprint e catálogo funcional consolidados
 └── .ai/           # contexto, regras e templates para agentes de IA
 ```
+
+Arquivos de raiz: `README.md`, `AGENTS.md` e `CLAUDE.md` (pontos de entrada).
+`CONTRIBUTING.md` e `SECURITY.md` ficam em `.github/`; `CURSOR.md` em `.cursor/`.
 
 ## Ambiente local
 

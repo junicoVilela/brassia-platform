@@ -8,7 +8,7 @@ Estado: EM ANDAMENTO
 |---|---|---|---|---|
 | SEC-001 | Concluída | Claude/junico | convite + aceite + administração + UI: backend (IT) e frontend (Vitest) verdes | Ciclo de conta completo (convidar/verificar/ativar/bloquear/desbloquear/desativar) + GET de listagem + tela de usuários no shell do tema Fila. |
 | SEC-002 | Concluída | Claude/junico | backend (IT) + UI de login (Vitest) verdes | Autenticação por senha, sessão no Postgres (cookie), rotação, logout; página de login, guard de rota e sessão no header. |
-| SEC-003 | A fazer | — | — | — |
+| SEC-003 | Concluída | Claude/junico | política + histórico + troca: PasswordIT verde | Blocklist de senhas comprometidas (offline) aplicada no aceite; endpoint autenticado de trocar senha com verificação da atual, política e histórico (não reusar últimas N). Sem expiração periódica. |
 | SEC-004 | Em progresso (fatia 2) | Claude/junico | fatia1 + associações/catálogo: AccessManagementIT verde | RBAC: catálogo + resolução + bootstrap (fatia 1); leitura de permissões/grupos + associar/desassociar usuário↔grupo escopado à cervejaria ativa (fatia 2). Falta criar grupos/editar permissões (fatia 3) e a UI. |
 | SEC-005 | Concluída (fatia 1) | Claude/junico | cervejaria ativa + escopo: AuthorizationIT + Vitest verdes | Login resolve acessíveis/ativa + permissões escopadas; troca de cervejaria; FKs de tenant (V7); brewery_id do principal (não do corpo); seletor no header. access_scope MODULE/RESOURCE fica para depois. |
 | SEC-006 | A fazer | — | — | — |
@@ -109,6 +109,15 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Migration `V8`**: unicidade da associação por `(user_id, group_id, brewery_id)` (permite o mesmo grupo em cervejarias diferentes); seed das 3 permissões novas no catálogo + Administradores.
 - **Efeito ponta a ponta** (`AccessManagementIT`): usuário sem grupo → `GET /users` 403; admin associa ao grupo Administradores (cervejaria ativa) → ao relogar, `GET /users` 200.
 - Fora de escopo (fatia 3): criar grupos + editar permissões dos grupos; UI de gestão de acessos; associação global via UI (segue só no bootstrap).
+
+### SEC-003 — Política e histórico de senha (2026-07-21)
+
+- **Blocklist offline** (`security/common-passwords.txt`): `CompromisedPasswordChecker` + adapter carregam a lista curada; `PasswordPolicy.validate` rejeita senha comum/comprometida (case-insensitive). Aplicada no `AcceptInvitationHandler` (primeiro set).
+- **Trocar senha** `POST /api/v1/security/password/change` (autenticado, self-service): verifica a senha atual, valida a nova pela política e **barra reutilização** da atual e das últimas N (`password_history`, `history-size` default 5). Grava a nova credencial e arquiva a antiga; auditoria `security.password.change` (sem senha).
+- **Migration `V9`**: `password_history` (só hashes) + índice por usuário/tempo.
+- **Sem expiração periódica** (NIST); política aceita Unicode/frases (só comprimento + blocklist).
+- **`PasswordIT`**: reuso/atual-incorreta/blocklist → 400; troca válida → 204; a antiga não loga (401), a nova sim; não pode voltar à anterior (histórico).
+- Fora de escopo: recuperação/reset de senha (SEC-010); verificação online (HIBP); UI de troca de senha.
 
 ## Evidências de encerramento
 

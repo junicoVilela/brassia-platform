@@ -46,15 +46,22 @@ class SecurityUserConfiguration {
     }
 
     @Bean
+    br.com.brew.brassia.security.application.service.PasswordPolicy passwordPolicy(
+            br.com.brew.brassia.security.application.port.outbound.CompromisedPasswordChecker checker) {
+        return new br.com.brew.brassia.security.application.service.PasswordPolicy(checker);
+    }
+
+    @Bean
     AcceptInvitationUseCase acceptInvitationUseCase(
             SecurityUserRepository users,
             AccountTokenRepository tokens,
             PasswordCredentialRepository credentials,
             TokenHasher tokenHasher,
             PasswordHasher passwordHasher,
+            br.com.brew.brassia.security.application.service.PasswordPolicy passwordPolicy,
             AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new AcceptInvitationHandler(users, tokens, credentials, tokenHasher, passwordHasher, audit);
+        var handler = new AcceptInvitationHandler(users, tokens, credentials, tokenHasher, passwordHasher, passwordPolicy, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(
                 transaction.execute(status -> handler.handle(command)));
@@ -108,6 +115,21 @@ class SecurityUserConfiguration {
             @Override public void grant(Command c) { transaction.executeWithoutResult(s -> handler.grant(c)); }
             @Override public void revoke(Command c) { transaction.executeWithoutResult(s -> handler.revoke(c)); }
         };
+    }
+
+    @Bean
+    br.com.brew.brassia.security.application.port.inbound.ChangePasswordUseCase changePasswordUseCase(
+            PasswordCredentialRepository credentials,
+            br.com.brew.brassia.security.application.port.outbound.PasswordHistoryRepository history,
+            PasswordHasher passwordHasher,
+            br.com.brew.brassia.security.application.service.PasswordPolicy passwordPolicy,
+            AuditTrail audit,
+            @org.springframework.beans.factory.annotation.Value("${brassia.security.password.history-size:5}") int historySize,
+            PlatformTransactionManager transactionManager) {
+        var handler = new br.com.brew.brassia.security.application.service.ChangePasswordHandler(
+                credentials, history, passwordHasher, passwordPolicy, audit, historySize);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
     }
 
     @Bean

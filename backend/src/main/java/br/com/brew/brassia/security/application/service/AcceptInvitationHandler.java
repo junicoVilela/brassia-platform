@@ -28,6 +28,7 @@ public final class AcceptInvitationHandler implements AcceptInvitationUseCase {
     private final PasswordCredentialRepository credentials;
     private final TokenHasher tokenHasher;
     private final PasswordHasher passwordHasher;
+    private final PasswordPolicy passwordPolicy;
     private final AuditTrail audit;
 
     public AcceptInvitationHandler(
@@ -36,18 +37,21 @@ public final class AcceptInvitationHandler implements AcceptInvitationUseCase {
             PasswordCredentialRepository credentials,
             TokenHasher tokenHasher,
             PasswordHasher passwordHasher,
+            PasswordPolicy passwordPolicy,
             AuditTrail audit) {
         this.users = Objects.requireNonNull(users);
         this.tokens = Objects.requireNonNull(tokens);
         this.credentials = Objects.requireNonNull(credentials);
         this.tokenHasher = Objects.requireNonNull(tokenHasher);
         this.passwordHasher = Objects.requireNonNull(passwordHasher);
+        this.passwordPolicy = Objects.requireNonNull(passwordPolicy);
         this.audit = Objects.requireNonNull(audit);
     }
 
     @Override
     public Result handle(Command command) {
         var password = new RawPassword(command.password()); // valida antes de mutar
+        passwordPolicy.validate(password); // rejeita senha comprometida
         var now = Instant.now();
         var token = tokens.findInvitationByHash(tokenHasher.hash(requireToken(command.rawToken())))
                 .orElseThrow(AcceptInvitationHandler::invalidToken);

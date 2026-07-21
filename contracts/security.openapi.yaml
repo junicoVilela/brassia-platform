@@ -135,6 +135,23 @@ paths:
         '200': {description: Sessão atualizada com a nova cervejaria ativa}
         '401': {description: Não autenticado}
         '403': {description: Cervejaria não acessível}
+  /api/v1/security/password/change:
+    post:
+      summary: Troca a própria senha (verifica a atual, política e histórico)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: {type: string}
+                newPassword: {type: string, minLength: 8, maxLength: 200}
+      responses:
+        '204': {description: Senha alterada}
+        '400': {description: Senha atual incorreta, comprometida ou reutilizada}
+        '401': {description: Não autenticado}
   /api/v1/security/logout:
     post:
       summary: Revoga a sessão atual

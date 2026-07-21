@@ -39,6 +39,7 @@ class SecurityConfiguration {
                                 "/api/v1/security/password/reset",
                                 "/api/v1/security/users/accept-invitation").permitAll()
                         .requestMatchers(HttpMethod.GET,
+                                "/api/v1/security/csrf",
                                 "/actuator/health/**",
                                 "/actuator/info",
                                 "/actuator/prometheus").permitAll()

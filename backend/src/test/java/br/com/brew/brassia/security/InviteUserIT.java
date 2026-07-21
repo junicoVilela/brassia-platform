@@ -188,6 +188,14 @@ class InviteUserIT {
     }
 
     @Test
+    void csrfEndpointIsPublic() throws Exception {
+        // Público e sem corpo; a emissão do cookie XSRF-TOKEN é do
+        // CookieCsrfTokenRepository (mecanismo do Spring), validada em runtime.
+        mockMvc.perform(get("/api/v1/security/csrf"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
     void loginRejectsWrongPassword() throws Exception {
         onboard("wrongpass-it@example.com", "segredo123");
 

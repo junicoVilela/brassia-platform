@@ -6,7 +6,7 @@ Estado: EM ANDAMENTO (preparação da fundação)
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| FND-000 | Parcial | Claude/junico | git local `main`, commit bootstrap | Remoto adiado por decisão do usuário (só local por enquanto) |
+| FND-000 | Concluída | Claude/junico | `github.com/junicoVilela/brassia-platform` (privado), `main` publicada | Proteção de branch fica para depois da CI (FND-003) |
 | FND-001 | Concluída | Claude/junico | backend 3 testes verdes; frontend build+2 testes verdes | Angular 22 real gerado e integrado |
 | FND-002 | Concluída | Claude/junico | migrations aplicadas em PG18 real; app sobe; health UP | Perfis local/test/prod criados; ver evidências |
 | FND-003 | A fazer | — | — | — |
@@ -43,6 +43,13 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - `package-lock.json` versionado; `styles.scss` importa os tokens.
 - Evidência: `npm install` (459 pacotes), `npm run build` → bundle OK com lazy chunks `recipe-list-page` e `recipes-routes`; `npm test` → **2 arquivos, 2 testes verdes** (Vitest).
 - Pendente (refinamento): ESLint com regra de fronteira de import e `proxy.conf.json` para a API.
+
+### FND-000 — Repositório remoto (criado em 2026-07-21)
+
+- Provedor GitHub, conta **junicoVilela**, repositório **`brassia-platform`**, visibilidade **privada**, descrição "BrassIA — Plataforma inteligente de gestão cervejeira".
+- `origin` via HTTPS sem credencial embutida; `main` publicada e rastreando `origin/main`; local e remoto no mesmo commit.
+- Nenhum segredo versionado (varredura de `.env`, chaves e tokens antes do push). Sem force-push nem reescrita de histórico.
+- Pendente: proteção de `main` (PR + CI verde + bloqueio de force-push), a configurar quando os checks existirem em FND-003.
 
 ### FND-005 — Auditoria e observabilidade (validado em 2026-07-21)
 

@@ -21,3 +21,12 @@ brassia:
   storage:
     provider: ${OBJECT_STORAGE_PROVIDER:filesystem}
     local-path: ${OBJECT_STORAGE_LOCAL_PATH:./data/objects}
+  security:
+    # Admin de bootstrap para desenvolvimento local (credenciais descartáveis).
+    # Resolve o ciclo inicial: dá um administrador logável que pode convidar os
+    # demais. Nunca habilitar/usar estes valores fora da máquina local.
+    bootstrap-admin:
+      enabled: ${BOOTSTRAP_ADMIN_ENABLED:true}
+      email: ${BOOTSTRAP_ADMIN_EMAIL:admin@brassia.local}
+      password: ${BOOTSTRAP_ADMIN_PASSWORD:admin-local-123}
+      name: ${BOOTSTRAP_ADMIN_NAME:Administrador Local}

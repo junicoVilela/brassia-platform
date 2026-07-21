@@ -81,6 +81,15 @@ class SecurityUserTest {
         assertThatThrownBy(user::disable).isInstanceOf(IllegalStateException.class);
     }
 
+    @Test
+    void activeAccountStartsActiveWithVerifiedEmail() {
+        var now = Instant.now();
+        var user = SecurityUser.activeAccount(new EmailAddress("admin@example.com"), new DisplayName("Admin"), now);
+
+        assertThat(user.status()).isEqualTo(AccountStatus.ACTIVE);
+        assertThat(user.emailVerifiedAt()).isEqualTo(now);
+    }
+
     private static SecurityUser active() {
         return SecurityUser.reconstitute(UserId.newId(), new EmailAddress("brewer@example.com"),
                 new DisplayName("Brewer"), AccountStatus.ACTIVE, Instant.now(), 1);

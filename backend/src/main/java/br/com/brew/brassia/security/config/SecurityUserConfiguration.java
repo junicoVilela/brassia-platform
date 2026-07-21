@@ -20,12 +20,14 @@ import br.com.brew.brassia.security.application.service.AuthenticateUserHandler;
 import br.com.brew.brassia.security.application.service.InviteUserHandler;
 import br.com.brew.brassia.security.application.service.ListUsersHandler;
 import java.util.Objects;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(BootstrapAdminProperties.class)
 class SecurityUserConfiguration {
     @Bean
     InviteUserUseCase inviteUserUseCase(

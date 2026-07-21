@@ -120,6 +120,38 @@ class InviteUserIT {
                 .andExpect(jsonPath("$.code").value("bad_request"));
     }
 
+    @Test
+    void adminBlocksUnblocksAndDisablesAccount() throws Exception {
+        var invite = inviteUser.handle(new Command(UUID.randomUUID(), UUID.randomUUID(), "admin-target@example.com", "Target"));
+        var rawToken = capturedGateway.lastRawToken;
+        mockMvc.perform(post("/api/v1/security/users/accept-invitation")
+                        .contentType("application/json").content("{\"token\":\"" + rawToken + "\"}"))
+                .andExpect(status().isOk());
+        var id = invite.userId();
+
+        perform(id, "block", Set.of("security.user.block")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("LOCKED"));
+        perform(id, "unblock", Set.of("security.user.block")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+        perform(id, "disable", Set.of("security.user.disable")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DISABLED"));
+
+        assertThat(count("security_user", "id = '" + id + "' AND status = 'DISABLED'")).isEqualTo(1);
+    }
+
+    @Test
+    void adminOperationDeniedWithoutPermission() throws Exception {
+        perform(UUID.randomUUID(), "block", Set.of())
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("forbidden"));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions perform(UUID userId, String action, Set<String> permissions) throws Exception {
+        return mockMvc.perform(post("/api/v1/security/users/" + userId + "/" + action)
+                .with(authentication(principal(permissions)))
+                .with(csrf()));
+    }
+
     private Authentication principal(Set<String> permissions) {
         var securityPrincipal = new SecurityPrincipal(UUID.randomUUID(), UUID.randomUUID(), "Admin", permissions);
         return new UsernamePasswordAuthenticationToken(securityPrincipal, "n/a", Set.of());

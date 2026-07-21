@@ -1,5 +1,7 @@
 package br.com.brew.brassia.security.config;
 
+import br.com.brew.brassia.security.adapter.inbound.web.ProblemDetailAccessDeniedHandler;
+import br.com.brew.brassia.security.adapter.inbound.web.ProblemDetailAuthenticationEntryPoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -34,6 +36,9 @@ class SecurityConfiguration {
                                 "/api/v1/security/password/reset").permitAll()
                         .requestMatchers("/actuator/health/**").permitAll()
                         .anyRequest().authenticated())
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(new ProblemDetailAuthenticationEntryPoint())
+                        .accessDeniedHandler(new ProblemDetailAccessDeniedHandler()))
                 .sessionManagement(session -> session
                         .sessionFixation(fixation -> fixation.migrateSession()))
                 .formLogin(AbstractHttpConfigurer::disable)

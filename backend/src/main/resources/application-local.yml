@@ -1,0 +1,23 @@
+# Perfil de desenvolvimento local. Credenciais aqui são descartáveis e batem
+# com o compose.yaml; nunca use estes valores fora da máquina local.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/brassia}
+    username: ${DB_USER:brassia_app}
+    password: ${DB_PASSWORD:local-only-change-me}
+
+server:
+  # 8081 para não colidir com outros apps locais (ex.: 8080 já em uso).
+  port: ${SERVER_PORT:8081}
+  servlet:
+    session:
+      cookie:
+        # Sobre HTTP local não é possível usar cookie __Host- (exige Secure).
+        name: brassia_session
+        secure: false
+
+# Somente o ambiente local pode usar o adapter de arquivos em filesystem.
+brassia:
+  storage:
+    provider: ${OBJECT_STORAGE_PROVIDER:filesystem}
+    local-path: ${OBJECT_STORAGE_LOCAL_PATH:./data/objects}

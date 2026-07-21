@@ -5,8 +5,9 @@ import br.com.brew.brassia.recipe.domain.Recipe;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
 
+// Não pode ser final: @Repository é proxiado (CGLIB) para tradução de exceções.
 @Repository
-final class JpaRecipeRepositoryAdapter implements RecipeRepository {
+class JpaRecipeRepositoryAdapter implements RecipeRepository {
     private final SpringDataRecipeJpaRepository repository;
 
     JpaRecipeRepositoryAdapter(SpringDataRecipeJpaRepository repository) {

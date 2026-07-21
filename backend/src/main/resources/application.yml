@@ -1,6 +1,9 @@
 spring:
   application:
     name: brassia-api
+  mvc:
+    problemdetails:
+      enabled: true
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/brassia}
     username: ${DB_USER:brassia_app}

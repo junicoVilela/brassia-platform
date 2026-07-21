@@ -1,0 +1,14 @@
+# Perfil de teste. A conexão de banco é fornecida em tempo de execução por
+# Testcontainers (@ServiceConnection); não fixar URL/credenciais aqui.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+# Storage em filesystem temporário durante os testes.
+brassia:
+  storage:
+    provider: filesystem
+    local-path: ${java.io.tmpdir}/brassia-test-objects

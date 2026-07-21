@@ -1,0 +1,34 @@
+# Perfil de produção. Todos os valores vêm do ambiente; sem defaults inseguros.
+# Falha de inicialização é preferível a subir com credencial ou storage errado.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+server:
+  servlet:
+    session:
+      cookie:
+        name: ${SECURITY_SESSION_COOKIE:__Host-brew_session}
+        http-only: true
+        secure: true
+        same-site: lax
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+# Produção nunca usa filesystem: exige porta S3 compatível configurada por env.
+brassia:
+  storage:
+    provider: ${OBJECT_STORAGE_PROVIDER:s3}
+    s3:
+      endpoint: ${S3_ENDPOINT}
+      region: ${S3_REGION}
+      bucket: ${S3_BUCKET}

@@ -6,8 +6,11 @@ services:
       POSTGRES_DB: brassia
       POSTGRES_USER: brassia_app
       POSTGRES_PASSWORD: local-only-change-me
-    ports: ["5432:5432"]
-    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    # Host 5433 para não colidir com outros Postgres locais (container escuta 5432).
+    ports: ["${DB_PORT:-5433}:5432"]
+    # PostgreSQL 18+ armazena os dados em subdiretório versionado; monte em
+    # /var/lib/postgresql (e não /var/lib/postgresql/data).
+    volumes: ["postgres-data:/var/lib/postgresql"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U brassia_app -d brassia"]
       interval: 5s

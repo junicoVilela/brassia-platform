@@ -11,7 +11,7 @@ Estado: EM ANDAMENTO
 | SEC-003 | Concluída | Claude/junico | política + histórico + troca: PasswordIT verde | Blocklist de senhas comprometidas (offline) aplicada no aceite; endpoint autenticado de trocar senha com verificação da atual, política e histórico (não reusar últimas N). Sem expiração periódica. |
 | SEC-004 | Em progresso (fatia 2) | Claude/junico | fatia1 + associações/catálogo: AccessManagementIT verde | RBAC: catálogo + resolução + bootstrap (fatia 1); leitura de permissões/grupos + associar/desassociar usuário↔grupo escopado à cervejaria ativa (fatia 2). Falta criar grupos/editar permissões (fatia 3) e a UI. |
 | SEC-005 | Concluída (fatia 1) | Claude/junico | cervejaria ativa + escopo: AuthorizationIT + Vitest verdes | Login resolve acessíveis/ativa + permissões escopadas; troca de cervejaria; FKs de tenant (V7); brewery_id do principal (não do corpo); seletor no header. access_scope MODULE/RESOURCE fica para depois. |
-| SEC-006 | A fazer | — | — | — |
+| SEC-006 | Concluída (self-service) | Claude/junico | sessões + histórico: SessionIT verde | Habilitado Spring Session JDBC (sessão real no Postgres + repo indexado); listar/revogar as próprias sessões; histórico de login (login_event, IP/UA em hash). Admin-sobre-terceiros e dispositivos ficam para depois. |
 | SEC-007 | A fazer | — | — | — |
 | SEC-008 | A fazer | — | — | — |
 | SEC-009 | A fazer | — | — | — |
@@ -118,6 +118,14 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Sem expiração periódica** (NIST); política aceita Unicode/frases (só comprimento + blocklist).
 - **`PasswordIT`**: reuso/atual-incorreta/blocklist → 400; troca válida → 204; a antiga não loga (401), a nova sim; não pode voltar à anterior (histórico).
 - Fora de escopo: recuperação/reset de senha (SEC-010); verificação online (HIBP); UI de troca de senha.
+
+### SEC-006 — self-service: sessões e histórico de login (2026-07-21)
+
+- **Correção de base**: o Boot 4 não traz o autoconfig de sessão — as sessões estavam **em memória** do servlet, não no Postgres. Adicionado `@EnableJdbcHttpSession` (`SessionConfiguration`) + `CookieSerializer` por perfil: sessões passam a persistir em `spring_session` e ficam **indexadas pelo id do usuário**. Isso também ativa de fato a revogação da SEC-001. `SessionRepositoryProbeIT` guarda contra regressão.
+- **Histórico** `login_event` (migration `V10`): o login grava sucesso/falha com **identificador/IP/UA em hash** (SHA-256, pseudonimizado) + traceId; falha não vincula usuário (anti-enumeração). `GET /api/v1/security/login-events` devolve o histórico do próprio usuário (occurredAt/outcome/reasonCode).
+- **Sessões** (self-service): `GET /sessions` lista as próprias com **ref mascarada** (prefixo do id — o id nunca é exposto); `DELETE /sessions/{ref}` revoga uma; `DELETE /sessions` revoga todas as outras (mantém a atual). Só opera sobre as sessões do próprio usuário (isolamento por índice de principal).
+- `SessionIT`: histórico sem plaintext; semear/listar/revogar sessões e isolamento entre usuários.
+- Fora de escopo: admin ver/revogar sessões e histórico de terceiros (fatia seguinte); dispositivos confiáveis, geolocalização e alertas de novo acesso (SEC-012); UI.
 
 ## Evidências de encerramento
 

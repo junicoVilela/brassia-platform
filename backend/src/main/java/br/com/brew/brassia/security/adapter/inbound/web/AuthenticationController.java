@@ -3,6 +3,7 @@ package br.com.brew.brassia.security.adapter.inbound.web;
 import br.com.brew.brassia.brewery.BreweryRef;
 import br.com.brew.brassia.security.application.port.inbound.AuthenticateUserUseCase;
 import br.com.brew.brassia.security.application.port.inbound.ChangePasswordUseCase;
+import br.com.brew.brassia.security.application.port.outbound.LoginEventRepository;
 import br.com.brew.brassia.security.application.service.SessionContext;
 import br.com.brew.brassia.security.application.service.SessionContextResolver;
 import br.com.brew.brassia.security.domain.UserId;
@@ -36,14 +37,16 @@ final class AuthenticationController {
     private final AuthenticateUserUseCase authenticate;
     private final SessionContextResolver sessionContext;
     private final ChangePasswordUseCase changePassword;
+    private final LoginEventRepository loginEvents;
     private final SecurityContextRepository contextRepository = new HttpSessionSecurityContextRepository();
     private final SecurityContextHolderStrategy holder = SecurityContextHolder.getContextHolderStrategy();
 
     AuthenticationController(AuthenticateUserUseCase authenticate, SessionContextResolver sessionContext,
-            ChangePasswordUseCase changePassword) {
+            ChangePasswordUseCase changePassword, LoginEventRepository loginEvents) {
         this.authenticate = authenticate;
         this.sessionContext = sessionContext;
         this.changePassword = changePassword;
+        this.loginEvents = loginEvents;
     }
 
     // Público: resolver o CsrfToken força a emissão do cookie XSRF-TOKEN.
@@ -60,9 +63,13 @@ final class AuthenticationController {
         try {
             result = authenticate.handle(new AuthenticateUserUseCase.Command(request.email(), request.password()));
         } catch (IllegalArgumentException e) {
+            loginEvents.record(null, request.email(), LoginEventRepository.Outcome.FAILURE,
+                    "INVALID_CREDENTIALS", ip(httpRequest), userAgent(httpRequest), traceId());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ProblemDetails.of(HttpStatus.UNAUTHORIZED, "invalid_credentials", "Credenciais inválidas."));
         }
+        loginEvents.record(result.userId(), request.email(), LoginEventRepository.Outcome.SUCCESS,
+                "OK", ip(httpRequest), userAgent(httpRequest), traceId());
 
         var context = sessionContext.resolve(new UserId(result.userId()), null);
         var principal = principal(result.userId(), result.displayName(), context);
@@ -79,6 +86,11 @@ final class AuthenticationController {
         var principal = principal(current.userId(), current.displayName(), context);
         persist(principal, httpRequest, httpResponse, false);
         return ResponseEntity.ok(toResponse(principal, context));
+    }
+
+    @GetMapping("/login-events")
+    List<LoginEventRepository.LoginEventView> loginEvents(@AuthenticationPrincipal SecurityPrincipal principal) {
+        return loginEvents.recentByUser(principal.userId(), 50);
     }
 
     @GetMapping("/session")
@@ -116,6 +128,18 @@ final class AuthenticationController {
             request.changeSessionId();
         }
         contextRepository.saveContext(context, request, response);
+    }
+
+    private static String ip(HttpServletRequest request) {
+        return request.getRemoteAddr();
+    }
+
+    private static String userAgent(HttpServletRequest request) {
+        return request.getHeader("User-Agent");
+    }
+
+    private static String traceId() {
+        return ProblemDetails.currentTraceId();
     }
 
     private static SecurityPrincipal principal(UUID userId, String displayName, SessionContext context) {

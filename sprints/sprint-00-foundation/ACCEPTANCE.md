@@ -40,6 +40,6 @@ limpo (`git clone` do remoto) em 2026-07-21.
 | ID | Débito | Critério de remoção |
 |---|---|---|
 | ~~DEBT-CI-001~~ (RESOLVIDO 2026-07-21) | Proteção da `main` — repo tornado público (licença proprietária) e ruleset aplicado: PR + 4 checks + bloqueio de force-push/deleção. | — |
-| DEBT-FE-001 | Frontend sem ESLint com regra de fronteira de import (só Prettier presente). | Adicionar ESLint + regra de camadas (core/features) reprovando import proibido; incluir no job de CI do frontend. |
-| DEBT-FE-002 | Sem `proxy.conf.json` e sem verificação ponta-a-ponta frontend↔API. | Configurar proxy do dev server para a API (8081) e um teste/checagem da jornada de receitas. |
-| DEBT-DOC-001 | `.ai/DEFINITION_OF_DONE.md` não percorrido formalmente item a item. | Executar o checklist completo e anexar evidência ao encerramento. |
+| ~~DEBT-FE-001~~ (RESOLVIDO 2026-07-21) | Frontend sem ESLint com regra de fronteira de import (só Prettier presente). | ESLint (angular-eslint + typescript-eslint, flat config) com `no-restricted-imports` reprovando import de `features` pelas camadas `core`/`shared`; `npm run lint` e passo de lint no job frontend da CI. |
+| ~~DEBT-FE-002~~ (RESOLVIDO 2026-07-21) | Sem `proxy.conf.json` e sem verificação ponta-a-ponta frontend↔API. | `proxy.conf.json` encaminhando `/api` para a API local (8080, padrão atual do backend) ligado no `ng serve`; jornada `/api/v1/recipes` coberta por teste de contrato. |
+| ~~DEBT-DOC-001~~ (RESOLVIDO 2026-07-21) | `.ai/DEFINITION_OF_DONE.md` não percorrido formalmente item a item. | Checklist percorrido em `sprints/sprint-00-foundation/DEFINITION_OF_DONE.md` com evidência por item. |

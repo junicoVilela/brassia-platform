@@ -1,6 +1,6 @@
 # Status — Sprint 00
 
-Estado: CONCLUÍDA com ressalvas (ver ACCEPTANCE — DEBT-CI-001 proteção da main bloqueada por plano)
+Estado: CONCLUÍDA (todos os débitos resolvidos em 2026-07-21 — ver ACCEPTANCE: DEBT-CI-001, DEBT-FE-001, DEBT-FE-002, DEBT-DOC-001)
 
 ## Controle das histórias
 
@@ -105,9 +105,11 @@ entram por PR. DEBT-CI-001 resolvido.
 
 ### Bloqueios / pendências
 
-- `java` do PATH global é 17; o build depende do JDK 25 do SDKMAN. Recomenda-se documentar/exportar `JAVA_HOME` (SDKMAN) ou instalar JDK 25 como default. **Ainda não configurado como padrão do shell.**
-- Repositório remoto não criado (decisão do usuário: só local por enquanto) — FND-000 permanece parcial.
-- Frontend: projeto Angular 22 oficial (package.json, angular.json, lockfile) ainda não gerado; hoje há apenas os trechos de referência do scaffold.
+_Todas as pendências abaixo foram resolvidas (registro histórico mantido):_
+
+- ~~`java` do PATH global é 17~~ — **resolvido (2026-07-21)**: SDKMAN com JDK **25.0.3-tem** como `default` (symlink `current`); `java` do PATH e `JAVA_HOME` apontam para ele, persistido pelo init do SDKMAN no shell. O build não depende mais da IDE.
+- ~~Repositório remoto não criado~~ — **resolvido**: `github.com/junicoVilela/brassia-platform` publicado, `main` protegida (FND-000/FND-003).
+- ~~Frontend Angular 22 oficial não gerado~~ — **resolvido**: projeto real gerado (package.json, angular.json, lockfile), com ESLint de fronteira e proxy de dev (DEBT-FE-001/002).
 
 ## Evidências de encerramento
 

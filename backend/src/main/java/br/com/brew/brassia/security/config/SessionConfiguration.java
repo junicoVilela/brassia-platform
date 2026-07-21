@@ -3,6 +3,9 @@ package br.com.brew.brassia.security.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.convert.support.GenericConversionService;
+import org.springframework.core.serializer.support.DeserializingConverter;
+import org.springframework.core.serializer.support.SerializingConverter;
 import org.springframework.session.jdbc.config.annotation.web.http.EnableJdbcHttpSession;
 import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.web.http.DefaultCookieSerializer;
@@ -16,6 +19,19 @@ import org.springframework.session.web.http.DefaultCookieSerializer;
 @Configuration(proxyBeanMethods = false)
 @EnableJdbcHttpSession
 class SessionConfiguration {
+
+    /**
+     * Serialização dos atributos da sessão (Java). O Boot 4 não traz o autoconfig
+     * de sessão, então o conversor padrão precisa ser registrado explicitamente —
+     * sem ele, salvar o SecurityContext falha (Object → byte[]).
+     */
+    @Bean("springSessionConversionService")
+    GenericConversionService springSessionConversionService() {
+        var service = new GenericConversionService();
+        service.addConverter(Object.class, byte[].class, new SerializingConverter());
+        service.addConverter(byte[].class, Object.class, new DeserializingConverter());
+        return service;
+    }
 
     @Bean
     CookieSerializer cookieSerializer(

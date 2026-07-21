@@ -30,6 +30,7 @@ class SecurityConfiguration {
                 // Aceite de convite é autenticado pelo token do link (sem sessão/
                 // cookie de autoridade ambiente), portanto isento de CSRF.
                 .csrf(config -> config.csrfTokenRepository(csrf)
+                        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         .ignoringRequestMatchers("/api/v1/security/users/accept-invitation"))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST,

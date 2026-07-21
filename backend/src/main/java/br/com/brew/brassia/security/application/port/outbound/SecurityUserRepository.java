@@ -7,6 +7,7 @@ import java.util.Optional;
 
 public interface SecurityUserRepository {
     boolean existsByNormalizedEmail(String normalizedEmail);
+    Optional<SecurityUser> findByNormalizedEmail(String normalizedEmail);
     Optional<SecurityUser> findById(UserId id);
     List<SecurityUser> findPage(int page, int size);
     long count();

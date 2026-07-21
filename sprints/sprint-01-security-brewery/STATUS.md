@@ -7,7 +7,7 @@ Estado: EM ANDAMENTO
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
 | SEC-001 | Concluída | Claude/junico | convite + aceite + administração + UI: backend (IT) e frontend (Vitest) verdes | Ciclo de conta completo (convidar/verificar/ativar/bloquear/desbloquear/desativar) + GET de listagem + tela de usuários no shell do tema Fila. |
-| SEC-002 | A fazer | — | — | — |
+| SEC-002 | Concluída (backend) | Claude/junico | login/session/logout + aceite-com-senha: IT verde | Autenticação por senha, sessão no Postgres (cookie), rotação, logout. UI de login fica para fatia seguinte. |
 | SEC-003 | A fazer | — | — | — |
 | SEC-004 | A fazer | — | — | — |
 | SEC-005 | A fazer | — | — | — |
@@ -59,6 +59,15 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Tela de usuários** (`features/security/users`): tabela com status, formulário de convite e ações (bloquear/desbloquear/desativar por status); estados loading/vazio/erro/ação. Testada com Vitest + `HttpTestingController`.
 - **Tema pago em repo público**: os arquivos do Fila **não são versionados** (`/public/assets/fila/` no `.gitignore`); carregados em runtime por `theme-loader.ts`; setup em `frontend/THEME_SETUP.md`. Build/CI passam sem eles.
 - **Sem login ainda (SEC-002)**: a tela é construída/testada contra o contrato (HTTP mockado); ao vivo mostra o layout + estados, dados reais só com o login. Guarda de rota e dados ao vivo ficam para SEC-002.
+
+### SEC-002 — Login e sessão segura (2026-07-21)
+
+- **Aceite define a senha**: `POST /accept-invitation` agora exige `{token, password}`; grava `password_credential` (hash via `DelegatingPasswordEncoder`, `encoder_id="delegating"`) — migration `V4__security__password_credential.sql`. Regra mínima de senha (8..200); política plena é SEC-003.
+- **Login** `POST /api/v1/security/login`: `AuthenticateUserHandler` valida e-mail normalizado + `status=ACTIVE` + hash; **falha genérica** (mesma resposta para inexistente/errada/inativa) → `401 invalid_credentials`. Auditoria `security.login.success|failure` (sem senha). No sucesso: cria `SecurityContext`, **rotaciona a sessão** (`changeSessionId`), persiste via `HttpSessionSecurityContextRepository` (Spring Session JDBC → Postgres) e emite o cookie.
+- **`GET /session`** (autenticado) retorna a identidade; **`POST /logout`** invalida a sessão (`204`).
+- **Principal só identidade**: `SecurityPrincipal.breweryId` agora **opcional** + `identityOnly(...)`; permissões vazias. Endpoints permissionados seguem `403` até a SEC-004.
+- **Revogação de sessões ativada**: o `Authentication` custom expõe `getName()=userId`, indexando a sessão por usuário — a `UserSessionRegistry` (SEC-001) passa a encontrar/derrubar sessões no `disable`. Cobertura automatizada: `disable→revokeAll` é unit-testado; o round-trip JDBC de sessão/cookie é validado em runtime (MockMvc usa `MockHttpSession`).
+- Fora de escopo (histórias próprias): MFA (SEC-009), recuperação de senha (SEC-010), rate limit (SEC-012), gestão de sessões/`login_event` (SEC-006), cervejaria ativa (SEC-005), **UI de login** (fatia seguinte).
 
 ## Evidências de encerramento
 

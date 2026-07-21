@@ -52,6 +52,7 @@ class ListUsersHandlerTest {
 
     private record FakeUsers(List<SecurityUser> page, long total) implements SecurityUserRepository {
         @Override public boolean existsByNormalizedEmail(String normalizedEmail) { return false; }
+        @Override public Optional<SecurityUser> findByNormalizedEmail(String normalizedEmail) { return Optional.empty(); }
         @Override public Optional<SecurityUser> findById(UserId id) { return Optional.empty(); }
         @Override public List<SecurityUser> findPage(int page, int size) { return this.page; }
         @Override public long count() { return total; }

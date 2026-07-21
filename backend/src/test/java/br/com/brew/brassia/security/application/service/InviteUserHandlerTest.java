@@ -88,6 +88,11 @@ class InviteUserHandlerTest {
         }
 
         @Override
+        public java.util.Optional<SecurityUser> findByNormalizedEmail(String normalizedEmail) {
+            return saved.stream().filter(u -> u.email().normalized().equals(normalizedEmail)).findFirst();
+        }
+
+        @Override
         public java.util.Optional<SecurityUser> findById(br.com.brew.brassia.security.domain.UserId id) {
             return saved.stream().filter(u -> u.id().equals(id)).findFirst();
         }

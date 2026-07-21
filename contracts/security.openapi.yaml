@@ -63,11 +63,17 @@ paths:
         '409': {description: Conta já desativada}
   /api/v1/security/login:
     post:
-      summary: Inicia autenticação interna
+      summary: Autentica credenciais e cria sessão (cookie __Host-)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LoginRequest'}
       responses:
-        '200': {description: Sessão criada ou desafio MFA retornado}
+        '200': {description: Sessão criada; retorna identidade (sem cervejaria/permissões até SEC-004/005)}
         '401': {description: Credenciais inválidas sem revelar a causa}
-        '429': {description: Limite de tentativas excedido}
+        '429': {description: Limite de tentativas excedido (SEC-012)}
   /api/v1/security/session:
     get:
       summary: Retorna o principal, cervejaria ativa e capabilities
@@ -117,9 +123,16 @@ components:
         status: {type: string, enum: [INVITED]}
     AcceptInvitationRequest:
       type: object
-      required: [token]
+      required: [token, password]
       properties:
         token: {type: string, minLength: 1}
+        password: {type: string, minLength: 8, maxLength: 200}
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: {type: string, format: email}
+        password: {type: string, minLength: 1}
     Problem:
       type: object
       required: [type, title, status, code, traceId]

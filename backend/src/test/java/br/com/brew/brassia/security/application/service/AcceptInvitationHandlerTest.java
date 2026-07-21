@@ -7,12 +7,15 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.security.application.port.inbound.AcceptInvitationUseCase.Command;
 import br.com.brew.brassia.security.application.port.outbound.AccountTokenRepository;
+import br.com.brew.brassia.security.application.port.outbound.PasswordCredentialRepository;
+import br.com.brew.brassia.security.application.port.outbound.PasswordHasher;
 import br.com.brew.brassia.security.application.port.outbound.SecurityUserRepository;
 import br.com.brew.brassia.security.application.port.outbound.TokenHasher;
 import br.com.brew.brassia.security.domain.AccountStatus;
 import br.com.brew.brassia.security.domain.AccountToken;
 import br.com.brew.brassia.security.domain.DisplayName;
 import br.com.brew.brassia.security.domain.EmailAddress;
+import br.com.brew.brassia.security.domain.PasswordCredential;
 import br.com.brew.brassia.security.domain.SecurityUser;
 import br.com.brew.brassia.security.domain.UserId;
 import java.time.Duration;
@@ -30,10 +33,16 @@ class AcceptInvitationHandlerTest {
     private final AuditTrail audit = audited::add;
     private final FakeUsers users = new FakeUsers();
     private final FakeTokens tokens = new FakeTokens();
+    private final FakeCredentials credentials = new FakeCredentials();
     private final TokenHasher tokenHasher = raw -> "hash:" + raw;
+    private final PasswordHasher passwordHasher = new PasswordHasher() {
+        @Override public String hash(CharSequence rawPassword) { return "enc:" + rawPassword; }
+        @Override public boolean matches(CharSequence rawPassword, String encoded) { return encoded.equals("enc:" + rawPassword); }
+        @Override public boolean needsUpgrade(String encoded) { return false; }
+    };
 
     private AcceptInvitationHandler handler() {
-        return new AcceptInvitationHandler(users, tokens, tokenHasher, audit);
+        return new AcceptInvitationHandler(users, tokens, credentials, tokenHasher, passwordHasher, audit);
     }
 
     private SecurityUser invited() {
@@ -47,11 +56,13 @@ class AcceptInvitationHandlerTest {
         var user = invited();
         tokens.store.put("hash:raw", AccountToken.invitation(user.id(), "hash:raw", Instant.now().plus(Duration.ofHours(1))));
 
-        var result = handler().handle(new Command("raw"));
+        var result = handler().handle(new Command("raw", "segredo1"));
 
         assertThat(result.status()).isEqualTo(AccountStatus.ACTIVE.name());
         assertThat(users.store.get(user.id()).status()).isEqualTo(AccountStatus.ACTIVE);
         assertThat(tokens.store.get("hash:raw").usedAt()).isNotNull();
+        // Credencial gravada com o hash da senha (nunca a senha em claro).
+        assertThat(credentials.store.get(user.id()).passwordHash()).isEqualTo("enc:segredo1");
         assertThat(audited).singleElement().satisfies(e -> {
             assertThat(e.action()).isEqualTo("security.user.activate");
             assertThat(e.resourceType()).isEqualTo("security_user");
@@ -60,7 +71,7 @@ class AcceptInvitationHandlerTest {
 
     @Test
     void rejectsUnknownToken() {
-        assertThatThrownBy(() -> handler().handle(new Command("nope")))
+        assertThatThrownBy(() -> handler().handle(new Command("nope", "segredo1")))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(audited).isEmpty();
     }
@@ -70,7 +81,7 @@ class AcceptInvitationHandlerTest {
         var user = invited();
         tokens.store.put("hash:raw", AccountToken.invitation(user.id(), "hash:raw", Instant.now()));
 
-        assertThatThrownBy(() -> handler().handle(new Command("raw")))
+        assertThatThrownBy(() -> handler().handle(new Command("raw", "segredo1")))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(users.store.get(user.id()).status()).isEqualTo(AccountStatus.INVITED);
     }
@@ -82,7 +93,7 @@ class AcceptInvitationHandlerTest {
         token.consume(Instant.now());
         tokens.store.put("hash:raw", token);
 
-        assertThatThrownBy(() -> handler().handle(new Command("raw")))
+        assertThatThrownBy(() -> handler().handle(new Command("raw", "segredo1")))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -93,7 +104,7 @@ class AcceptInvitationHandlerTest {
         users.store.put(user.id(), user);
         tokens.store.put("hash:raw", AccountToken.invitation(user.id(), "hash:raw", Instant.now().plus(Duration.ofHours(1))));
 
-        assertThatThrownBy(() -> handler().handle(new Command("raw")))
+        assertThatThrownBy(() -> handler().handle(new Command("raw", "segredo1")))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -101,6 +112,7 @@ class AcceptInvitationHandlerTest {
         final Map<UserId, SecurityUser> store = new HashMap<>();
 
         @Override public boolean existsByNormalizedEmail(String normalizedEmail) { return false; }
+        @Override public Optional<SecurityUser> findByNormalizedEmail(String normalizedEmail) { return Optional.empty(); }
         @Override public Optional<SecurityUser> findById(UserId id) { return Optional.ofNullable(store.get(id)); }
         @Override public java.util.List<SecurityUser> findPage(int page, int size) { return java.util.List.copyOf(store.values()); }
         @Override public long count() { return store.size(); }
@@ -113,6 +125,15 @@ class AcceptInvitationHandlerTest {
         @Override public void save(AccountToken token) { store.put(token.tokenHash(), token); }
         @Override public Optional<AccountToken> findInvitationByHash(String tokenHash) {
             return Optional.ofNullable(store.get(tokenHash));
+        }
+    }
+
+    private static final class FakeCredentials implements PasswordCredentialRepository {
+        final Map<UserId, PasswordCredential> store = new HashMap<>();
+
+        @Override public void save(PasswordCredential credential) { store.put(credential.userId(), credential); }
+        @Override public Optional<PasswordCredential> findByUserId(UserId userId) {
+            return Optional.ofNullable(store.get(userId));
         }
     }
 }

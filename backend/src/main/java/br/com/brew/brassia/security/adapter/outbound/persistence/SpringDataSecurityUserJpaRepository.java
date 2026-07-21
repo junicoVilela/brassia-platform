@@ -5,4 +5,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 interface SpringDataSecurityUserJpaRepository extends JpaRepository<SecurityUserJpaEntity, UUID> {
     boolean existsByNormalizedEmail(String normalizedEmail);
+    java.util.Optional<SecurityUserJpaEntity> findByNormalizedEmail(String normalizedEmail);
 }

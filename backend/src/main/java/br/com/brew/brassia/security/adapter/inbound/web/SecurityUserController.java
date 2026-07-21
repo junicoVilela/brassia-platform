@@ -62,7 +62,7 @@ final class SecurityUserController {
     // Público: o convidado ainda não tem sessão. Autenticado pelo token do convite.
     @PostMapping("/accept-invitation")
     ResponseEntity<AcceptResponse> acceptInvitation(@Valid @RequestBody AcceptRequest request) {
-        var result = acceptInvitation.handle(new AcceptInvitationUseCase.Command(request.token()));
+        var result = acceptInvitation.handle(new AcceptInvitationUseCase.Command(request.token(), request.password()));
         return ResponseEntity.ok(new AcceptResponse(result.userId(), result.status()));
     }
 
@@ -72,7 +72,7 @@ final class SecurityUserController {
 
     record InviteResponse(UUID userId, String email, String status) {}
 
-    record AcceptRequest(@NotBlank String token) {}
+    record AcceptRequest(@NotBlank String token, @NotBlank @Size(min = 8, max = 200) String password) {}
 
     record AcceptResponse(UUID userId, String status) {}
 

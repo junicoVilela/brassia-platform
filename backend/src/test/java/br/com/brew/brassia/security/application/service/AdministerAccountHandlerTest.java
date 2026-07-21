@@ -97,6 +97,7 @@ class AdministerAccountHandlerTest {
         final Map<UserId, SecurityUser> store = new HashMap<>();
 
         @Override public boolean existsByNormalizedEmail(String normalizedEmail) { return false; }
+        @Override public Optional<SecurityUser> findByNormalizedEmail(String normalizedEmail) { return Optional.empty(); }
         @Override public Optional<SecurityUser> findById(UserId id) { return Optional.ofNullable(store.get(id)); }
         @Override public java.util.List<SecurityUser> findPage(int page, int size) { return java.util.List.copyOf(store.values()); }
         @Override public long count() { return store.size(); }

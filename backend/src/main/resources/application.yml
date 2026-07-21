@@ -1,6 +1,8 @@
 spring:
   application:
     name: brassia-api
+  profiles:
+    default: local
   mvc:
     problemdetails:
       enabled: true

@@ -3,6 +3,19 @@ info:
   title: BrassIA Security API
   version: 1.0.0
 paths:
+  /api/v1/security/users:
+    post:
+      summary: Convida um usuário interno (cria conta em estado INVITED)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/InviteUserRequest'}
+      responses:
+        '201': {description: Usuário convidado (INVITED); token de convite não é retornado}
+        '400': {description: Requisição inválida (Problem Details)}
+        '403': {description: Sem permissão security.user.invite}
+        '409': {description: E-mail já cadastrado}
   /api/v1/security/login:
     post:
       summary: Inicia autenticação interna
@@ -44,6 +57,19 @@ components:
       in: cookie
       name: __Host-brew_session
   schemas:
+    InviteUserRequest:
+      type: object
+      required: [email, displayName]
+      properties:
+        email: {type: string, format: email, maxLength: 254}
+        displayName: {type: string, minLength: 1, maxLength: 160}
+    InviteUserResponse:
+      type: object
+      required: [userId, email, status]
+      properties:
+        userId: {type: string, format: uuid}
+        email: {type: string, format: email}
+        status: {type: string, enum: [INVITED]}
     Problem:
       type: object
       required: [type, title, status, code, traceId]

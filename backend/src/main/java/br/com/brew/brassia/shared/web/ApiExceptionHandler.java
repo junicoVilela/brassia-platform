@@ -51,6 +51,15 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetails.of(HttpStatus.BAD_REQUEST, "bad_request", "Requisição inválida.");
     }
 
+    // AccessDeniedException lançada dentro do caso de uso/controller (ex.:
+    // SecurityPrincipal.requirePermission) é traduzida aqui em 403; o handler do
+    // filtro só cobre negações que chegam ao ExceptionTranslationFilter.
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    ProblemDetail handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
+        return ProblemDetails.of(
+                HttpStatus.FORBIDDEN, "forbidden", "Você não tem permissão para esta operação.");
+    }
+
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception ex) {
         logger.error("Erro inesperado (traceId=" + ProblemDetails.currentTraceId() + ")", ex);

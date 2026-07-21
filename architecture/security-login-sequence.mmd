@@ -1,0 +1,18 @@
+sequenceDiagram
+  participant U as Usuário
+  participant W as Angular
+  participant S as Security module
+  participant DB as PostgreSQL/Spring Session
+  U->>W: Identificador e senha
+  W->>S: Login + CSRF
+  S->>S: Rate limit + hash + política
+  alt MFA exigido
+    S-->>W: Challenge curto
+    U->>W: Passkey ou TOTP
+    W->>S: Resposta do fator
+    S->>S: Verificar challenge/fator
+  end
+  S->>DB: Criar/rotacionar sessão opaca
+  S-->>W: Cookie __Host- HttpOnly/Secure/SameSite
+  W->>S: Comando + CSRF
+  S->>S: Permissão + escopo + tenant + estado

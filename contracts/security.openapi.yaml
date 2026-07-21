@@ -1,0 +1,57 @@
+openapi: 3.1.0
+info:
+  title: BrassIA Security API
+  version: 1.0.0
+paths:
+  /api/v1/security/login:
+    post:
+      summary: Inicia autenticação interna
+      responses:
+        '200': {description: Sessão criada ou desafio MFA retornado}
+        '401': {description: Credenciais inválidas sem revelar a causa}
+        '429': {description: Limite de tentativas excedido}
+  /api/v1/security/session:
+    get:
+      summary: Retorna o principal, cervejaria ativa e capabilities
+      responses:
+        '200': {description: Sessão atual}
+        '401': {description: Não autenticado}
+  /api/v1/security/logout:
+    post:
+      summary: Revoga a sessão atual
+      responses:
+        '204': {description: Sessão revogada}
+  /api/v1/security/password/forgot:
+    post:
+      summary: Solicita recuperação com resposta neutra
+      responses:
+        '202': {description: Solicitação processada independentemente da existência da conta}
+  /api/v1/security/sessions:
+    get:
+      summary: Lista sessões autorizadas
+      responses:
+        '200': {description: Sessões sem expor identificadores secretos}
+  /api/v1/security/temporary-access:
+    post:
+      summary: Solicita acesso temporário
+      responses:
+        '201': {description: Solicitação criada}
+        '403': {description: Sem permissão ou segregação violada}
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-brew_session
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code, traceId]
+      properties:
+        type: {type: string, format: uri-reference}
+        title: {type: string}
+        status: {type: integer}
+        code: {type: string}
+        traceId: {type: string}
+security:
+  - sessionCookie: []

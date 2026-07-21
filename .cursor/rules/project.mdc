@@ -1,0 +1,8 @@
+---
+description: Regras permanentes da BrassIA
+alwaysApply: true
+---
+
+Leia `AGENTS.md`, `.ai/PROJECT_CONTEXT.md` e `.ai/DEVELOPMENT_RULES.md`.
+Respeite monólito modular, arquitetura hexagonal, propriedade de dados por módulo, isolamento por `brewery_id`, regras imutáveis de receita/lote/estoque e confirmação humana para IA.
+Trabalhe apenas na sprint ativa e execute seus critérios de aceite e plano de testes.

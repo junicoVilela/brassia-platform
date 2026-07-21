@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant U as Usuário
+  participant A as Aplicação
+  participant D as Domínio
+  participant G as Gateway IA
+  participant R as RAG
+  U->>A: Solicita análise
+  A->>D: Calcula fatos e limites
+  A->>R: Recupera fontes autorizadas
+  A->>G: Contexto + schema
+  G-->>A: Recomendação estruturada
+  A-->>U: Evidências, riscos e confirmação
+  U->>A: Confirma comando
+  A->>D: Executa regra autorizada

@@ -1,0 +1,21 @@
+name: ci-reference
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate specification artifacts
+        run: |
+          python -m json.tool contracts/error-response.json >/dev/null
+          python -m json.tool contracts/measurement.schema.json >/dev/null
+          python -m json.tool contracts/ai-recommendation.schema.json >/dev/null
+      - name: Project build placeholder
+        run: echo "Replace in Sprint 00 with backend, frontend, architecture, migration and E2E checks"

@@ -1,0 +1,7 @@
+flowchart LR
+  Brewer[Cervejeiro] --> Web[Angular PWA]
+  Operator[Produção/Qualidade] --> Web
+  Web --> API[Spring Boot modular]
+  API --> DB[(PostgreSQL)]
+  API --> Files[(S3 compatível)]
+  API --> External[Sensores · e-mail · IA]

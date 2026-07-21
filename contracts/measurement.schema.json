@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MeasurementInput",
+  "type": "object",
+  "required": ["parameter", "value", "unit", "measuredAt", "source"],
+  "properties": {
+    "parameter": {"type": "string"},
+    "value": {"type": "number"},
+    "unit": {"type": "string"},
+    "temperature": {"type": ["number", "null"]},
+    "temperatureUnit": {"type": ["string", "null"]},
+    "measuredAt": {"type": "string", "format": "date-time"},
+    "method": {"type": ["string", "null"]},
+    "instrumentId": {"type": ["string", "null"], "format": "uuid"},
+    "sampleId": {"type": ["string", "null"], "format": "uuid"},
+    "source": {"enum": ["MANUAL", "SENSOR", "IMPORT"]}
+  },
+  "additionalProperties": false
+}

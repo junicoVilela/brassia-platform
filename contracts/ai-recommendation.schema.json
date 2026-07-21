@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AiRecommendation",
+  "type": "object",
+  "required": ["summary", "evidence", "risks", "confidence", "requiresConfirmation"],
+  "properties": {
+    "summary": {"type": "string"},
+    "evidence": {"type": "array", "items": {"type": "object"}},
+    "calculationRefs": {"type": "array", "items": {"type": "string"}},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "risks": {"type": "array", "items": {"type": "string"}},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "proposedCommand": {"type": ["object", "null"]},
+    "requiresConfirmation": {"const": true}
+  },
+  "additionalProperties": false
+}

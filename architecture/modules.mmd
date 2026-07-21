@@ -1,0 +1,8 @@
+flowchart TB
+  Catalog[Catálogo/Equipamento] --> Recipe[Receita/Água]
+  Recipe --> Planning[Planejamento/OP]
+  Planning --> Production[Produção/Sanitização]
+  Production --> Cellar[Fermentação/Envase]
+  Inventory[Estoque/Compras] --> Planning
+  Cellar --> Quality[Qualidade/Rastreio/Custo]
+  Quality --> AI[IA/Relatórios]

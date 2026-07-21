@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: brassia-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/brassia}
+    username: ${DB_USER:brassia_app}
+    password: ${DB_PASSWORD:change-me}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  session:
+    store-type: jdbc
+    timeout: 30m
+    jdbc:
+      initialize-schema: never
+
+server:
+  servlet:
+    session:
+      cookie:
+        name: ${SECURITY_SESSION_COOKIE:__Host-brew_session}
+        http-only: true
+        secure: true
+        same-site: lax
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

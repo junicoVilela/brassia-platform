@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brassia.example/schemas/federation-provider.json",
+  "title": "Federation provider configuration",
+  "type": "object",
+  "required": ["code", "displayName", "protocol", "jitMode", "configuration"],
+  "properties": {
+    "code": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,79}$"},
+    "displayName": {"type": "string", "minLength": 1, "maxLength": 160},
+    "protocol": {"enum": ["SAML2", "OIDC", "LDAP"]},
+    "discoveryDomains": {
+      "type": "array", "maxItems": 20, "uniqueItems": true,
+      "items": {"type": "string", "format": "hostname"}
+    },
+    "jitMode": {"enum": ["DISABLED", "INVITED_ONLY", "VERIFIED_DOMAIN"]},
+    "configuration": {"type": "object"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"protocol": {"const": "SAML2"}}},
+      "then": {
+        "properties": {
+          "configuration": {
+            "type": "object",
+            "required": ["metadataUri", "spPrivateKeyReference", "spCertificateLocation"],
+            "properties": {
+              "metadataUri": {"type": "string", "format": "uri", "pattern": "^https://"},
+              "spPrivateKeyReference": {"type": "string", "minLength": 1},
+              "spCertificateLocation": {"type": "string", "minLength": 1},
+              "requireSignedResponse": {"type": "boolean", "default": true},
+              "requireSignedAssertion": {"type": "boolean", "default": true},
+              "requireEncryptedAssertion": {"type": "boolean", "default": false},
+              "allowIdpInitiated": {"type": "boolean", "default": false},
+              "clockSkewSeconds": {"type": "integer", "minimum": 0, "maximum": 300}
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"protocol": {"const": "OIDC"}}},
+      "then": {
+        "properties": {
+          "configuration": {
+            "type": "object",
+            "required": ["issuerUri", "clientId", "clientSecretReference"],
+            "properties": {
+              "issuerUri": {"type": "string", "format": "uri", "pattern": "^https://"},
+              "clientId": {"type": "string", "minLength": 1},
+              "clientSecretReference": {"type": "string", "minLength": 1},
+              "scopes": {"type": "array", "items": {"type": "string"}, "contains": {"const": "openid"}}
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"protocol": {"const": "LDAP"}}},
+      "then": {
+        "properties": {
+          "configuration": {
+            "type": "object",
+            "required": ["url", "bindDn", "bindSecretReference", "userBaseDn", "userFilter"],
+            "properties": {
+              "url": {"type": "string", "pattern": "^(ldaps://|ldap://)"},
+              "bindDn": {"type": "string", "minLength": 1},
+              "bindSecretReference": {"type": "string", "minLength": 1},
+              "userBaseDn": {"type": "string", "minLength": 1},
+              "userFilter": {"type": "string", "minLength": 1},
+              "startTls": {"type": "boolean", "default": false}
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

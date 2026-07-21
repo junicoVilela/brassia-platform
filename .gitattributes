@@ -1,0 +1,18 @@
+* text=auto eol=lf
+
+*.java   text
+*.ts     text
+*.scss   text
+*.yaml   text
+*.yml    text
+*.sql    text
+*.md     text
+
+mvnw     text eol=lf
+*.cmd    text eol=crlf
+*.bat    text eol=crlf
+
+*.png    binary
+*.jpg    binary
+*.docx   binary
+*.xlsx   binary

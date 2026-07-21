@@ -1,0 +1,21 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Node / Angular
+node_modules/
+dist/
+coverage/
+.angular/
+
+# Java / Maven
+target/
+*.class
+
+# Ambiente e dados locais
+.env
+*.log
+uploads/
+data/

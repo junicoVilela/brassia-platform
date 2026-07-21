@@ -1,0 +1,14 @@
+flowchart LR
+  User[Usuário] --> Router[Descoberta por domínio]
+  Router --> Local[Senha · passkey · TOTP]
+  Router --> SAML[SAML 2.0 SP]
+  Router --> OIDC[OIDC Relying Party]
+  Directory[Diretório corporativo] --> SCIM[SCIM 2.0 provisioning]
+  Legacy[LDAP/AD legado] --> LDAP[Adapter TLS]
+  SAML --> Link[Resolver provider + subject]
+  OIDC --> Link
+  LDAP --> Link
+  SCIM --> Account[Conta e vínculos internos]
+  Link --> Account
+  Account --> Session[Sessão opaca interna]
+  Session --> Authorization[Permissões + escopos + tenant]

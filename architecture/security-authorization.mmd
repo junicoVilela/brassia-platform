@@ -1,0 +1,13 @@
+flowchart LR
+  User[Usuário] --> Membership[Vínculo vigente]
+  Membership --> Group[Grupo]
+  Group --> Permission[Permissão domínio.ação]
+  Group --> Scope[Escopo cervejaria/módulo/recurso]
+  Temporary[Acesso temporário vigente] --> Permission
+  Temporary --> Scope
+  Request[Requisição] --> Decision{Decisão no caso de uso}
+  Permission --> Decision
+  Scope --> Decision
+  Context[Tenant · ownership · estado · autenticação recente] --> Decision
+  Decision -->|permitir| Command[Executar + auditar]
+  Decision -->|negar| Deny[403 + evento seguro]

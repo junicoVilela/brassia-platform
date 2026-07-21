@@ -1,0 +1,9 @@
+flowchart TB
+  UI[Angular 22 standalone] --> REST[REST/OpenAPI]
+  REST --> APP[Casos de uso]
+  APP --> DOMAIN[Domínios modulares]
+  DOMAIN --> PORTS[Portas]
+  PORTS --> PG[(PostgreSQL)]
+  PORTS --> S3[(Objetos)]
+  PORTS --> AI[Gateway de IA]
+  DOMAIN --> OUTBOX[(Outbox)]

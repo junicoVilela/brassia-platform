@@ -6,8 +6,11 @@ import java.util.UUID;
 public interface AcceptInvitationUseCase {
     Result handle(Command command);
 
-    /** @param rawToken token de convite recebido pelo convidado (valor bruto) */
-    record Command(String rawToken) {}
+    /**
+     * @param rawToken token de convite recebido pelo convidado (valor bruto)
+     * @param password senha escolhida pelo convidado (define a credencial)
+     */
+    record Command(String rawToken, String password) {}
 
     record Result(UUID userId, String status) {}
 }

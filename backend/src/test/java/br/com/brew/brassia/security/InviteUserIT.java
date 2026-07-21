@@ -107,7 +107,7 @@ class InviteUserIT {
 
         mockMvc.perform(post("/api/v1/security/users/accept-invitation")
                         .contentType("application/json")
-                        .content("{\"token\":\"" + rawToken + "\"}"))
+                        .content("{\"token\":\"" + rawToken + "\",\"password\":\"segredo123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
 
@@ -116,7 +116,7 @@ class InviteUserIT {
         // Token de uso único: a segunda tentativa é rejeitada com mensagem genérica.
         mockMvc.perform(post("/api/v1/security/users/accept-invitation")
                         .contentType("application/json")
-                        .content("{\"token\":\"" + rawToken + "\"}"))
+                        .content("{\"token\":\"" + rawToken + "\",\"password\":\"segredo123\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("bad_request"));
     }
@@ -126,7 +126,7 @@ class InviteUserIT {
         var invite = inviteUser.handle(new Command(UUID.randomUUID(), UUID.randomUUID(), "admin-target@example.com", "Target"));
         var rawToken = capturedGateway.lastRawToken;
         mockMvc.perform(post("/api/v1/security/users/accept-invitation")
-                        .contentType("application/json").content("{\"token\":\"" + rawToken + "\"}"))
+                        .contentType("application/json").content("{\"token\":\"" + rawToken + "\",\"password\":\"segredo123\"}"))
                 .andExpect(status().isOk());
         var id = invite.userId();
 

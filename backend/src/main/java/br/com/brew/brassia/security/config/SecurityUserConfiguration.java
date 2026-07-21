@@ -7,6 +7,8 @@ import br.com.brew.brassia.security.application.port.inbound.InviteUserUseCase;
 import br.com.brew.brassia.security.application.port.inbound.ListUsersUseCase;
 import br.com.brew.brassia.security.application.port.outbound.AccountTokenRepository;
 import br.com.brew.brassia.security.application.port.outbound.NotificationGateway;
+import br.com.brew.brassia.security.application.port.outbound.PasswordCredentialRepository;
+import br.com.brew.brassia.security.application.port.outbound.PasswordHasher;
 import br.com.brew.brassia.security.application.port.outbound.SecurityUserRepository;
 import br.com.brew.brassia.security.application.port.outbound.TokenHasher;
 import br.com.brew.brassia.security.application.port.outbound.UserSessionRegistry;
@@ -40,10 +42,12 @@ class SecurityUserConfiguration {
     AcceptInvitationUseCase acceptInvitationUseCase(
             SecurityUserRepository users,
             AccountTokenRepository tokens,
+            PasswordCredentialRepository credentials,
             TokenHasher tokenHasher,
+            PasswordHasher passwordHasher,
             AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new AcceptInvitationHandler(users, tokens, tokenHasher, audit);
+        var handler = new AcceptInvitationHandler(users, tokens, credentials, tokenHasher, passwordHasher, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(
                 transaction.execute(status -> handler.handle(command)));

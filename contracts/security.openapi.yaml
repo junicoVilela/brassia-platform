@@ -4,6 +4,14 @@ info:
   version: 1.0.0
 paths:
   /api/v1/security/users:
+    get:
+      summary: Lista contas internas (visão administrativa, paginada)
+      parameters:
+        - {name: page, in: query, schema: {type: integer, default: 0}}
+        - {name: size, in: query, schema: {type: integer, default: 20}}
+      responses:
+        '200': {description: Página de usuários}
+        '403': {description: Sem permissão security.user.read}
     post:
       summary: Convida um usuário interno (cria conta em estado INVITED)
       requestBody:

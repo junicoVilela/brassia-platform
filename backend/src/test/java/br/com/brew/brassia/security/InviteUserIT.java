@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -137,6 +138,22 @@ class InviteUserIT {
                 .andExpect(jsonPath("$.status").value("DISABLED"));
 
         assertThat(count("security_user", "id = '" + id + "' AND status = 'DISABLED'")).isEqualTo(1);
+    }
+
+    @Test
+    void listReturnsInvitedUserWithPermissionAndDeniesWithout() throws Exception {
+        inviteUser.handle(new Command(UUID.randomUUID(), UUID.randomUUID(), "list-it@example.com", "List IT"));
+
+        mockMvc.perform(get("/api/v1/security/users")
+                        .with(authentication(principal(Set.of("security.user.read")))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.email == 'list-it@example.com')].status").value(org.hamcrest.Matchers.hasItem("INVITED")))
+                .andExpect(jsonPath("$.totalElements").isNumber());
+
+        mockMvc.perform(get("/api/v1/security/users")
+                        .with(authentication(principal(Set.of()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("forbidden"));
     }
 
     @Test

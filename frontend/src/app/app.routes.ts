@@ -1,10 +1,14 @@
 import { Routes } from '@angular/router';
+import { authGuard } from './core/auth/auth.guard';
+import { LoginPageComponent } from './features/auth/login-page/login-page.component';
 import { ShellComponent } from './layout/shell.component';
 
 export const routes: Routes = [
+  { path: 'login', component: LoginPageComponent },
   {
     path: '',
     component: ShellComponent,
+    canActivate: [authGuard],
     children: [
       {
         path: 'recipes',

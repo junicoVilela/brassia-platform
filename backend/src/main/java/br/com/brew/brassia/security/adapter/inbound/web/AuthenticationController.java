@@ -16,6 +16,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,6 +32,14 @@ final class AuthenticationController {
 
     AuthenticationController(AuthenticateUserUseCase authenticate) {
         this.authenticate = authenticate;
+    }
+
+    // Público: resolver o CsrfToken força a emissão do cookie XSRF-TOKEN, que o
+    // front (Angular) lê e reenvia no header antes das requisições mutáveis.
+    @GetMapping("/csrf")
+    ResponseEntity<Void> csrf(CsrfToken token) {
+        token.getToken();
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/login")

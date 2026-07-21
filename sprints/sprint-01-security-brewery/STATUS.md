@@ -7,7 +7,7 @@ Estado: EM ANDAMENTO
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
 | SEC-001 | Concluída | Claude/junico | convite + aceite + administração + UI: backend (IT) e frontend (Vitest) verdes | Ciclo de conta completo (convidar/verificar/ativar/bloquear/desbloquear/desativar) + GET de listagem + tela de usuários no shell do tema Fila. |
-| SEC-002 | Concluída (backend) | Claude/junico | login/session/logout + aceite-com-senha: IT verde | Autenticação por senha, sessão no Postgres (cookie), rotação, logout. UI de login fica para fatia seguinte. |
+| SEC-002 | Concluída | Claude/junico | backend (IT) + UI de login (Vitest) verdes | Autenticação por senha, sessão no Postgres (cookie), rotação, logout; página de login, guard de rota e sessão no header. |
 | SEC-003 | A fazer | — | — | — |
 | SEC-004 | A fazer | — | — | — |
 | SEC-005 | A fazer | — | — | — |
@@ -67,7 +67,14 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **`GET /session`** (autenticado) retorna a identidade; **`POST /logout`** invalida a sessão (`204`).
 - **Principal só identidade**: `SecurityPrincipal.breweryId` agora **opcional** + `identityOnly(...)`; permissões vazias. Endpoints permissionados seguem `403` até a SEC-004.
 - **Revogação de sessões ativada**: o `Authentication` custom expõe `getName()=userId`, indexando a sessão por usuário — a `UserSessionRegistry` (SEC-001) passa a encontrar/derrubar sessões no `disable`. Cobertura automatizada: `disable→revokeAll` é unit-testado; o round-trip JDBC de sessão/cookie é validado em runtime (MockMvc usa `MockHttpSession`).
-- Fora de escopo (histórias próprias): MFA (SEC-009), recuperação de senha (SEC-010), rate limit (SEC-012), gestão de sessões/`login_event` (SEC-006), cervejaria ativa (SEC-005), **UI de login** (fatia seguinte).
+- Fora de escopo (histórias próprias): MFA (SEC-009), recuperação de senha (SEC-010), rate limit (SEC-012), gestão de sessões/`login_event` (SEC-006), cervejaria ativa (SEC-005).
+
+### SEC-002 — UI de login (2026-07-21)
+
+- **CSRF bootstrap**: `GET /api/v1/security/csrf` (público) resolve o `CsrfToken` e emite o cookie `XSRF-TOKEN`; o Angular (XSRF nativo) o reenvia no header `X-XSRF-TOKEN` nas requisições mutáveis.
+- **Frontend `core/auth`**: `AuthApi` (csrf/login/logout/session), `AuthService` (Signals: `user`/`isAuthenticated`, `ensureSession` cacheia a consulta), `authGuard` (redireciona a `/login?returnUrl=` quando não autenticado).
+- **Página de login** (`features/auth/login-page`) no card fiel do tema Fila (rota pública `/login`, fora do shell); o shell passa a ser protegido pelo `authGuard`. O header mostra o nome do usuário e o botão **Sair** (logout → `/login`).
+- **Sem dados reais ainda**: após logar, as telas com endpoints permissionados seguem `403` até a SEC-004 (RBAC). Guard/login e identidade funcionam fim a fim.
 
 ## Evidências de encerramento
 

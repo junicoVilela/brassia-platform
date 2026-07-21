@@ -1,6 +1,6 @@
 # Status — Sprint 00
 
-Estado: EM ANDAMENTO (preparação da fundação)
+Estado: CONCLUÍDA com ressalvas (ver ACCEPTANCE — DEBT-CI-001 proteção da main bloqueada por plano)
 
 ## Controle das histórias
 
@@ -13,7 +13,7 @@ Estado: EM ANDAMENTO (preparação da fundação)
 | FND-004 | Concluída | Claude/junico | 401/403/erros em problem+json validados via curl | Problem Details RFC 9457 + traceId |
 | FND-005 | Concluída | Claude/junico | prometheus 200; ECS JSON; 6 testes verdes | Auditoria + observabilidade + mascaramento |
 | FND-006 | Concluída | Claude/junico | ver evidências abaixo | Baseline fixado e validado |
-| FND-007 | A fazer | — | — | — |
+| FND-007 | Concluída | Claude/junico | clone limpo reproduz backend+frontend verdes | Encerramento verificável |
 
 ## Decisões e bloqueios
 
@@ -43,6 +43,15 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - `package-lock.json` versionado; `styles.scss` importa os tokens.
 - Evidência: `npm install` (459 pacotes), `npm run build` → bundle OK com lazy chunks `recipe-list-page` e `recipes-routes`; `npm test` → **2 arquivos, 2 testes verdes** (Vitest).
 - Pendente (refinamento): ESLint com regra de fronteira de import e `proxy.conf.json` para a API.
+
+### FND-007 — Encerramento verificável (2026-07-21)
+
+- Clone limpo do remoto em `/tmp/brassia-clean` (mesmo HEAD), usando apenas arquivos versionados.
+- Backend: `./mvnw -B verify` → **BUILD SUCCESS** (6 unitários + Modulith + `ApplicationContextIT` com PostgreSQL 18 aplicando as 2 migrations; JDK 25.0.3).
+- Frontend: `npm ci` + `npm run build` + `npm test` → bundle OK e **2/2 testes Vitest** verdes.
+- Verificado que `target/`, `dist/`, `node_modules/`, `.angular/` e `.env` **não** estão versionados; nenhum segredo rastreado.
+- `ACCEPTANCE.md` preenchido com evidências e 4 débitos identificados (DEBT-CI-001, DEBT-FE-001, DEBT-FE-002, DEBT-DOC-001) com critério de remoção.
+- Commit final `chore: complete sprint 00 foundation` publicado sem reescrever histórico; CI remota verde no commit final.
 
 ### FND-003 — Pipeline CI (verde em 2026-07-21)
 

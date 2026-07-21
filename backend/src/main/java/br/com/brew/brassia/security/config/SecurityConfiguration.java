@@ -27,13 +27,17 @@ class SecurityConfiguration {
         csrf.setCookieName("XSRF-TOKEN");
         csrf.setCookiePath("/");
         return http
-                .csrf(config -> config.csrfTokenRepository(csrf))
+                // Aceite de convite é autenticado pelo token do link (sem sessão/
+                // cookie de autoridade ambiente), portanto isento de CSRF.
+                .csrf(config -> config.csrfTokenRepository(csrf)
+                        .ignoringRequestMatchers("/api/v1/security/users/accept-invitation"))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/security/login",
                                 "/api/v1/security/login/mfa",
                                 "/api/v1/security/password/forgot",
-                                "/api/v1/security/password/reset").permitAll()
+                                "/api/v1/security/password/reset",
+                                "/api/v1/security/users/accept-invitation").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/actuator/health/**",
                                 "/actuator/info",

@@ -186,6 +186,12 @@ paths:
       responses:
         '200': {description: Eventos de login (occurredAt/outcome/reasonCode)}
         '401': {description: Não autenticado}
+  /api/v1/security/audit-events:
+    get:
+      summary: Auditoria de segurança da cervejaria ativa (append-only, diff mascarado)
+      responses:
+        '200': {description: Eventos (occurredAt/action/outcome/target/actor/changeSummary)}
+        '403': {description: Sem permissão security.audit.read}
   /api/v1/security/temporary-access:
     post:
       summary: Solicita acesso temporário

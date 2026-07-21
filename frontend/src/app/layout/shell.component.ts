@@ -63,7 +63,28 @@ import { AuthService } from '../core/auth/auth.service';
             </button>
           </div>
           <div class="right-header-content mt-3 mt-md-0">
-            <ul class="d-flex align-items-center mb-0 ps-0 list-unstyled">
+            <ul class="d-flex align-items-center gap-2 mb-0 ps-0 list-unstyled">
+              @if (auth.user()?.activeBrewery; as active) {
+                <li class="dropdown">
+                  <a href="javascript:void(0);" class="dropdown-toggle d-flex align-items-center gap-2 text-decoration-none text-body"
+                     data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="ri-store-2-line"></i>
+                    <span class="fw-medium">{{ active.name }}</span>
+                  </a>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li><h6 class="dropdown-header">Cervejaria ativa</h6></li>
+                    @for (brewery of auth.user()?.accessibleBreweries ?? []; track brewery.id) {
+                      <li>
+                        <button type="button" class="dropdown-item d-flex align-items-center justify-content-between"
+                                (click)="selectBrewery(brewery.id)">
+                          {{ brewery.name }}
+                          @if (brewery.id === active.id) { <i class="ri-check-line text-primary"></i> }
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                </li>
+              }
               <li class="dropdown">
                 <a href="javascript:void(0);" class="dropdown-toggle d-flex align-items-center gap-2 text-decoration-none text-body"
                    data-bs-toggle="dropdown" aria-expanded="false">
@@ -112,5 +133,12 @@ export class ShellComponent {
       next: () => void this.router.navigateByUrl('/login'),
       error: () => void this.router.navigateByUrl('/login'),
     });
+  }
+
+  protected selectBrewery(breweryId: string): void {
+    if (this.auth.user()?.activeBrewery?.id === breweryId) {
+      return;
+    }
+    this.auth.switchBrewery(breweryId).subscribe();
   }
 }

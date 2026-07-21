@@ -52,6 +52,12 @@ class AuthorizationIT {
                 .andReturn();
         var session = (MockHttpSession) login.getRequest().getSession(false);
 
+        // Login já traz a cervejaria default (bootstrap) como ativa.
+        login.getResponse().setCharacterEncoding("UTF-8");
+        var body = login.getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(com.jayway.jsonpath.JsonPath.<String>read(body, "$.activeBrewery.code"))
+                .isEqualTo("MATRIZ");
+
         // Com a permissão resolvida, o endpoint antes 403 agora responde 200.
         mockMvc.perform(get("/api/v1/security/users").session(session))
                 .andExpect(status().isOk())
@@ -59,6 +65,29 @@ class AuthorizationIT {
 
         mockMvc.perform(get("/api/v1/security/session").session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.permissions", hasItem("security.user.invite")));
+                .andExpect(jsonPath("$.permissions", hasItem("security.user.invite")))
+                .andExpect(jsonPath("$.accessibleBreweries[*].code", hasItem("MATRIZ")));
+    }
+
+    @Test
+    void switchBreweryAcceptsAccessibleAndRejectsUnknown() throws Exception {
+        var login = mockMvc.perform(post("/api/v1/security/login")
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"email\":\"admin@brassia.local\",\"password\":\"admin-local-123\"}"))
+                .andExpect(status().isOk()).andReturn();
+        var session = (MockHttpSession) login.getRequest().getSession(false);
+        login.getResponse().setCharacterEncoding("UTF-8");
+        String activeId = com.jayway.jsonpath.JsonPath.read(login.getResponse().getContentAsString(), "$.activeBrewery.id");
+
+        mockMvc.perform(post("/api/v1/security/session/brewery").session(session).with(csrf())
+                        .contentType("application/json").content("{\"breweryId\":\"" + activeId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeBrewery.code").value("MATRIZ"));
+
+        // Cervejaria não acessível → 403.
+        mockMvc.perform(post("/api/v1/security/session/brewery").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"breweryId\":\"" + java.util.UUID.randomUUID() + "\"}"))
+                .andExpect(status().isForbidden());
     }
 }

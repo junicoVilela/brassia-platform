@@ -25,7 +25,7 @@ describe('AuthService', () => {
     http.expectOne(r => r.method === 'GET' && r.url === '/api/v1/security/csrf').flush(null);
     const login = http.expectOne(r => r.method === 'POST' && r.url === '/api/v1/security/login');
     expect(login.request.body).toEqual({ email: 'a@x.com', password: 'segredo1' });
-    login.flush({ userId: '1', displayName: 'Ana', brewery: null, permissions: [] });
+    login.flush({ userId: '1', displayName: 'Ana', activeBrewery: null, accessibleBreweries: [], permissions: [] });
 
     expect(auth.isAuthenticated()).toBe(true);
     expect(auth.user()?.displayName).toBe('Ana');
@@ -42,9 +42,23 @@ describe('AuthService', () => {
     expect(auth.isAuthenticated()).toBe(false);
   });
 
+  it('troca a cervejaria ativa (CSRF + POST) e atualiza o usuário', () => {
+    let result: unknown;
+    auth.switchBrewery('b2').subscribe(u => (result = u));
+
+    http.expectOne(r => r.method === 'GET' && r.url === '/api/v1/security/csrf').flush(null);
+    const req = http.expectOne(r => r.method === 'POST' && r.url === '/api/v1/security/session/brewery');
+    expect(req.request.body).toEqual({ breweryId: 'b2' });
+    req.flush({ userId: '1', displayName: 'Ana',
+      activeBrewery: { id: 'b2', code: 'BETA', name: 'Beta' }, accessibleBreweries: [], permissions: [] });
+
+    expect(auth.user()?.activeBrewery?.code).toBe('BETA');
+    expect(result).toBeTruthy();
+  });
+
   it('ensureSession consulta o servidor apenas uma vez', () => {
     auth.ensureSession().subscribe();
-    http.expectOne('/api/v1/security/session').flush({ userId: '1', displayName: 'Ana', brewery: null, permissions: [] });
+    http.expectOne('/api/v1/security/session').flush({ userId: '1', displayName: 'Ana', activeBrewery: null, accessibleBreweries: [], permissions: [] });
 
     auth.ensureSession().subscribe();
     http.expectNone('/api/v1/security/session');

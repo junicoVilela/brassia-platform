@@ -1,8 +1,15 @@
+export interface BreweryRef {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export interface SessionUser {
   userId: string;
   displayName: string;
-  /** Nula até a seleção de cervejaria ativa (SEC-005). */
-  brewery: string | null;
+  /** Cervejaria ativa; nula até haver alguma acessível. */
+  activeBrewery: BreweryRef | null;
+  accessibleBreweries: BreweryRef[];
   permissions: string[];
 }
 

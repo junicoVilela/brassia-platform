@@ -1,12 +1,18 @@
 package br.com.brew.brassia.security.adapter.inbound.web;
 
+import br.com.brew.brassia.brewery.BreweryRef;
 import br.com.brew.brassia.security.application.port.inbound.AuthenticateUserUseCase;
+import br.com.brew.brassia.security.application.service.SessionContext;
+import br.com.brew.brassia.security.application.service.SessionContextResolver;
+import br.com.brew.brassia.security.domain.UserId;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -27,15 +33,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/security")
 final class AuthenticationController {
     private final AuthenticateUserUseCase authenticate;
+    private final SessionContextResolver sessionContext;
     private final SecurityContextRepository contextRepository = new HttpSessionSecurityContextRepository();
     private final SecurityContextHolderStrategy holder = SecurityContextHolder.getContextHolderStrategy();
 
-    AuthenticationController(AuthenticateUserUseCase authenticate) {
+    AuthenticationController(AuthenticateUserUseCase authenticate, SessionContextResolver sessionContext) {
         this.authenticate = authenticate;
+        this.sessionContext = sessionContext;
     }
 
-    // Público: resolver o CsrfToken força a emissão do cookie XSRF-TOKEN, que o
-    // front (Angular) lê e reenvia no header antes das requisições mutáveis.
+    // Público: resolver o CsrfToken força a emissão do cookie XSRF-TOKEN.
     @GetMapping("/csrf")
     ResponseEntity<Void> csrf(CsrfToken token) {
         token.getToken();
@@ -53,22 +60,28 @@ final class AuthenticationController {
                     .body(ProblemDetails.of(HttpStatus.UNAUTHORIZED, "invalid_credentials", "Credenciais inválidas."));
         }
 
-        var principal = new SecurityPrincipal(result.userId(), null, result.displayName(), result.permissions());
-        var context = holder.createEmptyContext();
-        context.setAuthentication(new SecurityPrincipalAuthentication(principal));
-        holder.setContext(context);
+        var context = sessionContext.resolve(new UserId(result.userId()), null);
+        var principal = principal(result.userId(), result.displayName(), context);
+        persist(principal, httpRequest, httpResponse, true);
+        return ResponseEntity.ok(toResponse(principal, context));
+    }
 
-        // Rotaciona o identificador da sessão (proteção contra fixation) e persiste o contexto.
-        httpRequest.getSession(true);
-        httpRequest.changeSessionId();
-        contextRepository.saveContext(context, httpRequest, httpResponse);
-
-        return ResponseEntity.ok(toResponse(principal));
+    @PostMapping("/session/brewery")
+    ResponseEntity<SessionResponse> switchBrewery(
+            @Valid @RequestBody SwitchBreweryRequest request,
+            @AuthenticationPrincipal SecurityPrincipal current,
+            HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        var context = sessionContext.resolve(new UserId(current.userId()), request.breweryId());
+        var principal = principal(current.userId(), current.displayName(), context);
+        persist(principal, httpRequest, httpResponse, false);
+        return ResponseEntity.ok(toResponse(principal, context));
     }
 
     @GetMapping("/session")
     SessionResponse session(@AuthenticationPrincipal SecurityPrincipal principal) {
-        return toResponse(principal);
+        // Reresolve para expor as cervejarias acessíveis (não guardadas no principal).
+        var context = sessionContext.resolve(new UserId(principal.userId()), principal.breweryId());
+        return toResponse(principal, context);
     }
 
     @PostMapping("/logout")
@@ -81,12 +94,40 @@ final class AuthenticationController {
         return ResponseEntity.noContent().build();
     }
 
-    private static SessionResponse toResponse(SecurityPrincipal principal) {
-        return new SessionResponse(principal.userId(), principal.displayName(),
-                principal.breweryId(), principal.permissions());
+    private void persist(SecurityPrincipal principal, HttpServletRequest request,
+            HttpServletResponse response, boolean rotate) {
+        var context = holder.createEmptyContext();
+        context.setAuthentication(new SecurityPrincipalAuthentication(principal));
+        holder.setContext(context);
+        request.getSession(true);
+        if (rotate) {
+            request.changeSessionId();
+        }
+        contextRepository.saveContext(context, request, response);
+    }
+
+    private static SecurityPrincipal principal(UUID userId, String displayName, SessionContext context) {
+        return new SecurityPrincipal(userId, context.activeBreweryId(), displayName, context.permissions());
+    }
+
+    private static SessionResponse toResponse(SecurityPrincipal principal, SessionContext context) {
+        var accessible = context.accessibleBreweries().stream().map(AuthenticationController::view).toList();
+        var active = context.accessibleBreweries().stream()
+                .filter(b -> b.id().equals(context.activeBreweryId()))
+                .findFirst().map(AuthenticationController::view).orElse(null);
+        return new SessionResponse(principal.userId(), principal.displayName(), active, accessible, principal.permissions());
+    }
+
+    private static BreweryView view(BreweryRef ref) {
+        return new BreweryView(ref.id(), ref.code(), ref.name());
     }
 
     record LoginRequest(@NotBlank String email, @NotBlank String password) {}
 
-    record SessionResponse(UUID userId, String displayName, UUID brewery, Set<String> permissions) {}
+    record SwitchBreweryRequest(@NotNull UUID breweryId) {}
+
+    record BreweryView(UUID id, String code, String name) {}
+
+    record SessionResponse(UUID userId, String displayName, BreweryView activeBrewery,
+            List<BreweryView> accessibleBreweries, Set<String> permissions) {}
 }

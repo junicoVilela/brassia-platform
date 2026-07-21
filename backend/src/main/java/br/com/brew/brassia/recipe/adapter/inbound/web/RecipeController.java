@@ -28,7 +28,8 @@ final class RecipeController {
             @Valid @RequestBody Request request,
             @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("recipe.create");
-        var result = createRecipe.handle(new CreateRecipeUseCase.Command(principal.breweryId(), request.name()));
+        // brewery_id é autoridade do principal (cervejaria ativa), nunca do corpo.
+        var result = createRecipe.handle(new CreateRecipeUseCase.Command(principal.requireBrewery(), request.name()));
         return ResponseEntity.created(URI.create("/api/v1/recipes/" + result.id()))
                 .body(new Response(result.id(), result.name(), result.status()));
     }

@@ -4,6 +4,7 @@ import br.com.brew.brassia.security.application.port.outbound.EffectivePermissio
 import br.com.brew.brassia.security.domain.UserId;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -23,6 +24,7 @@ class JdbcEffectivePermissionsRepository implements EffectivePermissionsReposito
               AND m.revoked_at IS NULL
               AND m.valid_from <= now()
               AND (m.valid_until IS NULL OR m.valid_until > now())
+              AND (m.brewery_id IS NULL OR m.brewery_id = :breweryId)
             """;
 
     private final JdbcClient jdbcClient;
@@ -32,8 +34,10 @@ class JdbcEffectivePermissionsRepository implements EffectivePermissionsReposito
     }
 
     @Override
-    public Set<String> findByUserId(UserId userId) {
-        return new LinkedHashSet<>(
-                jdbcClient.sql(SQL).param("userId", userId.value()).query(String.class).list());
+    public Set<String> findByUserId(UserId userId, UUID activeBreweryId) {
+        return new LinkedHashSet<>(jdbcClient.sql(SQL)
+                .param("userId", userId.value())
+                .param("breweryId", activeBreweryId)
+                .query(String.class).list());
     }
 }

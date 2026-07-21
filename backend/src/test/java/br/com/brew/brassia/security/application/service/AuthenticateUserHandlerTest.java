@@ -7,6 +7,7 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditOutcome;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.security.application.port.inbound.AuthenticateUserUseCase.Command;
+import br.com.brew.brassia.security.application.port.outbound.EffectivePermissionsRepository;
 import br.com.brew.brassia.security.application.port.outbound.PasswordCredentialRepository;
 import br.com.brew.brassia.security.application.port.outbound.PasswordHasher;
 import br.com.brew.brassia.security.application.port.outbound.SecurityUserRepository;
@@ -30,6 +31,8 @@ class AuthenticateUserHandlerTest {
     private final AuditTrail audit = audited::add;
     private final FakeUsers users = new FakeUsers();
     private final FakeCredentials credentials = new FakeCredentials();
+    private final java.util.Map<UserId, java.util.Set<String>> grants = new HashMap<>();
+    private final EffectivePermissionsRepository permissions = userId -> grants.getOrDefault(userId, java.util.Set.of());
     private final PasswordHasher passwordHasher = new PasswordHasher() {
         @Override public String hash(CharSequence raw) { return "enc:" + raw; }
         @Override public boolean matches(CharSequence raw, String encoded) { return encoded.equals("enc:" + raw); }
@@ -37,7 +40,7 @@ class AuthenticateUserHandlerTest {
     };
 
     private AuthenticateUserHandler handler() {
-        return new AuthenticateUserHandler(users, credentials, passwordHasher, audit);
+        return new AuthenticateUserHandler(users, credentials, permissions, passwordHasher, audit);
     }
 
     private SecurityUser storedActive(String email) {
@@ -51,11 +54,13 @@ class AuthenticateUserHandlerTest {
     @Test
     void authenticatesValidCredentials() {
         var user = storedActive("brewer@example.com");
+        grants.put(user.id(), java.util.Set.of("security.user.read"));
 
         var result = handler().handle(new Command("Brewer@Example.com", "segredo1"));
 
         assertThat(result.userId()).isEqualTo(user.id().value());
         assertThat(result.email()).isEqualTo("brewer@example.com");
+        assertThat(result.permissions()).containsExactly("security.user.read");
         assertThat(audited).singleElement().satisfies(e -> {
             assertThat(e.action()).isEqualTo("security.login.success");
             assertThat(e.outcome()).isEqualTo(AuditOutcome.SUCCESS);

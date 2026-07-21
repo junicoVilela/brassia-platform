@@ -31,6 +31,15 @@ public final class SecurityUser {
         return new SecurityUser(UserId.newId(), email, displayName, AccountStatus.INVITED, null, 0);
     }
 
+    /**
+     * Cria uma conta já ativa e com e-mail verificado. Uso restrito ao bootstrap
+     * administrativo (não passa pelo fluxo de convite/aceite).
+     */
+    public static SecurityUser activeAccount(EmailAddress email, DisplayName displayName, Instant now) {
+        return new SecurityUser(UserId.newId(), email, displayName, AccountStatus.ACTIVE,
+                Objects.requireNonNull(now, "now"), 0);
+    }
+
     /** Reconstrói o agregado a partir da persistência (sem regra de criação). */
     public static SecurityUser reconstitute(UserId id, EmailAddress email, DisplayName displayName,
             AccountStatus status, Instant emailVerifiedAt, long version) {

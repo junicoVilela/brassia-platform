@@ -53,7 +53,7 @@ final class AuthenticationController {
                     .body(ProblemDetails.of(HttpStatus.UNAUTHORIZED, "invalid_credentials", "Credenciais inválidas."));
         }
 
-        var principal = SecurityPrincipal.identityOnly(result.userId(), result.displayName());
+        var principal = new SecurityPrincipal(result.userId(), null, result.displayName(), result.permissions());
         var context = holder.createEmptyContext();
         context.setAuthentication(new SecurityPrincipalAuthentication(principal));
         holder.setContext(context);

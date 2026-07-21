@@ -164,9 +164,28 @@ paths:
         '202': {description: Solicitação processada independentemente da existência da conta}
   /api/v1/security/sessions:
     get:
-      summary: Lista sessões autorizadas
+      summary: Lista as próprias sessões ativas (id mascarado por ref)
       responses:
-        '200': {description: Sessões sem expor identificadores secretos}
+        '200': {description: Sessões (ref/createdAt/lastAccessedAt/current), sem expor o id}
+        '401': {description: Não autenticado}
+    delete:
+      summary: Revoga todas as outras sessões (mantém a atual)
+      responses:
+        '204': {description: Outras sessões encerradas}
+        '401': {description: Não autenticado}
+  /api/v1/security/sessions/{ref}:
+    delete:
+      summary: Revoga a própria sessão indicada pela ref
+      parameters: [{name: ref, in: path, required: true, schema: {type: string}}]
+      responses:
+        '204': {description: Sessão encerrada}
+        '401': {description: Não autenticado}
+  /api/v1/security/login-events:
+    get:
+      summary: Histórico de login do próprio usuário (IP/UA mascarados)
+      responses:
+        '200': {description: Eventos de login (occurredAt/outcome/reasonCode)}
+        '401': {description: Não autenticado}
   /api/v1/security/temporary-access:
     post:
       summary: Solicita acesso temporário

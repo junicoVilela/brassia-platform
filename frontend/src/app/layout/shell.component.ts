@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { AuthService } from '../core/auth/auth.service';
 
 /**
  * Shell de layout (tema Fila): sidebar + header + área de conteúdo + footer.
@@ -61,11 +62,11 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
                 <a href="javascript:void(0);" class="dropdown-toggle d-flex align-items-center gap-2 text-decoration-none text-body"
                    data-bs-toggle="dropdown" aria-expanded="false">
                   <span class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
-                        style="width:36px;height:36px;">BR</span>
-                  <span class="d-none d-sm-inline fw-medium">Brewer</span>
+                        style="width:36px;height:36px;">{{ initials() }}</span>
+                  <span class="d-none d-sm-inline fw-medium">{{ auth.user()?.displayName ?? 'Conta' }}</span>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end">
-                  <li><span class="dropdown-item-text text-muted small">Sessão não iniciada (SEC-002)</span></li>
+                  <li><button type="button" class="dropdown-item" (click)="logout()">Sair</button></li>
                 </ul>
               </li>
             </ul>
@@ -87,9 +88,23 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
   `,
 })
 export class ShellComponent {
+  protected readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   protected readonly collapsed = signal(false);
 
   protected toggle(): void {
     this.collapsed.update(value => !value);
+  }
+
+  protected initials(): string {
+    const name = this.auth.user()?.displayName?.trim();
+    return name ? name.charAt(0).toUpperCase() : 'B';
+  }
+
+  protected logout(): void {
+    this.auth.logout().subscribe({
+      next: () => void this.router.navigateByUrl('/login'),
+      error: () => void this.router.navigateByUrl('/login'),
+    });
   }
 }

@@ -4,7 +4,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5433/brassia}
     username: ${DB_USER:brassia_app}
-    password: ${DB_PASSWORD:local-only-change-me}
+    password: ${DB_PASSWORD:brassia85!@#}
 
 server:
   # Porta padrão 8080. Se conflitar com outro app local, use SERVER_PORT=8081.

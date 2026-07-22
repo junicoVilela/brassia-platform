@@ -9,6 +9,9 @@ spring:
 
 # Storage em filesystem temporário durante os testes.
 brassia:
+  security:
+    mfa:
+      secret-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
   storage:
     provider: filesystem
     local-path: ${java.io.tmpdir}/brassia-test-objects

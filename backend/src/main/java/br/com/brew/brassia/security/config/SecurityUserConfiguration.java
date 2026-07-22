@@ -89,9 +89,10 @@ class SecurityUserConfiguration {
             SecurityUserRepository users,
             PasswordCredentialRepository credentials,
             PasswordHasher passwordHasher,
+            br.com.brew.brassia.security.application.port.inbound.HasActiveMfaQuery mfaQuery,
             AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new AuthenticateUserHandler(users, credentials, passwordHasher, audit);
+        var handler = new AuthenticateUserHandler(users, credentials, passwordHasher, mfaQuery, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(
                 transaction.execute(status -> handler.handle(command)));
@@ -107,9 +108,10 @@ class SecurityUserConfiguration {
     br.com.brew.brassia.security.application.port.inbound.ManageMembershipUseCase manageMembershipUseCase(
             SecurityUserRepository users,
             br.com.brew.brassia.security.application.port.outbound.GroupMembershipRepository memberships,
+            br.com.brew.brassia.security.application.service.SegregationChecker segregation,
             AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new br.com.brew.brassia.security.application.service.ManageMembershipHandler(users, memberships, audit);
+        var handler = new br.com.brew.brassia.security.application.service.ManageMembershipHandler(users, memberships, segregation, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return new br.com.brew.brassia.security.application.port.inbound.ManageMembershipUseCase() {
             @Override public void grant(Command c) { transaction.executeWithoutResult(s -> handler.grant(c)); }

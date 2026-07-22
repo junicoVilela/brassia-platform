@@ -37,7 +37,7 @@ class AuthenticateUserHandlerTest {
     };
 
     private AuthenticateUserHandler handler() {
-        return new AuthenticateUserHandler(users, credentials, passwordHasher, audit);
+        return new AuthenticateUserHandler(users, credentials, passwordHasher, userId -> false, audit);
     }
 
     private SecurityUser storedActive(String email) {

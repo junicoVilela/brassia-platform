@@ -62,6 +62,12 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                 HttpStatus.FORBIDDEN, "forbidden", "Você não tem permissão para esta operação.");
     }
 
+    @ExceptionHandler(br.com.brew.brassia.shared.security.TooManyRequestsException.class)
+    ProblemDetail handleTooManyRequests(br.com.brew.brassia.shared.security.TooManyRequestsException ex) {
+        return ProblemDetails.of(
+                HttpStatus.TOO_MANY_REQUESTS, "too_many_requests", "Muitas tentativas. Tente novamente em instantes.");
+    }
+
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception ex) {
         logger.error("Erro inesperado (traceId=" + ProblemDetails.currentTraceId() + ")", ex);

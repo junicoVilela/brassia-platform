@@ -32,6 +32,14 @@ public final class AccountToken {
         return new AccountToken(UUID.randomUUID(), userId, Type.INVITATION, tokenHash, expiresAt);
     }
 
+    public static AccountToken passwordReset(UserId userId, String tokenHash, Instant expiresAt) {
+        return new AccountToken(UUID.randomUUID(), userId, Type.PASSWORD_RESET, tokenHash, expiresAt);
+    }
+
+    public static AccountToken emailVerification(UserId userId, String tokenHash, Instant expiresAt) {
+        return new AccountToken(UUID.randomUUID(), userId, Type.EMAIL_VERIFICATION, tokenHash, expiresAt);
+    }
+
     /** Reconstrói o token a partir da persistência. */
     public static AccountToken reconstitute(UUID id, UserId userId, Type type,
             String tokenHash, Instant expiresAt, Instant usedAt) {

@@ -16,17 +16,24 @@ import java.util.Objects;
 public final class ManageMembershipHandler implements ManageMembershipUseCase {
     private final SecurityUserRepository users;
     private final GroupMembershipRepository memberships;
+    private final SegregationChecker segregation;
     private final AuditTrail audit;
 
-    public ManageMembershipHandler(SecurityUserRepository users, GroupMembershipRepository memberships, AuditTrail audit) {
+    public ManageMembershipHandler(
+            SecurityUserRepository users,
+            GroupMembershipRepository memberships,
+            SegregationChecker segregation,
+            AuditTrail audit) {
         this.users = Objects.requireNonNull(users);
         this.memberships = Objects.requireNonNull(memberships);
+        this.segregation = Objects.requireNonNull(segregation);
         this.audit = Objects.requireNonNull(audit);
     }
 
     @Override
     public void grant(Command command) {
         var targetUser = validate(command);
+        segregation.assertGrantAllowed(command.breweryId(), targetUser, command.groupId());
         if (memberships.hasActiveMembership(targetUser, command.groupId(), command.breweryId())) {
             throw new IllegalStateException("associação já existe");
         }

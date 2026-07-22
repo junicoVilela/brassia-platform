@@ -17,6 +17,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import br.com.brew.brassia.security.application.port.outbound.EffectivePermissionsRepository;
+import br.com.brew.brassia.security.application.port.outbound.GroupPermissionRepository;
+import br.com.brew.brassia.security.application.port.outbound.SegregationRuleRepository;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +32,15 @@ class ManageMembershipHandlerTest {
     private final FakeMemberships memberships = new FakeMemberships();
 
     private ManageMembershipHandler handler() {
-        return new ManageMembershipHandler(users, memberships, audit);
+        SegregationChecker segregation = new SegregationChecker(
+                new SegregationRuleRepository() {
+                    @Override public UUID create(UUID breweryId, String left, String right, String reason) { return null; }
+                    @Override public java.util.List<RuleView> listActive(UUID breweryId) { return List.of(); }
+                    @Override public java.util.Optional<RuleView> findById(UUID id) { return java.util.Optional.empty(); }
+                },
+                (userId, breweryId) -> Set.of(),
+                groupId -> Set.of());
+        return new ManageMembershipHandler(users, memberships, segregation, audit);
     }
 
     private final UUID brewery = UUID.randomUUID();
@@ -117,6 +129,7 @@ class ManageMembershipHandlerTest {
         @Override public boolean hasActiveMembership(UserId u, UUID g, UUID b) { return added.contains(key(u, g, b)); }
         @Override public void addMembership(UserId u, UUID g, UUID b) { added.add(key(u, g, b)); }
         @Override public void revokeMembership(UserId u, UUID g, UUID b) { added.remove(key(u, g, b)); }
+        @Override public List<MembershipRecord> listActiveByBrewery(UUID breweryId) { return List.of(); }
 
         private static String key(UserId u, UUID g, UUID b) { return u.value() + "/" + g + "/" + b; }
     }

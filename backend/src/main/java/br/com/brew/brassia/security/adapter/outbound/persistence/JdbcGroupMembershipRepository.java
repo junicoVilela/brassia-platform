@@ -2,6 +2,7 @@ package br.com.brew.brassia.security.adapter.outbound.persistence;
 
 import br.com.brew.brassia.security.application.port.outbound.GroupMembershipRepository;
 import br.com.brew.brassia.security.domain.UserId;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -68,5 +69,18 @@ class JdbcGroupMembershipRepository implements GroupMembershipRepository {
                 .param("groupId", groupId)
                 .param("breweryId", breweryId)
                 .update();
+    }
+
+    @Override
+    public List<MembershipRecord> listActiveByBrewery(UUID breweryId) {
+        return jdbcClient.sql("""
+                SELECT user_id, group_id FROM user_group_membership
+                WHERE revoked_at IS NULL AND brewery_id IS NOT DISTINCT FROM :breweryId
+                """)
+                .param("breweryId", breweryId)
+                .query((rs, n) -> new MembershipRecord(
+                        rs.getObject("user_id", UUID.class),
+                        rs.getObject("group_id", UUID.class)))
+                .list();
     }
 }

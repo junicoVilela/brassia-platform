@@ -58,6 +58,13 @@ public final class SecurityUser {
         this.status = AccountStatus.ACTIVE;
     }
 
+    /** Marca o e-mail como verificado (fluxo de verificação pós-ativação). */
+    public void verifyEmail(Instant now) {
+        if (emailVerifiedAt == null) {
+            this.emailVerifiedAt = Objects.requireNonNull(now, "now");
+        }
+    }
+
     /** Bloqueia uma conta ativa (ex.: por decisão administrativa). */
     public void block() {
         if (status != AccountStatus.ACTIVE) {

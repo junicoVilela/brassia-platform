@@ -9,4 +9,6 @@ import java.time.Instant;
  */
 public interface NotificationGateway {
     void sendInvitation(EmailAddress email, String rawToken, Instant expiresAt);
+    void sendPasswordReset(EmailAddress email, String rawToken, Instant expiresAt);
+    void sendEmailVerification(EmailAddress email, String rawToken, Instant expiresAt);
 }

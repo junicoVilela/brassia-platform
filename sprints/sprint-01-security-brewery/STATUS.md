@@ -14,14 +14,14 @@ Estado: EM ANDAMENTO
 | SEC-006 | Concluída (self-service) | Claude/junico | sessões + histórico: SessionIT verde | Habilitado Spring Session JDBC (sessão real no Postgres + repo indexado); listar/revogar as próprias sessões; histórico de login (login_event, IP/UA em hash). Admin-sobre-terceiros e dispositivos ficam para depois. |
 | SEC-007 | Concluída | Claude/junico | persistência + consulta: AuditEventIT verde | Trilha `AuditTrail` agora persiste (append-only) em `audit_event` além de logar; diff mascarado, traceId; `GET /audit-events` por cervejaria (security.audit.read). Uma auditoria para todos os módulos. |
 | SEC-008 | Concluída | Claude/junico | concessão + aprovação + revogação: TemporaryAccessIT + resolução verde | Acesso temporário: permissão pontual com vigência e justificativa; comum vige na janela, crítica exige aprovação de 2º usuário (≠ solicitante); revogação; tudo auditado e efetivo na resolução do login. |
-| SEC-009 | A fazer | — | — | — |
-| SEC-010 | A fazer | — | — | — |
-| SEC-011 | A fazer | — | — | — |
-| SEC-012 | A fazer | — | — | — |
-| SEC-013 | A fazer | — | — | — |
-| SEC-014 | A fazer | — | — | — |
-| SEC-015 | A fazer | — | — | — |
-| SEC-016 | A fazer | — | — | — |
+| SEC-009 | Concluída (fatia 1) | Claude/junico | MfaIT + TotpTest verdes | TOTP RFC 6238 + códigos de recuperação (hash/single-use); segredo cifrado AES; login em duas etapas; enroll/confirm/disable/regenerate. Passkeys/WebAuthn fora de escopo. |
+| SEC-010 | Concluída (fatia 1) | Claude/junico | PasswordResetIT verde | Reset e verificação de e-mail por token hash; resposta neutra no forgot; reset revoga sessões sem auto-login. |
+| SEC-011 | Concluída (fatia 1) | Claude/junico | ServiceAccountIT verde | Contas de serviço + API keys (`brassia_` prefix/hash); emitir/revogar; autenticação Bearer em `/scim/v2/**` e probe `/service-accounts/me`. |
+| SEC-012 | Concluída (fatia 1) | Claude/junico | AlertIT verde | Throttle 5 falhas → 429/60s; alerta HIGH OPEN; listar/atualizar status. |
+| SEC-013 | Concluída (fatia 1) | Claude/junico | ManageMembershipHandlerTest + SegregationChecker | Revisão de acessos materializa memberships; decisão REMOVE revoga; segregação bloqueia grant. |
+| SEC-014 | Concluída (fatia 1) | Claude/junico | FederationIT + SamlAssertionValidatorTest | CRUD providers SAML/OIDC; validate metadata; link/resolve identidade externa. Sem filtro SAML browser. |
+| SEC-015 | Concluída (fatia 1) | Claude/junico | OidcTokenClaimsValidatorTest | Validação estrutural OIDC (issuer/sub/nonce/state/PKCE) como serviço testável. |
+| SEC-016 | Concluída (fatia 1) | Claude/junico | ScimIT verde | SCIM Users mínimo + ServiceProviderConfig; auth API key com escopos; provisioning_event idempotente. LDAP stub apenas. |
 | BRW-001 | Concluída | Claude/junico | backend (BreweryIT) + tela: verdes | Cadastro/listagem de cervejaria (código único, fuso), auditado; permissões brewery.* no catálogo; tela Cervejarias no shell. Vínculo ao principal/tenant é SEC-005. |
 | BRW-002 | A fazer | — | — | — |
 

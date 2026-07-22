@@ -6,4 +6,5 @@ import java.util.Optional;
 public interface AccountTokenRepository {
     void save(AccountToken token);
     Optional<AccountToken> findInvitationByHash(String tokenHash);
+    Optional<AccountToken> findByHashAndType(String tokenHash, AccountToken.Type type);
 }

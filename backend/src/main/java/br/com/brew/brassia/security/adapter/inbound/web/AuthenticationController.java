@@ -6,8 +6,13 @@ import br.com.brew.brassia.security.adapter.inbound.web.dto.ChangePasswordReques
 import br.com.brew.brassia.security.adapter.inbound.web.dto.LoginRequest;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.SessionResponse;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.SwitchBreweryRequest;
+import br.com.brew.brassia.security.adapter.inbound.web.dto.MfaLoginRequest;
+import br.com.brew.brassia.security.adapter.inbound.web.dto.MfaRequiredResponse;
 import br.com.brew.brassia.security.application.port.inbound.AuthenticateUserUseCase;
+import br.com.brew.brassia.security.application.port.inbound.CompleteMfaLoginUseCase;
 import br.com.brew.brassia.security.application.port.inbound.ChangePasswordUseCase;
+import br.com.brew.brassia.security.application.service.LoginThrottleService;
+import br.com.brew.brassia.shared.security.TooManyRequestsException;
 import br.com.brew.brassia.security.application.port.inbound.LoginHistoryQuery;
 import br.com.brew.brassia.security.application.port.inbound.RecordLoginAttemptUseCase;
 import br.com.brew.brassia.security.application.port.inbound.ResolveSessionContextUseCase;
@@ -33,25 +38,31 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/security")
 final class AuthenticationController {
     private final AuthenticateUserUseCase authenticate;
+    private final CompleteMfaLoginUseCase completeMfaLogin;
     private final ResolveSessionContextUseCase sessionContext;
     private final ChangePasswordUseCase changePassword;
     private final RecordLoginAttemptUseCase recordLoginAttempt;
     private final LoginHistoryQuery loginHistory;
     private final HttpSessionSecurityContextPersister sessionPersister;
+    private final LoginThrottleService loginThrottle;
 
     AuthenticationController(
             AuthenticateUserUseCase authenticate,
+            CompleteMfaLoginUseCase completeMfaLogin,
             ResolveSessionContextUseCase sessionContext,
             ChangePasswordUseCase changePassword,
             RecordLoginAttemptUseCase recordLoginAttempt,
             LoginHistoryQuery loginHistory,
-            HttpSessionSecurityContextPersister sessionPersister) {
+            HttpSessionSecurityContextPersister sessionPersister,
+            LoginThrottleService loginThrottle) {
         this.authenticate = authenticate;
+        this.completeMfaLogin = completeMfaLogin;
         this.sessionContext = sessionContext;
         this.changePassword = changePassword;
         this.recordLoginAttempt = recordLoginAttempt;
         this.loginHistory = loginHistory;
         this.sessionPersister = sessionPersister;
+        this.loginThrottle = loginThrottle;
     }
 
     // Público: resolver o CsrfToken força a emissão do cookie XSRF-TOKEN.
@@ -64,20 +75,59 @@ final class AuthenticationController {
     @PostMapping("/login")
     ResponseEntity<?> login(@Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        try {
+            loginThrottle.checkAllowed(request.email(), ip(httpRequest));
+        } catch (TooManyRequestsException e) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(ProblemDetails.of(HttpStatus.TOO_MANY_REQUESTS, "too_many_requests",
+                            "Muitas tentativas. Tente novamente em instantes."));
+        }
         AuthenticateUserUseCase.Result result;
         try {
             result = authenticate.handle(new AuthenticateUserUseCase.Command(request.email(), request.password()));
         } catch (IllegalArgumentException e) {
+            loginThrottle.recordFailure(request.email(), ip(httpRequest), null, null);
             recordLoginAttempt.record(new RecordLoginAttemptUseCase.Command(
                     null, request.email(), RecordLoginAttemptUseCase.Outcome.FAILURE,
                     "INVALID_CREDENTIALS", ip(httpRequest), userAgent(httpRequest), traceId()));
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ProblemDetails.of(HttpStatus.UNAUTHORIZED, "invalid_credentials", "Credenciais inválidas."));
         }
+        loginThrottle.recordSuccess(request.email(), ip(httpRequest));
         recordLoginAttempt.record(new RecordLoginAttemptUseCase.Command(
                 result.userId(), request.email(), RecordLoginAttemptUseCase.Outcome.SUCCESS,
                 "OK", ip(httpRequest), userAgent(httpRequest), traceId()));
 
+        if (result.mfaRequired()) {
+            var session = httpRequest.getSession(true);
+            PendingMfaSession.store(session, result.userId(), result.displayName());
+            return ResponseEntity.ok(MfaRequiredResponse.totp());
+        }
+
+        var context = sessionContext.resolve(new UserId(result.userId()), null);
+        var principal = principal(result.userId(), result.displayName(), context);
+        sessionPersister.persist(principal, httpRequest, httpResponse, true);
+        return ResponseEntity.ok(toResponse(principal, context));
+    }
+
+    @PostMapping("/login/mfa")
+    ResponseEntity<?> completeMfa(@Valid @RequestBody MfaLoginRequest request,
+            HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        var session = httpRequest.getSession(false);
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ProblemDetails.of(HttpStatus.UNAUTHORIZED, "invalid_mfa", "Sessão MFA inválida."));
+        }
+        var userId = PendingMfaSession.requireUserId(session);
+        CompleteMfaLoginUseCase.Result result;
+        try {
+            result = completeMfaLogin.handle(new CompleteMfaLoginUseCase.Command(
+                    userId, request.code(), CompleteMfaLoginUseCase.Method.valueOf(request.method())));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ProblemDetails.of(HttpStatus.UNAUTHORIZED, "invalid_mfa", "Código inválido."));
+        }
+        PendingMfaSession.clear(session);
         var context = sessionContext.resolve(new UserId(result.userId()), null);
         var principal = principal(result.userId(), result.displayName(), context);
         sessionPersister.persist(principal, httpRequest, httpResponse, true);

@@ -133,6 +133,35 @@ class SecurityUserConfiguration {
     }
 
     @Bean
+    br.com.brew.brassia.security.application.port.inbound.TemporaryAccessUseCase temporaryAccessUseCase(
+            br.com.brew.brassia.security.application.port.outbound.TemporaryAccessRepository grants,
+            SecurityUserRepository users,
+            AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new br.com.brew.brassia.security.application.service.TemporaryAccessHandler(grants, users, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return new br.com.brew.brassia.security.application.port.inbound.TemporaryAccessUseCase() {
+            @Override public java.util.UUID request(RequestCommand c) {
+                return Objects.requireNonNull(transaction.execute(s -> handler.request(c)));
+            }
+            @Override public void approve(java.util.UUID id, java.util.UUID actorId, java.util.UUID breweryId) {
+                transaction.executeWithoutResult(s -> handler.approve(id, actorId, breweryId));
+            }
+            @Override public void revoke(java.util.UUID id, java.util.UUID actorId, java.util.UUID breweryId) {
+                transaction.executeWithoutResult(s -> handler.revoke(id, actorId, breweryId));
+            }
+        };
+    }
+
+    @Bean
+    br.com.brew.brassia.security.application.port.inbound.TemporaryAccessQuery temporaryAccessQuery(
+            br.com.brew.brassia.security.application.port.outbound.TemporaryAccessRepository grants,
+            SecurityUserRepository users,
+            AuditTrail audit) {
+        return new br.com.brew.brassia.security.application.service.TemporaryAccessHandler(grants, users, audit);
+    }
+
+    @Bean
     SessionContextResolver sessionContextResolver(
             BreweryAccessRepository breweryAccess,
             br.com.brew.brassia.brewery.BreweryDirectory breweryDirectory,

@@ -193,11 +193,48 @@ paths:
         '200': {description: Eventos (occurredAt/action/outcome/target/actor/changeSummary)}
         '403': {description: Sem permissão security.audit.read}
   /api/v1/security/temporary-access:
-    post:
-      summary: Solicita acesso temporário
+    get:
+      summary: Lista concessões temporárias da cervejaria ativa (visão administrativa)
       responses:
-        '201': {description: Solicitação criada}
-        '403': {description: Sem permissão ou segregação violada}
+        '200': {description: Concessões (id/userId/permissionCode/critical/reason/janela/status)}
+        '403': {description: Sem permissão security.temporary-access.read}
+    post:
+      summary: Solicita acesso temporário (permissão pontual, com vigência)
+      description: >
+        Escopo é a cervejaria ativa do ator. Permissão comum vige na janela ao ser
+        solicitada; permissão crítica fica pendente até aprovação de um segundo usuário.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, permissionCode, reason, durationHours]
+              properties:
+                userId: {type: string, format: uuid}
+                permissionCode: {type: string, maxLength: 120}
+                reason: {type: string, minLength: 1, maxLength: 500}
+                durationHours: {type: integer, minimum: 1, maximum: 720}
+      responses:
+        '201': {description: 'Concessão criada; corpo {id}'}
+        '400': {description: Permissão/usuário inexistente ou requisição inválida (Problem Details)}
+        '403': {description: Sem permissão security.temporary-access.request}
+  /api/v1/security/temporary-access/{id}/approve:
+    post:
+      summary: Aprova uma concessão pendente (aprovador ≠ solicitante)
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        '204': {description: Concessão aprovada}
+        '403': {description: Sem permissão security.temporary-access.approve ou segregação violada}
+        '409': {description: Concessão não está pendente (revogada/expirada/já aprovada)}
+  /api/v1/security/temporary-access/{id}:
+    delete:
+      summary: Revoga uma concessão temporária
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        '204': {description: Concessão revogada}
+        '403': {description: Sem permissão security.temporary-access.revoke}
+        '409': {description: Concessão já revogada}
 components:
   securitySchemes:
     sessionCookie:

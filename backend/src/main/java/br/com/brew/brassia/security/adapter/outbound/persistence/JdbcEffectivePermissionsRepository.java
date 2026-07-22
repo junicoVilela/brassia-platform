@@ -10,12 +10,13 @@ import org.springframework.stereotype.Repository;
 
 /**
  * Resolve permissões efetivas juntando associações ativas → grupos ativos →
- * permissões ativas. Consulta de leitura (sem entidade JPA), via JdbcClient.
+ * permissões ativas, somadas às concessões temporárias vigentes. Consulta de
+ * leitura (sem entidade JPA), via JdbcClient.
  */
 @Repository
 class JdbcEffectivePermissionsRepository implements EffectivePermissionsRepository {
     private static final String SQL = """
-            SELECT DISTINCT p.code
+            SELECT p.code
             FROM user_group_membership m
             JOIN security_group g ON g.id = m.group_id AND g.active
             JOIN group_permission gp ON gp.group_id = g.id
@@ -25,6 +26,16 @@ class JdbcEffectivePermissionsRepository implements EffectivePermissionsReposito
               AND m.valid_from <= now()
               AND (m.valid_until IS NULL OR m.valid_until > now())
               AND (m.brewery_id IS NULL OR m.brewery_id = :breweryId)
+            UNION
+            SELECT p.code
+            FROM temporary_access_grant t
+            JOIN security_permission p ON p.id = t.permission_id AND p.active
+            WHERE t.user_id = :userId
+              AND t.brewery_id = :breweryId
+              AND t.revoked_at IS NULL
+              AND t.valid_from <= now()
+              AND t.valid_until > now()
+              AND (p.critical = false OR t.approved_by IS NOT NULL)
             """;
 
     private final JdbcClient jdbcClient;

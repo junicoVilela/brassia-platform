@@ -68,6 +68,11 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                 HttpStatus.TOO_MANY_REQUESTS, "too_many_requests", "Muitas tentativas. Tente novamente em instantes.");
     }
 
+    @ExceptionHandler(br.com.brew.brassia.shared.security.InvalidCredentialsException.class)
+    ProblemDetail handleInvalidCredentials(br.com.brew.brassia.shared.security.InvalidCredentialsException ex) {
+        return ProblemDetails.of(HttpStatus.UNAUTHORIZED, "invalid_credentials", "Credenciais inválidas.");
+    }
+
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception ex) {
         logger.error("Erro inesperado (traceId=" + ProblemDetails.currentTraceId() + ")", ex);

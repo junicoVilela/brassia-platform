@@ -2,6 +2,7 @@ package br.com.brew.brassia.security.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.security.application.port.inbound.AuthenticateApiKeyUseCase;
+import br.com.brew.brassia.security.application.port.inbound.AuthenticateUserUseCase;
 import br.com.brew.brassia.security.application.port.inbound.CompleteMfaLoginUseCase;
 import br.com.brew.brassia.security.application.port.inbound.ConfirmEmailVerificationUseCase;
 import br.com.brew.brassia.security.application.port.inbound.ConfirmTotpUseCase;
@@ -13,6 +14,8 @@ import br.com.brew.brassia.security.application.port.inbound.ManageFederationPro
 import br.com.brew.brassia.security.application.port.inbound.ManageSecurityAlertUseCase;
 import br.com.brew.brassia.security.application.port.inbound.ManageSegregationUseCase;
 import br.com.brew.brassia.security.application.port.inbound.ManageServiceAccountUseCase;
+import br.com.brew.brassia.security.application.port.inbound.PerformLoginUseCase;
+import br.com.brew.brassia.security.application.port.inbound.RecordLoginAttemptUseCase;
 import br.com.brew.brassia.security.application.port.inbound.RegenerateRecoveryCodesUseCase;
 import br.com.brew.brassia.security.application.port.inbound.RequestEmailVerificationUseCase;
 import br.com.brew.brassia.security.application.port.inbound.RequestPasswordResetUseCase;
@@ -46,6 +49,7 @@ import br.com.brew.brassia.security.application.service.AccountRecoveryHandler;
 import br.com.brew.brassia.security.application.service.FederationProviderHandler;
 import br.com.brew.brassia.security.application.service.LoginThrottleService;
 import br.com.brew.brassia.security.application.service.MfaManagementHandler;
+import br.com.brew.brassia.security.application.service.PerformLoginHandler;
 import br.com.brew.brassia.security.application.service.OidcTokenClaimsValidator;
 import br.com.brew.brassia.security.application.service.PasswordPolicy;
 import br.com.brew.brassia.security.application.service.SamlAssertionValidator;
@@ -129,6 +133,15 @@ class SecurityExtendedConfiguration {
         };
     }
     @Bean AuthenticateApiKeyUseCase authenticateApiKeyUseCase(ServiceAccountHandler h) { return h::authenticate; }
+
+    // Sem TransactionTemplate: cada colaborador (throttle, autenticação, histórico)
+    // persiste seu efeito de forma independente, preservando o registro de falha
+    // mesmo quando o login é rejeitado. Ver PerformLoginHandler.
+    @Bean
+    PerformLoginUseCase performLoginUseCase(LoginThrottleService throttle,
+            AuthenticateUserUseCase authenticate, RecordLoginAttemptUseCase loginHistory) {
+        return new PerformLoginHandler(throttle, authenticate, loginHistory);
+    }
 
     @Bean LoginThrottleService loginThrottleService(
             LoginThrottleRepository throttle, SecurityAlertRepository alerts, TokenHasher tokenHasher) {

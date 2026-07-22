@@ -140,6 +140,11 @@ class AcceptInvitationHandlerTest {
         @Override public Optional<AccountToken> findInvitationByHash(String tokenHash) {
             return Optional.ofNullable(store.get(tokenHash));
         }
+        @Override public Optional<AccountToken> findByHashAndType(String tokenHash, AccountToken.Type type) {
+            return store.values().stream()
+                    .filter(t -> t.tokenHash().equals(tokenHash) && t.type() == type)
+                    .findFirst();
+        }
     }
 
     private static final class FakeCredentials implements PasswordCredentialRepository {

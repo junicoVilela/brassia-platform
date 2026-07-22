@@ -97,6 +97,12 @@ class PasswordIT {
         @Override public void sendInvitation(EmailAddress email, String rawToken, Instant expiresAt) {
             this.lastRawToken = rawToken;
         }
+        @Override public void sendPasswordReset(EmailAddress email, String rawToken, Instant expiresAt) {
+            this.lastRawToken = rawToken;
+        }
+        @Override public void sendEmailVerification(EmailAddress email, String rawToken, Instant expiresAt) {
+            this.lastRawToken = rawToken;
+        }
     }
 
     @TestConfiguration

@@ -44,6 +44,33 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /breweries/active/preferences:
+    get:
+      operationId: getActiveBreweryPreferences
+      responses:
+        '200': {description: Preferências operacionais da cervejaria ativa}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateActiveBreweryPreferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateBreweryPreferences'}
+      responses:
+        '200': {description: Preferências atualizadas (nova versão)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /breweries/active/preferences/revisions/{version}:
+    get:
+      operationId: getBreweryPreferencesRevision
+      parameters:
+        - {name: version, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200': {description: Snapshot imutável de uma versão}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /brew-orders/{orderId}/start:
     post:
       operationId: startBrewOrder
@@ -73,6 +100,18 @@ components:
         code: {type: string, maxLength: 40}
         name: {type: string, maxLength: 160}
         timezone: {type: string, maxLength: 80}
+    UpdateBreweryPreferences:
+      type: object
+      required: [volumeUnit, massUnit, temperatureUnit, currencyCode, maxBatchVolume, stockPolicy, version]
+      properties:
+        volumeUnit: {type: string, enum: [L, ML]}
+        massUnit: {type: string, enum: [KG, G]}
+        temperatureUnit: {type: string, enum: [C, F]}
+        currencyCode: {type: string, minLength: 3, maxLength: 3}
+        maxBatchVolume: {type: number}
+        allowNegativeStock: {type: boolean}
+        stockPolicy: {type: string, enum: [FEFO, FIFO, NONE]}
+        version: {type: integer, format: int64}
     Measurement:
       type: object
       required: [parameter, value, unit, measuredAt, source]

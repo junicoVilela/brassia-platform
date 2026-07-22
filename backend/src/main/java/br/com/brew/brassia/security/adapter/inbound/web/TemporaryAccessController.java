@@ -1,14 +1,10 @@
 package br.com.brew.brassia.security.adapter.inbound.web;
 
+import br.com.brew.brassia.security.adapter.inbound.web.dto.TemporaryAccessGrantRequest;
 import br.com.brew.brassia.security.application.port.inbound.TemporaryAccessQuery;
 import br.com.brew.brassia.security.application.port.inbound.TemporaryAccessUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.Size;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +38,7 @@ final class TemporaryAccessController {
     }
 
     @PostMapping
-    ResponseEntity<Map<String, UUID>> request(@Valid @RequestBody GrantRequest body,
+    ResponseEntity<Map<String, UUID>> request(@Valid @RequestBody TemporaryAccessGrantRequest body,
             @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("security.temporary-access.request");
         // brewery e solicitante vêm do principal, nunca do corpo.
@@ -66,10 +62,4 @@ final class TemporaryAccessController {
         temporaryAccess.revoke(id, principal.userId(), principal.requireBrewery());
         return ResponseEntity.noContent().build();
     }
-
-    record GrantRequest(
-            @NotNull UUID userId,
-            @NotBlank @Size(max = 120) String permissionCode,
-            @NotBlank @Size(max = 500) String reason,
-            @Positive @Max(720) int durationHours) {}
 }

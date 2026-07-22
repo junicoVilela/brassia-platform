@@ -21,4 +21,16 @@ final class LoggingNotificationGateway implements NotificationGateway {
         log.info("Convite emitido para {} (expira em {})", email.normalized(), expiresAt);
         log.debug("Token de convite (somente dev) para {}: {}", email.normalized(), rawToken);
     }
+
+    @Override
+    public void sendPasswordReset(EmailAddress email, String rawToken, Instant expiresAt) {
+        log.info("Reset de senha solicitado para {} (expira em {})", email.normalized(), expiresAt);
+        log.debug("Token de reset (somente dev) para {}: {}", email.normalized(), rawToken);
+    }
+
+    @Override
+    public void sendEmailVerification(EmailAddress email, String rawToken, Instant expiresAt) {
+        log.info("Verificação de e-mail solicitada para {} (expira em {})", email.normalized(), expiresAt);
+        log.debug("Token de verificação (somente dev) para {}: {}", email.normalized(), rawToken);
+    }
 }

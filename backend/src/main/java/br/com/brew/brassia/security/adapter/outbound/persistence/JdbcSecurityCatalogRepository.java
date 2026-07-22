@@ -32,19 +32,19 @@ class JdbcSecurityCatalogRepository implements SecurityCatalogRepository {
     @Override
     public List<GroupView> listGroups() {
         return jdbcClient.sql("""
-                SELECT g.id, g.code, g.name, g.brewery_id, g.system_group, g.active,
+                SELECT g.id, g.code, g.name, g.description, g.brewery_id, g.system_group, g.active, g.version,
                        COALESCE(array_agg(p.code ORDER BY p.code) FILTER (WHERE p.code IS NOT NULL), '{}') AS permissions
                 FROM security_group g
                 LEFT JOIN group_permission gp ON gp.group_id = g.id
                 LEFT JOIN security_permission p ON p.id = gp.permission_id AND p.active
-                GROUP BY g.id, g.code, g.name, g.brewery_id, g.system_group, g.active
+                GROUP BY g.id, g.code, g.name, g.description, g.brewery_id, g.system_group, g.active, g.version
                 ORDER BY g.code
                 """)
                 .query((rs, n) -> new GroupView(
                         rs.getObject("id", java.util.UUID.class),
-                        rs.getString("code"), rs.getString("name"),
+                        rs.getString("code"), rs.getString("name"), rs.getString("description"),
                         rs.getObject("brewery_id", java.util.UUID.class),
-                        rs.getBoolean("system_group"), rs.getBoolean("active"),
+                        rs.getBoolean("system_group"), rs.getBoolean("active"), rs.getLong("version"),
                         List.of((String[]) rs.getArray("permissions").getArray())))
                 .list();
     }

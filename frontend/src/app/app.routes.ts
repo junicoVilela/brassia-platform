@@ -23,6 +23,11 @@ export const routes: Routes = [
         loadChildren: () =>
           import('./features/security/users/security-users.routes').then(m => m.SECURITY_USERS_ROUTES),
       },
+      {
+        path: 'security/groups',
+        loadChildren: () =>
+          import('./features/security/groups/security-groups.routes').then(m => m.SECURITY_GROUPS_ROUTES),
+      },
       { path: '', pathMatch: 'full', redirectTo: 'recipes' },
     ],
   },

@@ -1,19 +1,28 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
-import { BrewerySummary, RegisterBreweryRequest } from '../domain/brewery.model';
+import {
+  BrewerySummary,
+  OperationalPreferences,
+  RegisterBreweryRequest,
+  UpdatePreferencesRequest,
+} from '../domain/brewery.model';
 import { BreweryApi } from './brewery.api';
 
-/** Estado da tela de cervejarias: listagem e cadastro. */
+/** Estado da tela de cervejarias: listagem, cadastro e preferências da ativa. */
 @Injectable()
 export class BreweryStore {
   private readonly api = inject(BreweryApi);
   private readonly destroyRef = inject(DestroyRef);
   private readonly itemsState = signal<BrewerySummary[]>([]);
+  private readonly preferencesState = signal<OperationalPreferences | null>(null);
 
   readonly items = this.itemsState.asReadonly();
+  readonly preferences = this.preferencesState.asReadonly();
   readonly loading = signal(false);
+  readonly preferencesLoading = signal(false);
   readonly error = signal<string | null>(null);
+  readonly preferencesError = signal<string | null>(null);
   readonly actionError = signal<string | null>(null);
   readonly submitting = signal(false);
   readonly empty = computed(() => !this.loading() && !this.error() && this.items().length === 0);
@@ -26,6 +35,18 @@ export class BreweryStore {
       .subscribe({
         next: page => this.itemsState.set(page.content),
         error: () => this.error.set('Não foi possível carregar as cervejarias.'),
+      });
+    this.loadPreferences();
+  }
+
+  loadPreferences(): void {
+    this.preferencesLoading.set(true);
+    this.preferencesError.set(null);
+    this.api.getPreferences()
+      .pipe(finalize(() => this.preferencesLoading.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: prefs => this.preferencesState.set(prefs),
+        error: () => this.preferencesError.set('Não foi possível carregar as preferências.'),
       });
   }
 
@@ -40,6 +61,17 @@ export class BreweryStore {
           this.load();
         },
         error: () => this.actionError.set('Não foi possível cadastrar a cervejaria.'),
+      });
+  }
+
+  savePreferences(request: UpdatePreferencesRequest): void {
+    this.submitting.set(true);
+    this.actionError.set(null);
+    this.api.updatePreferences(request)
+      .pipe(finalize(() => this.submitting.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: prefs => this.preferencesState.set(prefs),
+        error: () => this.actionError.set('Não foi possível salvar as preferências (conflito ou valor inválido).'),
       });
   }
 }

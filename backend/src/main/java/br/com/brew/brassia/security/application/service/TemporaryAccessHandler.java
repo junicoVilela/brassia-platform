@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import org.springframework.security.access.AccessDeniedException;
 
 /**
  * Concede/aprova/revoga acesso temporário. Permissão comum vige na janela ao ser
@@ -60,13 +59,8 @@ public final class TemporaryAccessHandler implements TemporaryAccessUseCase, Tem
     public void approve(UUID grantId, UUID actorId, UUID breweryId) {
         var grant = load(grantId, breweryId);
         var now = Instant.now();
-        if (grant.isRequestedBy(actorId)) {
-            throw new AccessDeniedException("aprovador não pode ser o solicitante");
-        }
-        if (grant.isRevoked() || grant.isExpiredAt(now) || grant.isApproved()) {
-            throw new IllegalStateException("concessão não está pendente");
-        }
-        grants.approve(grantId, actorId, now);
+        var approved = grant.approve(actorId, now);
+        grants.approve(grantId, approved.approvedBy(), now);
         record(breweryId, actorId, "security.temporary-access.approve", grantId,
                 Map.of("user", grant.userId().toString(), "permission", grant.permissionCode()));
     }
@@ -74,10 +68,9 @@ public final class TemporaryAccessHandler implements TemporaryAccessUseCase, Tem
     @Override
     public void revoke(UUID grantId, UUID actorId, UUID breweryId) {
         var grant = load(grantId, breweryId);
-        if (grant.isRevoked()) {
-            throw new IllegalStateException("concessão já revogada");
-        }
-        grants.revoke(grantId, actorId, Instant.now());
+        var now = Instant.now();
+        grant.revoke(now);
+        grants.revoke(grantId, actorId, now);
         record(breweryId, actorId, "security.temporary-access.revoke", grantId,
                 Map.of("user", grant.userId().toString(), "permission", grant.permissionCode()));
     }

@@ -15,6 +15,48 @@ paths:
       responses:
         '200': {description: Lista de grupos}
         '403': {description: Sem permissão security.group.read}
+    post:
+      summary: Cria grupo customizado na cervejaria ativa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, permissionCodes]
+              properties:
+                code: {type: string, maxLength: 80}
+                name: {type: string, maxLength: 160}
+                description: {type: string, maxLength: 500}
+                permissionCodes:
+                  type: array
+                  items: {type: string}
+      responses:
+        '201': {description: Grupo criado}
+        '403': {description: Sem permissão security.group.manage ou autoelevação}
+        '409': {description: Código já existe nesta cervejaria}
+  /api/v1/security/groups/{groupId}:
+    patch:
+      summary: Atualiza grupo customizado (nome, descrição e permissões)
+      parameters: [{name: groupId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, permissionCodes, version]
+              properties:
+                name: {type: string, maxLength: 160}
+                description: {type: string, maxLength: 500}
+                permissionCodes:
+                  type: array
+                  items: {type: string}
+                version: {type: integer, format: int64}
+      responses:
+        '200': {description: Grupo atualizado}
+        '403': {description: Grupo de sistema, outra cervejaria ou sem permissão}
+        '409': {description: Versão divergiu}
   /api/v1/security/users/{userId}/memberships:
     post:
       summary: Associa o usuário a um grupo (na cervejaria ativa do ator)
@@ -235,12 +277,111 @@ paths:
         '204': {description: Concessão revogada}
         '403': {description: Sem permissão security.temporary-access.revoke}
         '409': {description: Concessão já revogada}
+  /api/v1/security/login/mfa:
+    post:
+      summary: Completa login com TOTP ou código de recuperação (SEC-009)
+      security: []
+      responses:
+        '200': {description: Sessão criada}
+        '401': {description: Código inválido}
+  /api/v1/security/totp/enroll:
+    post:
+      summary: Inicia enroll TOTP (retorna secret uma vez)
+      responses:
+        '200': {description: secret + otpauthUri}
+  /api/v1/security/totp/confirm:
+    post:
+      summary: Confirma TOTP com primeiro código
+      responses:
+        '204': {description: TOTP ativo}
+  /api/v1/security/totp:
+    delete:
+      summary: Desativa TOTP (exige senha ou reauth recente)
+      responses:
+        '204': {description: TOTP desativado}
+  /api/v1/security/recovery-codes/regenerate:
+    post:
+      summary: Regenera códigos de recuperação (retorna raw uma vez)
+      responses:
+        '200': {description: Lista de códigos}
+  /api/v1/security/password/reset:
+    post:
+      summary: Redefine senha com token (SEC-010)
+      security: []
+      responses:
+        '204': {description: Senha alterada; sessões revogadas}
+  /api/v1/security/email-verification/request:
+    post:
+      summary: Solicita verificação de e-mail
+      responses:
+        '202': {description: Token enviado se aplicável}
+  /api/v1/security/email-verification/confirm:
+    post:
+      summary: Confirma verificação de e-mail
+      security: []
+      responses:
+        '204': {description: E-mail verificado}
+  /api/v1/security/service-accounts:
+    get:
+      summary: Lista contas de serviço da cervejaria
+      responses:
+        '200': {description: Lista (sem segredos)}
+    post:
+      summary: Cria conta de serviço
+      responses:
+        '201': {description: Conta criada}
+  /api/v1/security/service-accounts/me:
+    get:
+      summary: Probe autenticado por API key
+      security: [{apiKeyBearer: []}]
+      responses:
+        '200': {description: Identidade da conta de serviço}
+  /api/v1/security/alerts:
+    get:
+      summary: Lista alertas de segurança (SEC-012)
+      responses:
+        '200': {description: Alertas da cervejaria}
+  /api/v1/security/alerts/{id}:
+    patch:
+      summary: Atualiza status do alerta (ACKNOWLEDGED/RESOLVED)
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        '200': {description: Alerta atualizado}
+  /api/v1/security/access-reviews:
+    get:
+      summary: Lista revisões de acesso (SEC-013)
+    post:
+      summary: Cria revisão materializando memberships ativos
+  /api/v1/security/segregation-rules:
+    get:
+      summary: Lista regras de segregação
+    post:
+      summary: Cria regra de segregação
+  /api/v1/security/federation-providers:
+    get:
+      summary: Lista provedores SAML/OIDC (SEC-014/015)
+    post:
+      summary: Cria provedor de federação
+  /scim/v2/Users:
+    post:
+      summary: Provisiona usuário SCIM (SEC-016)
+      security: [{apiKeyBearer: []}]
+      responses:
+        '201': {description: Usuário provisionado}
+  /scim/v2/ServiceProviderConfig:
+    get:
+      summary: Stub ServiceProviderConfig SCIM
+      security: []
 components:
   securitySchemes:
     sessionCookie:
       type: apiKey
       in: cookie
       name: __Host-brew_session
+    apiKeyBearer:
+      type: http
+      scheme: bearer
+      description: API key `brassia_...` emitida para conta de serviço
   schemas:
     InviteUserRequest:
       type: object

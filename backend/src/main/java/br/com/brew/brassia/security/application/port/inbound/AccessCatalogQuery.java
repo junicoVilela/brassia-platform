@@ -10,6 +10,14 @@ public interface AccessCatalogQuery {
 
     record PermissionView(String domain, String code, String name, boolean critical, boolean active) {}
 
-    record GroupView(UUID id, String code, String name, UUID breweryId, boolean systemGroup,
-            boolean active, List<String> permissions) {}
+    record GroupView(
+            UUID id,
+            String code,
+            String name,
+            String description,
+            UUID breweryId,
+            boolean systemGroup,
+            boolean active,
+            long version,
+            List<String> permissions) {}
 }

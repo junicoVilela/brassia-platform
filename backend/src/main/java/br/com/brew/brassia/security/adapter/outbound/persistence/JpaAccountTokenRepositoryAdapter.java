@@ -21,7 +21,12 @@ class JpaAccountTokenRepositoryAdapter implements AccountTokenRepository {
 
     @Override
     public Optional<AccountToken> findInvitationByHash(String tokenHash) {
-        return repository.findByTokenHashAndTokenType(tokenHash, AccountToken.Type.INVITATION.name())
+        return findByHashAndType(tokenHash, AccountToken.Type.INVITATION);
+    }
+
+    @Override
+    public Optional<AccountToken> findByHashAndType(String tokenHash, AccountToken.Type type) {
+        return repository.findByTokenHashAndTokenType(tokenHash, type.name())
                 .map(AccountTokenJpaEntity::toDomain);
     }
 }

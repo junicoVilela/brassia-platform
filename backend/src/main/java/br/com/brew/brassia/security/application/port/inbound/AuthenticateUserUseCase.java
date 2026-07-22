@@ -8,5 +8,5 @@ public interface AuthenticateUserUseCase {
 
     record Command(String email, String password) {}
 
-    record Result(UUID userId, String displayName, String email) {}
+    record Result(UUID userId, String displayName, String email, boolean mfaRequired) {}
 }

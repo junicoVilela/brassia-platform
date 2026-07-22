@@ -154,6 +154,14 @@ class SessionIT {
                 String rawToken, Instant expiresAt) {
             this.lastRawToken = rawToken;
         }
+        @Override public void sendPasswordReset(br.com.brew.brassia.security.domain.EmailAddress email,
+                String rawToken, Instant expiresAt) {
+            this.lastRawToken = rawToken;
+        }
+        @Override public void sendEmailVerification(br.com.brew.brassia.security.domain.EmailAddress email,
+                String rawToken, Instant expiresAt) {
+            this.lastRawToken = rawToken;
+        }
     }
 
     @TestConfiguration

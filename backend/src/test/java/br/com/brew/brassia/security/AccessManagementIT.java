@@ -1,9 +1,12 @@
 package br.com.brew.brassia.security;
 
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -91,6 +94,69 @@ class AccessManagementIT {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void createAndUpdateCustomGroup() throws Exception {
+        var adminSession = login("admin@brassia.local", "admin-local-123");
+
+        var created = mockMvc.perform(post("/api/v1/security/groups")
+                        .session(adminSession).with(csrf()).contentType("application/json")
+                        .content("""
+                                {"code":"brewers","name":"Cervejeiros","description":"chão de fábrica",
+                                 "permissionCodes":["recipe.create","security.user.read"]}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.code").value("BREWERS"))
+                .andExpect(jsonPath("$.systemGroup").value(false))
+                .andExpect(jsonPath("$.permissions", hasItems("recipe.create", "security.user.read")))
+                .andReturn();
+
+        var groupId = com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(), "$.id");
+        var version = (Number) com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(), "$.version");
+
+        mockMvc.perform(patch("/api/v1/security/groups/" + groupId)
+                        .session(adminSession).with(csrf()).contentType("application/json")
+                        .content("""
+                                {"name":"Cervejeiros Senior","description":"atualizado",
+                                 "permissionCodes":["recipe.create"],"version":%s}
+                                """.formatted(version.longValue())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Cervejeiros Senior"))
+                .andExpect(jsonPath("$.permissions", hasItem("recipe.create")))
+                .andExpect(jsonPath("$.permissions", not(hasItem("security.user.read"))))
+                .andExpect(jsonPath("$.version").value(version.longValue() + 1));
+
+        mockMvc.perform(get("/api/v1/security/groups").session(adminSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].code", hasItem("BREWERS")));
+    }
+
+    @Test
+    void systemGroupCannotBeUpdated() throws Exception {
+        var adminSession = login("admin@brassia.local", "admin-local-123");
+        var adminGroupId = jdbc.queryForObject(
+                "SELECT id FROM security_group WHERE code = 'ADMINISTRATORS'", UUID.class);
+
+        mockMvc.perform(patch("/api/v1/security/groups/" + adminGroupId)
+                        .session(adminSession).with(csrf()).contentType("application/json")
+                        .content("""
+                                {"name":"Hack","permissionCodes":["recipe.create"],"version":0}
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void groupManagementRequiresPermission() throws Exception {
+        onboard("nogroup2@example.com", "segredo123");
+        var session = login("nogroup2@example.com", "segredo123");
+
+        mockMvc.perform(post("/api/v1/security/groups")
+                        .session(session).with(csrf()).contentType("application/json")
+                        .content("""
+                                {"code":"X","name":"X","permissionCodes":[]}
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
     private UUID onboard(String email, String password) throws Exception {
         var invite = inviteUser.handle(new InviteUserUseCase.Command(UUID.randomUUID(), UUID.randomUUID(), email, "Member"));
         acceptInvitation.handle(new AcceptInvitationUseCase.Command(capturedGateway.lastRawToken, password));
@@ -109,6 +175,12 @@ class AccessManagementIT {
         volatile String lastRawToken;
 
         @Override public void sendInvitation(EmailAddress email, String rawToken, Instant expiresAt) {
+            this.lastRawToken = rawToken;
+        }
+        @Override public void sendPasswordReset(EmailAddress email, String rawToken, Instant expiresAt) {
+            this.lastRawToken = rawToken;
+        }
+        @Override public void sendEmailVerification(EmailAddress email, String rawToken, Instant expiresAt) {
             this.lastRawToken = rawToken;
         }
     }

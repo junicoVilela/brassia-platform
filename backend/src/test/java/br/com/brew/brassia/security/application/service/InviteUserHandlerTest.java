@@ -125,6 +125,13 @@ class InviteUserHandlerTest {
         public java.util.Optional<AccountToken> findInvitationByHash(String tokenHash) {
             return saved.stream().filter(t -> t.tokenHash().equals(tokenHash)).findFirst();
         }
+
+        @Override
+        public java.util.Optional<AccountToken> findByHashAndType(String tokenHash, AccountToken.Type type) {
+            return saved.stream()
+                    .filter(t -> t.tokenHash().equals(tokenHash) && t.type() == type)
+                    .findFirst();
+        }
     }
 
     private static final class CapturingNotificationGateway implements NotificationGateway {
@@ -134,5 +141,7 @@ class InviteUserHandlerTest {
         public void sendInvitation(EmailAddress email, String rawToken, Instant expiresAt) {
             this.rawToken = rawToken;
         }
+        @Override public void sendPasswordReset(EmailAddress email, String rawToken, Instant expiresAt) {}
+        @Override public void sendEmailVerification(EmailAddress email, String rawToken, Instant expiresAt) {}
     }
 }

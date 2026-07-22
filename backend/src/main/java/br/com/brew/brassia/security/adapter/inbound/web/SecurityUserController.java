@@ -1,16 +1,17 @@
 package br.com.brew.brassia.security.adapter.inbound.web;
 
+import br.com.brew.brassia.security.adapter.inbound.web.dto.AcceptInvitationRequest;
+import br.com.brew.brassia.security.adapter.inbound.web.dto.AcceptInvitationResponse;
+import br.com.brew.brassia.security.adapter.inbound.web.dto.InviteRequest;
+import br.com.brew.brassia.security.adapter.inbound.web.dto.InviteResponse;
+import br.com.brew.brassia.security.adapter.inbound.web.dto.UserSummaryResponse;
 import br.com.brew.brassia.security.application.port.inbound.AcceptInvitationUseCase;
 import br.com.brew.brassia.security.application.port.inbound.InviteUserUseCase;
 import br.com.brew.brassia.security.application.port.inbound.ListUsersUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
+import br.com.brew.brassia.shared.web.PageResponse;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import java.net.URI;
-import java.util.List;
-import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,17 +36,17 @@ final class SecurityUserController {
     }
 
     @GetMapping
-    PageResponse list(
+    PageResponse<UserSummaryResponse> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("security.user.read");
         var result = listUsers.handle(new ListUsersUseCase.Query(page, size));
         var content = result.content().stream()
-                .map(s -> new UserSummary(s.id(), s.email(), s.displayName(), s.status(),
+                .map(s -> new UserSummaryResponse(s.id(), s.email(), s.displayName(), s.status(),
                         s.emailVerifiedAt() == null ? null : s.emailVerifiedAt().toString()))
                 .toList();
-        return new PageResponse(content, result.page(), result.size(), result.totalElements(), result.totalPages());
+        return new PageResponse<>(content, result.page(), result.size(), result.totalElements(), result.totalPages());
     }
 
     @PostMapping
@@ -61,22 +62,8 @@ final class SecurityUserController {
 
     // Público: o convidado ainda não tem sessão. Autenticado pelo token do convite.
     @PostMapping("/accept-invitation")
-    ResponseEntity<AcceptResponse> acceptInvitation(@Valid @RequestBody AcceptRequest request) {
+    ResponseEntity<AcceptInvitationResponse> acceptInvitation(@Valid @RequestBody AcceptInvitationRequest request) {
         var result = acceptInvitation.handle(new AcceptInvitationUseCase.Command(request.token(), request.password()));
-        return ResponseEntity.ok(new AcceptResponse(result.userId(), result.status()));
+        return ResponseEntity.ok(new AcceptInvitationResponse(result.userId(), result.status()));
     }
-
-    record InviteRequest(
-            @NotBlank @Email @Size(max = 254) String email,
-            @NotBlank @Size(max = 160) String displayName) {}
-
-    record InviteResponse(UUID userId, String email, String status) {}
-
-    record AcceptRequest(@NotBlank String token, @NotBlank @Size(min = 8, max = 200) String password) {}
-
-    record AcceptResponse(UUID userId, String status) {}
-
-    record UserSummary(UUID id, String email, String displayName, String status, String emailVerifiedAt) {}
-
-    record PageResponse(List<UserSummary> content, int page, int size, long totalElements, int totalPages) {}
 }

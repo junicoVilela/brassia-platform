@@ -1,6 +1,6 @@
 # Status — Sprint 01
 
-Estado: EM ANDAMENTO
+Estado: CONCLUÍDA
 
 ## Controle das histórias
 
@@ -9,21 +9,21 @@ Estado: EM ANDAMENTO
 | SEC-001 | Concluída | Claude/junico | convite + aceite + administração + UI: backend (IT) e frontend (Vitest) verdes | Ciclo de conta completo (convidar/verificar/ativar/bloquear/desbloquear/desativar) + GET de listagem + tela de usuários no shell do tema Fila. |
 | SEC-002 | Concluída | Claude/junico | backend (IT) + UI de login (Vitest) verdes | Autenticação por senha, sessão no Postgres (cookie), rotação, logout; página de login, guard de rota e sessão no header. |
 | SEC-003 | Concluída | Claude/junico | política + histórico + troca: PasswordIT verde | Blocklist de senhas comprometidas (offline) aplicada no aceite; endpoint autenticado de trocar senha com verificação da atual, política e histórico (não reusar últimas N). Sem expiração periódica. |
-| SEC-004 | Em progresso (fatia 2) | Claude/junico | fatia1 + associações/catálogo: AccessManagementIT verde | RBAC: catálogo + resolução + bootstrap (fatia 1); leitura de permissões/grupos + associar/desassociar usuário↔grupo escopado à cervejaria ativa (fatia 2). Falta criar grupos/editar permissões (fatia 3) e a UI. |
+| SEC-004 | Concluída (fatia 3) | Claude/junico | create/update grupos + UI: AccessManagementIT + ManageGroupHandlerTest + Vitest | RBAC completo da sprint: catálogo, memberships, criar/atualizar grupos customizados e tela Grupos. |
 | SEC-005 | Concluída (fatia 1) | Claude/junico | cervejaria ativa + escopo: AuthorizationIT + Vitest verdes | Login resolve acessíveis/ativa + permissões escopadas; troca de cervejaria; FKs de tenant (V7); brewery_id do principal (não do corpo); seletor no header. access_scope MODULE/RESOURCE fica para depois. |
 | SEC-006 | Concluída (self-service) | Claude/junico | sessões + histórico: SessionIT verde | Habilitado Spring Session JDBC (sessão real no Postgres + repo indexado); listar/revogar as próprias sessões; histórico de login (login_event, IP/UA em hash). Admin-sobre-terceiros e dispositivos ficam para depois. |
 | SEC-007 | Concluída | Claude/junico | persistência + consulta: AuditEventIT verde | Trilha `AuditTrail` agora persiste (append-only) em `audit_event` além de logar; diff mascarado, traceId; `GET /audit-events` por cervejaria (security.audit.read). Uma auditoria para todos os módulos. |
 | SEC-008 | Concluída | Claude/junico | concessão + aprovação + revogação: TemporaryAccessIT + resolução verde | Acesso temporário: permissão pontual com vigência e justificativa; comum vige na janela, crítica exige aprovação de 2º usuário (≠ solicitante); revogação; tudo auditado e efetivo na resolução do login. |
-| SEC-009 | A fazer | — | — | — |
-| SEC-010 | A fazer | — | — | — |
-| SEC-011 | A fazer | — | — | — |
-| SEC-012 | A fazer | — | — | — |
-| SEC-013 | A fazer | — | — | — |
-| SEC-014 | A fazer | — | — | — |
-| SEC-015 | A fazer | — | — | — |
-| SEC-016 | A fazer | — | — | — |
+| SEC-009 | Concluída (fatia 1) | Claude/junico | MfaIT + TotpTest verdes | TOTP RFC 6238 + códigos de recuperação (hash/single-use); segredo cifrado AES; login em duas etapas; enroll/confirm/disable/regenerate. Passkeys/WebAuthn fora de escopo. |
+| SEC-010 | Concluída (fatia 1) | Claude/junico | PasswordResetIT verde | Reset e verificação de e-mail por token hash; resposta neutra no forgot; reset revoga sessões sem auto-login. |
+| SEC-011 | Concluída (fatia 1) | Claude/junico | ServiceAccountIT verde | Contas de serviço + API keys (`brassia_` prefix/hash); emitir/revogar; autenticação Bearer em `/scim/v2/**` e probe `/service-accounts/me`. |
+| SEC-012 | Concluída (fatia 1) | Claude/junico | AlertIT verde | Throttle 5 falhas → 429/60s; alerta HIGH OPEN; listar/atualizar status. |
+| SEC-013 | Concluída (fatia 1) | Claude/junico | ManageMembershipHandlerTest + SegregationChecker | Revisão de acessos materializa memberships; decisão REMOVE revoga; segregação bloqueia grant. |
+| SEC-014 | Concluída (fatia 1) | Claude/junico | FederationIT + SamlAssertionValidatorTest | CRUD providers SAML/OIDC; validate metadata; link/resolve identidade externa. Sem filtro SAML browser. |
+| SEC-015 | Concluída (fatia 1) | Claude/junico | OidcTokenClaimsValidatorTest | Validação estrutural OIDC (issuer/sub/nonce/state/PKCE) como serviço testável. |
+| SEC-016 | Concluída (fatia 1) | Claude/junico | ScimIT verde | SCIM Users mínimo + ServiceProviderConfig; auth API key com escopos; provisioning_event idempotente. LDAP stub apenas. |
 | BRW-001 | Concluída | Claude/junico | backend (BreweryIT) + tela: verdes | Cadastro/listagem de cervejaria (código único, fuso), auditado; permissões brewery.* no catálogo; tela Cervejarias no shell. Vínculo ao principal/tenant é SEC-005. |
-| BRW-002 | A fazer | — | — | — |
+| BRW-002 | Concluída | Claude/junico | BreweryPreferencesIT + OperationalPreferencesTest + Vitest | Preferências operacionais versionadas + revisão append-only; GET/PUT active/preferences; UI na tela Cervejarias. |
 
 ## Decisões e bloqueios
 
@@ -110,6 +110,14 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Efeito ponta a ponta** (`AccessManagementIT`): usuário sem grupo → `GET /users` 403; admin associa ao grupo Administradores (cervejaria ativa) → ao relogar, `GET /users` 200.
 - Fora de escopo (fatia 3): criar grupos + editar permissões dos grupos; UI de gestão de acessos; associação global via UI (segue só no bootstrap).
 
+### SEC-004 — fatia 3: criar/atualizar grupos + UI (2026-07-22)
+
+- **Escrita**: `POST /api/v1/security/groups` e `PATCH /groups/{id}` com `security.group.manage`. Grupo customizado nasce na cervejaria ativa; código normalizado `[A-Z][A-Z0-9_]{1,79}`; `ADMINISTRATORS` (sistema) é imutável; ator só atribui permissões que já possui (anti-autoelevação); optimistic locking via `version`.
+- **Migration `V13`**: seed de `security.group.manage` no catálogo + Administradores.
+- **GET /groups** passa a expor `description` e `version`.
+- **UI**: feature `security/groups` (listar, criar, editar permissões) + item no shell; associação usuário↔grupo permanece na API (UI de membership fica como refinamento).
+- Testes: `ManageGroupHandlerTest`, `AccessManagementIT` (create/update/403/sistema), Vitest `GroupsApi`.
+
 ### SEC-003 — Política e histórico de senha (2026-07-21)
 
 - **Blocklist offline** (`security/common-passwords.txt`): `CompromisedPasswordChecker` + adapter carregam a lista curada; `PasswordPolicy.validate` rejeita senha comum/comprometida (case-insensitive). Aplicada no `AcceptInvitationHandler` (primeiro set).
@@ -144,11 +152,18 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Testes**: `TemporaryAccessGrantTest` (regras de vigência/segregação no domínio), `TemporaryAccessHandlerTest` (comum vs crítica, segregação, conflitos, revogação), `TemporaryAccessResolutionIT` (UNION efetivo/expirado/revogado/pendente/outra cervejaria), `TemporaryAccessIT` (solicitar/listar/revogar via HTTP; auto-aprovação → 403; sem permissão → 403).
 - Fora de escopo: `scope_id`/`access_scope` (SEC-005); expiração ao vivo em sessão já aberta; job de expiração/limpeza; UI; notificação ao alvo/aprovador.
 
+### BRW-002 — Preferências operacionais (2026-07-22)
+
+- **Modelo**: linha atual `brewery_operational_preferences` + `brewery_operational_preferences_revision` append-only. Atualização gera nova `version` e grava snapshot imutável; `GET .../revisions/{version}` prova que o passado não muda.
+- **API**: `GET/PUT /api/v1/breweries/active/preferences` (`brewery.preferences.read|manage`); `brewery_id` do principal.
+- **UI**: formulário na tela Cervejarias.
+- Migration `V20`; testes domínio + `BreweryPreferencesIT` + Vitest.
+
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- Build/commit: `589e2a2`, `d34f2e7`, `67b58b7`, `e562d97` (refactor SOLID, SEC-004.3, SEC-009..016, BRW-002 + encerramento).
+- Testes executados: `OperationalPreferencesTest`, `BreweryPreferencesIT`, `BreweryIT`, `ModularityTest`; ITs SEC (Mfa/PasswordReset/ServiceAccount/Alert/Federation/Scim/AccessManagement); frontend `brewery.api.spec.ts` / `groups.api.spec.ts`.
+- Migration aplicada: histórico Flyway até `V20__brewery_operational_preferences.sql` (validado em banco limpo via Testcontainers).
+- Contratos atualizados: `contracts/openapi.yaml` (preferências), `contracts/security.openapi.yaml` (SEC-009..016).
+- Riscos remanescentes: passkeys/WebAuthn, SSO SAML/OIDC browser, LDAP real e UIs de MFA/reset/alertas/revisão ficam como refinamentos; snapshots de preferências serão consumidos por production/inventory futuros.
+- Aceite: checklist em `ACCEPTANCE.md` marcado após evidências acima.

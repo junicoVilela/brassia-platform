@@ -89,9 +89,10 @@ class SecurityUserConfiguration {
             SecurityUserRepository users,
             PasswordCredentialRepository credentials,
             PasswordHasher passwordHasher,
+            br.com.brew.brassia.security.application.port.inbound.HasActiveMfaQuery mfaQuery,
             AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new AuthenticateUserHandler(users, credentials, passwordHasher, audit);
+        var handler = new AuthenticateUserHandler(users, credentials, passwordHasher, mfaQuery, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(
                 transaction.execute(status -> handler.handle(command)));
@@ -107,9 +108,10 @@ class SecurityUserConfiguration {
     br.com.brew.brassia.security.application.port.inbound.ManageMembershipUseCase manageMembershipUseCase(
             SecurityUserRepository users,
             br.com.brew.brassia.security.application.port.outbound.GroupMembershipRepository memberships,
+            br.com.brew.brassia.security.application.service.SegregationChecker segregation,
             AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new br.com.brew.brassia.security.application.service.ManageMembershipHandler(users, memberships, audit);
+        var handler = new br.com.brew.brassia.security.application.service.ManageMembershipHandler(users, memberships, segregation, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return new br.com.brew.brassia.security.application.port.inbound.ManageMembershipUseCase() {
             @Override public void grant(Command c) { transaction.executeWithoutResult(s -> handler.grant(c)); }
@@ -162,10 +164,45 @@ class SecurityUserConfiguration {
     }
 
     @Bean
-    SessionContextResolver sessionContextResolver(
+    br.com.brew.brassia.security.application.port.inbound.ManageGroupUseCase manageGroupUseCase(
+            br.com.brew.brassia.security.application.port.outbound.SecurityGroupRepository groups,
+            AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new br.com.brew.brassia.security.application.service.ManageGroupHandler(groups, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return new br.com.brew.brassia.security.application.port.inbound.ManageGroupUseCase() {
+            @Override public Result create(CreateCommand c) {
+                return Objects.requireNonNull(transaction.execute(s -> handler.create(c)));
+            }
+            @Override public Result update(UpdateCommand c) {
+                return Objects.requireNonNull(transaction.execute(s -> handler.update(c)));
+            }
+        };
+    }
+
+    @Bean
+    br.com.brew.brassia.security.application.port.inbound.ResolveSessionContextUseCase resolveSessionContextUseCase(
             BreweryAccessRepository breweryAccess,
             br.com.brew.brassia.brewery.BreweryDirectory breweryDirectory,
             EffectivePermissionsRepository permissions) {
         return new SessionContextResolver(breweryAccess, breweryDirectory, permissions);
+    }
+
+    @Bean
+    br.com.brew.brassia.security.application.port.inbound.RecordLoginAttemptUseCase recordLoginAttemptUseCase(
+            br.com.brew.brassia.security.application.port.outbound.LoginEventRepository loginEvents) {
+        return new br.com.brew.brassia.security.application.service.RecordLoginAttemptHandler(loginEvents);
+    }
+
+    @Bean
+    br.com.brew.brassia.security.application.port.inbound.LoginHistoryQuery loginHistoryQuery(
+            br.com.brew.brassia.security.application.port.outbound.LoginEventRepository loginEvents) {
+        return new br.com.brew.brassia.security.application.service.LoginHistoryQueryHandler(loginEvents);
+    }
+
+    @Bean
+    br.com.brew.brassia.security.application.port.inbound.ManageOwnSessionsUseCase manageOwnSessionsUseCase(
+            br.com.brew.brassia.security.application.port.outbound.UserSessionCatalog sessions) {
+        return new br.com.brew.brassia.security.application.service.ManageOwnSessionsHandler(sessions);
     }
 }

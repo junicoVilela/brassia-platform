@@ -4,6 +4,7 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditOutcome;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.security.application.port.inbound.AuthenticateUserUseCase;
+import br.com.brew.brassia.security.application.port.inbound.HasActiveMfaQuery;
 import br.com.brew.brassia.security.application.port.outbound.PasswordCredentialRepository;
 import br.com.brew.brassia.security.application.port.outbound.PasswordHasher;
 import br.com.brew.brassia.security.application.port.outbound.SecurityUserRepository;
@@ -24,16 +25,19 @@ public final class AuthenticateUserHandler implements AuthenticateUserUseCase {
     private final SecurityUserRepository users;
     private final PasswordCredentialRepository credentials;
     private final PasswordHasher passwordHasher;
+    private final HasActiveMfaQuery mfaQuery;
     private final AuditTrail audit;
 
     public AuthenticateUserHandler(
             SecurityUserRepository users,
             PasswordCredentialRepository credentials,
             PasswordHasher passwordHasher,
+            HasActiveMfaQuery mfaQuery,
             AuditTrail audit) {
         this.users = Objects.requireNonNull(users);
         this.credentials = Objects.requireNonNull(credentials);
         this.passwordHasher = Objects.requireNonNull(passwordHasher);
+        this.mfaQuery = Objects.requireNonNull(mfaQuery);
         this.audit = Objects.requireNonNull(audit);
     }
 
@@ -48,7 +52,8 @@ public final class AuthenticateUserHandler implements AuthenticateUserUseCase {
         }
 
         recordSuccess(user);
-        return new Result(user.id().value(), user.displayName().value(), user.email().value());
+        var mfaRequired = mfaQuery.hasActiveTotp(user.id().value());
+        return new Result(user.id().value(), user.displayName().value(), user.email().value(), mfaRequired);
     }
 
     private boolean passwordMatches(SecurityUser user, String rawPassword) {

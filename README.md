@@ -15,6 +15,18 @@ documentação (ADRs, diagramas, roadmap e referências) foi consolidada sob `do
 > verdes. Débitos e ressalvas em `sprints/sprint-00-foundation/ACCEPTANCE.md`.
 > Próximo: Sprint 01 (segurança e cadastro de cervejaria).
 
+## Refatorações de qualidade (SOLID / Clean Code)
+
+Iniciativa a partir da revisão do `AuthenticationController` — todos os PRs
+mesclados no `main`, CI verde em cada etapa:
+
+| PR | Commit | Escopo |
+|----|--------|--------|
+| [#28](https://github.com/junicoVilela/brassia-platform/pull/28) | `2d6673e` | Extrai a orquestração de login do controller para um caso de uso (`PerformLoginUseCase`); dependências do controller de 8 → 5 |
+| [#29](https://github.com/junicoVilela/brassia-platform/pull/29) | `a3bdd9e` | Elimina `ResponseEntity<?>` (interface selada `LoginResponse`) e centraliza o mapeamento `result → DTO` em static factories `from(...)` |
+| [#30](https://github.com/junicoVilela/brassia-platform/pull/30) | `917aacf` | Registra o padrão de mapeamento em DTOs no `AGENTS.md` |
+| [#31](https://github.com/junicoVilela/brassia-platform/pull/31) | `34f69ad` | Aplica o princípio no frontend: montagem de request do groups-page movida para o modelo |
+
 ## Identidade canônica
 
 - Produto: **BrassIA** — Plataforma inteligente de gestão cervejeira.

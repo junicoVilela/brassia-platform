@@ -49,6 +49,12 @@ import { AuthService } from '../core/auth/auth.service';
               <span class="title">Usuários</span>
             </a>
           </li>
+          <li class="menu-item">
+            <a routerLink="/security/groups" routerLinkActive="active" class="menu-link">
+              <i class="ri-shield-keyhole-line menu-icon"></i>
+              <span class="title">Grupos</span>
+            </a>
+          </li>
         </ul>
       </aside>
     </div>

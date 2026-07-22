@@ -162,6 +162,23 @@ class SecurityUserConfiguration {
     }
 
     @Bean
+    br.com.brew.brassia.security.application.port.inbound.ManageGroupUseCase manageGroupUseCase(
+            br.com.brew.brassia.security.application.port.outbound.SecurityGroupRepository groups,
+            AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new br.com.brew.brassia.security.application.service.ManageGroupHandler(groups, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return new br.com.brew.brassia.security.application.port.inbound.ManageGroupUseCase() {
+            @Override public Result create(CreateCommand c) {
+                return Objects.requireNonNull(transaction.execute(s -> handler.create(c)));
+            }
+            @Override public Result update(UpdateCommand c) {
+                return Objects.requireNonNull(transaction.execute(s -> handler.update(c)));
+            }
+        };
+    }
+
+    @Bean
     br.com.brew.brassia.security.application.port.inbound.ResolveSessionContextUseCase resolveSessionContextUseCase(
             BreweryAccessRepository breweryAccess,
             br.com.brew.brassia.brewery.BreweryDirectory breweryDirectory,

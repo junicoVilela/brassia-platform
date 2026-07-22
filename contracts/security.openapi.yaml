@@ -15,6 +15,48 @@ paths:
       responses:
         '200': {description: Lista de grupos}
         '403': {description: Sem permissão security.group.read}
+    post:
+      summary: Cria grupo customizado na cervejaria ativa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, permissionCodes]
+              properties:
+                code: {type: string, maxLength: 80}
+                name: {type: string, maxLength: 160}
+                description: {type: string, maxLength: 500}
+                permissionCodes:
+                  type: array
+                  items: {type: string}
+      responses:
+        '201': {description: Grupo criado}
+        '403': {description: Sem permissão security.group.manage ou autoelevação}
+        '409': {description: Código já existe nesta cervejaria}
+  /api/v1/security/groups/{groupId}:
+    patch:
+      summary: Atualiza grupo customizado (nome, descrição e permissões)
+      parameters: [{name: groupId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, permissionCodes, version]
+              properties:
+                name: {type: string, maxLength: 160}
+                description: {type: string, maxLength: 500}
+                permissionCodes:
+                  type: array
+                  items: {type: string}
+                version: {type: integer, format: int64}
+      responses:
+        '200': {description: Grupo atualizado}
+        '403': {description: Grupo de sistema, outra cervejaria ou sem permissão}
+        '409': {description: Versão divergiu}
   /api/v1/security/users/{userId}/memberships:
     post:
       summary: Associa o usuário a um grupo (na cervejaria ativa do ator)

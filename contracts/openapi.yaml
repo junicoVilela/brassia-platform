@@ -71,6 +71,43 @@ paths:
         '200': {description: Snapshot imutável de uma versão}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /catalog/ingredients:
+    get:
+      operationId: listIngredients
+      parameters:
+        - {name: type, in: query, schema: {type: string, enum: [MALT, HOP, YEAST, SALT, ADJUNCT, PACKAGING]}}
+        - {name: page, in: query, schema: {type: integer, default: 0}}
+        - {name: size, in: query, schema: {type: integer, default: 20}}
+      responses:
+        '200': {description: Página de ingredientes}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: registerIngredient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterIngredient'}
+      responses:
+        '201': {description: Ingrediente cadastrado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /catalog/ingredients/{id}:
+    put:
+      operationId: updateIngredient
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateIngredient'}
+      responses:
+        '200': {description: Ingrediente atualizado (nova versão)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /brew-orders/{orderId}/start:
     post:
       operationId: startBrewOrder
@@ -111,6 +148,25 @@ components:
         maxBatchVolume: {type: number}
         allowNegativeStock: {type: boolean}
         stockPolicy: {type: string, enum: [FEFO, FIFO, NONE]}
+        version: {type: integer, format: int64}
+    RegisterIngredient:
+      type: object
+      required: [type, code, name, useUnit, purchaseUnit]
+      properties:
+        type: {type: string, enum: [MALT, HOP, YEAST, SALT, ADJUNCT, PACKAGING]}
+        code: {type: string, maxLength: 40}
+        name: {type: string, maxLength: 160}
+        useUnit: {type: string, enum: [KG, G, MG, L, ML, UNIT, PACK]}
+        purchaseUnit: {type: string, enum: [KG, G, MG, L, ML, UNIT, PACK]}
+        attributes: {type: object, additionalProperties: {type: string}}
+    UpdateIngredient:
+      type: object
+      required: [name, useUnit, purchaseUnit, version]
+      properties:
+        name: {type: string, maxLength: 160}
+        useUnit: {type: string, enum: [KG, G, MG, L, ML, UNIT, PACK]}
+        purchaseUnit: {type: string, enum: [KG, G, MG, L, ML, UNIT, PACK]}
+        attributes: {type: object, additionalProperties: {type: string}}
         version: {type: integer, format: int64}
     Measurement:
       type: object

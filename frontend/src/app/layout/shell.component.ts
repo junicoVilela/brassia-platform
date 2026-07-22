@@ -42,6 +42,12 @@ import { AuthService } from '../core/auth/auth.service';
               <span class="title">Cervejarias</span>
             </a>
           </li>
+          <li class="menu-item">
+            <a routerLink="/catalog" routerLinkActive="active" class="menu-link">
+              <i class="ri-flask-line menu-icon"></i>
+              <span class="title">Ingredientes</span>
+            </a>
+          </li>
           <li class="menu-title small text-uppercase"><span class="menu-title-text">Segurança</span></li>
           <li class="menu-item">
             <a routerLink="/security/users" routerLinkActive="active" class="menu-link">

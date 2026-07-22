@@ -161,7 +161,7 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 
 ## Evidências de encerramento
 
-- Build/commit: `67b58b7` (SEC-009..016), BRW-002 em commit seguinte; branch `main` publicada no remoto.
+- Build/commit: `589e2a2`, `d34f2e7`, `67b58b7`, `e562d97` (refactor SOLID, SEC-004.3, SEC-009..016, BRW-002 + encerramento).
 - Testes executados: `OperationalPreferencesTest`, `BreweryPreferencesIT`, `BreweryIT`, `ModularityTest`; ITs SEC (Mfa/PasswordReset/ServiceAccount/Alert/Federation/Scim/AccessManagement); frontend `brewery.api.spec.ts` / `groups.api.spec.ts`.
 - Migration aplicada: histórico Flyway até `V20__brewery_operational_preferences.sql` (validado em banco limpo via Testcontainers).
 - Contratos atualizados: `contracts/openapi.yaml` (preferências), `contracts/security.openapi.yaml` (SEC-009..016).

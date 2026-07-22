@@ -4,7 +4,6 @@ import java.io.Serializable;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import org.springframework.security.access.AccessDeniedException;
 
 /**
  * Identidade autenticada usada pelos casos de uso. {@code breweryId} é opcional:
@@ -33,14 +32,14 @@ public record SecurityPrincipal(
 
     public void requirePermission(String permission) {
         if (!permissions.contains(permission)) {
-            throw new AccessDeniedException("permission denied");
+            throw new ForbiddenException("permission denied");
         }
     }
 
     /** Cervejaria ativa da sessão; nega quando a operação exige tenant e não há. */
     public UUID requireBrewery() {
         if (breweryId == null) {
-            throw new AccessDeniedException("nenhuma cervejaria ativa");
+            throw new ForbiddenException("nenhuma cervejaria ativa");
         }
         return breweryId;
     }

@@ -1,11 +1,11 @@
 package br.com.brew.brassia.security.adapter.inbound.web;
 
 import br.com.brew.brassia.audit.AuditQuery;
+import br.com.brew.brassia.security.adapter.inbound.web.dto.MembershipRequest;
 import br.com.brew.brassia.security.application.port.inbound.AccessCatalogQuery;
 import br.com.brew.brassia.security.application.port.inbound.ManageMembershipUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
@@ -71,6 +71,4 @@ final class AccessManagementController {
     private static ManageMembershipUseCase.Command command(SecurityPrincipal principal, UUID userId, UUID groupId) {
         return new ManageMembershipUseCase.Command(principal.userId(), principal.requireBrewery(), userId, groupId);
     }
-
-    record MembershipRequest(@NotNull UUID groupId) {}
 }

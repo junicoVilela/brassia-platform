@@ -12,8 +12,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import br.com.brew.brassia.shared.security.ForbiddenException;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.access.AccessDeniedException;
 
 class SessionContextResolverTest {
 
@@ -59,7 +59,7 @@ class SessionContextResolverTest {
 
         assertThat(resolver.resolve(userId, beta.id()).activeBreweryId()).isEqualTo(beta.id());
         assertThatThrownBy(() -> resolver.resolve(userId, alpha.id()))
-                .isInstanceOf(AccessDeniedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     @Test

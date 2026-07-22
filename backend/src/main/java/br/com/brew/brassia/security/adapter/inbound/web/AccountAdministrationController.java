@@ -1,5 +1,6 @@
 package br.com.brew.brassia.security.adapter.inbound.web;
 
+import br.com.brew.brassia.security.adapter.inbound.web.dto.AccountStatusResponse;
 import br.com.brew.brassia.security.application.port.inbound.AdministerAccountUseCase;
 import br.com.brew.brassia.security.application.port.inbound.AdministerAccountUseCase.Operation;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
@@ -21,28 +22,30 @@ final class AccountAdministrationController {
     }
 
     @PostMapping("/block")
-    ResponseEntity<Response> block(@PathVariable UUID userId, @AuthenticationPrincipal SecurityPrincipal principal) {
+    ResponseEntity<AccountStatusResponse> block(
+            @PathVariable UUID userId, @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("security.user.block");
         return apply(principal, userId, Operation.BLOCK);
     }
 
     @PostMapping("/unblock")
-    ResponseEntity<Response> unblock(@PathVariable UUID userId, @AuthenticationPrincipal SecurityPrincipal principal) {
+    ResponseEntity<AccountStatusResponse> unblock(
+            @PathVariable UUID userId, @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("security.user.block");
         return apply(principal, userId, Operation.UNBLOCK);
     }
 
     @PostMapping("/disable")
-    ResponseEntity<Response> disable(@PathVariable UUID userId, @AuthenticationPrincipal SecurityPrincipal principal) {
+    ResponseEntity<AccountStatusResponse> disable(
+            @PathVariable UUID userId, @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("security.user.disable");
         return apply(principal, userId, Operation.DISABLE);
     }
 
-    private ResponseEntity<Response> apply(SecurityPrincipal principal, UUID userId, Operation operation) {
+    private ResponseEntity<AccountStatusResponse> apply(
+            SecurityPrincipal principal, UUID userId, Operation operation) {
         var result = administerAccount.handle(new AdministerAccountUseCase.Command(
                 principal.userId(), principal.breweryId(), userId, operation));
-        return ResponseEntity.ok(new Response(result.userId(), result.status()));
+        return ResponseEntity.ok(new AccountStatusResponse(result.userId(), result.status()));
     }
-
-    record Response(UUID userId, String status) {}
 }

@@ -162,10 +162,28 @@ class SecurityUserConfiguration {
     }
 
     @Bean
-    SessionContextResolver sessionContextResolver(
+    br.com.brew.brassia.security.application.port.inbound.ResolveSessionContextUseCase resolveSessionContextUseCase(
             BreweryAccessRepository breweryAccess,
             br.com.brew.brassia.brewery.BreweryDirectory breweryDirectory,
             EffectivePermissionsRepository permissions) {
         return new SessionContextResolver(breweryAccess, breweryDirectory, permissions);
+    }
+
+    @Bean
+    br.com.brew.brassia.security.application.port.inbound.RecordLoginAttemptUseCase recordLoginAttemptUseCase(
+            br.com.brew.brassia.security.application.port.outbound.LoginEventRepository loginEvents) {
+        return new br.com.brew.brassia.security.application.service.RecordLoginAttemptHandler(loginEvents);
+    }
+
+    @Bean
+    br.com.brew.brassia.security.application.port.inbound.LoginHistoryQuery loginHistoryQuery(
+            br.com.brew.brassia.security.application.port.outbound.LoginEventRepository loginEvents) {
+        return new br.com.brew.brassia.security.application.service.LoginHistoryQueryHandler(loginEvents);
+    }
+
+    @Bean
+    br.com.brew.brassia.security.application.port.inbound.ManageOwnSessionsUseCase manageOwnSessionsUseCase(
+            br.com.brew.brassia.security.application.port.outbound.UserSessionCatalog sessions) {
+        return new br.com.brew.brassia.security.application.service.ManageOwnSessionsHandler(sessions);
     }
 }

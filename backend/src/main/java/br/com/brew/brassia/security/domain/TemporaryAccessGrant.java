@@ -1,5 +1,6 @@
 package br.com.brew.brassia.security.domain;
 
+import br.com.brew.brassia.shared.security.ForbiddenException;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -66,6 +67,39 @@ public record TemporaryAccessGrant(
      */
     public boolean canApprove(UUID actorId, Instant now) {
         return !isRevoked() && !isApproved() && !isExpiredAt(now) && !isRequestedBy(actorId);
+    }
+
+    /**
+     * Valida segregação de funções e estado pendente; devolve a concessão aprovada.
+     *
+     * @throws ForbiddenException se o solicitante tenta aprovar a própria concessão
+     * @throws IllegalStateException se a concessão não está pendente
+     */
+    public TemporaryAccessGrant approve(UUID actorId, Instant now) {
+        Objects.requireNonNull(actorId, "actorId");
+        Objects.requireNonNull(now, "now");
+        if (isRequestedBy(actorId)) {
+            throw new ForbiddenException("aprovador não pode ser o solicitante");
+        }
+        if (isRevoked() || isExpiredAt(now) || isApproved()) {
+            throw new IllegalStateException("concessão não está pendente");
+        }
+        return new TemporaryAccessGrant(
+                id, breweryId, userId, permissionId, permissionCode, permissionCritical, reason,
+                validFrom, validUntil, requestedBy, actorId, revokedAt);
+    }
+
+    /**
+     * @throws IllegalStateException se já revogada
+     */
+    public TemporaryAccessGrant revoke(Instant now) {
+        Objects.requireNonNull(now, "now");
+        if (isRevoked()) {
+            throw new IllegalStateException("concessão já revogada");
+        }
+        return new TemporaryAccessGrant(
+                id, breweryId, userId, permissionId, permissionCode, permissionCritical, reason,
+                validFrom, validUntil, requestedBy, approvedBy, now);
     }
 
     /** Situação derivada, para a visão administrativa. */

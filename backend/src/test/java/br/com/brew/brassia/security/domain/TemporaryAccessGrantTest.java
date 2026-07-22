@@ -1,6 +1,7 @@
 package br.com.brew.brassia.security.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.brew.brassia.security.domain.TemporaryAccessGrant.Status;
 import java.time.Instant;
@@ -55,5 +56,41 @@ class TemporaryAccessGrantTest {
         var g = grant(true, null, now.plusSeconds(3600), null);
         assertThat(g.canApprove(requester, now)).isFalse();
         assertThat(g.canApprove(other, now)).isTrue();
+    }
+
+    @Test
+    void approveBySecondUserReturnsApprovedGrant() {
+        var g = grant(true, null, now.plusSeconds(3600), null);
+        var approved = g.approve(other, now);
+        assertThat(approved.isApproved()).isTrue();
+        assertThat(approved.approvedBy()).isEqualTo(other);
+    }
+
+    @Test
+    void approveByRequesterIsForbidden() {
+        var g = grant(true, null, now.plusSeconds(3600), null);
+        assertThatThrownBy(() -> g.approve(requester, now))
+                .isInstanceOf(br.com.brew.brassia.shared.security.ForbiddenException.class);
+    }
+
+    @Test
+    void approveAlreadyApprovedConflicts() {
+        var g = grant(true, other, now.plusSeconds(3600), null);
+        assertThatThrownBy(() -> g.approve(UUID.randomUUID(), now))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void revokeMarksRevokedAt() {
+        var g = grant(false, null, now.plusSeconds(3600), null);
+        var revoked = g.revoke(now);
+        assertThat(revoked.isRevoked()).isTrue();
+        assertThat(revoked.revokedAt()).isEqualTo(now);
+    }
+
+    @Test
+    void revokeTwiceConflicts() {
+        var g = grant(false, null, now.plusSeconds(3600), now.minusSeconds(1));
+        assertThatThrownBy(() -> g.revoke(now)).isInstanceOf(IllegalStateException.class);
     }
 }

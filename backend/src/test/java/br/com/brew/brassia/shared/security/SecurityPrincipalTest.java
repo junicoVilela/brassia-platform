@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.access.AccessDeniedException;
 
 class SecurityPrincipalTest {
 
@@ -17,7 +16,7 @@ class SecurityPrincipalTest {
         assertThat(principal.breweryId()).isNull();
         assertThat(principal.permissions()).isEmpty();
         assertThatThrownBy(() -> principal.requirePermission("security.user.read"))
-                .isInstanceOf(AccessDeniedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     @Test
@@ -27,7 +26,7 @@ class SecurityPrincipalTest {
         assertThat(withBrewery.requireBrewery()).isEqualTo(brewery);
 
         var identityOnly = SecurityPrincipal.identityOnly(UUID.randomUUID(), "Brewer");
-        assertThatThrownBy(identityOnly::requireBrewery).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(identityOnly::requireBrewery).isInstanceOf(ForbiddenException.class);
     }
 
     @Test

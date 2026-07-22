@@ -22,8 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import br.com.brew.brassia.shared.security.ForbiddenException;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.access.AccessDeniedException;
 
 class TemporaryAccessHandlerTest {
 
@@ -86,7 +86,7 @@ class TemporaryAccessHandlerTest {
         var id = handler().request(request(requester, target, "crit.perm"));
 
         assertThatThrownBy(() -> handler().approve(id, requester, brewery))
-                .isInstanceOf(AccessDeniedException.class);
+                .isInstanceOf(ForbiddenException.class);
     }
 
     @Test

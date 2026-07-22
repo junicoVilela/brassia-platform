@@ -17,6 +17,7 @@
 - Comunicação entre módulos usa porta de aplicação, consulta publicada ou evento.
 - Antes de criar uma abstração, justificar qual risco, variação, fronteira ou teste ela isola.
 - Controllers apenas validam o contrato e chamam casos de uso.
+- Mapeamento result/view → DTO de resposta fica no próprio DTO, como static factory `from(...)`, não no controller. Vale quando há transformação, reuso (≥2 chamadas) ou mapeamento de coleção; wrapper trivial de campo único e sítio único permanece inline (YAGNI). O `from(...)` pode importar tipos de result/view da aplicação e snapshots de domínio (dependência para dentro, validada pelo `ModularityTest`); orquestração e efeitos colaterais nunca entram no DTO.
 - Regras cervejeiras e cálculos ficam em serviços/objetos de domínio testáveis.
 - Toda tabela de negócio multi-tenant contém `brewery_id` e índices adequados.
 - Valores físicos usam decimal e unidade explícita; nunca `float`/`double` para persistência de precisão.

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { GroupsStore } from '../../data-access/groups.store';
+import { toCreateGroupRequest, toUpdateGroupRequest } from '../../domain/group.model';
 
 @Component({
   selector: 'app-groups-page',
@@ -190,12 +191,7 @@ export class GroupsPageComponent implements OnInit {
     }
     const value = this.createForm.getRawValue();
     this.store.create(
-      {
-        code: value.code,
-        name: value.name,
-        description: value.description || null,
-        permissionCodes: [...this.createPermissions],
-      },
+      toCreateGroupRequest(value, this.createPermissions),
       () => {
         this.createForm.reset();
         this.createPermissions.clear();
@@ -225,11 +221,6 @@ export class GroupsPageComponent implements OnInit {
       return;
     }
     const value = this.editForm.getRawValue();
-    this.store.update(group.id, {
-      name: value.name,
-      description: value.description || null,
-      permissionCodes: [...this.editPermissions],
-      version: group.version,
-    });
+    this.store.update(group.id, toUpdateGroupRequest(value, this.editPermissions, group.version));
   }
 }

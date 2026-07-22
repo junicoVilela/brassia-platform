@@ -9,11 +9,12 @@ projetos de código do produto. Foi inicializado a partir do
 `scaffold/` de referência foi promovido para `backend/` e `frontend/`. A
 documentação (ADRs, diagramas, roadmap e referências) foi consolidada sob `docs/`.
 
-> Estado atual: **Sprint 00 (fundação) concluída**. Backend Spring Boot 4.1 e
-> frontend Angular 22 são projetos reais e executáveis; PostgreSQL 18 com migrations
-> Flyway, Problem Details (RFC 9457), auditoria/observabilidade e CI (GitHub Actions)
-> verdes. Débitos e ressalvas em `sprints/sprint-00-foundation/ACCEPTANCE.md`.
-> Próximo: Sprint 01 (segurança e cadastro de cervejaria).
+> Estado atual: **Sprint 01 (segurança e cadastro de cervejaria) concluída** —
+> SEC-001..016 e BRW-001..002. Backend Spring Boot 4.1 e frontend Angular 22 são
+> projetos reais e executáveis; PostgreSQL 18 com migrations Flyway, Problem Details
+> (RFC 9457), auditoria/observabilidade e CI (GitHub Actions) verdes. Estado e
+> evidências por história em `sprints/sprint-01-security-brewery/STATUS.md`.
+> Próximo: Sprint 02 (catálogo, equipamentos e água).
 
 ## Refatorações de qualidade (SOLID / Clean Code)
 
@@ -87,8 +88,8 @@ Consulte `docs/19_LOCAL_ENVIRONMENT.md` para subida, reset e diagnóstico.
 
 ## Próximo passo
 
-Iniciar a **Sprint 01** (segurança e cadastro de cervejaria) a partir de
-`sprints/sprint-01-security-brewery/`.
+Iniciar a **Sprint 02** (catálogo, equipamentos e água) a partir de
+`sprints/sprint-02-catalog-equipment-water/`.
 
 ## Licença
 

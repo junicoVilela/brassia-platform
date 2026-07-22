@@ -1,12 +1,12 @@
 # Status — Sprint 02
 
-Estado: NÃO INICIADA
+Estado: EM ANDAMENTO
 
 ## Controle das histórias
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| CAT-001 | A fazer | — | — | — |
+| CAT-001 | Concluída | Claude/junico | IngredientTest + CatalogIngredientIT + ModularityTest verdes; frontend (ng build) verde | Módulo `catalog` novo (hexagonal). Ingredientes tipados (6 tipos) com atributos específicos em JSONB validados no domínio; unidades em vocabulário fechado; código único por cervejaria; lock otimista; permissões `catalog.ingredient.*`; auditoria. Tela de ingredientes (listar/filtrar/cadastrar). |
 | EQP-001 | A fazer | — | — | — |
 | EQP-002 | A fazer | — | — | — |
 | WTR-001 | A fazer | — | — | — |

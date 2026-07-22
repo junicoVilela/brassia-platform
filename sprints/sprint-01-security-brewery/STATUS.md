@@ -13,7 +13,7 @@ Estado: EM ANDAMENTO
 | SEC-005 | Concluída (fatia 1) | Claude/junico | cervejaria ativa + escopo: AuthorizationIT + Vitest verdes | Login resolve acessíveis/ativa + permissões escopadas; troca de cervejaria; FKs de tenant (V7); brewery_id do principal (não do corpo); seletor no header. access_scope MODULE/RESOURCE fica para depois. |
 | SEC-006 | Concluída (self-service) | Claude/junico | sessões + histórico: SessionIT verde | Habilitado Spring Session JDBC (sessão real no Postgres + repo indexado); listar/revogar as próprias sessões; histórico de login (login_event, IP/UA em hash). Admin-sobre-terceiros e dispositivos ficam para depois. |
 | SEC-007 | Concluída | Claude/junico | persistência + consulta: AuditEventIT verde | Trilha `AuditTrail` agora persiste (append-only) em `audit_event` além de logar; diff mascarado, traceId; `GET /audit-events` por cervejaria (security.audit.read). Uma auditoria para todos os módulos. |
-| SEC-008 | A fazer | — | — | — |
+| SEC-008 | Concluída | Claude/junico | concessão + aprovação + revogação: TemporaryAccessIT + resolução verde | Acesso temporário: permissão pontual com vigência e justificativa; comum vige na janela, crítica exige aprovação de 2º usuário (≠ solicitante); revogação; tudo auditado e efetivo na resolução do login. |
 | SEC-009 | A fazer | — | — | — |
 | SEC-010 | A fazer | — | — | — |
 | SEC-011 | A fazer | — | — | — |
@@ -134,6 +134,15 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - Migration `V11__audit_event.sql` (tabela + seed da permissão). Sem FK para `brewery` (auditoria não acopla ao schema de outro módulo).
 - Testes: `JdbcAuditTrailTest` (metadados mascarados, sem segredo); `AuditEventIT` (ação auditada → persistida → `GET` tenant-scoped; global fora; `403` sem permissão).
 - Fora de escopo: filtros (ator/ação/intervalo), exportação, campos extras do modelo de referência (`actor_type`/`reason`/`ip_hash`), retenção e UI de auditoria.
+
+### SEC-008 — Acesso temporário (2026-07-21)
+
+- **Modelo**: `temporary_access_grant` (migration `V12`) concede **uma permissão** a um usuário na cervejaria ativa, com `reason`, janela `valid_from`/`valid_until`, `requested_by`/`approved_by` (CHECK `approved_by <> requested_by`) e `revoked_at`/`revoked_by`. Sem FK para `brewery` (mesma razão do `audit_event`); `scope_id`/`access_scope` ficam para SEC-005.
+- **Aprovação por criticidade**: permissão `critical=false` **vige na janela** ao ser solicitada; permissão `critical=true` fica **pendente** e só vige após aprovação de um **segundo usuário** (segregação garantida no handler + CHECK). Seed das permissões `security.temporary-access.request|approve|revoke` (críticas) e `.read` no catálogo + Administradores.
+- **Efetiva no login**: `JdbcEffectivePermissionsRepository` passou a **somar (UNION)** as concessões vigentes (não revogadas, dentro da janela, e `critical=false OR approved_by IS NOT NULL`) às permissões dos grupos — vale a partir do próximo login do alvo, consistente com o modelo de membership.
+- **Endpoints** em `/api/v1/security/temporary-access`: `POST` (solicita, `.request`), `POST /{id}/approve` (`.approve`, 403 se o ator for o solicitante, 409 se não está pendente), `DELETE /{id}` (`.revoke`, 409 se já revogada), `GET` (`.read`, visão administrativa com status derivado). `brewery_id` e solicitante vêm do principal, nunca do corpo. Auditoria `security.temporary-access.request|approve|revoke`.
+- **Testes**: `TemporaryAccessGrantTest` (regras de vigência/segregação no domínio), `TemporaryAccessHandlerTest` (comum vs crítica, segregação, conflitos, revogação), `TemporaryAccessResolutionIT` (UNION efetivo/expirado/revogado/pendente/outra cervejaria), `TemporaryAccessIT` (solicitar/listar/revogar via HTTP; auto-aprovação → 403; sem permissão → 403).
+- Fora de escopo: `scope_id`/`access_scope` (SEC-005); expiração ao vivo em sessão já aberta; job de expiração/limpeza; UI; notificação ao alvo/aprovador.
 
 ## Evidências de encerramento
 

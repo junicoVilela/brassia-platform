@@ -35,7 +35,7 @@ final class BreweryPreferencesController {
     PreferencesResponse get(@AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("brewery.preferences.read");
         var result = getPreferences.handle(new GetOperationalPreferencesUseCase.Query(principal.requireBrewery()));
-        return toResponse(result);
+        return PreferencesResponse.from(result);
     }
 
     @PutMapping
@@ -54,7 +54,7 @@ final class BreweryPreferencesController {
                 request.allowNegativeStock(),
                 request.stockPolicy(),
                 request.version()));
-        return toResponse(result);
+        return PreferencesResponse.from(result);
     }
 
     @GetMapping("/revisions/{version}")
@@ -62,21 +62,6 @@ final class BreweryPreferencesController {
             @PathVariable long version, @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("brewery.preferences.read");
         var snap = getRevision.handle(new GetPreferencesRevisionUseCase.Query(principal.requireBrewery(), version));
-        return new PreferencesResponse(
-                snap.breweryId(), snap.volumeUnit(), snap.massUnit(), snap.temperatureUnit(),
-                snap.currencyCode(), snap.maxBatchVolume(), snap.allowNegativeStock(),
-                snap.stockPolicy(), snap.preferenceVersion());
-    }
-
-    private static PreferencesResponse toResponse(GetOperationalPreferencesUseCase.Result r) {
-        return new PreferencesResponse(
-                r.breweryId(), r.volumeUnit(), r.massUnit(), r.temperatureUnit(), r.currencyCode(),
-                r.maxBatchVolume(), r.allowNegativeStock(), r.stockPolicy(), r.version());
-    }
-
-    private static PreferencesResponse toResponse(UpdateOperationalPreferencesUseCase.Result r) {
-        return new PreferencesResponse(
-                r.breweryId(), r.volumeUnit(), r.massUnit(), r.temperatureUnit(), r.currencyCode(),
-                r.maxBatchVolume(), r.allowNegativeStock(), r.stockPolicy(), r.version());
+        return PreferencesResponse.from(snap);
     }
 }

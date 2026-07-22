@@ -36,7 +36,7 @@ final class BreweryController {
         principal.requirePermission("brewery.read");
         var result = listBreweries.handle(new ListBreweriesUseCase.Query(page, size));
         var content = result.content().stream()
-                .map(s -> new BreweryResponse(s.id(), s.code(), s.name(), s.timezone()))
+                .map(BreweryResponse::from)
                 .toList();
         return new PageResponse<>(content, result.page(), result.size(), result.totalElements(), result.totalPages());
     }
@@ -49,6 +49,6 @@ final class BreweryController {
         var result = registerBrewery.handle(new RegisterBreweryUseCase.Command(
                 principal.userId(), request.code(), request.name(), request.timezone()));
         return ResponseEntity.created(URI.create("/api/v1/breweries/" + result.id()))
-                .body(new BreweryResponse(result.id(), result.code(), result.name(), result.timezone()));
+                .body(BreweryResponse.from(result));
     }
 }

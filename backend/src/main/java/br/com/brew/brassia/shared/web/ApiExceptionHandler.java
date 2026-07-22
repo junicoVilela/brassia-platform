@@ -73,6 +73,12 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetails.of(HttpStatus.UNAUTHORIZED, "invalid_credentials", "Credenciais inválidas.");
     }
 
+    // A mensagem é curada e segura na origem (InvalidMfaException), então é exposta.
+    @ExceptionHandler(br.com.brew.brassia.shared.security.InvalidMfaException.class)
+    ProblemDetail handleInvalidMfa(br.com.brew.brassia.shared.security.InvalidMfaException ex) {
+        return ProblemDetails.of(HttpStatus.UNAUTHORIZED, "invalid_mfa", ex.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception ex) {
         logger.error("Erro inesperado (traceId=" + ProblemDetails.currentTraceId() + ")", ex);

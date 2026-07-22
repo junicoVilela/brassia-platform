@@ -75,7 +75,7 @@ final class AccessManagementController {
                 request.description(),
                 request.permissionCodes()));
         return ResponseEntity.created(URI.create("/api/v1/security/groups/" + result.id()))
-                .body(toResponse(result));
+                .body(GroupResponse.from(result));
     }
 
     @PatchMapping("/groups/{groupId}")
@@ -93,7 +93,7 @@ final class AccessManagementController {
                 request.description(),
                 request.permissionCodes(),
                 request.version()));
-        return toResponse(result);
+        return GroupResponse.from(result);
     }
 
     @PostMapping("/users/{userId}/memberships")
@@ -116,16 +116,4 @@ final class AccessManagementController {
         return new ManageMembershipUseCase.Command(principal.userId(), principal.requireBrewery(), userId, groupId);
     }
 
-    private static GroupResponse toResponse(ManageGroupUseCase.Result result) {
-        return new GroupResponse(
-                result.id(),
-                result.code(),
-                result.name(),
-                result.description(),
-                result.breweryId(),
-                result.systemGroup(),
-                result.active(),
-                result.version(),
-                result.permissions());
-    }
 }

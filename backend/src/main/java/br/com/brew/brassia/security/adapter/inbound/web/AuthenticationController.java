@@ -1,9 +1,8 @@
 package br.com.brew.brassia.security.adapter.inbound.web;
 
-import br.com.brew.brassia.brewery.BreweryRef;
-import br.com.brew.brassia.security.adapter.inbound.web.dto.BreweryView;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.ChangePasswordRequest;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.LoginRequest;
+import br.com.brew.brassia.security.adapter.inbound.web.dto.LoginResponse;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.SessionResponse;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.SwitchBreweryRequest;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.MfaLoginRequest;
@@ -14,12 +13,12 @@ import br.com.brew.brassia.security.application.port.inbound.PerformLoginUseCase
 import br.com.brew.brassia.security.application.port.inbound.ResolveSessionContextUseCase;
 import br.com.brew.brassia.security.application.port.inbound.ResolveSessionContextUseCase.SessionContext;
 import br.com.brew.brassia.security.domain.UserId;
+import br.com.brew.brassia.shared.security.InvalidMfaException;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -59,7 +58,7 @@ final class AuthenticationController {
     }
 
     @PostMapping("/login")
-    ResponseEntity<?> login(@Valid @RequestBody LoginRequest request,
+    ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         // Limite, autenticação e histórico ficam no caso de uso; aqui só a borda HTTP.
         // TooManyRequestsException e InvalidCredentialsException viram Problem Details
@@ -76,16 +75,15 @@ final class AuthenticationController {
         var context = sessionContext.resolve(new UserId(result.userId()), null);
         var principal = principal(result.userId(), result.displayName(), context);
         sessionPersister.persist(principal, httpRequest, httpResponse, true);
-        return ResponseEntity.ok(toResponse(principal, context));
+        return ResponseEntity.ok(SessionResponse.from(principal, context));
     }
 
     @PostMapping("/login/mfa")
-    ResponseEntity<?> completeMfa(@Valid @RequestBody MfaLoginRequest request,
+    SessionResponse completeMfa(@Valid @RequestBody MfaLoginRequest request,
             HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         var session = httpRequest.getSession(false);
         if (session == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ProblemDetails.of(HttpStatus.UNAUTHORIZED, "invalid_mfa", "Sessão MFA inválida."));
+            throw new InvalidMfaException("Sessão MFA inválida.");
         }
         var userId = PendingMfaSession.requireUserId(session);
         CompleteMfaLoginUseCase.Result result;
@@ -93,14 +91,13 @@ final class AuthenticationController {
             result = completeMfaLogin.handle(new CompleteMfaLoginUseCase.Command(
                     userId, request.code(), CompleteMfaLoginUseCase.Method.valueOf(request.method())));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ProblemDetails.of(HttpStatus.UNAUTHORIZED, "invalid_mfa", "Código inválido."));
+            throw new InvalidMfaException("Código inválido.");
         }
         PendingMfaSession.clear(session);
         var context = sessionContext.resolve(new UserId(result.userId()), null);
         var principal = principal(result.userId(), result.displayName(), context);
         sessionPersister.persist(principal, httpRequest, httpResponse, true);
-        return ResponseEntity.ok(toResponse(principal, context));
+        return SessionResponse.from(principal, context);
     }
 
     @PostMapping("/session/brewery")
@@ -111,14 +108,14 @@ final class AuthenticationController {
         var context = sessionContext.resolve(new UserId(current.userId()), request.breweryId());
         var principal = principal(current.userId(), current.displayName(), context);
         sessionPersister.persist(principal, httpRequest, httpResponse, false);
-        return ResponseEntity.ok(toResponse(principal, context));
+        return ResponseEntity.ok(SessionResponse.from(principal, context));
     }
 
     @GetMapping("/session")
     SessionResponse session(@AuthenticationPrincipal SecurityPrincipal principal) {
         // Reresolve para expor as cervejarias acessíveis (não guardadas no principal).
         var context = sessionContext.resolve(new UserId(principal.userId()), principal.breweryId());
-        return toResponse(principal, context);
+        return SessionResponse.from(principal, context);
     }
 
     @PostMapping("/password/change")
@@ -149,17 +146,5 @@ final class AuthenticationController {
 
     private static SecurityPrincipal principal(java.util.UUID userId, String displayName, SessionContext context) {
         return new SecurityPrincipal(userId, context.activeBreweryId(), displayName, context.permissions());
-    }
-
-    private static SessionResponse toResponse(SecurityPrincipal principal, SessionContext context) {
-        var accessible = context.accessibleBreweries().stream().map(AuthenticationController::view).toList();
-        var active = context.accessibleBreweries().stream()
-                .filter(b -> b.id().equals(context.activeBreweryId()))
-                .findFirst().map(AuthenticationController::view).orElse(null);
-        return new SessionResponse(principal.userId(), principal.displayName(), active, accessible, principal.permissions());
-    }
-
-    private static BreweryView view(BreweryRef ref) {
-        return new BreweryView(ref.id(), ref.code(), ref.name());
     }
 }

@@ -43,8 +43,7 @@ final class SecurityUserController {
         principal.requirePermission("security.user.read");
         var result = listUsers.handle(new ListUsersUseCase.Query(page, size));
         var content = result.content().stream()
-                .map(s -> new UserSummaryResponse(s.id(), s.email(), s.displayName(), s.status(),
-                        s.emailVerifiedAt() == null ? null : s.emailVerifiedAt().toString()))
+                .map(UserSummaryResponse::from)
                 .toList();
         return new PageResponse<>(content, result.page(), result.size(), result.totalElements(), result.totalPages());
     }

@@ -39,7 +39,7 @@ final class ServiceAccountController {
     List<ServiceAccountResponse> list(@AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("security.service-account.read");
         return manage.list(new ManageServiceAccountUseCase.ListCommand(principal.requireBrewery()))
-                .stream().map(ServiceAccountController::toResponse).toList();
+                .stream().map(ServiceAccountResponse::from).toList();
     }
 
     @PostMapping
@@ -50,7 +50,7 @@ final class ServiceAccountController {
         var result = manage.create(new ManageServiceAccountUseCase.CreateCommand(
                 principal.userId(), principal.requireBrewery(), request.code(), request.name()));
         return ResponseEntity.created(URI.create("/api/v1/security/service-accounts/" + result.id()))
-                .body(toResponse(result));
+                .body(ServiceAccountResponse.from(result));
     }
 
     @PostMapping("/{id}/credentials")
@@ -72,9 +72,5 @@ final class ServiceAccountController {
         manage.revokeCredential(new ManageServiceAccountUseCase.RevokeCommand(
                 principal.userId(), principal.requireBrewery(), credentialId));
         return ResponseEntity.noContent().build();
-    }
-
-    private static ServiceAccountResponse toResponse(ManageServiceAccountUseCase.ServiceAccountView view) {
-        return new ServiceAccountResponse(view.id(), null, view.code(), view.active(), List.of());
     }
 }

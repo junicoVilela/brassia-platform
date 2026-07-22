@@ -1,11 +1,18 @@
 package br.com.brew.brassia.brewery.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.brewery.application.port.inbound.GetOperationalPreferencesUseCase;
+import br.com.brew.brassia.brewery.application.port.inbound.GetPreferencesRevisionUseCase;
 import br.com.brew.brassia.brewery.application.port.inbound.ListBreweriesUseCase;
 import br.com.brew.brassia.brewery.application.port.inbound.RegisterBreweryUseCase;
+import br.com.brew.brassia.brewery.application.port.inbound.UpdateOperationalPreferencesUseCase;
 import br.com.brew.brassia.brewery.application.port.outbound.BreweryRepository;
+import br.com.brew.brassia.brewery.application.port.outbound.OperationalPreferencesRepository;
+import br.com.brew.brassia.brewery.application.service.GetOperationalPreferencesHandler;
+import br.com.brew.brassia.brewery.application.service.GetPreferencesRevisionHandler;
 import br.com.brew.brassia.brewery.application.service.ListBreweriesHandler;
 import br.com.brew.brassia.brewery.application.service.RegisterBreweryHandler;
+import br.com.brew.brassia.brewery.application.service.UpdateOperationalPreferencesHandler;
 import java.util.Objects;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -30,5 +37,29 @@ class BreweryConfiguration {
     @Bean
     ListBreweriesUseCase listBreweriesUseCase(BreweryRepository repository) {
         return new ListBreweriesHandler(repository);
+    }
+
+    @Bean
+    GetOperationalPreferencesUseCase getOperationalPreferencesUseCase(
+            OperationalPreferencesRepository preferences,
+            PlatformTransactionManager transactionManager) {
+        var handler = new GetOperationalPreferencesHandler(preferences);
+        var transaction = new TransactionTemplate(transactionManager);
+        return query -> Objects.requireNonNull(transaction.execute(status -> handler.handle(query)));
+    }
+
+    @Bean
+    UpdateOperationalPreferencesUseCase updateOperationalPreferencesUseCase(
+            OperationalPreferencesRepository preferences,
+            AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new UpdateOperationalPreferencesHandler(preferences, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    GetPreferencesRevisionUseCase getPreferencesRevisionUseCase(OperationalPreferencesRepository preferences) {
+        return new GetPreferencesRevisionHandler(preferences);
     }
 }

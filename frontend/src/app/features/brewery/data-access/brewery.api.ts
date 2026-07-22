@@ -1,6 +1,11 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { BrewerySummary, RegisterBreweryRequest } from '../domain/brewery.model';
+import {
+  BrewerySummary,
+  OperationalPreferences,
+  RegisterBreweryRequest,
+  UpdatePreferencesRequest,
+} from '../domain/brewery.model';
 
 interface PageResponse<T> {
   content: T[];
@@ -21,5 +26,13 @@ export class BreweryApi {
 
   register(request: RegisterBreweryRequest) {
     return this.http.post<BrewerySummary>(this.baseUrl, request);
+  }
+
+  getPreferences() {
+    return this.http.get<OperationalPreferences>(`${this.baseUrl}/active/preferences`);
+  }
+
+  updatePreferences(request: UpdatePreferencesRequest) {
+    return this.http.put<OperationalPreferences>(`${this.baseUrl}/active/preferences`, request);
   }
 }

@@ -1,6 +1,6 @@
 # Status — Sprint 01
 
-Estado: EM ANDAMENTO
+Estado: CONCLUÍDA
 
 ## Controle das histórias
 
@@ -23,7 +23,7 @@ Estado: EM ANDAMENTO
 | SEC-015 | Concluída (fatia 1) | Claude/junico | OidcTokenClaimsValidatorTest | Validação estrutural OIDC (issuer/sub/nonce/state/PKCE) como serviço testável. |
 | SEC-016 | Concluída (fatia 1) | Claude/junico | ScimIT verde | SCIM Users mínimo + ServiceProviderConfig; auth API key com escopos; provisioning_event idempotente. LDAP stub apenas. |
 | BRW-001 | Concluída | Claude/junico | backend (BreweryIT) + tela: verdes | Cadastro/listagem de cervejaria (código único, fuso), auditado; permissões brewery.* no catálogo; tela Cervejarias no shell. Vínculo ao principal/tenant é SEC-005. |
-| BRW-002 | A fazer | — | — | — |
+| BRW-002 | Concluída | Claude/junico | BreweryPreferencesIT + OperationalPreferencesTest + Vitest | Preferências operacionais versionadas + revisão append-only; GET/PUT active/preferences; UI na tela Cervejarias. |
 
 ## Decisões e bloqueios
 
@@ -152,11 +152,18 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Testes**: `TemporaryAccessGrantTest` (regras de vigência/segregação no domínio), `TemporaryAccessHandlerTest` (comum vs crítica, segregação, conflitos, revogação), `TemporaryAccessResolutionIT` (UNION efetivo/expirado/revogado/pendente/outra cervejaria), `TemporaryAccessIT` (solicitar/listar/revogar via HTTP; auto-aprovação → 403; sem permissão → 403).
 - Fora de escopo: `scope_id`/`access_scope` (SEC-005); expiração ao vivo em sessão já aberta; job de expiração/limpeza; UI; notificação ao alvo/aprovador.
 
+### BRW-002 — Preferências operacionais (2026-07-22)
+
+- **Modelo**: linha atual `brewery_operational_preferences` + `brewery_operational_preferences_revision` append-only. Atualização gera nova `version` e grava snapshot imutável; `GET .../revisions/{version}` prova que o passado não muda.
+- **API**: `GET/PUT /api/v1/breweries/active/preferences` (`brewery.preferences.read|manage`); `brewery_id` do principal.
+- **UI**: formulário na tela Cervejarias.
+- Migration `V20`; testes domínio + `BreweryPreferencesIT` + Vitest.
+
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- Build/commit: `67b58b7` (SEC-009..016), BRW-002 em commit seguinte; branch `main` publicada no remoto.
+- Testes executados: `OperationalPreferencesTest`, `BreweryPreferencesIT`, `BreweryIT`, `ModularityTest`; ITs SEC (Mfa/PasswordReset/ServiceAccount/Alert/Federation/Scim/AccessManagement); frontend `brewery.api.spec.ts` / `groups.api.spec.ts`.
+- Migration aplicada: histórico Flyway até `V20__brewery_operational_preferences.sql` (validado em banco limpo via Testcontainers).
+- Contratos atualizados: `contracts/openapi.yaml` (preferências), `contracts/security.openapi.yaml` (SEC-009..016).
+- Riscos remanescentes: passkeys/WebAuthn, SSO SAML/OIDC browser, LDAP real e UIs de MFA/reset/alertas/revisão ficam como refinamentos; snapshots de preferências serão consumidos por production/inventory futuros.
+- Aceite: checklist em `ACCEPTANCE.md` marcado após evidências acima.

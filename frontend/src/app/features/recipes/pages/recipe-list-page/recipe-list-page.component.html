@@ -126,9 +126,18 @@
                   <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="showVolumes(recipe.id)">
                     <i class="ri-drop-line me-1"></i> Volumes
                   </button>
-                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="calculateMetrics(recipe.id)">
+                  <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="calculateMetrics(recipe.id)">
                     <i class="ri-focus-3-line me-1"></i> Metas
                   </button>
+                  @if (recipe.status === 'DRAFT') {
+                    <button type="button" class="btn btn-sm btn-outline-success" (click)="publish(recipe.id)">
+                      <i class="ri-checkbox-circle-line me-1"></i> Publicar
+                    </button>
+                  } @else if (recipe.status === 'PUBLISHED') {
+                    <button type="button" class="btn btn-sm btn-outline-secondary" (click)="newVersion(recipe.id)">
+                      <i class="ri-git-branch-line me-1"></i> Nova versão
+                    </button>
+                  }
                 </td>
               </tr>
             }

@@ -25,7 +25,7 @@ import org.springframework.stereotype.Repository;
 class JdbcRecipeRepository implements RecipeRepository {
     private static final String SELECT_COLUMNS = """
             SELECT id, brewery_id, name, status, equipment_id, batch_volume_liters, target_og_points,
-                   target_ibu, target_color_ebc, target_abv, boil_time_minutes, version
+                   target_ibu, target_color_ebc, target_abv, boil_time_minutes, version, previous_recipe_id
             FROM recipe
             """;
 
@@ -48,9 +48,10 @@ class JdbcRecipeRepository implements RecipeRepository {
         jdbc.sql("""
                 INSERT INTO recipe (
                     id, brewery_id, name, normalized_name, status, equipment_id, batch_volume_liters,
-                    target_og_points, target_ibu, target_color_ebc, target_abv, boil_time_minutes, version, created_at)
+                    target_og_points, target_ibu, target_color_ebc, target_abv, boil_time_minutes, version,
+                    previous_recipe_id, created_at)
                 VALUES (:id, :brewery, :name, :normalized, :status, :equipment, :batch, :og, :ibu, :color, :abv,
-                        :boil, :version, :at)
+                        :boil, :version, :previous, :at)
                 """)
                 .param("id", r.id().value())
                 .param("brewery", r.breweryId())
@@ -65,6 +66,7 @@ class JdbcRecipeRepository implements RecipeRepository {
                 .param("abv", t.abv())
                 .param("boil", r.boilTimeMinutes())
                 .param("version", r.version())
+                .param("previous", r.previousRecipeId())
                 .param("at", Timestamp.from(Instant.now()))
                 .update();
 
@@ -88,6 +90,19 @@ class JdbcRecipeRepository implements RecipeRepository {
                     .param("pos", position++)
                     .update();
         }
+    }
+
+    @Override
+    public boolean markPublished(UUID breweryId, UUID recipeId) {
+        int updated = jdbc.sql("""
+                UPDATE recipe SET status = 'PUBLISHED', published_at = :at
+                WHERE id = :id AND brewery_id = :brewery AND status = 'DRAFT'
+                """)
+                .param("at", Timestamp.from(Instant.now()))
+                .param("id", recipeId)
+                .param("brewery", breweryId)
+                .update();
+        return updated > 0;
     }
 
     @Override
@@ -144,17 +159,18 @@ class JdbcRecipeRepository implements RecipeRepository {
                 rs.getBigDecimal("target_color_ebc"),
                 rs.getBigDecimal("target_abv"),
                 (Integer) rs.getObject("boil_time_minutes"),
-                rs.getLong("version"));
+                rs.getLong("version"),
+                rs.getObject("previous_recipe_id", UUID.class));
     }
 
     private record RawRecipe(UUID id, UUID breweryId, String name, String status, UUID equipmentId,
             BigDecimal batchVolumeLiters, BigDecimal og, BigDecimal ibu, BigDecimal color, BigDecimal abv,
-            Integer boilTimeMinutes, long version) {
+            Integer boilTimeMinutes, long version, UUID previousRecipeId) {
 
         Recipe build(List<RecipeItem> items) {
             return Recipe.reconstitute(new RecipeId(id), breweryId, new RecipeName(name),
                     RecipeStatus.valueOf(status), equipmentId, batchVolumeLiters,
-                    new RecipeTargets(og, ibu, color, abv), boilTimeMinutes, items, version);
+                    new RecipeTargets(og, ibu, color, abv), boilTimeMinutes, items, version, previousRecipeId);
         }
     }
 }

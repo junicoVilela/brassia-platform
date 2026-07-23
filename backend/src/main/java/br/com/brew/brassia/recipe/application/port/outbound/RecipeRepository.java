@@ -11,6 +11,9 @@ public interface RecipeRepository {
     /** Persiste a receita e seus itens no mesmo commit. */
     void insert(Recipe recipe);
 
+    /** Marca a receita como publicada (rascunho → publicada). Falha se já não for rascunho. */
+    boolean markPublished(UUID breweryId, UUID recipeId);
+
     Optional<Recipe> findById(UUID breweryId, UUID id);
 
     List<Recipe> findPage(UUID breweryId, int page, int size);

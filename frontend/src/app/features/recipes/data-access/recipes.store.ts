@@ -85,4 +85,24 @@ export class RecipesStore {
         error: () => this.metricsError.set('Não foi possível calcular as metas.'),
       });
   }
+
+  publish(recipeId: string): void {
+    this.actionError.set(null);
+    this.api.publish(recipeId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.load(),
+        error: () => this.actionError.set('Não foi possível publicar a receita.'),
+      });
+  }
+
+  newVersion(recipeId: string): void {
+    this.actionError.set(null);
+    this.api.newVersion(recipeId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.load(),
+        error: () => this.actionError.set('Não foi possível criar nova versão.'),
+      });
+  }
 }

@@ -36,4 +36,12 @@ export class RecipesApi {
   calculateMetrics(recipeId: string) {
     return this.http.post<CalculatedMetrics>(`${this.baseUrl}/${recipeId}/metrics`, {});
   }
+
+  publish(recipeId: string) {
+    return this.http.post<CreatedRecipe>(`${this.baseUrl}/${recipeId}/publish`, {});
+  }
+
+  newVersion(recipeId: string) {
+    return this.http.post<CreatedRecipe>(`${this.baseUrl}/${recipeId}/versions`, {});
+  }
 }

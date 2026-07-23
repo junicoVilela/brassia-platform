@@ -7,17 +7,22 @@ import br.com.brew.brassia.equipment.EquipmentProfileLookup;
 import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeMetricsUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeVolumesUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CreateRecipeUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.CreateRecipeVersionUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.RecipeMetricsUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.RecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.ListRecipesUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.PublishRecipeUseCase;
+import br.com.brew.brassia.recipe.application.port.outbound.RecipeEventPublisher;
 import br.com.brew.brassia.recipe.application.port.outbound.RecipeMetricsRepository;
 import br.com.brew.brassia.recipe.application.port.outbound.RecipeRepository;
 import br.com.brew.brassia.recipe.application.service.CalculateRecipeMetricsHandler;
 import br.com.brew.brassia.recipe.application.service.CalculateRecipeVolumesHandler;
 import br.com.brew.brassia.recipe.application.service.CreateRecipeHandler;
+import br.com.brew.brassia.recipe.application.service.CreateRecipeVersionHandler;
 import br.com.brew.brassia.recipe.application.service.RecipeHandler;
 import br.com.brew.brassia.recipe.application.service.RecipeMetricsHandler;
 import br.com.brew.brassia.recipe.application.service.ListRecipesHandler;
+import br.com.brew.brassia.recipe.application.service.PublishRecipeHandler;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -66,5 +71,21 @@ class RecipeConfiguration {
     @Bean
     RecipeMetricsUseCase getRecipeMetricsUseCase(RecipeMetricsRepository repository) {
         return new RecipeMetricsHandler(repository);
+    }
+
+    @Bean
+    PublishRecipeUseCase publishRecipeUseCase(RecipeRepository repository, RecipeEventPublisher events,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new PublishRecipeHandler(repository, events, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    CreateRecipeVersionUseCase createRecipeVersionUseCase(RecipeRepository repository, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new CreateRecipeVersionHandler(repository, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }
 }

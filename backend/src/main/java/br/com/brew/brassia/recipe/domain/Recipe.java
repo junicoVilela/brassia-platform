@@ -25,10 +25,11 @@ public final class Recipe {
     private Integer boilTimeMinutes;
     private final List<RecipeItem> items;
     private final long version;
+    private final UUID previousRecipeId;
 
     private Recipe(RecipeId id, UUID breweryId, RecipeName name, RecipeStatus status, UUID equipmentId,
             BigDecimal batchVolumeLiters, RecipeTargets targets, Integer boilTimeMinutes,
-            List<RecipeItem> items, long version) {
+            List<RecipeItem> items, long version, UUID previousRecipeId) {
         this.id = Objects.requireNonNull(id);
         this.breweryId = Objects.requireNonNull(breweryId);
         this.name = Objects.requireNonNull(name);
@@ -39,6 +40,7 @@ public final class Recipe {
         this.boilTimeMinutes = requireNonNegative(boilTimeMinutes);
         this.items = List.copyOf(Objects.requireNonNull(items, "items"));
         this.version = version;
+        this.previousRecipeId = previousRecipeId;
     }
 
     /**
@@ -55,14 +57,31 @@ public final class Recipe {
         }
         validateMashPercentages(items);
         return new Recipe(RecipeId.newId(), breweryId, new RecipeName(name), RecipeStatus.DRAFT, equipmentId,
-                batchVolumeLiters, targets == null ? RecipeTargets.none() : targets, boilTimeMinutes, items, 0);
+                batchVolumeLiters, targets == null ? RecipeTargets.none() : targets, boilTimeMinutes, items, 1, null);
     }
 
     public static Recipe reconstitute(RecipeId id, UUID breweryId, RecipeName name, RecipeStatus status,
             UUID equipmentId, BigDecimal batchVolumeLiters, RecipeTargets targets, Integer boilTimeMinutes,
-            List<RecipeItem> items, long version) {
+            List<RecipeItem> items, long version, UUID previousRecipeId) {
         return new Recipe(id, breweryId, name, status, equipmentId, batchVolumeLiters, targets, boilTimeMinutes,
-                items, version);
+                items, version, previousRecipeId);
+    }
+
+    /** Congela a fórmula: rascunho → publicada. Publicada é imutável. */
+    public void publish() {
+        if (status != RecipeStatus.DRAFT) {
+            throw new IllegalStateException("apenas receita em rascunho pode ser publicada");
+        }
+        this.status = RecipeStatus.PUBLISHED;
+    }
+
+    /** Gera uma nova versão editável (rascunho) a partir de uma publicada, preservando o snapshot. */
+    public Recipe nextDraftVersion() {
+        if (status != RecipeStatus.PUBLISHED) {
+            throw new IllegalStateException("apenas versão publicada gera nova versão");
+        }
+        return new Recipe(RecipeId.newId(), breweryId, name, RecipeStatus.DRAFT, equipmentId, batchVolumeLiters,
+                targets, boilTimeMinutes, items, version + 1, id.value());
     }
 
     private static void validateMashPercentages(List<RecipeItem> items) {
@@ -104,4 +123,5 @@ public final class Recipe {
     public Integer boilTimeMinutes() { return boilTimeMinutes; }
     public List<RecipeItem> items() { return items; }
     public long version() { return version; }
+    public UUID previousRecipeId() { return previousRecipeId; }
 }

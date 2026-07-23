@@ -74,6 +74,14 @@ export class RecipeListPageComponent implements OnInit {
     this.store.calculateMetrics(recipeId);
   }
 
+  protected publish(recipeId: string): void {
+    this.store.publish(recipeId);
+  }
+
+  protected newVersion(recipeId: string): void {
+    this.store.newVersion(recipeId);
+  }
+
   protected create(): void {
     if (this.form.invalid) {
       return;

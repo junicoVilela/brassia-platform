@@ -3,6 +3,7 @@ package br.com.brew.brassia.recipe.adapter.inbound.web;
 import br.com.brew.brassia.recipe.adapter.inbound.web.dto.CreateRecipeRequest;
 import br.com.brew.brassia.recipe.adapter.inbound.web.dto.RecipeDetailResponse;
 import br.com.brew.brassia.recipe.adapter.inbound.web.dto.RecipeResponse;
+import br.com.brew.brassia.recipe.adapter.inbound.web.dto.RecipeStatusResponse;
 import br.com.brew.brassia.recipe.adapter.inbound.web.dto.RecipeSummaryResponse;
 import br.com.brew.brassia.recipe.adapter.inbound.web.dto.CalculatedMetricsResponse;
 import br.com.brew.brassia.recipe.adapter.inbound.web.dto.MetricsResponse;
@@ -10,9 +11,11 @@ import br.com.brew.brassia.recipe.adapter.inbound.web.dto.VolumeBalanceResponse;
 import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeMetricsUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeVolumesUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CreateRecipeUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.CreateRecipeVersionUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.RecipeMetricsUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.RecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.ListRecipesUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.PublishRecipeUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import br.com.brew.brassia.shared.web.PageResponse;
 import jakarta.validation.Valid;
@@ -37,16 +40,35 @@ final class RecipeController {
     private final CalculateRecipeVolumesUseCase calculateVolumes;
     private final CalculateRecipeMetricsUseCase calculateMetrics;
     private final RecipeMetricsUseCase getMetrics;
+    private final PublishRecipeUseCase publishRecipe;
+    private final CreateRecipeVersionUseCase createVersion;
 
     RecipeController(CreateRecipeUseCase createRecipe, ListRecipesUseCase listRecipes, RecipeUseCase getRecipe,
             CalculateRecipeVolumesUseCase calculateVolumes, CalculateRecipeMetricsUseCase calculateMetrics,
-            RecipeMetricsUseCase getMetrics) {
+            RecipeMetricsUseCase getMetrics, PublishRecipeUseCase publishRecipe,
+            CreateRecipeVersionUseCase createVersion) {
         this.createRecipe = createRecipe;
         this.listRecipes = listRecipes;
         this.getRecipe = getRecipe;
         this.calculateVolumes = calculateVolumes;
         this.calculateMetrics = calculateMetrics;
         this.getMetrics = getMetrics;
+        this.publishRecipe = publishRecipe;
+        this.createVersion = createVersion;
+    }
+
+    @PostMapping("/{id}/publish")
+    RecipeStatusResponse publish(@PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("recipe.create");
+        return RecipeStatusResponse.from(publishRecipe.handle(
+                new PublishRecipeUseCase.Command(principal.userId(), principal.requireBrewery(), id)));
+    }
+
+    @PostMapping("/{id}/versions")
+    RecipeStatusResponse newVersion(@PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("recipe.create");
+        return RecipeStatusResponse.from(createVersion.handle(
+                new CreateRecipeVersionUseCase.Command(principal.userId(), principal.requireBrewery(), id)));
     }
 
     @GetMapping

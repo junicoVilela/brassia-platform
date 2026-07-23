@@ -61,13 +61,25 @@ paths:
         '200': {description: Metas calculadas e persistidas, com tolerância explícita vs as metas informadas}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
-  /recipes/{recipeId}/publish:
+  /recipes/{id}/publish:
     post:
       operationId: publishRecipe
       parameters:
-        - {name: recipeId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
-        '200': {description: Published}
+        '200': {description: Receita publicada (congelada)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /recipes/{id}/versions:
+    post:
+      operationId: createRecipeVersion
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Nova versão (rascunho) derivada da publicada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
   /breweries:
     get:

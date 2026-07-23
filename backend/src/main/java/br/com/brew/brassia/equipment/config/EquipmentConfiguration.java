@@ -2,6 +2,7 @@ package br.com.brew.brassia.equipment.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
+import br.com.brew.brassia.equipment.EquipmentProfileLookup;
 import br.com.brew.brassia.equipment.application.port.inbound.CancelMaintenanceUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.CheckEquipmentAvailabilityUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.GetEquipmentRevisionUseCase;
@@ -55,6 +56,14 @@ class EquipmentConfiguration {
     EquipmentCapacityLookup equipmentCapacityLookup(EquipmentRepository repository) {
         return (breweryId, equipmentId) -> repository.findById(breweryId, equipmentId)
                 .map(br.com.brew.brassia.equipment.domain.Equipment::capacityLiters);
+    }
+
+    /** Perfil publicado (capacidade, perdas, eficiência, evaporação) para cálculos de outros módulos. */
+    @Bean
+    EquipmentProfileLookup equipmentProfileLookup(EquipmentRepository repository) {
+        return (breweryId, equipmentId) -> repository.findById(breweryId, equipmentId)
+                .map(e -> new EquipmentProfileLookup.Profile(e.capacityLiters(), e.deadSpaceLiters(),
+                        e.mashEfficiencyPercent(), e.boilOffLitersPerHour()));
     }
 
     @Bean

@@ -35,6 +35,15 @@ paths:
         '200': {description: Detalhe da receita com composição}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /recipes/{id}/volumes:
+    get:
+      operationId: getRecipeVolumes
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Balanço de volumes (água, absorção, evaporação, perdas, volume final) e método}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /recipes/{recipeId}/publish:
     post:
       operationId: publishRecipe

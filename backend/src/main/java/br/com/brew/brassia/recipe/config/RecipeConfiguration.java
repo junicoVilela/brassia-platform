@@ -2,10 +2,13 @@ package br.com.brew.brassia.recipe.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
+import br.com.brew.brassia.equipment.EquipmentProfileLookup;
+import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeVolumesUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CreateRecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.GetRecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.ListRecipesUseCase;
 import br.com.brew.brassia.recipe.application.port.outbound.RecipeRepository;
+import br.com.brew.brassia.recipe.application.service.CalculateRecipeVolumesHandler;
 import br.com.brew.brassia.recipe.application.service.CreateRecipeHandler;
 import br.com.brew.brassia.recipe.application.service.GetRecipeHandler;
 import br.com.brew.brassia.recipe.application.service.ListRecipesHandler;
@@ -37,5 +40,11 @@ class RecipeConfiguration {
     @Bean
     GetRecipeUseCase getRecipeUseCase(RecipeRepository repository) {
         return new GetRecipeHandler(repository);
+    }
+
+    @Bean
+    CalculateRecipeVolumesUseCase calculateRecipeVolumesUseCase(
+            RecipeRepository repository, EquipmentProfileLookup equipment) {
+        return new CalculateRecipeVolumesHandler(repository, equipment);
     }
 }

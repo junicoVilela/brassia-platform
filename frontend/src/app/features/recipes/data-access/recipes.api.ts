@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { CreateRecipeRequest, CreatedRecipe, RecipeSummary } from '../domain/recipe.model';
+import { CreateRecipeRequest, CreatedRecipe, RecipeSummary, VolumeBalance } from '../domain/recipe.model';
 
 interface PageResponse<T> {
   content: T[];
@@ -21,5 +21,9 @@ export class RecipesApi {
 
   create(request: CreateRecipeRequest) {
     return this.http.post<CreatedRecipe>(this.baseUrl, request);
+  }
+
+  volumes(recipeId: string) {
+    return this.http.get<VolumeBalance>(`${this.baseUrl}/${recipeId}/volumes`);
   }
 }

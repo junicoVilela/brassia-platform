@@ -41,6 +41,18 @@ export interface CreatedRecipe {
   status: string;
 }
 
+export interface VolumeBalance {
+  recipeId: string;
+  grainMassKg: number;
+  finalVolumeLiters: number;
+  grainAbsorptionLiters: number;
+  evaporationLiters: number;
+  lossesLiters: number;
+  preBoilVolumeLiters: number;
+  totalWaterLiters: number;
+  method: string;
+}
+
 /** Converte um valor de form (0/'' vira null nos campos opcionais) num item de request. */
 export function toCreateRecipeItem(value: {
   ingredientId: string;

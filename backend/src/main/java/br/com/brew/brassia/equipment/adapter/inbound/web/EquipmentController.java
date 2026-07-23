@@ -4,7 +4,7 @@ import br.com.brew.brassia.equipment.adapter.inbound.web.dto.EquipmentResponse;
 import br.com.brew.brassia.equipment.adapter.inbound.web.dto.EquipmentRevisionResponse;
 import br.com.brew.brassia.equipment.adapter.inbound.web.dto.RegisterEquipmentRequest;
 import br.com.brew.brassia.equipment.adapter.inbound.web.dto.UpdateEquipmentRequest;
-import br.com.brew.brassia.equipment.application.port.inbound.GetEquipmentRevisionUseCase;
+import br.com.brew.brassia.equipment.application.port.inbound.EquipmentRevisionUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.ListEquipmentUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.RegisterEquipmentUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.UpdateEquipmentUseCase;
@@ -30,10 +30,10 @@ final class EquipmentController {
     private final RegisterEquipmentUseCase register;
     private final UpdateEquipmentUseCase update;
     private final ListEquipmentUseCase list;
-    private final GetEquipmentRevisionUseCase getRevision;
+    private final EquipmentRevisionUseCase getRevision;
 
     EquipmentController(RegisterEquipmentUseCase register, UpdateEquipmentUseCase update,
-            ListEquipmentUseCase list, GetEquipmentRevisionUseCase getRevision) {
+            ListEquipmentUseCase list, EquipmentRevisionUseCase getRevision) {
         this.register = register;
         this.update = update;
         this.list = list;
@@ -83,7 +83,7 @@ final class EquipmentController {
             @PathVariable long version,
             @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("equipment.read");
-        var result = getRevision.handle(new GetEquipmentRevisionUseCase.Query(
+        var result = getRevision.handle(new EquipmentRevisionUseCase.Query(
                 principal.requireBrewery(), id, version));
         return EquipmentRevisionResponse.from(result);
     }

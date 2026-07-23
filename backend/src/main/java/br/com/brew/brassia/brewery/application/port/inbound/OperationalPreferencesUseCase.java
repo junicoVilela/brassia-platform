@@ -3,7 +3,7 @@ package br.com.brew.brassia.brewery.application.port.inbound;
 import java.math.BigDecimal;
 import java.util.UUID;
 
-public interface GetOperationalPreferencesUseCase {
+public interface OperationalPreferencesUseCase {
     Result handle(Query query);
 
     record Query(UUID breweryId) {}

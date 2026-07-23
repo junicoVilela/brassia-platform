@@ -2,8 +2,8 @@ package br.com.brew.brassia.brewery.adapter.inbound.web;
 
 import br.com.brew.brassia.brewery.adapter.inbound.web.dto.PreferencesResponse;
 import br.com.brew.brassia.brewery.adapter.inbound.web.dto.UpdatePreferencesRequest;
-import br.com.brew.brassia.brewery.application.port.inbound.GetOperationalPreferencesUseCase;
-import br.com.brew.brassia.brewery.application.port.inbound.GetPreferencesRevisionUseCase;
+import br.com.brew.brassia.brewery.application.port.inbound.OperationalPreferencesUseCase;
+import br.com.brew.brassia.brewery.application.port.inbound.PreferencesRevisionUseCase;
 import br.com.brew.brassia.brewery.application.port.inbound.UpdateOperationalPreferencesUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import jakarta.validation.Valid;
@@ -18,14 +18,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/breweries/active/preferences")
 final class BreweryPreferencesController {
-    private final GetOperationalPreferencesUseCase getPreferences;
+    private final OperationalPreferencesUseCase getPreferences;
     private final UpdateOperationalPreferencesUseCase updatePreferences;
-    private final GetPreferencesRevisionUseCase getRevision;
+    private final PreferencesRevisionUseCase getRevision;
 
     BreweryPreferencesController(
-            GetOperationalPreferencesUseCase getPreferences,
+            OperationalPreferencesUseCase getPreferences,
             UpdateOperationalPreferencesUseCase updatePreferences,
-            GetPreferencesRevisionUseCase getRevision) {
+            PreferencesRevisionUseCase getRevision) {
         this.getPreferences = getPreferences;
         this.updatePreferences = updatePreferences;
         this.getRevision = getRevision;
@@ -34,7 +34,7 @@ final class BreweryPreferencesController {
     @GetMapping
     PreferencesResponse get(@AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("brewery.preferences.read");
-        var result = getPreferences.handle(new GetOperationalPreferencesUseCase.Query(principal.requireBrewery()));
+        var result = getPreferences.handle(new OperationalPreferencesUseCase.Query(principal.requireBrewery()));
         return PreferencesResponse.from(result);
     }
 
@@ -61,7 +61,7 @@ final class BreweryPreferencesController {
     PreferencesResponse revision(
             @PathVariable long version, @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("brewery.preferences.read");
-        var snap = getRevision.handle(new GetPreferencesRevisionUseCase.Query(principal.requireBrewery(), version));
+        var snap = getRevision.handle(new PreferencesRevisionUseCase.Query(principal.requireBrewery(), version));
         return PreferencesResponse.from(snap);
     }
 }

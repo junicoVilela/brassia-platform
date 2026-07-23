@@ -1,15 +1,15 @@
 package br.com.brew.brassia.recipe.application.service;
 
-import br.com.brew.brassia.recipe.application.port.inbound.GetRecipeUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.RecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.outbound.RecipeRepository;
 import br.com.brew.brassia.recipe.domain.Recipe;
 import br.com.brew.brassia.recipe.domain.RecipeTargets;
 import java.util.Objects;
 
-public final class GetRecipeHandler implements GetRecipeUseCase {
+public final class RecipeHandler implements RecipeUseCase {
     private final RecipeRepository repository;
 
-    public GetRecipeHandler(RecipeRepository repository) {
+    public RecipeHandler(RecipeRepository repository) {
         this.repository = Objects.requireNonNull(repository);
     }
 

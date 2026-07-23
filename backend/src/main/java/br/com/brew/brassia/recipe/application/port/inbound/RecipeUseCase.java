@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 @FunctionalInterface
-public interface GetRecipeUseCase {
+public interface RecipeUseCase {
     Result handle(Query query);
 
     record Query(UUID breweryId, UUID recipeId) {}

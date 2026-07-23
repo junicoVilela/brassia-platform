@@ -1,6 +1,6 @@
 package br.com.brew.brassia.recipe.adapter.inbound.web.dto;
 
-import br.com.brew.brassia.recipe.application.port.inbound.GetRecipeUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.RecipeUseCase;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -22,7 +22,7 @@ public record RecipeDetailResponse(
     public record Item(UUID ingredientId, String stage, BigDecimal quantity, String unit, Integer timingMinutes,
             BigDecimal percentage) {}
 
-    public static RecipeDetailResponse from(GetRecipeUseCase.Result r) {
+    public static RecipeDetailResponse from(RecipeUseCase.Result r) {
         var items = r.items().stream()
                 .map(i -> new Item(i.ingredientId(), i.stage(), i.quantity(), i.unit(), i.timingMinutes(),
                         i.percentage()))

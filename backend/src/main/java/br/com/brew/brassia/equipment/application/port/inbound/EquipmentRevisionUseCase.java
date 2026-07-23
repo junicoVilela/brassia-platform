@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 @FunctionalInterface
-public interface GetEquipmentRevisionUseCase {
+public interface EquipmentRevisionUseCase {
     Result handle(Query query);
 
     record Query(UUID breweryId, UUID equipmentId, long version) {}

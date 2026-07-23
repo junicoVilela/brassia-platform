@@ -4,7 +4,7 @@ import br.com.brew.brassia.recipe.domain.RecipeMetrics;
 import java.util.UUID;
 
 @FunctionalInterface
-public interface GetRecipeMetricsUseCase {
+public interface RecipeMetricsUseCase {
     RecipeMetrics handle(Query query);
 
     record Query(UUID breweryId, UUID recipeId) {}

@@ -7,16 +7,16 @@ import br.com.brew.brassia.equipment.EquipmentProfileLookup;
 import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeMetricsUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeVolumesUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CreateRecipeUseCase;
-import br.com.brew.brassia.recipe.application.port.inbound.GetRecipeMetricsUseCase;
-import br.com.brew.brassia.recipe.application.port.inbound.GetRecipeUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.RecipeMetricsUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.RecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.ListRecipesUseCase;
 import br.com.brew.brassia.recipe.application.port.outbound.RecipeMetricsRepository;
 import br.com.brew.brassia.recipe.application.port.outbound.RecipeRepository;
 import br.com.brew.brassia.recipe.application.service.CalculateRecipeMetricsHandler;
 import br.com.brew.brassia.recipe.application.service.CalculateRecipeVolumesHandler;
 import br.com.brew.brassia.recipe.application.service.CreateRecipeHandler;
-import br.com.brew.brassia.recipe.application.service.GetRecipeHandler;
-import br.com.brew.brassia.recipe.application.service.GetRecipeMetricsHandler;
+import br.com.brew.brassia.recipe.application.service.RecipeHandler;
+import br.com.brew.brassia.recipe.application.service.RecipeMetricsHandler;
 import br.com.brew.brassia.recipe.application.service.ListRecipesHandler;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -44,8 +44,8 @@ class RecipeConfiguration {
     }
 
     @Bean
-    GetRecipeUseCase getRecipeUseCase(RecipeRepository repository) {
-        return new GetRecipeHandler(repository);
+    RecipeUseCase getRecipeUseCase(RecipeRepository repository) {
+        return new RecipeHandler(repository);
     }
 
     @Bean
@@ -64,7 +64,7 @@ class RecipeConfiguration {
     }
 
     @Bean
-    GetRecipeMetricsUseCase getRecipeMetricsUseCase(RecipeMetricsRepository repository) {
-        return new GetRecipeMetricsHandler(repository);
+    RecipeMetricsUseCase getRecipeMetricsUseCase(RecipeMetricsRepository repository) {
+        return new RecipeMetricsHandler(repository);
     }
 }

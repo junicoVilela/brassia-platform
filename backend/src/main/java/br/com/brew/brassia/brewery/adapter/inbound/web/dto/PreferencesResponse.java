@@ -1,6 +1,6 @@
 package br.com.brew.brassia.brewery.adapter.inbound.web.dto;
 
-import br.com.brew.brassia.brewery.application.port.inbound.GetOperationalPreferencesUseCase;
+import br.com.brew.brassia.brewery.application.port.inbound.OperationalPreferencesUseCase;
 import br.com.brew.brassia.brewery.application.port.inbound.UpdateOperationalPreferencesUseCase;
 import br.com.brew.brassia.brewery.domain.OperationalPreferencesSnapshot;
 import java.math.BigDecimal;
@@ -17,7 +17,7 @@ public record PreferencesResponse(
         String stockPolicy,
         long version) {
 
-    public static PreferencesResponse from(GetOperationalPreferencesUseCase.Result r) {
+    public static PreferencesResponse from(OperationalPreferencesUseCase.Result r) {
         return new PreferencesResponse(
                 r.breweryId(), r.volumeUnit(), r.massUnit(), r.temperatureUnit(), r.currencyCode(),
                 r.maxBatchVolume(), r.allowNegativeStock(), r.stockPolicy(), r.version());

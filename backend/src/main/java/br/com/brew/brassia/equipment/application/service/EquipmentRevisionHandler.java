@@ -1,13 +1,13 @@
 package br.com.brew.brassia.equipment.application.service;
 
-import br.com.brew.brassia.equipment.application.port.inbound.GetEquipmentRevisionUseCase;
+import br.com.brew.brassia.equipment.application.port.inbound.EquipmentRevisionUseCase;
 import br.com.brew.brassia.equipment.application.port.outbound.EquipmentRepository;
 import java.util.Objects;
 
-public final class GetEquipmentRevisionHandler implements GetEquipmentRevisionUseCase {
+public final class EquipmentRevisionHandler implements EquipmentRevisionUseCase {
     private final EquipmentRepository repository;
 
-    public GetEquipmentRevisionHandler(EquipmentRepository repository) {
+    public EquipmentRevisionHandler(EquipmentRepository repository) {
         this.repository = Objects.requireNonNull(repository);
     }
 

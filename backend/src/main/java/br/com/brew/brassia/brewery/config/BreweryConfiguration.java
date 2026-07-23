@@ -1,15 +1,15 @@
 package br.com.brew.brassia.brewery.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
-import br.com.brew.brassia.brewery.application.port.inbound.GetOperationalPreferencesUseCase;
-import br.com.brew.brassia.brewery.application.port.inbound.GetPreferencesRevisionUseCase;
+import br.com.brew.brassia.brewery.application.port.inbound.OperationalPreferencesUseCase;
+import br.com.brew.brassia.brewery.application.port.inbound.PreferencesRevisionUseCase;
 import br.com.brew.brassia.brewery.application.port.inbound.ListBreweriesUseCase;
 import br.com.brew.brassia.brewery.application.port.inbound.RegisterBreweryUseCase;
 import br.com.brew.brassia.brewery.application.port.inbound.UpdateOperationalPreferencesUseCase;
 import br.com.brew.brassia.brewery.application.port.outbound.BreweryRepository;
 import br.com.brew.brassia.brewery.application.port.outbound.OperationalPreferencesRepository;
-import br.com.brew.brassia.brewery.application.service.GetOperationalPreferencesHandler;
-import br.com.brew.brassia.brewery.application.service.GetPreferencesRevisionHandler;
+import br.com.brew.brassia.brewery.application.service.OperationalPreferencesHandler;
+import br.com.brew.brassia.brewery.application.service.PreferencesRevisionHandler;
 import br.com.brew.brassia.brewery.application.service.ListBreweriesHandler;
 import br.com.brew.brassia.brewery.application.service.RegisterBreweryHandler;
 import br.com.brew.brassia.brewery.application.service.UpdateOperationalPreferencesHandler;
@@ -40,10 +40,10 @@ class BreweryConfiguration {
     }
 
     @Bean
-    GetOperationalPreferencesUseCase getOperationalPreferencesUseCase(
+    OperationalPreferencesUseCase getOperationalPreferencesUseCase(
             OperationalPreferencesRepository preferences,
             PlatformTransactionManager transactionManager) {
-        var handler = new GetOperationalPreferencesHandler(preferences);
+        var handler = new OperationalPreferencesHandler(preferences);
         var transaction = new TransactionTemplate(transactionManager);
         return query -> Objects.requireNonNull(transaction.execute(status -> handler.handle(query)));
     }
@@ -59,7 +59,7 @@ class BreweryConfiguration {
     }
 
     @Bean
-    GetPreferencesRevisionUseCase getPreferencesRevisionUseCase(OperationalPreferencesRepository preferences) {
-        return new GetPreferencesRevisionHandler(preferences);
+    PreferencesRevisionUseCase getPreferencesRevisionUseCase(OperationalPreferencesRepository preferences) {
+        return new PreferencesRevisionHandler(preferences);
     }
 }

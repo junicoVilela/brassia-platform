@@ -8,13 +8,33 @@ paths:
   /recipes:
     get:
       operationId: listRecipes
+      parameters:
+        - {name: page, in: query, schema: {type: integer, default: 0}}
+        - {name: size, in: query, schema: {type: integer, default: 20}}
       responses:
-        '200': {description: OK}
+        '200': {description: Página de receitas}
+        '403': {$ref: '#/components/responses/Problem'}
     post:
       operationId: createRecipe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateRecipe'}
       responses:
-        '201': {description: Created}
+        '201': {description: Receita criada (rascunho)}
         '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /recipes/{id}:
+    get:
+      operationId: getRecipe
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Detalhe da receita com composição}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /recipes/{recipeId}/publish:
     post:
       operationId: publishRecipe
@@ -455,6 +475,31 @@ components:
               sourceId: {type: string, format: uuid}
               volumeLiters: {type: number}
         targetProfileId: {type: string, format: uuid}
+    CreateRecipe:
+      type: object
+      required: [name, equipmentId, batchVolumeLiters, items]
+      properties:
+        name: {type: string, maxLength: 120}
+        equipmentId: {type: string, format: uuid}
+        batchVolumeLiters: {type: number}
+        targetOgPoints: {type: number}
+        targetIbu: {type: number}
+        targetColorEbc: {type: number}
+        targetAbv: {type: number}
+        boilTimeMinutes: {type: integer}
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [ingredientId, stage, quantity, unit]
+            properties:
+              ingredientId: {type: string, format: uuid}
+              stage: {type: string, enum: [MASH, BOIL, WHIRLPOOL, FERMENTATION, PACKAGING]}
+              quantity: {type: number}
+              unit: {type: string, enum: [KG, G, MG, L, ML, UNIT]}
+              timingMinutes: {type: integer}
+              percentage: {type: number}
     Measurement:
       type: object
       required: [parameter, value, unit, measuredAt, source]

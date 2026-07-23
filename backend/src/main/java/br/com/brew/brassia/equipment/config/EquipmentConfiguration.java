@@ -1,6 +1,7 @@
 package br.com.brew.brassia.equipment.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
 import br.com.brew.brassia.equipment.application.port.inbound.CancelMaintenanceUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.CheckEquipmentAvailabilityUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.GetEquipmentRevisionUseCase;
@@ -47,6 +48,13 @@ class EquipmentConfiguration {
     @Bean
     ListEquipmentUseCase listEquipmentUseCase(EquipmentRepository repository) {
         return new ListEquipmentHandler(repository);
+    }
+
+    /** Consulta publicada de capacidade, consumida por outros módulos (ex.: receitas). */
+    @Bean
+    EquipmentCapacityLookup equipmentCapacityLookup(EquipmentRepository repository) {
+        return (breweryId, equipmentId) -> repository.findById(breweryId, equipmentId)
+                .map(br.com.brew.brassia.equipment.domain.Equipment::capacityLiters);
     }
 
     @Bean

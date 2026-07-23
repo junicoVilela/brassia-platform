@@ -1,13 +1,132 @@
-    <main>
-      <header><h1>Receitas</h1><button type="button">Criar receita</button></header>
-      @if (store.loading()) { <p aria-live="polite">Carregando…</p> }
-      @else if (store.error(); as error) { <p role="alert">{{ error }}</p> }
-      @else if (store.empty()) { <p>Nenhuma receita cadastrada.</p> }
-      @else {
-        <ul>
-          @for (recipe of store.items(); track recipe.id) {
-            <li>{{ recipe.name }} — versão {{ recipe.version }}</li>
-          }
-        </ul>
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+  <h1 class="h4 mb-0 fw-semibold">Receitas</h1>
+</div>
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Criar receita</h2>
+    <form [formGroup]="form" (ngSubmit)="create()">
+      <div class="row g-3 mb-2">
+        <div class="col-sm-4">
+          <label class="form-label" for="name">Nome</label>
+          <input id="name" type="text" class="form-control" formControlName="name" placeholder="Hoppy Lager">
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label" for="equipmentId">Equipamento</label>
+          <select id="equipmentId" class="form-select" formControlName="equipmentId">
+            <option value="">Selecione…</option>
+            @for (e of store.equipment(); track e.id) {
+              <option [value]="e.id">{{ e.code }} — {{ e.name }} ({{ e.capacityLiters }} L)</option>
+            }
+          </select>
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label" for="batchVolumeLiters">Batelada (L)</label>
+          <input id="batchVolumeLiters" type="number" step="0.001" class="form-control" formControlName="batchVolumeLiters">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label" for="boilTimeMinutes">Fervura (min)</label>
+          <input id="boilTimeMinutes" type="number" class="form-control" formControlName="boilTimeMinutes">
+        </div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col"><label class="form-label small" for="og">OG (pts)</label>
+          <input id="og" type="number" step="0.01" class="form-control" formControlName="targetOgPoints"></div>
+        <div class="col"><label class="form-label small" for="ibu">IBU</label>
+          <input id="ibu" type="number" step="0.01" class="form-control" formControlName="targetIbu"></div>
+        <div class="col"><label class="form-label small" for="ebc">Cor (EBC)</label>
+          <input id="ebc" type="number" step="0.01" class="form-control" formControlName="targetColorEbc"></div>
+        <div class="col"><label class="form-label small" for="abv">ABV (%)</label>
+          <input id="abv" type="number" step="0.001" class="form-control" formControlName="targetAbv"></div>
+      </div>
+
+      <h3 class="h6 fw-semibold mb-2">Composição</h3>
+      <div formArrayName="items">
+        @for (row of items.controls; track $index) {
+          <div class="row g-2 align-items-end mb-2" [formGroupName]="$index">
+            <div class="col-sm-3">
+              <label class="form-label small" [attr.for]="'ing-' + $index">Ingrediente</label>
+              <select [id]="'ing-' + $index" class="form-select" formControlName="ingredientId">
+                <option value="">Selecione…</option>
+                @for (i of store.ingredients(); track i.id) {
+                  <option [value]="i.id">{{ i.code }} — {{ i.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-sm-2">
+              <label class="form-label small" [attr.for]="'stage-' + $index">Etapa</label>
+              <select [id]="'stage-' + $index" class="form-select" formControlName="stage">
+                @for (s of stages; track s) { <option [value]="s">{{ s }}</option> }
+              </select>
+            </div>
+            <div class="col-sm-2">
+              <label class="form-label small" [attr.for]="'qty-' + $index">Qtd</label>
+              <input [id]="'qty-' + $index" type="number" step="0.0001" class="form-control" formControlName="quantity">
+            </div>
+            <div class="col-sm-1">
+              <label class="form-label small" [attr.for]="'unit-' + $index">Un.</label>
+              <select [id]="'unit-' + $index" class="form-select" formControlName="unit">
+                @for (u of units; track u) { <option [value]="u">{{ u }}</option> }
+              </select>
+            </div>
+            <div class="col-sm-1">
+              <label class="form-label small" [attr.for]="'pct-' + $index">%</label>
+              <input [id]="'pct-' + $index" type="number" step="0.001" class="form-control" formControlName="percentage">
+            </div>
+            <div class="col-sm-2">
+              <label class="form-label small" [attr.for]="'time-' + $index">Tempo (min)</label>
+              <input [id]="'time-' + $index" type="number" class="form-control" formControlName="timingMinutes">
+            </div>
+            <div class="col-sm-1">
+              <button type="button" class="btn btn-outline-danger" (click)="removeItem($index)"
+                      [disabled]="items.length <= 1"><i class="ri-delete-bin-line"></i></button>
+            </div>
+          </div>
+        }
+      </div>
+
+      <div class="d-flex gap-2 mt-2">
+        <button type="button" class="btn btn-outline-secondary" (click)="addItem()">
+          <i class="ri-add-line me-1"></i> Item
+        </button>
+        <button type="submit" class="btn btn-primary" [disabled]="form.invalid || store.submitting()">
+          <i class="ri-save-line me-1"></i> Criar receita
+        </button>
+      </div>
+      @if (store.actionError(); as actionError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
       }
-    </main>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Receitas cadastradas</h2>
+    @if (store.loading()) {
+      <p class="text-muted mb-0"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</p>
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <p class="text-muted mb-0">Nenhuma receita cadastrada.</p>
+    } @else {
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr><th>Nome</th><th>Status</th><th class="text-end">Batelada (L)</th><th class="text-end">Versão</th></tr>
+          </thead>
+          <tbody>
+            @for (recipe of store.items(); track recipe.id) {
+              <tr>
+                <td class="fw-semibold">{{ recipe.name }}</td>
+                <td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ recipe.status }}</span></td>
+                <td class="text-end">{{ recipe.batchVolumeLiters }}</td>
+                <td class="text-end">{{ recipe.version }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

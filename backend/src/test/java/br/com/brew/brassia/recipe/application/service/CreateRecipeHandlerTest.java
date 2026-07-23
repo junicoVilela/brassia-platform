@@ -73,6 +73,8 @@ class CreateRecipeHandlerTest {
 
         @Override public void insert(Recipe recipe) { saved.add(recipe); }
 
+        @Override public boolean markPublished(UUID breweryId, UUID recipeId) { return true; }
+
         @Override public Optional<Recipe> findById(UUID breweryId, UUID id) { return Optional.empty(); }
 
         @Override public List<Recipe> findPage(UUID breweryId, int page, int size) { return List.copyOf(saved); }

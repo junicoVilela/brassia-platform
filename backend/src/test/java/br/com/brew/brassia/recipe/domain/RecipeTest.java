@@ -34,7 +34,29 @@ class RecipeTest {
         assertThat(recipe.status()).isEqualTo(RecipeStatus.DRAFT);
         assertThat(recipe.name().value()).isEqualTo("Hoppy Lager");
         assertThat(recipe.items()).hasSize(3);
-        assertThat(recipe.version()).isZero();
+        assertThat(recipe.version()).isEqualTo(1);
+        assertThat(recipe.previousRecipeId()).isNull();
+    }
+
+    @Test
+    void publishesDraftThenBlocksRepublish() {
+        var recipe = draft(new BigDecimal("400"), List.of(malt(null), hop()));
+        recipe.publish();
+        assertThat(recipe.status()).isEqualTo(RecipeStatus.PUBLISHED);
+        assertThatThrownBy(recipe::publish).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void newVersionOnlyFromPublished() {
+        var draft = draft(new BigDecimal("400"), List.of(malt(null), hop()));
+        assertThatThrownBy(draft::nextDraftVersion).isInstanceOf(IllegalStateException.class);
+
+        draft.publish();
+        var next = draft.nextDraftVersion();
+        assertThat(next.status()).isEqualTo(RecipeStatus.DRAFT);
+        assertThat(next.version()).isEqualTo(2);
+        assertThat(next.previousRecipeId()).isEqualTo(draft.id().value());
+        assertThat(next.id().value()).isNotEqualTo(draft.id().value());
     }
 
     @Test

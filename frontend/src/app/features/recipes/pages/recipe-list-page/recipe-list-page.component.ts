@@ -70,6 +70,10 @@ export class RecipeListPageComponent implements OnInit {
     this.store.showVolumes(recipeId);
   }
 
+  protected calculateMetrics(recipeId: string): void {
+    this.store.calculateMetrics(recipeId);
+  }
+
   protected create(): void {
     if (this.form.invalid) {
       return;

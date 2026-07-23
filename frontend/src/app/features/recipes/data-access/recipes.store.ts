@@ -5,7 +5,7 @@ import { IngredientsApi } from '../../catalog/data-access/ingredients.api';
 import { Ingredient } from '../../catalog/domain/ingredient.model';
 import { EquipmentApi } from '../../equipment/data-access/equipment.api';
 import { Equipment } from '../../equipment/domain/equipment.model';
-import { CreateRecipeRequest, RecipeSummary, VolumeBalance } from '../domain/recipe.model';
+import { CalculatedMetrics, CreateRecipeRequest, RecipeSummary, VolumeBalance } from '../domain/recipe.model';
 import { RecipesApi } from './recipes.api';
 
 /** Estado da tela de receitas: listagem, cadastro e catálogos de apoio (equipamentos, ingredientes). */
@@ -30,6 +30,8 @@ export class RecipesStore {
   readonly empty = computed(() => !this.loading() && !this.error() && this.items().length === 0);
   readonly volumes = signal<VolumeBalance | null>(null);
   readonly volumesError = signal<string | null>(null);
+  readonly metrics = signal<CalculatedMetrics | null>(null);
+  readonly metricsError = signal<string | null>(null);
 
   load(): void {
     this.loading.set(true);
@@ -70,6 +72,17 @@ export class RecipesStore {
       .subscribe({
         next: balance => this.volumes.set(balance),
         error: () => this.volumesError.set('Não foi possível calcular os volumes.'),
+      });
+  }
+
+  calculateMetrics(recipeId: string): void {
+    this.metrics.set(null);
+    this.metricsError.set(null);
+    this.api.calculateMetrics(recipeId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: metrics => this.metrics.set(metrics),
+        error: () => this.metricsError.set('Não foi possível calcular as metas.'),
       });
   }
 }

@@ -4,9 +4,13 @@ import br.com.brew.brassia.recipe.adapter.inbound.web.dto.CreateRecipeRequest;
 import br.com.brew.brassia.recipe.adapter.inbound.web.dto.RecipeDetailResponse;
 import br.com.brew.brassia.recipe.adapter.inbound.web.dto.RecipeResponse;
 import br.com.brew.brassia.recipe.adapter.inbound.web.dto.RecipeSummaryResponse;
+import br.com.brew.brassia.recipe.adapter.inbound.web.dto.CalculatedMetricsResponse;
+import br.com.brew.brassia.recipe.adapter.inbound.web.dto.MetricsResponse;
 import br.com.brew.brassia.recipe.adapter.inbound.web.dto.VolumeBalanceResponse;
+import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeMetricsUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeVolumesUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CreateRecipeUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.GetRecipeMetricsUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.GetRecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.ListRecipesUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
@@ -31,13 +35,18 @@ final class RecipeController {
     private final ListRecipesUseCase listRecipes;
     private final GetRecipeUseCase getRecipe;
     private final CalculateRecipeVolumesUseCase calculateVolumes;
+    private final CalculateRecipeMetricsUseCase calculateMetrics;
+    private final GetRecipeMetricsUseCase getMetrics;
 
     RecipeController(CreateRecipeUseCase createRecipe, ListRecipesUseCase listRecipes, GetRecipeUseCase getRecipe,
-            CalculateRecipeVolumesUseCase calculateVolumes) {
+            CalculateRecipeVolumesUseCase calculateVolumes, CalculateRecipeMetricsUseCase calculateMetrics,
+            GetRecipeMetricsUseCase getMetrics) {
         this.createRecipe = createRecipe;
         this.listRecipes = listRecipes;
         this.getRecipe = getRecipe;
         this.calculateVolumes = calculateVolumes;
+        this.calculateMetrics = calculateMetrics;
+        this.getMetrics = getMetrics;
     }
 
     @GetMapping
@@ -63,6 +72,20 @@ final class RecipeController {
         principal.requirePermission("recipe.read");
         return VolumeBalanceResponse.from(calculateVolumes.handle(
                 new CalculateRecipeVolumesUseCase.Query(principal.requireBrewery(), id)));
+    }
+
+    @GetMapping("/{id}/metrics")
+    MetricsResponse metrics(@PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("recipe.read");
+        return MetricsResponse.from(getMetrics.handle(new GetRecipeMetricsUseCase.Query(principal.requireBrewery(), id)));
+    }
+
+    @PostMapping("/{id}/metrics")
+    CalculatedMetricsResponse calculateMetrics(
+            @PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("recipe.create");
+        return CalculatedMetricsResponse.from(calculateMetrics.handle(
+                new CalculateRecipeMetricsUseCase.Command(principal.userId(), principal.requireBrewery(), id)));
     }
 
     @PostMapping

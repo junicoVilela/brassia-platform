@@ -53,6 +53,32 @@ export interface VolumeBalance {
   method: string;
 }
 
+export interface MetricCheck {
+  value: number;
+  target: number | null;
+  tolerance: number;
+  deviation: number | null;
+  withinTolerance: boolean | null;
+}
+
+export interface CalculatedMetrics {
+  recipeId: string;
+  method: string;
+  version: number;
+  ogPoints: number;
+  ogSg: number;
+  fgPoints: number;
+  fgSg: number;
+  abv: number;
+  ibu: number;
+  colorEbc: number;
+  attenuationPercent: number;
+  ogCheck: MetricCheck;
+  ibuCheck: MetricCheck;
+  colorCheck: MetricCheck;
+  abvCheck: MetricCheck;
+}
+
 /** Converte um valor de form (0/'' vira null nos campos opcionais) num item de request. */
 export function toCreateRecipeItem(value: {
   ingredientId: string;

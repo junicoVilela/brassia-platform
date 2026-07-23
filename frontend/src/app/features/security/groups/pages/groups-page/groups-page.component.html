@@ -1,0 +1,134 @@
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+      <h1 class="h4 mb-0 fw-semibold">Grupos e permissões</h1>
+    </div>
+
+    <div class="card border-0 rounded-10 mb-4">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-3">Criar grupo</h2>
+        <form [formGroup]="createForm" (ngSubmit)="create()" class="row g-3">
+          <div class="col-sm-3">
+            <label class="form-label" for="code">Código</label>
+            <input id="code" type="text" class="form-control" formControlName="code" placeholder="BREWERS">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label" for="name">Nome</label>
+            <input id="name" type="text" class="form-control" formControlName="name" placeholder="Cervejeiros">
+          </div>
+          <div class="col-sm-5">
+            <label class="form-label" for="description">Descrição</label>
+            <input id="description" type="text" class="form-control" formControlName="description">
+          </div>
+          <div class="col-12">
+            <span class="form-label d-block">Permissões</span>
+            <div class="row g-2">
+              @for (permission of store.permissions(); track permission.code) {
+                <div class="col-md-4">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox"
+                           [id]="'create-' + permission.code"
+                           [checked]="createPermissions.has(permission.code)"
+                           (change)="toggleCreatePermission(permission.code, $event)">
+                    <label class="form-check-label" [for]="'create-' + permission.code">
+                      {{ permission.code }}
+                      <span class="text-muted small d-block">{{ permission.name }}</span>
+                    </label>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <button type="submit" class="btn btn-primary" [disabled]="createForm.invalid || store.submitting()">
+              <i class="ri-add-line me-1"></i> Criar grupo
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    @if (store.actionError(); as actionError) {
+      <div class="alert alert-danger" role="alert">{{ actionError }}</div>
+    }
+
+    <div class="row g-4">
+      <div class="col-lg-5">
+        <div class="card border-0 rounded-10 h-100">
+          <div class="card-body p-4">
+            <h2 class="h6 fw-semibold mb-3">Grupos</h2>
+            @if (store.loading()) {
+              <p class="text-muted mb-0"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</p>
+            } @else if (store.error(); as error) {
+              <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+            } @else if (store.empty()) {
+              <p class="text-muted mb-0">Nenhum grupo cadastrado ainda.</p>
+            } @else {
+              <div class="list-group list-group-flush">
+                @for (group of store.groups(); track group.id) {
+                  <button type="button"
+                          class="list-group-item list-group-item-action px-0"
+                          [class.active]="store.selectedId() === group.id"
+                          (click)="select(group.id)">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="fw-medium">{{ group.name }}</span>
+                      @if (group.systemGroup) {
+                        <span class="badge text-bg-secondary">sistema</span>
+                      }
+                    </div>
+                    <span class="small text-muted">{{ group.code }} · {{ group.permissions.length }} permissões</span>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-7">
+        <div class="card border-0 rounded-10 h-100">
+          <div class="card-body p-4">
+            @if (store.selected(); as group) {
+              <h2 class="h6 fw-semibold mb-3">Editar {{ group.name }}</h2>
+              @if (group.systemGroup) {
+                <p class="text-muted mb-0">Grupo de sistema é imutável. Permissões: {{ group.permissions.join(', ') || 'nenhuma' }}.</p>
+              } @else {
+                <form [formGroup]="editForm" (ngSubmit)="save()" class="row g-3">
+                  <div class="col-sm-6">
+                    <label class="form-label" for="editName">Nome</label>
+                    <input id="editName" type="text" class="form-control" formControlName="name">
+                  </div>
+                  <div class="col-sm-6">
+                    <label class="form-label" for="editDescription">Descrição</label>
+                    <input id="editDescription" type="text" class="form-control" formControlName="description">
+                  </div>
+                  <div class="col-12">
+                    <span class="form-label d-block">Permissões</span>
+                    <div class="row g-2">
+                      @for (permission of store.permissions(); track permission.code) {
+                        <div class="col-md-6">
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   [id]="'edit-' + permission.code"
+                                   [checked]="editPermissions.has(permission.code)"
+                                   (change)="toggleEditPermission(permission.code, $event)">
+                            <label class="form-check-label" [for]="'edit-' + permission.code">
+                              {{ permission.code }}
+                            </label>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                  <div class="col-12 d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary" [disabled]="editForm.invalid || store.submitting()">
+                      Salvar
+                    </button>
+                  </div>
+                </form>
+              }
+            } @else {
+              <p class="text-muted mb-0">Selecione um grupo para ver ou editar as permissões.</p>
+            }
+          </div>
+        </div>
+      </div>
+    </div>

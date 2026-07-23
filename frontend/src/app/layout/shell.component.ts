@@ -60,6 +60,12 @@ import { AuthService } from '../core/auth/auth.service';
               <span class="title">Manutenção</span>
             </a>
           </li>
+          <li class="menu-item">
+            <a routerLink="/water" routerLinkActive="active" class="menu-link">
+              <i class="ri-drop-line menu-icon"></i>
+              <span class="title">Água</span>
+            </a>
+          </li>
           <li class="menu-title small text-uppercase"><span class="menu-title-text">Segurança</span></li>
           <li class="menu-item">
             <a routerLink="/security/users" routerLinkActive="active" class="menu-link">

@@ -61,9 +61,15 @@ import { AuthService } from '../core/auth/auth.service';
             </a>
           </li>
           <li class="menu-item">
-            <a routerLink="/water" routerLinkActive="active" class="menu-link">
+            <a routerLink="/water" routerLinkActive="active" class="menu-link" [routerLinkActiveOptions]="{ exact: true }">
               <i class="ri-drop-line menu-icon"></i>
               <span class="title">Água</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a routerLink="/water/blend" routerLinkActive="active" class="menu-link">
+              <i class="ri-contrast-drop-line menu-icon"></i>
+              <span class="title">Mistura</span>
             </a>
           </li>
           <li class="menu-title small text-uppercase"><span class="menu-title-text">Segurança</span></li>

@@ -255,6 +255,54 @@ paths:
         '201': {description: Laudo registrado (imutável)}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /water/profiles:
+    get:
+      operationId: listWaterProfiles
+      parameters:
+        - {name: page, in: query, schema: {type: integer, default: 0}}
+        - {name: size, in: query, schema: {type: integer, default: 20}}
+      responses:
+        '200': {description: Página de perfis-alvo}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: registerWaterProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterWaterProfile'}
+      responses:
+        '201': {description: Perfil-alvo cadastrado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /water/profiles/{id}:
+    put:
+      operationId: updateWaterProfile
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateWaterProfile'}
+      responses:
+        '200': {description: Perfil-alvo atualizado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /water/blends/simulate:
+    post:
+      operationId: simulateWaterBlend
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SimulateBlend'}
+      responses:
+        '200': {description: Resultado da mistura (balanço, entradas e método)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /brew-orders/{orderId}/start:
     post:
       operationId: startBrewOrder
@@ -369,6 +417,44 @@ components:
         chloride: {type: number}
         bicarbonate: {type: number}
         notes: {type: string, maxLength: 500}
+    RegisterWaterProfile:
+      type: object
+      required: [code, name, calcium, magnesium, sodium, sulfate, chloride, bicarbonate]
+      properties:
+        code: {type: string, maxLength: 40}
+        name: {type: string, maxLength: 160}
+        calcium: {type: number}
+        magnesium: {type: number}
+        sodium: {type: number}
+        sulfate: {type: number}
+        chloride: {type: number}
+        bicarbonate: {type: number}
+    UpdateWaterProfile:
+      type: object
+      required: [name, calcium, magnesium, sodium, sulfate, chloride, bicarbonate, version]
+      properties:
+        name: {type: string, maxLength: 160}
+        calcium: {type: number}
+        magnesium: {type: number}
+        sodium: {type: number}
+        sulfate: {type: number}
+        chloride: {type: number}
+        bicarbonate: {type: number}
+        version: {type: integer, format: int64}
+    SimulateBlend:
+      type: object
+      required: [inputs]
+      properties:
+        inputs:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [sourceId, volumeLiters]
+            properties:
+              sourceId: {type: string, format: uuid}
+              volumeLiters: {type: number}
+        targetProfileId: {type: string, format: uuid}
     Measurement:
       type: object
       required: [parameter, value, unit, measuredAt, source]

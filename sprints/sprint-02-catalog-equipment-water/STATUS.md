@@ -1,6 +1,6 @@
 # Status — Sprint 02
 
-Estado: EM ANDAMENTO
+Estado: CONCLUÍDA
 
 ## Controle das histórias
 
@@ -10,7 +10,7 @@ Estado: EM ANDAMENTO
 | EQP-001 | Concluída | Claude/junico | EquipmentTest + EquipmentIT + ModularityTest verdes; frontend (ng build) verde | Módulo `equipment` novo. Perfil (capacidade, dead space, eficiência, evaporação) com invariante dead space ≤ capacidade; lock otimista + revisão append-only por versão (GET revisions/{version}); permissões `equipment.*`; auditoria. Tela de equipamentos (listar/cadastrar). |
 | EQP-002 | Concluída | Claude/junico | EquipmentMaintenanceTest + EquipmentMaintenanceIT + ModularityTest verdes; frontend (ng build) verde | Janelas de manutenção/calibração (indisponibilidade) no módulo `equipment`. Calibração exige instrumento; agendamento sobreposto é rejeitado (equipamento indisponível não pode ser reservado); consulta de disponibilidade por intervalo; cancelar libera; lock otimista no cancelamento; permissão `equipment.maintenance.manage`; auditoria. Tela de manutenção (selecionar equipamento, agendar/listar/cancelar). |
 | WTR-001 | Concluída | Claude/junico | WaterReportTest + WaterIT + ModularityTest verdes; frontend (ng build) verde | Módulo `water` novo. Fontes (register/list/update com lock otimista) + laudos imutáveis (composição iônica em mg/L validada, data, método) append-only — laudo antigo permanece disponível no histórico; permissões `water.*`; auditoria. Tela de água (fontes + registrar/listar laudos por fonte). |
-| WTR-002 | A fazer | — | — | — |
+| WTR-002 | Concluída | Claude/junico | WaterBlendTest + WaterBlendIT + ModularityTest verdes; frontend (ng build) verde | Perfil mineral alvo (persistido, register/list/update com lock otimista + auditoria) + simulação de mistura por balanço de massa (média ponderada por volume dos laudos mais recentes) — balanço fecha; resultado informa entradas e método, e desvio vs alvo quando informado. Reaproveita permissões `water.*`. Tela de mistura (criar alvo, montar mistura, simular). |
 
 ## Decisões e bloqueios
 

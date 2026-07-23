@@ -13,6 +13,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -62,6 +63,20 @@ class JdbcWaterReportRepository implements WaterReportRepository {
                 """)
                 .param("brewery", breweryId).param("source", sourceId)
                 .query((rs, n) -> map(rs)).list();
+    }
+
+    @Override
+    public Optional<WaterReport> findLatestBySource(UUID breweryId, UUID sourceId) {
+        return jdbc.sql("""
+                SELECT id, brewery_id, source_id, collected_on, method, calcium, magnesium, sodium, sulfate,
+                       chloride, bicarbonate, notes
+                FROM water_report
+                WHERE brewery_id = :brewery AND source_id = :source
+                ORDER BY collected_on DESC, created_at DESC
+                LIMIT 1
+                """)
+                .param("brewery", breweryId).param("source", sourceId)
+                .query((rs, n) -> map(rs)).optional();
     }
 
     private static WaterReport map(ResultSet rs) throws SQLException {

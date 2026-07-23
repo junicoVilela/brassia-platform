@@ -19,9 +19,9 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- Build/commit: `main` em `d04a21c`; PRs #41 (REC-001), #42 (REC-002), #43 (REC-003), #45 (REC-004), #46 (REC-005), #47 (REC-006) — todos com CI verde (Backend, Frontend, Contratos, Segredos). Rename de apoio: #44 (remoção do prefixo `Get`).
+- Testes executados: domínio (JUnit) — `RecipeTest`, `VolumeBalanceTest` (dataset dourado), `BrewingMetricsTest`, `RecipeCloneScaleCompareTest`, `RecipeExchangeCodecTest`; integração com PostgreSQL real via Testcontainers — `RecipeIT`, `RecipeVolumesIT`, `RecipeMetricsIT`, `RecipePublishIT`, `RecipeDerivationIT`, `RecipeImportExportIT`; inspeção arquitetural — `ModularityTest`; frontend — `ng build`, `eslint` e Vitest (23). Cada IT cobre sucesso, limite, falha, outra cervejaria e repetição.
+- Migration aplicada: V26 (composição: colunas da receita + `recipe_item`), V27 (`recipe_metrics`), V28 (publicação: `published_at`/`previous_recipe_id` + unicidade de nome por versão). Idempotentes e testadas em banco limpo pela suíte de ITs.
+- Contratos atualizados: `contracts/openapi.yaml` com criar/listar/detalhe, volumes, metas, publicar/versões, clonar/escalar/comparar e importar/exportar; Problem Details RFC 9457 em todos os erros.
+- Riscos remanescentes: fórmulas de metas são um método V1 documentado (foco em método+versão persistidos e tolerância explícita, não em acurácia dourada externa); import/export referencia equipamento/ingredientes por id interno — interop com BeerXML de terceiros (por nomes) é follow-up; existência de ingrediente não é validada na criação da receita (o catálogo ainda não publica lookup por id para o recipe).
+- Aceite: 6/6 histórias concluídas (REC-001..006). O módulo `recipe` migrou para JDBC e ganhou composição, motores de volume/metas, publicação/versionamento com snapshot imutável (`RecipeLookup`/`RecipePublished`), clonar/escalar/comparar e intercâmbio BeerJSON/BeerXML. `equipment` e `catalog` passaram a publicar consultas (`EquipmentCapacityLookup`, `EquipmentProfileLookup`, `IngredientSpecLookup`), dentro dos limites do `ModularityTest`. Autorização negativa e isolamento entre cervejarias testados; auditoria nos comandos críticos.

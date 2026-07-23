@@ -1,14 +1,23 @@
 package br.com.brew.brassia.equipment.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.equipment.application.port.inbound.CancelMaintenanceUseCase;
+import br.com.brew.brassia.equipment.application.port.inbound.CheckEquipmentAvailabilityUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.GetEquipmentRevisionUseCase;
+import br.com.brew.brassia.equipment.application.port.inbound.ListEquipmentMaintenanceUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.ListEquipmentUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.RegisterEquipmentUseCase;
+import br.com.brew.brassia.equipment.application.port.inbound.ScheduleMaintenanceUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.UpdateEquipmentUseCase;
 import br.com.brew.brassia.equipment.application.port.outbound.EquipmentRepository;
+import br.com.brew.brassia.equipment.application.port.outbound.MaintenanceRepository;
+import br.com.brew.brassia.equipment.application.service.CancelMaintenanceHandler;
+import br.com.brew.brassia.equipment.application.service.CheckEquipmentAvailabilityHandler;
 import br.com.brew.brassia.equipment.application.service.GetEquipmentRevisionHandler;
 import br.com.brew.brassia.equipment.application.service.ListEquipmentHandler;
+import br.com.brew.brassia.equipment.application.service.ListEquipmentMaintenanceHandler;
 import br.com.brew.brassia.equipment.application.service.RegisterEquipmentHandler;
+import br.com.brew.brassia.equipment.application.service.ScheduleMaintenanceHandler;
 import br.com.brew.brassia.equipment.application.service.UpdateEquipmentHandler;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -43,5 +52,31 @@ class EquipmentConfiguration {
     @Bean
     GetEquipmentRevisionUseCase getEquipmentRevisionUseCase(EquipmentRepository repository) {
         return new GetEquipmentRevisionHandler(repository);
+    }
+
+    @Bean
+    ScheduleMaintenanceUseCase scheduleMaintenanceUseCase(EquipmentRepository equipment,
+            MaintenanceRepository maintenance, AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new ScheduleMaintenanceHandler(equipment, maintenance, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    CancelMaintenanceUseCase cancelMaintenanceUseCase(MaintenanceRepository maintenance, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new CancelMaintenanceHandler(maintenance, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    ListEquipmentMaintenanceUseCase listEquipmentMaintenanceUseCase(MaintenanceRepository maintenance) {
+        return new ListEquipmentMaintenanceHandler(maintenance);
+    }
+
+    @Bean
+    CheckEquipmentAvailabilityUseCase checkEquipmentAvailabilityUseCase(MaintenanceRepository maintenance) {
+        return new CheckEquipmentAvailabilityHandler(maintenance);
     }
 }

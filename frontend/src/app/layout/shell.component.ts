@@ -49,9 +49,15 @@ import { AuthService } from '../core/auth/auth.service';
             </a>
           </li>
           <li class="menu-item">
-            <a routerLink="/equipment" routerLinkActive="active" class="menu-link">
+            <a routerLink="/equipment" routerLinkActive="active" class="menu-link" [routerLinkActiveOptions]="{ exact: true }">
               <i class="ri-timer-flash-line menu-icon"></i>
               <span class="title">Equipamentos</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a routerLink="/equipment/maintenance" routerLinkActive="active" class="menu-link">
+              <i class="ri-tools-line menu-icon"></i>
+              <span class="title">Manutenção</span>
             </a>
           </li>
           <li class="menu-title small text-uppercase"><span class="menu-title-text">Segurança</span></li>

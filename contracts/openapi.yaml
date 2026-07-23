@@ -154,6 +154,50 @@ paths:
         '200': {description: Snapshot imutável de uma versão}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /equipment/{id}/maintenance:
+    get:
+      operationId: listEquipmentMaintenance
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Janelas de manutenção do equipamento}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: scheduleEquipmentMaintenance
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ScheduleMaintenance'}
+      responses:
+        '201': {description: Janela agendada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /equipment/{id}/maintenance/{maintenanceId}/cancel:
+    post:
+      operationId: cancelEquipmentMaintenance
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: maintenanceId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204': {description: Janela cancelada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /equipment/{id}/availability:
+    get:
+      operationId: getEquipmentAvailability
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+      responses:
+        '200': {description: Disponibilidade do equipamento no intervalo}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /brew-orders/{orderId}/start:
     post:
       operationId: startBrewOrder
@@ -234,6 +278,15 @@ components:
         mashEfficiencyPercent: {type: number}
         boilOffLitersPerHour: {type: number}
         version: {type: integer, format: int64}
+    ScheduleMaintenance:
+      type: object
+      required: [kind, startAt, endAt]
+      properties:
+        kind: {type: string, enum: [MAINTENANCE, CALIBRATION]}
+        instrument: {type: string, maxLength: 160}
+        startAt: {type: string, format: date-time}
+        endAt: {type: string, format: date-time}
+        notes: {type: string, maxLength: 500}
     Measurement:
       type: object
       required: [parameter, value, unit, measuredAt, source]

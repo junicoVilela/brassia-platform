@@ -4,6 +4,8 @@ import br.com.brew.brassia.recipe.adapter.inbound.web.dto.CreateRecipeRequest;
 import br.com.brew.brassia.recipe.adapter.inbound.web.dto.RecipeDetailResponse;
 import br.com.brew.brassia.recipe.adapter.inbound.web.dto.RecipeResponse;
 import br.com.brew.brassia.recipe.adapter.inbound.web.dto.RecipeSummaryResponse;
+import br.com.brew.brassia.recipe.adapter.inbound.web.dto.VolumeBalanceResponse;
+import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeVolumesUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CreateRecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.GetRecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.ListRecipesUseCase;
@@ -28,11 +30,14 @@ final class RecipeController {
     private final CreateRecipeUseCase createRecipe;
     private final ListRecipesUseCase listRecipes;
     private final GetRecipeUseCase getRecipe;
+    private final CalculateRecipeVolumesUseCase calculateVolumes;
 
-    RecipeController(CreateRecipeUseCase createRecipe, ListRecipesUseCase listRecipes, GetRecipeUseCase getRecipe) {
+    RecipeController(CreateRecipeUseCase createRecipe, ListRecipesUseCase listRecipes, GetRecipeUseCase getRecipe,
+            CalculateRecipeVolumesUseCase calculateVolumes) {
         this.createRecipe = createRecipe;
         this.listRecipes = listRecipes;
         this.getRecipe = getRecipe;
+        this.calculateVolumes = calculateVolumes;
     }
 
     @GetMapping
@@ -51,6 +56,13 @@ final class RecipeController {
         principal.requirePermission("recipe.read");
         return RecipeDetailResponse.from(getRecipe.handle(
                 new GetRecipeUseCase.Query(principal.requireBrewery(), id)));
+    }
+
+    @GetMapping("/{id}/volumes")
+    VolumeBalanceResponse volumes(@PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("recipe.read");
+        return VolumeBalanceResponse.from(calculateVolumes.handle(
+                new CalculateRecipeVolumesUseCase.Query(principal.requireBrewery(), id)));
     }
 
     @PostMapping

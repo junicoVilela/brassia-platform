@@ -66,6 +66,10 @@ export class RecipeListPageComponent implements OnInit {
     }
   }
 
+  protected showVolumes(recipeId: string): void {
+    this.store.showVolumes(recipeId);
+  }
+
   protected create(): void {
     if (this.form.invalid) {
       return;

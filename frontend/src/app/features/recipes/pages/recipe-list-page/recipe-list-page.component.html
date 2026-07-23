@@ -113,7 +113,7 @@
       <div class="table-responsive">
         <table class="table align-middle mb-0">
           <thead>
-            <tr><th>Nome</th><th>Status</th><th class="text-end">Batelada (L)</th><th class="text-end">Versão</th></tr>
+            <tr><th>Nome</th><th>Status</th><th class="text-end">Batelada (L)</th><th class="text-end">Versão</th><th></th></tr>
           </thead>
           <tbody>
             @for (recipe of store.items(); track recipe.id) {
@@ -122,10 +122,35 @@
                 <td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ recipe.status }}</span></td>
                 <td class="text-end">{{ recipe.batchVolumeLiters }}</td>
                 <td class="text-end">{{ recipe.version }}</td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="showVolumes(recipe.id)">
+                    <i class="ri-drop-line me-1"></i> Volumes
+                  </button>
+                </td>
               </tr>
             }
           </tbody>
         </table>
+      </div>
+    }
+
+    @if (store.volumesError(); as volumesError) {
+      <div class="alert alert-danger mt-3 mb-0" role="alert">{{ volumesError }}</div>
+    } @else if (store.volumes(); as v) {
+      <div class="border rounded-10 p-3 mt-3">
+        <h3 class="h6 fw-semibold mb-2">Balanço de volumes <span class="text-muted small">({{ v.method }})</span></h3>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <tbody>
+              <tr><td>Volume final</td><td class="text-end fw-semibold">{{ v.finalVolumeLiters }} L</td></tr>
+              <tr><td>+ Absorção do grão ({{ v.grainMassKg }} kg)</td><td class="text-end">{{ v.grainAbsorptionLiters }} L</td></tr>
+              <tr><td>+ Evaporação</td><td class="text-end">{{ v.evaporationLiters }} L</td></tr>
+              <tr><td>+ Perdas (dead space)</td><td class="text-end">{{ v.lossesLiters }} L</td></tr>
+              <tr class="border-top"><td class="fw-semibold">= Água total</td><td class="text-end fw-semibold">{{ v.totalWaterLiters }} L</td></tr>
+              <tr class="text-body-secondary"><td>Volume pré-fervura</td><td class="text-end">{{ v.preBoilVolumeLiters }} L</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     }
   </div>

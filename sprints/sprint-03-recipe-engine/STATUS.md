@@ -1,6 +1,6 @@
 # Status — Sprint 03
 
-Estado: EM ANDAMENTO
+Estado: CONCLUÍDA
 
 ## Controle das histórias
 
@@ -11,7 +11,7 @@ Estado: EM ANDAMENTO
 | REC-003 | Concluída | Claude/junico | BrewingMetricsTest + RecipeMetricsIT + ModularityTest verdes; frontend (ng build + Vitest) verde | Metas cervejeiras: OG/FG/ABV/IBU/cor/atenuação por método versionado (TINSETH_MOREY v1). Resultado **persistido** (recipe_metrics, V27) com método+versão; **tolerância explícita** por meta vs as metas informadas (desvio + dentro/fora). Consome specs do catalog via nova consulta publicada `IngredientSpecLookup` e o perfil do equipment. POST calcula+persiste (recipe.create), GET lê (recipe.read). Tela mostra metas e tolerância por receita. |
 | REC-004 | Concluída | Claude/junico | RecipeTest + RecipePublishIT + ModularityTest verdes; frontend (ng build + Vitest) verde | Publicar versão: DRAFT→PUBLISHED congela a fórmula (imutável); republicar → 409. "Alteração gera nova versão": `POST /versions` cria novo rascunho derivado (v+1, previous_recipe_id), preservando o snapshot publicado. Implementado o `RecipeLookup` publicado (só devolve receita publicada) + evento `RecipePublished`. Unicidade de nome passou a incluir versão (V28). Tela: botões Publicar/Nova versão por status. |
 | REC-005 | Concluída | Claude/junico | RecipeCloneScaleCompareTest + RecipeDerivationIT + ModularityTest verdes; frontend (ng build + Vitest) verde | Clonar (cópia independente), escalar (quantidades × razão de volume; **escala respeita capacidade** via EquipmentCapacityLookup) e comparar versões campo a campo (escalares + itens por etapa:ingrediente). Novos endpoints em `RecipeDerivationController` (POST /clone, /scale; GET /compare). Tela com painel derivar/comparar. |
-| REC-006 | A fazer | — | — | — |
+| REC-006 | Concluída | Claude/junico | RecipeExchangeCodecTest + RecipeImportExportIT + ModularityTest verdes; frontend (ng build + Vitest) verde | Importar/exportar BeerJSON e BeerXML (subset). Export via getRecipe; import reusa CreateRecipe (validação atômica → inválida não persiste). Relatório de compatibilidade lista campos desconhecidos do documento. Referências por id interno (interop por nomes de terceiros = follow-up). Tela: exportar JSON/XML por receita + importar (colar documento) com relatório. |
 
 ## Decisões e bloqueios
 

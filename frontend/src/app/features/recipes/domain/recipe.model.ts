@@ -53,6 +53,15 @@ export interface RecipeComparison {
   differences: RecipeDifference[];
 }
 
+export type ExchangeFormat = 'beerjson' | 'beerxml';
+
+export interface ImportReport {
+  id: string;
+  name: string;
+  status: string;
+  unknownFields: string[];
+}
+
 export interface VolumeBalance {
   recipeId: string;
   grainMassKg: number;

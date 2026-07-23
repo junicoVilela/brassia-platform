@@ -3,6 +3,7 @@ import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { RecipesStore } from '../../data-access/recipes.store';
 import {
   CreateRecipeRequest,
+  ExchangeFormat,
   RECIPE_STAGES,
   RECIPE_UNITS,
   RecipeStage,
@@ -46,6 +47,11 @@ export class RecipeListPageComponent implements OnInit {
   protected readonly compareForm = this.fb.nonNullable.group({
     leftId: ['', Validators.required],
     rightId: ['', Validators.required],
+  });
+
+  protected readonly importForm = this.fb.nonNullable.group({
+    format: this.fb.nonNullable.control<ExchangeFormat>('beerjson'),
+    content: ['', Validators.required],
   });
 
   get items(): FormArray {
@@ -117,6 +123,18 @@ export class RecipeListPageComponent implements OnInit {
       return;
     }
     this.store.compareRecipes(v.leftId, v.rightId);
+  }
+
+  protected export(recipeId: string, format: ExchangeFormat): void {
+    this.store.export(recipeId, format);
+  }
+
+  protected importRecipe(): void {
+    const v = this.importForm.getRawValue();
+    if (!v.content.trim()) {
+      return;
+    }
+    this.store.importRecipe(v.format, v.content);
   }
 
   protected create(): void {

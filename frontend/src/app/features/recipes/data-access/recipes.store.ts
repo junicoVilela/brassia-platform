@@ -8,6 +8,8 @@ import { Equipment } from '../../equipment/domain/equipment.model';
 import {
   CalculatedMetrics,
   CreateRecipeRequest,
+  ExchangeFormat,
+  ImportReport,
   RecipeComparison,
   RecipeSummary,
   VolumeBalance,
@@ -40,6 +42,8 @@ export class RecipesStore {
   readonly metricsError = signal<string | null>(null);
   readonly comparison = signal<RecipeComparison | null>(null);
   readonly comparisonError = signal<string | null>(null);
+  readonly importReport = signal<ImportReport | null>(null);
+  readonly importError = signal<string | null>(null);
 
   load(): void {
     this.loading.set(true);
@@ -143,5 +147,36 @@ export class RecipesStore {
         next: comparison => this.comparison.set(comparison),
         error: () => this.comparisonError.set('Não foi possível comparar as receitas.'),
       });
+  }
+
+  export(recipeId: string, format: ExchangeFormat): void {
+    this.api.export(recipeId, format)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: content => this.download(content, `receita.${format === 'beerxml' ? 'xml' : 'json'}`,
+          format === 'beerxml' ? 'application/xml' : 'application/json'),
+        error: () => this.actionError.set('Não foi possível exportar a receita.'),
+      });
+  }
+
+  importRecipe(format: ExchangeFormat, content: string): void {
+    this.importReport.set(null);
+    this.importError.set(null);
+    this.api.import(format, content)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: report => { this.importReport.set(report); this.load(); },
+        error: () => this.importError.set('Importação inválida (o documento não foi persistido).'),
+      });
+  }
+
+  private download(content: string, filename: string, mime: string): void {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 }

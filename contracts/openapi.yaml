@@ -126,6 +126,31 @@ paths:
         '200': {description: Diferenças campo a campo entre as duas receitas}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /recipes/{id}/export:
+    get:
+      operationId: exportRecipe
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: format, in: query, schema: {type: string, enum: [beerjson, beerxml], default: beerjson}}
+      responses:
+        '200': {description: Receita em BeerJSON ou BeerXML}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /recipes/import:
+    post:
+      operationId: importRecipe
+      parameters:
+        - {name: format, in: query, schema: {type: string, enum: [beerjson, beerxml], default: beerjson}}
+      requestBody:
+        required: true
+        description: Documento BeerJSON ou BeerXML (corpo bruto)
+        content:
+          text/plain: {schema: {type: string}}
+      responses:
+        '200': {description: Receita importada + relatório de compatibilidade (campos desconhecidos)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /breweries:
     get:
       operationId: listBreweries

@@ -4,6 +4,8 @@ import {
   CalculatedMetrics,
   CreateRecipeRequest,
   CreatedRecipe,
+  ExchangeFormat,
+  ImportReport,
   RecipeComparison,
   RecipeSummary,
   VolumeBalance,
@@ -57,6 +59,17 @@ export class RecipesApi {
   compare(recipeId: string, otherId: string) {
     return this.http.get<RecipeComparison>(`${this.baseUrl}/${recipeId}/compare`, {
       params: { other: otherId },
+    });
+  }
+
+  export(recipeId: string, format: ExchangeFormat) {
+    return this.http.get(`${this.baseUrl}/${recipeId}/export`, { params: { format }, responseType: 'text' });
+  }
+
+  import(format: ExchangeFormat, content: string) {
+    return this.http.post<ImportReport>(`${this.baseUrl}/import`, content, {
+      params: { format },
+      headers: { 'Content-Type': 'text/plain' },
     });
   }
 }

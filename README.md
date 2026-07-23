@@ -9,13 +9,14 @@ projetos de código do produto. Foi inicializado a partir do
 `scaffold/` de referência foi promovido para `backend/` e `frontend/`. A
 documentação (ADRs, diagramas, roadmap e referências) foi consolidada sob `docs/`.
 
-> Estado atual: **Sprint 02 (catálogo, equipamentos e água) concluída** —
-> CAT-001, EQP-001, EQP-002, WTR-001 e WTR-002, com os módulos `catalog`,
-> `equipment` e `water`. Backend Spring Boot 4.1 e frontend Angular 22 são
-> projetos reais e executáveis; PostgreSQL 18 com migrations Flyway, Problem Details
-> (RFC 9457), auditoria/observabilidade e CI (GitHub Actions) verdes. Estado e
-> evidências por história em `sprints/sprint-02-catalog-equipment-water/STATUS.md`.
-> Próximo: Sprint 03 (motor de receitas).
+> Estado atual: **Sprint 03 (motor de receitas) concluída** — REC-001..006:
+> criar receita, motor de volumes, metas cervejeiras, publicar versão, clonar/
+> escalar/comparar e importar/exportar (BeerJSON/BeerXML). Backend Spring Boot 4.1
+> e frontend Angular 22 são projetos reais e executáveis; PostgreSQL 18 com
+> migrations Flyway, Problem Details (RFC 9457), auditoria/observabilidade e CI
+> (GitHub Actions) verdes. Estado e evidências por história em
+> `sprints/sprint-03-recipe-engine/STATUS.md`.
+> Próximo: Sprint 04 (planejamento e ordens de produção).
 
 ## Refatorações de qualidade (SOLID / Clean Code)
 
@@ -89,8 +90,8 @@ Consulte `docs/19_LOCAL_ENVIRONMENT.md` para subida, reset e diagnóstico.
 
 ## Próximo passo
 
-Iniciar a **Sprint 03** (motor de receitas) a partir de
-`sprints/sprint-03-recipe-engine/`.
+Iniciar a **Sprint 04** (planejamento e ordens de produção) a partir de
+`sprints/sprint-04-planning-orders/`.
 
 ## Licença
 

@@ -4,6 +4,7 @@ import {
   CalculatedMetrics,
   CreateRecipeRequest,
   CreatedRecipe,
+  RecipeComparison,
   RecipeSummary,
   VolumeBalance,
 } from '../domain/recipe.model';
@@ -43,5 +44,19 @@ export class RecipesApi {
 
   newVersion(recipeId: string) {
     return this.http.post<CreatedRecipe>(`${this.baseUrl}/${recipeId}/versions`, {});
+  }
+
+  clone(recipeId: string, name: string) {
+    return this.http.post<CreatedRecipe>(`${this.baseUrl}/${recipeId}/clone`, { name });
+  }
+
+  scale(recipeId: string, name: string, batchVolumeLiters: number) {
+    return this.http.post<CreatedRecipe>(`${this.baseUrl}/${recipeId}/scale`, { name, batchVolumeLiters });
+  }
+
+  compare(recipeId: string, otherId: string) {
+    return this.http.get<RecipeComparison>(`${this.baseUrl}/${recipeId}/compare`, {
+      params: { other: otherId },
+    });
   }
 }

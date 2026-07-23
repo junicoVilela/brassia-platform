@@ -5,7 +5,13 @@ import { IngredientsApi } from '../../catalog/data-access/ingredients.api';
 import { Ingredient } from '../../catalog/domain/ingredient.model';
 import { EquipmentApi } from '../../equipment/data-access/equipment.api';
 import { Equipment } from '../../equipment/domain/equipment.model';
-import { CalculatedMetrics, CreateRecipeRequest, RecipeSummary, VolumeBalance } from '../domain/recipe.model';
+import {
+  CalculatedMetrics,
+  CreateRecipeRequest,
+  RecipeComparison,
+  RecipeSummary,
+  VolumeBalance,
+} from '../domain/recipe.model';
 import { RecipesApi } from './recipes.api';
 
 /** Estado da tela de receitas: listagem, cadastro e catálogos de apoio (equipamentos, ingredientes). */
@@ -32,6 +38,8 @@ export class RecipesStore {
   readonly volumesError = signal<string | null>(null);
   readonly metrics = signal<CalculatedMetrics | null>(null);
   readonly metricsError = signal<string | null>(null);
+  readonly comparison = signal<RecipeComparison | null>(null);
+  readonly comparisonError = signal<string | null>(null);
 
   load(): void {
     this.loading.set(true);
@@ -103,6 +111,37 @@ export class RecipesStore {
       .subscribe({
         next: () => this.load(),
         error: () => this.actionError.set('Não foi possível criar nova versão.'),
+      });
+  }
+
+  clone(recipeId: string, name: string, onSuccess?: () => void): void {
+    this.actionError.set(null);
+    this.api.clone(recipeId, name)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => { onSuccess?.(); this.load(); },
+        error: () => this.actionError.set('Não foi possível clonar (nome duplicado ou dados inválidos).'),
+      });
+  }
+
+  scale(recipeId: string, name: string, batchVolumeLiters: number, onSuccess?: () => void): void {
+    this.actionError.set(null);
+    this.api.scale(recipeId, name, batchVolumeLiters)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => { onSuccess?.(); this.load(); },
+        error: () => this.actionError.set('Não foi possível escalar (capacidade excedida, nome duplicado ou dados inválidos).'),
+      });
+  }
+
+  compareRecipes(leftId: string, rightId: string): void {
+    this.comparison.set(null);
+    this.comparisonError.set(null);
+    this.api.compare(leftId, rightId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: comparison => this.comparison.set(comparison),
+        error: () => this.comparisonError.set('Não foi possível comparar as receitas.'),
       });
   }
 }

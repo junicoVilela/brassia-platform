@@ -41,6 +41,18 @@ export interface CreatedRecipe {
   status: string;
 }
 
+export interface RecipeDifference {
+  field: string;
+  left: string | null;
+  right: string | null;
+}
+
+export interface RecipeComparison {
+  leftId: string;
+  rightId: string;
+  differences: RecipeDifference[];
+}
+
 export interface VolumeBalance {
   recipeId: string;
   grainMassKg: number;

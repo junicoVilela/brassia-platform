@@ -81,6 +81,51 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /recipes/{id}/clone:
+    post:
+      operationId: cloneRecipe
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, required: [name], properties: {name: {type: string, maxLength: 120}}}
+      responses:
+        '200': {description: Cópia independente (rascunho)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /recipes/{id}/scale:
+    post:
+      operationId: scaleRecipe
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, batchVolumeLiters]
+              properties:
+                name: {type: string, maxLength: 120}
+                batchVolumeLiters: {type: number}
+      responses:
+        '200': {description: Receita escalada (rascunho); volume respeita a capacidade}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /recipes/{id}/compare:
+    get:
+      operationId: compareRecipes
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: other, in: query, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Diferenças campo a campo entre as duas receitas}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /breweries:
     get:
       operationId: listBreweries

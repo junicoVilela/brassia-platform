@@ -100,6 +100,83 @@
   </div>
 </div>
 
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Derivar e comparar</h2>
+    <form [formGroup]="derivationForm" class="row g-3 align-items-end mb-3">
+      <div class="col-sm-4">
+        <label class="form-label" for="sourceId">Receita de origem</label>
+        <select id="sourceId" class="form-select" formControlName="sourceId">
+          <option value="">Selecione…</option>
+          @for (r of store.items(); track r.id) {
+            <option [value]="r.id">{{ r.name }} (v{{ r.version }})</option>
+          }
+        </select>
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label" for="derivName">Novo nome</label>
+        <input id="derivName" type="text" class="form-control" formControlName="name">
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label" for="derivVol">Volume (L)</label>
+        <input id="derivVol" type="number" step="0.001" class="form-control" formControlName="batchVolumeLiters">
+      </div>
+      <div class="col-sm-3 d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary" [disabled]="store.submitting()" (click)="clone()">
+          <i class="ri-file-copy-line me-1"></i> Clonar
+        </button>
+        <button type="button" class="btn btn-outline-primary" [disabled]="store.submitting()" (click)="scale()">
+          <i class="ri-scales-3-line me-1"></i> Escalar
+        </button>
+      </div>
+    </form>
+
+    <form [formGroup]="compareForm" class="row g-3 align-items-end">
+      <div class="col-sm-4">
+        <label class="form-label" for="leftId">Comparar</label>
+        <select id="leftId" class="form-select" formControlName="leftId">
+          <option value="">Receita A…</option>
+          @for (r of store.items(); track r.id) { <option [value]="r.id">{{ r.name }} (v{{ r.version }})</option> }
+        </select>
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label" for="rightId">com</label>
+        <select id="rightId" class="form-select" formControlName="rightId">
+          <option value="">Receita B…</option>
+          @for (r of store.items(); track r.id) { <option [value]="r.id">{{ r.name }} (v{{ r.version }})</option> }
+        </select>
+      </div>
+      <div class="col-sm-4">
+        <button type="button" class="btn btn-outline-secondary" [disabled]="compareForm.invalid" (click)="compare()">
+          <i class="ri-git-compare-line me-1"></i> Comparar
+        </button>
+      </div>
+    </form>
+
+    @if (store.comparisonError(); as compareError) {
+      <div class="alert alert-danger mt-3 mb-0" role="alert">{{ compareError }}</div>
+    } @else if (store.comparison(); as c) {
+      <div class="border rounded-10 p-3 mt-3">
+        <h3 class="h6 fw-semibold mb-2">Diferenças</h3>
+        @if (c.differences.length === 0) {
+          <p class="text-muted mb-0">As receitas são idênticas campo a campo.</p>
+        } @else {
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead><tr><th>Campo</th><th>A</th><th>B</th></tr></thead>
+              <tbody>
+                @for (d of c.differences; track d.field) {
+                  <tr><td class="fw-semibold">{{ d.field }}</td><td>{{ d.left ?? '—' }}</td><td>{{ d.right ?? '—' }}</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>
+
 <div class="card border-0 rounded-10">
   <div class="card-body p-4">
     <h2 class="h6 fw-semibold mb-3">Receitas cadastradas</h2>

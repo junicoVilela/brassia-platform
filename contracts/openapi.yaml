@@ -44,6 +44,23 @@ paths:
         '200': {description: Balanço de volumes (água, absorção, evaporação, perdas, volume final) e método}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /recipes/{id}/metrics:
+    get:
+      operationId: getRecipeMetrics
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Metas persistidas (OG, FG, ABV, IBU, cor, atenuação) com método e versão}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: calculateRecipeMetrics
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Metas calculadas e persistidas, com tolerância explícita vs as metas informadas}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /recipes/{recipeId}/publish:
     post:
       operationId: publishRecipe

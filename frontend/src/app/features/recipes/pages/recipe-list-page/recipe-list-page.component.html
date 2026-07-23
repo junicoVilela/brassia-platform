@@ -123,8 +123,11 @@
                 <td class="text-end">{{ recipe.batchVolumeLiters }}</td>
                 <td class="text-end">{{ recipe.version }}</td>
                 <td class="text-end">
-                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="showVolumes(recipe.id)">
+                  <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="showVolumes(recipe.id)">
                     <i class="ri-drop-line me-1"></i> Volumes
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="calculateMetrics(recipe.id)">
+                    <i class="ri-focus-3-line me-1"></i> Metas
                   </button>
                 </td>
               </tr>
@@ -148,6 +151,74 @@
               <tr><td>+ Perdas (dead space)</td><td class="text-end">{{ v.lossesLiters }} L</td></tr>
               <tr class="border-top"><td class="fw-semibold">= Água total</td><td class="text-end fw-semibold">{{ v.totalWaterLiters }} L</td></tr>
               <tr class="text-body-secondary"><td>Volume pré-fervura</td><td class="text-end">{{ v.preBoilVolumeLiters }} L</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    @if (store.metricsError(); as metricsError) {
+      <div class="alert alert-danger mt-3 mb-0" role="alert">{{ metricsError }}</div>
+    } @else if (store.metrics(); as m) {
+      <div class="border rounded-10 p-3 mt-3">
+        <h3 class="h6 fw-semibold mb-2">Metas cervejeiras <span class="text-muted small">({{ m.method }} v{{ m.version }})</span></h3>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr><th>Meta</th><th class="text-end">Calculado</th><th class="text-end">Alvo</th><th class="text-end">Tolerância</th><th></th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>OG</td><td class="text-end fw-semibold">{{ m.ogSg }} ({{ m.ogPoints }} pts)</td>
+                <td class="text-end">{{ m.ogCheck.target ?? '—' }}</td>
+                <td class="text-end">±{{ m.ogCheck.tolerance }}</td>
+                <td class="text-end">
+                  @if (m.ogCheck.withinTolerance !== null) {
+                    <span class="badge" [class.bg-success-subtle]="m.ogCheck.withinTolerance"
+                          [class.text-success-emphasis]="m.ogCheck.withinTolerance"
+                          [class.bg-danger-subtle]="!m.ogCheck.withinTolerance"
+                          [class.text-danger-emphasis]="!m.ogCheck.withinTolerance">{{ m.ogCheck.deviation }}</span>
+                  }
+                </td>
+              </tr>
+              <tr><td>FG</td><td class="text-end">{{ m.fgSg }} ({{ m.fgPoints }} pts)</td><td colspan="3"></td></tr>
+              <tr><td>ABV</td><td class="text-end fw-semibold">{{ m.abv }} %</td>
+                <td class="text-end">{{ m.abvCheck.target ?? '—' }}</td>
+                <td class="text-end">±{{ m.abvCheck.tolerance }}</td>
+                <td class="text-end">
+                  @if (m.abvCheck.withinTolerance !== null) {
+                    <span class="badge" [class.bg-success-subtle]="m.abvCheck.withinTolerance"
+                          [class.text-success-emphasis]="m.abvCheck.withinTolerance"
+                          [class.bg-danger-subtle]="!m.abvCheck.withinTolerance"
+                          [class.text-danger-emphasis]="!m.abvCheck.withinTolerance">{{ m.abvCheck.deviation }}</span>
+                  }
+                </td>
+              </tr>
+              <tr><td>IBU</td><td class="text-end fw-semibold">{{ m.ibu }}</td>
+                <td class="text-end">{{ m.ibuCheck.target ?? '—' }}</td>
+                <td class="text-end">±{{ m.ibuCheck.tolerance }}</td>
+                <td class="text-end">
+                  @if (m.ibuCheck.withinTolerance !== null) {
+                    <span class="badge" [class.bg-success-subtle]="m.ibuCheck.withinTolerance"
+                          [class.text-success-emphasis]="m.ibuCheck.withinTolerance"
+                          [class.bg-danger-subtle]="!m.ibuCheck.withinTolerance"
+                          [class.text-danger-emphasis]="!m.ibuCheck.withinTolerance">{{ m.ibuCheck.deviation }}</span>
+                  }
+                </td>
+              </tr>
+              <tr><td>Cor (EBC)</td><td class="text-end fw-semibold">{{ m.colorEbc }}</td>
+                <td class="text-end">{{ m.colorCheck.target ?? '—' }}</td>
+                <td class="text-end">±{{ m.colorCheck.tolerance }}</td>
+                <td class="text-end">
+                  @if (m.colorCheck.withinTolerance !== null) {
+                    <span class="badge" [class.bg-success-subtle]="m.colorCheck.withinTolerance"
+                          [class.text-success-emphasis]="m.colorCheck.withinTolerance"
+                          [class.bg-danger-subtle]="!m.colorCheck.withinTolerance"
+                          [class.text-danger-emphasis]="!m.colorCheck.withinTolerance">{{ m.colorCheck.deviation }}</span>
+                  }
+                </td>
+              </tr>
+              <tr class="text-body-secondary"><td>Atenuação</td><td class="text-end">{{ m.attenuationPercent }} %</td><td colspan="3"></td></tr>
             </tbody>
           </table>
         </div>

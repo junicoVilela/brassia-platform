@@ -18,9 +18,9 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- Build/commit: `main` em `8534453`; PRs #34 (CAT-001), #35 (EQP-001), #36 (EQP-002), #37 (WTR-001), #38 (WTR-002) — todos com CI verde (Backend, Frontend, Contratos, Segredos).
+- Testes executados: domínio (JUnit) por história — `IngredientTest`, `EquipmentTest`, `EquipmentMaintenanceTest`, `WaterReportTest`, `WaterBlendTest`; integração com PostgreSQL real via Testcontainers — `CatalogIngredientIT`, `EquipmentIT`, `EquipmentMaintenanceIT`, `WaterIT`, `WaterBlendIT`; inspeção arquitetural — `ModularityTest`; frontend — `ng build` e `eslint`. Cada IT cobre sucesso, limite, falha, outra cervejaria e repetição.
+- Migration aplicada: V21 (catalog_ingredient), V22 (equipment + equipment_revision), V23 (equipment_maintenance), V24 (water_source + water_report), V25 (water_profile). Idempotentes e testadas em banco limpo pela suíte de ITs.
+- Contratos atualizados: `contracts/openapi.yaml` com os endpoints de catálogo, equipamentos (perfil, revisões, manutenção, disponibilidade) e água (fontes, laudos, perfis-alvo, simulação de mistura); Problem Details RFC 9457 em todos os erros.
+- Riscos remanescentes: atributos específicos por tipo de ingrediente são um mínimo representativo (extensível); a simulação de mistura não é persistida (é consulta); UI dos ingredientes ainda não edita os atributos por tipo (aceitos pela API).
+- Aceite: 5/5 histórias concluídas (CAT-001, EQP-001, EQP-002, WTR-001, WTR-002); módulos `catalog`, `equipment` e `water` criados na arquitetura hexagonal/Modulith; autorização negativa e isolamento entre cervejarias testados; auditoria nos comandos críticos.

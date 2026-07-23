@@ -10,8 +10,8 @@ import br.com.brew.brassia.recipe.adapter.inbound.web.dto.VolumeBalanceResponse;
 import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeMetricsUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeVolumesUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CreateRecipeUseCase;
-import br.com.brew.brassia.recipe.application.port.inbound.GetRecipeMetricsUseCase;
-import br.com.brew.brassia.recipe.application.port.inbound.GetRecipeUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.RecipeMetricsUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.RecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.ListRecipesUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import br.com.brew.brassia.shared.web.PageResponse;
@@ -33,14 +33,14 @@ import org.springframework.web.bind.annotation.RestController;
 final class RecipeController {
     private final CreateRecipeUseCase createRecipe;
     private final ListRecipesUseCase listRecipes;
-    private final GetRecipeUseCase getRecipe;
+    private final RecipeUseCase getRecipe;
     private final CalculateRecipeVolumesUseCase calculateVolumes;
     private final CalculateRecipeMetricsUseCase calculateMetrics;
-    private final GetRecipeMetricsUseCase getMetrics;
+    private final RecipeMetricsUseCase getMetrics;
 
-    RecipeController(CreateRecipeUseCase createRecipe, ListRecipesUseCase listRecipes, GetRecipeUseCase getRecipe,
+    RecipeController(CreateRecipeUseCase createRecipe, ListRecipesUseCase listRecipes, RecipeUseCase getRecipe,
             CalculateRecipeVolumesUseCase calculateVolumes, CalculateRecipeMetricsUseCase calculateMetrics,
-            GetRecipeMetricsUseCase getMetrics) {
+            RecipeMetricsUseCase getMetrics) {
         this.createRecipe = createRecipe;
         this.listRecipes = listRecipes;
         this.getRecipe = getRecipe;
@@ -64,7 +64,7 @@ final class RecipeController {
     RecipeDetailResponse detail(@PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("recipe.read");
         return RecipeDetailResponse.from(getRecipe.handle(
-                new GetRecipeUseCase.Query(principal.requireBrewery(), id)));
+                new RecipeUseCase.Query(principal.requireBrewery(), id)));
     }
 
     @GetMapping("/{id}/volumes")
@@ -77,7 +77,7 @@ final class RecipeController {
     @GetMapping("/{id}/metrics")
     MetricsResponse metrics(@PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("recipe.read");
-        return MetricsResponse.from(getMetrics.handle(new GetRecipeMetricsUseCase.Query(principal.requireBrewery(), id)));
+        return MetricsResponse.from(getMetrics.handle(new RecipeMetricsUseCase.Query(principal.requireBrewery(), id)));
     }
 
     @PostMapping("/{id}/metrics")

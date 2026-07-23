@@ -5,7 +5,7 @@ import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
 import br.com.brew.brassia.equipment.EquipmentProfileLookup;
 import br.com.brew.brassia.equipment.application.port.inbound.CancelMaintenanceUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.CheckEquipmentAvailabilityUseCase;
-import br.com.brew.brassia.equipment.application.port.inbound.GetEquipmentRevisionUseCase;
+import br.com.brew.brassia.equipment.application.port.inbound.EquipmentRevisionUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.ListEquipmentMaintenanceUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.ListEquipmentUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.RegisterEquipmentUseCase;
@@ -15,7 +15,7 @@ import br.com.brew.brassia.equipment.application.port.outbound.EquipmentReposito
 import br.com.brew.brassia.equipment.application.port.outbound.MaintenanceRepository;
 import br.com.brew.brassia.equipment.application.service.CancelMaintenanceHandler;
 import br.com.brew.brassia.equipment.application.service.CheckEquipmentAvailabilityHandler;
-import br.com.brew.brassia.equipment.application.service.GetEquipmentRevisionHandler;
+import br.com.brew.brassia.equipment.application.service.EquipmentRevisionHandler;
 import br.com.brew.brassia.equipment.application.service.ListEquipmentHandler;
 import br.com.brew.brassia.equipment.application.service.ListEquipmentMaintenanceHandler;
 import br.com.brew.brassia.equipment.application.service.RegisterEquipmentHandler;
@@ -67,8 +67,8 @@ class EquipmentConfiguration {
     }
 
     @Bean
-    GetEquipmentRevisionUseCase getEquipmentRevisionUseCase(EquipmentRepository repository) {
-        return new GetEquipmentRevisionHandler(repository);
+    EquipmentRevisionUseCase getEquipmentRevisionUseCase(EquipmentRepository repository) {
+        return new EquipmentRevisionHandler(repository);
     }
 
     @Bean

@@ -5,7 +5,7 @@ import java.util.UUID;
 
 /** Consulta revisão imutável — prova de que mudança atual não altera o passado. */
 @FunctionalInterface
-public interface GetPreferencesRevisionUseCase {
+public interface PreferencesRevisionUseCase {
     OperationalPreferencesSnapshot handle(Query query);
 
     record Query(UUID breweryId, long version) {}

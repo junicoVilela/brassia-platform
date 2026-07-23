@@ -1,14 +1,14 @@
 package br.com.brew.brassia.brewery.application.service;
 
-import br.com.brew.brassia.brewery.application.port.inbound.GetOperationalPreferencesUseCase;
+import br.com.brew.brassia.brewery.application.port.inbound.OperationalPreferencesUseCase;
 import br.com.brew.brassia.brewery.application.port.outbound.OperationalPreferencesRepository;
 import br.com.brew.brassia.brewery.domain.OperationalPreferences;
 import java.util.Objects;
 
-public final class GetOperationalPreferencesHandler implements GetOperationalPreferencesUseCase {
+public final class OperationalPreferencesHandler implements OperationalPreferencesUseCase {
     private final OperationalPreferencesRepository preferences;
 
-    public GetOperationalPreferencesHandler(OperationalPreferencesRepository preferences) {
+    public OperationalPreferencesHandler(OperationalPreferencesRepository preferences) {
         this.preferences = Objects.requireNonNull(preferences);
     }
 

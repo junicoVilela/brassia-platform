@@ -108,6 +108,52 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /equipment:
+    get:
+      operationId: listEquipment
+      parameters:
+        - {name: page, in: query, schema: {type: integer, default: 0}}
+        - {name: size, in: query, schema: {type: integer, default: 20}}
+      responses:
+        '200': {description: Página de equipamentos}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: registerEquipment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterEquipment'}
+      responses:
+        '201': {description: Equipamento cadastrado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /equipment/{id}:
+    put:
+      operationId: updateEquipment
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateEquipment'}
+      responses:
+        '200': {description: Equipamento atualizado (nova versão)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /equipment/{id}/revisions/{version}:
+    get:
+      operationId: getEquipmentRevision
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: version, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200': {description: Snapshot imutável de uma versão}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /brew-orders/{orderId}/start:
     post:
       operationId: startBrewOrder
@@ -167,6 +213,26 @@ components:
         useUnit: {type: string, enum: [KG, G, MG, L, ML, UNIT, PACK]}
         purchaseUnit: {type: string, enum: [KG, G, MG, L, ML, UNIT, PACK]}
         attributes: {type: object, additionalProperties: {type: string}}
+        version: {type: integer, format: int64}
+    RegisterEquipment:
+      type: object
+      required: [code, name, capacityLiters, deadSpaceLiters, mashEfficiencyPercent, boilOffLitersPerHour]
+      properties:
+        code: {type: string, maxLength: 40}
+        name: {type: string, maxLength: 160}
+        capacityLiters: {type: number}
+        deadSpaceLiters: {type: number}
+        mashEfficiencyPercent: {type: number}
+        boilOffLitersPerHour: {type: number}
+    UpdateEquipment:
+      type: object
+      required: [name, capacityLiters, deadSpaceLiters, mashEfficiencyPercent, boilOffLitersPerHour, version]
+      properties:
+        name: {type: string, maxLength: 160}
+        capacityLiters: {type: number}
+        deadSpaceLiters: {type: number}
+        mashEfficiencyPercent: {type: number}
+        boilOffLitersPerHour: {type: number}
         version: {type: integer, format: int64}
     Measurement:
       type: object

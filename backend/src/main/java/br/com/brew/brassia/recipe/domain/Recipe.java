@@ -1,6 +1,7 @@
 package br.com.brew.brassia.recipe.domain;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -73,6 +74,34 @@ public final class Recipe {
             throw new IllegalStateException("apenas receita em rascunho pode ser publicada");
         }
         this.status = RecipeStatus.PUBLISHED;
+    }
+
+    /** Cria uma cópia independente (novo rascunho, versão 1, sem vínculo) com outro nome. */
+    public Recipe cloneAs(RecipeName newName) {
+        return new Recipe(RecipeId.newId(), breweryId, newName, RecipeStatus.DRAFT, equipmentId,
+                batchVolumeLiters, targets, boilTimeMinutes, items, 1, null);
+    }
+
+    /**
+     * Escala a receita para um novo volume, multiplicando as quantidades pela razão
+     * de volume. Percentuais e tempos são preservados. O volume-alvo não pode
+     * exceder a capacidade do equipamento.
+     */
+    public Recipe scaleTo(RecipeName newName, BigDecimal newVolumeLiters, BigDecimal capacityLiters) {
+        if (newVolumeLiters == null || newVolumeLiters.signum() <= 0) {
+            throw new IllegalArgumentException("volume-alvo deve ser positivo");
+        }
+        if (capacityLiters != null && newVolumeLiters.compareTo(capacityLiters) > 0) {
+            throw new IllegalArgumentException("volume-alvo excede a capacidade do equipamento");
+        }
+        var factor = newVolumeLiters.divide(batchVolumeLiters, 8, RoundingMode.HALF_UP);
+        var scaledItems = items.stream()
+                .map(i -> new RecipeItem(i.ingredientId(), i.stage(),
+                        i.quantity().multiply(factor).setScale(4, RoundingMode.HALF_UP), i.unit(),
+                        i.timingMinutes(), i.percentage()))
+                .toList();
+        return new Recipe(RecipeId.newId(), breweryId, newName, RecipeStatus.DRAFT, equipmentId, newVolumeLiters,
+                targets, boilTimeMinutes, scaledItems, 1, null);
     }
 
     /** Gera uma nova versão editável (rascunho) a partir de uma publicada, preservando o snapshot. */

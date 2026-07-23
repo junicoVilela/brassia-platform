@@ -37,6 +37,17 @@ export class RecipeListPageComponent implements OnInit {
     items: this.fb.array([this.newItem()]),
   });
 
+  protected readonly derivationForm = this.fb.nonNullable.group({
+    sourceId: ['', Validators.required],
+    name: ['', Validators.required],
+    batchVolumeLiters: [0, [Validators.min(0.001)]],
+  });
+
+  protected readonly compareForm = this.fb.nonNullable.group({
+    leftId: ['', Validators.required],
+    rightId: ['', Validators.required],
+  });
+
   get items(): FormArray {
     return this.form.get('items') as FormArray;
   }
@@ -80,6 +91,32 @@ export class RecipeListPageComponent implements OnInit {
 
   protected newVersion(recipeId: string): void {
     this.store.newVersion(recipeId);
+  }
+
+  protected clone(): void {
+    const v = this.derivationForm.getRawValue();
+    if (!v.sourceId || !v.name) {
+      return;
+    }
+    this.store.clone(v.sourceId, v.name, () => this.derivationForm.reset({ sourceId: '', name: '', batchVolumeLiters: 0 }));
+  }
+
+  protected scale(): void {
+    const v = this.derivationForm.getRawValue();
+    if (!v.sourceId || !v.name || v.batchVolumeLiters <= 0) {
+      return;
+    }
+    this.store.scale(v.sourceId, v.name, v.batchVolumeLiters, () =>
+      this.derivationForm.reset({ sourceId: '', name: '', batchVolumeLiters: 0 }),
+    );
+  }
+
+  protected compare(): void {
+    const v = this.compareForm.getRawValue();
+    if (!v.leftId || !v.rightId) {
+      return;
+    }
+    this.store.compareRecipes(v.leftId, v.rightId);
   }
 
   protected create(): void {

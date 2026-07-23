@@ -6,8 +6,11 @@ import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
 import br.com.brew.brassia.equipment.EquipmentProfileLookup;
 import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeMetricsUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CalculateRecipeVolumesUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.CloneRecipeUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.CompareRecipesUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CreateRecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.CreateRecipeVersionUseCase;
+import br.com.brew.brassia.recipe.application.port.inbound.ScaleRecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.RecipeMetricsUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.RecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.inbound.ListRecipesUseCase;
@@ -17,8 +20,11 @@ import br.com.brew.brassia.recipe.application.port.outbound.RecipeMetricsReposit
 import br.com.brew.brassia.recipe.application.port.outbound.RecipeRepository;
 import br.com.brew.brassia.recipe.application.service.CalculateRecipeMetricsHandler;
 import br.com.brew.brassia.recipe.application.service.CalculateRecipeVolumesHandler;
+import br.com.brew.brassia.recipe.application.service.CloneRecipeHandler;
+import br.com.brew.brassia.recipe.application.service.CompareRecipesHandler;
 import br.com.brew.brassia.recipe.application.service.CreateRecipeHandler;
 import br.com.brew.brassia.recipe.application.service.CreateRecipeVersionHandler;
+import br.com.brew.brassia.recipe.application.service.ScaleRecipeHandler;
 import br.com.brew.brassia.recipe.application.service.RecipeHandler;
 import br.com.brew.brassia.recipe.application.service.RecipeMetricsHandler;
 import br.com.brew.brassia.recipe.application.service.ListRecipesHandler;
@@ -87,5 +93,26 @@ class RecipeConfiguration {
         var handler = new CreateRecipeVersionHandler(repository, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    CloneRecipeUseCase cloneRecipeUseCase(RecipeRepository repository, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new CloneRecipeHandler(repository, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ScaleRecipeUseCase scaleRecipeUseCase(RecipeRepository repository, EquipmentCapacityLookup equipment,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new ScaleRecipeHandler(repository, equipment, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    CompareRecipesUseCase compareRecipesUseCase(RecipeRepository repository) {
+        return new CompareRecipesHandler(repository);
     }
 }

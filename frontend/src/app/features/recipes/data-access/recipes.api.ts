@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { RecipeSummary } from '../domain/recipe.model';
+import { CreateRecipeRequest, CreatedRecipe, RecipeSummary } from '../domain/recipe.model';
 
 interface PageResponse<T> {
   content: T[];
@@ -17,5 +17,9 @@ export class RecipesApi {
 
   list() {
     return this.http.get<PageResponse<RecipeSummary>>(this.baseUrl);
+  }
+
+  create(request: CreateRecipeRequest) {
+    return this.http.post<CreatedRecipe>(this.baseUrl, request);
   }
 }

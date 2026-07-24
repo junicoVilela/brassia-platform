@@ -195,8 +195,12 @@
             <option value="beerxml">BeerXML</option>
           </select>
         </div>
-        <div class="col-sm-3 d-grid">
-          <button type="submit" class="btn btn-primary" [disabled]="importForm.invalid">
+        <div class="col-sm-5 d-flex gap-2">
+          <button type="button" class="btn btn-outline-primary flex-fill" [disabled]="importForm.invalid"
+                  (click)="previewImport()">
+            <i class="ri-eye-line me-1"></i> Prévia
+          </button>
+          <button type="submit" class="btn btn-primary flex-fill" [disabled]="importForm.invalid">
             <i class="ri-upload-line me-1"></i> Importar
           </button>
         </div>
@@ -204,6 +208,36 @@
       <textarea class="form-control font-monospace" rows="5" formControlName="content"
                 placeholder="Cole aqui o documento BeerJSON ou BeerXML…"></textarea>
     </form>
+
+    @if (store.importPreview(); as preview) {
+      <div class="border rounded-10 p-3 mt-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <h3 class="h6 fw-semibold mb-0">Prévia da importação</h3>
+          @if (preview.importable) {
+            <span class="badge bg-success-subtle text-success-emphasis">importável</span>
+          } @else {
+            <span class="badge bg-danger-subtle text-danger-emphasis">não importável</span>
+          }
+          <span class="text-muted small">{{ preview.format }} · {{ preview.name ?? '—' }} · {{ preview.itemCount }} item(ns)</span>
+        </div>
+        @if (preview.blockingIssues.length > 0) {
+          <p class="small mb-1 text-danger-emphasis">Bloqueios:
+            @for (b of preview.blockingIssues; track b) { <span class="badge text-bg-danger me-1">{{ b }}</span> }
+          </p>
+        }
+        @if (preview.warnings.length > 0) {
+          <p class="small mb-1">Avisos:
+            @for (w of preview.warnings; track w) { <span class="badge bg-warning-subtle text-warning-emphasis me-1">{{ w }}</span> }
+          </p>
+        }
+        @if (preview.unknownFields.length > 0) {
+          <p class="small mb-0">Campos não reconhecidos (ignorados na importação):
+            @for (f of preview.unknownFields; track f) { <span class="badge text-bg-light me-1">{{ f }}</span> }
+          </p>
+        }
+      </div>
+    }
+
     @if (store.importError(); as importError) {
       <div class="alert alert-danger mt-3 mb-0" role="alert">{{ importError }}</div>
     } @else if (store.importReport(); as report) {

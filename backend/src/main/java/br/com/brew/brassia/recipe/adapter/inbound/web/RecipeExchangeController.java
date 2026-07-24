@@ -27,6 +27,9 @@ final class RecipeExchangeController {
     private final CreateRecipeUseCase createRecipe;
     private final RecipeExchangeCodec codec;
 
+    /** Limite defensivo do documento importado (REC-008). */
+    private static final int MAX_IMPORT_BYTES = 1024 * 1024;
+
     RecipeExchangeController(RecipeUseCase getRecipe, CreateRecipeUseCase createRecipe, RecipeExchangeCodec codec) {
         this.getRecipe = getRecipe;
         this.createRecipe = createRecipe;
@@ -47,12 +50,24 @@ final class RecipeExchangeController {
                 .body(codec.write(fmt, document));
     }
 
+    @PostMapping("/import/preview")
+    RecipeExchangeCodec.ImportPreview previewImport(
+            @RequestParam(defaultValue = "beerjson") String format,
+            @RequestBody byte[] body,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("recipe.read");
+        requireWithinLimit(body);
+        // Dry-run: analisa e valida sem persistir; o usuário confirma antes de importar.
+        return codec.preview(codec.format(format), new String(body, StandardCharsets.UTF_8));
+    }
+
     @PostMapping("/import")
     ImportReportResponse importRecipe(
             @RequestParam(defaultValue = "beerjson") String format,
             @RequestBody byte[] body,
             @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("recipe.create");
+        requireWithinLimit(body);
         var fmt = codec.format(format);
         var parsed = codec.parse(fmt, new String(body, StandardCharsets.UTF_8));
         var d = parsed.document();
@@ -65,6 +80,12 @@ final class RecipeExchangeController {
                 principal.userId(), principal.requireBrewery(), d.name(), d.equipmentId(), d.batchVolumeLiters(),
                 d.targetOgPoints(), d.targetIbu(), d.targetColorEbc(), d.targetAbv(), d.boilTimeMinutes(), items));
         return new ImportReportResponse(result.id(), result.name(), result.status(), parsed.unknownFields());
+    }
+
+    private static void requireWithinLimit(byte[] body) {
+        if (body != null && body.length > MAX_IMPORT_BYTES) {
+            throw new IllegalArgumentException("documento excede o limite de 1 MB");
+        }
     }
 
     private static RecipeDocument toDocument(RecipeUseCase.Result r) {

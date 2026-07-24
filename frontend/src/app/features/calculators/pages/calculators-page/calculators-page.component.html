@@ -1,0 +1,77 @@
+<app-page-header title="Calculadoras" subtitle="Cálculos determinísticos — o resultado mostra método, versão, hipóteses e alertas" />
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card border-0 rounded-10 h-100">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-3">Escolha</h2>
+        @if (store.loading()) {
+          <app-loading-indicator />
+        } @else if (store.error(); as error) {
+          <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+        } @else if (store.specs().length === 0) {
+          <app-empty-state icon="ri-calculator-line" message="Nenhuma calculadora disponível." />
+        } @else {
+          <div class="list-group list-group-flush">
+            @for (spec of store.specs(); track spec.id) {
+              <button type="button" class="list-group-item list-group-item-action px-0"
+                      [class.active]="spec.id === store.selectedId()" (click)="selectCalculator(spec.id)">
+                <span class="fw-medium d-block">{{ spec.name }}</span>
+                <span class="small text-muted">{{ spec.description }}</span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card border-0 rounded-10 h-100">
+      <div class="card-body p-4">
+        @if (store.selected(); as spec) {
+          <h2 class="h6 fw-semibold mb-3">{{ spec.name }} <span class="text-muted small">→ {{ spec.unit }}</span></h2>
+          <form [formGroup]="form()" (ngSubmit)="compute()" class="row g-3 align-items-end">
+            @for (key of spec.inputs; track key) {
+              <div class="col-sm-4">
+                <label class="form-label" [attr.for]="'in-' + key">{{ key }}</label>
+                <input [id]="'in-' + key" type="number" step="any" class="form-control" [formControlName]="key">
+              </div>
+            }
+            <div class="col-sm-4 d-grid">
+              <button type="submit" class="btn btn-primary" [disabled]="form().invalid">
+                <i class="ri-calculator-line me-1"></i> Calcular
+              </button>
+            </div>
+          </form>
+
+          @if (store.actionError(); as actionError) {
+            <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+          } @else if (store.result(); as result) {
+            <div class="border rounded-10 p-3 mt-3">
+              <div class="d-flex align-items-baseline gap-2 mb-2">
+                <span class="h4 mb-0 fw-semibold">{{ result.value }}</span>
+                <span class="text-muted">{{ result.unit }}</span>
+                <span class="badge bg-secondary-subtle text-secondary-emphasis ms-auto">método v{{ result.version }}</span>
+              </div>
+              <p class="small mb-1"><span class="text-muted">Método:</span> <code>{{ result.method }}</code></p>
+              @if (result.assumptions.length > 0) {
+                <p class="small mb-1"><span class="text-muted">Hipóteses:</span>
+                  @for (a of result.assumptions; track a) { <span class="badge text-bg-light me-1">{{ a }}</span> }
+                </p>
+              }
+              @if (result.alerts.length > 0) {
+                <p class="small mb-0"><span class="text-muted">Alertas:</span>
+                  @for (al of result.alerts; track al) { <span class="badge bg-warning-subtle text-warning-emphasis me-1">{{ al }}</span> }
+                </p>
+              }
+            </div>
+          }
+        } @else {
+          <app-empty-state icon="ri-calculator-line" message="Selecione uma calculadora à esquerda."
+                           hint="As fórmulas rodam no domínio; a tela não replica cálculos." />
+        }
+      </div>
+    </div>
+  </div>
+</div>

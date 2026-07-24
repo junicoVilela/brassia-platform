@@ -1,12 +1,15 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
+import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator.component';
+import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
 import { WaterStore } from '../../data-access/water.store';
 import { WATER_METHODS, WaterMethod } from '../../domain/water.model';
 
 @Component({
   selector: 'app-water-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, PageHeaderComponent, EmptyStateComponent, LoadingIndicatorComponent],
   providers: [WaterStore],
   templateUrl: './water-page.component.html',
 })

@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
+import { ToastService } from '../../../core/notifications/toast.service';
 import { Equipment, RegisterEquipmentRequest } from '../domain/equipment.model';
 import { EquipmentApi } from './equipment.api';
 
@@ -8,6 +9,7 @@ import { EquipmentApi } from './equipment.api';
 @Injectable()
 export class EquipmentStore {
   private readonly api = inject(EquipmentApi);
+  private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly itemsState = signal<Equipment[]>([]);
 
@@ -37,6 +39,7 @@ export class EquipmentStore {
       .subscribe({
         next: () => {
           onSuccess?.();
+          this.toast.success('Equipamento cadastrado.');
           this.load();
         },
         error: () => this.actionError.set('Não foi possível cadastrar o equipamento (código duplicado ou valor inválido).'),

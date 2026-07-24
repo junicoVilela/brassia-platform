@@ -14,6 +14,7 @@ import {
   RecipeSummary,
   VolumeBalance,
 } from '../domain/recipe.model';
+import { ToastService } from '../../../core/notifications/toast.service';
 import { RecipesApi } from './recipes.api';
 
 /** Estado da tela de receitas: listagem, cadastro e catálogos de apoio (equipamentos, ingredientes). */
@@ -22,6 +23,7 @@ export class RecipesStore {
   private readonly api = inject(RecipesApi);
   private readonly equipmentApi = inject(EquipmentApi);
   private readonly ingredientsApi = inject(IngredientsApi);
+  private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly itemsState = signal<RecipeSummary[]>([]);
@@ -70,6 +72,7 @@ export class RecipesStore {
       .subscribe({
         next: () => {
           onSuccess?.();
+          this.toast.success('Receita criada.');
           this.load();
         },
         error: () => this.actionError.set('Não foi possível criar a receita (capacidade, percentuais, nome duplicado ou dados inválidos).'),
@@ -103,7 +106,7 @@ export class RecipesStore {
     this.api.publish(recipeId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => this.load(),
+        next: () => { this.toast.success('Receita publicada.'); this.load(); },
         error: () => this.actionError.set('Não foi possível publicar a receita.'),
       });
   }
@@ -113,7 +116,7 @@ export class RecipesStore {
     this.api.newVersion(recipeId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => this.load(),
+        next: () => { this.toast.success('Nova versão criada.'); this.load(); },
         error: () => this.actionError.set('Não foi possível criar nova versão.'),
       });
   }
@@ -123,7 +126,7 @@ export class RecipesStore {
     this.api.clone(recipeId, name)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => { onSuccess?.(); this.load(); },
+        next: () => { onSuccess?.(); this.toast.success('Receita clonada.'); this.load(); },
         error: () => this.actionError.set('Não foi possível clonar (nome duplicado ou dados inválidos).'),
       });
   }
@@ -133,7 +136,7 @@ export class RecipesStore {
     this.api.scale(recipeId, name, batchVolumeLiters)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => { onSuccess?.(); this.load(); },
+        next: () => { onSuccess?.(); this.toast.success('Receita escalada.'); this.load(); },
         error: () => this.actionError.set('Não foi possível escalar (capacidade excedida, nome duplicado ou dados inválidos).'),
       });
   }
@@ -153,8 +156,11 @@ export class RecipesStore {
     this.api.export(recipeId, format)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: content => this.download(content, `receita.${format === 'beerxml' ? 'xml' : 'json'}`,
-          format === 'beerxml' ? 'application/xml' : 'application/json'),
+        next: content => {
+          this.download(content, `receita.${format === 'beerxml' ? 'xml' : 'json'}`,
+            format === 'beerxml' ? 'application/xml' : 'application/json');
+          this.toast.success(`Arquivo ${format === 'beerxml' ? 'BeerXML' : 'BeerJSON'} exportado.`);
+        },
         error: () => this.actionError.set('Não foi possível exportar a receita.'),
       });
   }

@@ -7,12 +7,14 @@ import {
   WaterReport,
   WaterSource,
 } from '../domain/water.model';
+import { ToastService } from '../../../core/notifications/toast.service';
 import { WaterApi } from './water.api';
 
 /** Estado da tela de água: fontes, cadastro e laudos (histórico) da fonte escolhida. */
 @Injectable()
 export class WaterStore {
   private readonly api = inject(WaterApi);
+  private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly sourcesState = signal<WaterSource[]>([]);
@@ -45,6 +47,7 @@ export class WaterStore {
       .subscribe({
         next: () => {
           onSuccess?.();
+          this.toast.success('Fonte cadastrada.');
           this.loadSources();
         },
         error: () => this.actionError.set('Não foi possível cadastrar a fonte (código duplicado?).'),
@@ -86,6 +89,7 @@ export class WaterStore {
       .subscribe({
         next: () => {
           onSuccess?.();
+          this.toast.success('Laudo registrado.');
           this.loadReports();
         },
         error: () => this.actionError.set('Não foi possível registrar o laudo (íons/unidades ou data inválidos).'),

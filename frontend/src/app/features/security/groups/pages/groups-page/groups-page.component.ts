@@ -1,12 +1,15 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { EmptyStateComponent } from '../../../../../shared/ui/empty-state.component';
+import { LoadingIndicatorComponent } from '../../../../../shared/ui/loading-indicator.component';
+import { PageHeaderComponent } from '../../../../../shared/ui/page-header.component';
 import { GroupsStore } from '../../data-access/groups.store';
 import { toCreateGroupRequest, toUpdateGroupRequest } from '../../domain/group.model';
 
 @Component({
   selector: 'app-groups-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, PageHeaderComponent, EmptyStateComponent, LoadingIndicatorComponent],
   providers: [GroupsStore],
   templateUrl: './groups-page.component.html',
 })

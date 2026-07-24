@@ -1,17 +1,31 @@
-import { ChangeDetectionStrategy, Component, OnInit, effect, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { UiSearchService } from '../../../../core/search/ui-search.service';
+import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
+import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator.component';
+import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
 import { BreweryStore } from '../../data-access/brewery.store';
 
 @Component({
   selector: 'app-breweries-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, PageHeaderComponent, EmptyStateComponent, LoadingIndicatorComponent],
   providers: [BreweryStore],
   templateUrl: './breweries-page.component.html',
 })
 export class BreweriesPageComponent implements OnInit {
   protected readonly store = inject(BreweryStore);
+  protected readonly search = inject(UiSearchService);
   private readonly fb = inject(FormBuilder);
+
+  protected readonly filtered = computed(() => {
+    const term = this.search.term().trim().toLowerCase();
+    const items = this.store.items();
+    if (!term) {
+      return items;
+    }
+    return items.filter(b => `${b.code} ${b.name} ${b.timezone}`.toLowerCase().includes(term));
+  });
 
   protected readonly form = this.fb.nonNullable.group({
     code: ['', [Validators.required, Validators.maxLength(40)]],

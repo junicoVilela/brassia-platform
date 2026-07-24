@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin, finalize } from 'rxjs';
+import { ToastService } from '../../../../core/notifications/toast.service';
 import { CreateGroupRequest, GroupSummary, PermissionSummary, UpdateGroupRequest } from '../domain/group.model';
 import { GroupsApi } from './groups.api';
 
@@ -8,6 +9,7 @@ import { GroupsApi } from './groups.api';
 @Injectable()
 export class GroupsStore {
   private readonly api = inject(GroupsApi);
+  private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly groupsState = signal<GroupSummary[]>([]);
   private readonly permissionsState = signal<PermissionSummary[]>([]);
@@ -53,6 +55,7 @@ export class GroupsStore {
       .subscribe({
         next: created => {
           onSuccess?.();
+          this.toast.success('Grupo criado.');
           this.load();
           this.select(created.id);
         },
@@ -68,6 +71,7 @@ export class GroupsStore {
       .subscribe({
         next: updated => {
           this.groupsState.update(items => items.map(g => (g.id === updated.id ? updated : g)));
+          this.toast.success('Grupo atualizado.');
         },
         error: () => this.actionError.set('Não foi possível atualizar o grupo.'),
       });

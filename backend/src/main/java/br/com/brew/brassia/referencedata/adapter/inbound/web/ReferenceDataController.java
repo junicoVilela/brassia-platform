@@ -1,15 +1,20 @@
 package br.com.brew.brassia.referencedata.adapter.inbound.web;
 
+import br.com.brew.brassia.referencedata.adapter.inbound.web.dto.ImportJobResponse;
 import br.com.brew.brassia.referencedata.adapter.inbound.web.dto.ReferenceDatasetResponse;
 import br.com.brew.brassia.referencedata.adapter.inbound.web.dto.ReferenceIdResponse;
 import br.com.brew.brassia.referencedata.adapter.inbound.web.dto.ReferenceSourceResponse;
 import br.com.brew.brassia.referencedata.adapter.inbound.web.dto.RecordReferenceDatasetRequest;
 import br.com.brew.brassia.referencedata.adapter.inbound.web.dto.RegisterReferenceSourceRequest;
+import br.com.brew.brassia.referencedata.adapter.inbound.web.dto.SubmitImportJobRequest;
+import br.com.brew.brassia.referencedata.application.port.inbound.ListImportJobsUseCase;
 import br.com.brew.brassia.referencedata.application.port.inbound.ListReferenceDatasetsUseCase;
 import br.com.brew.brassia.referencedata.application.port.inbound.ListReferenceSourcesUseCase;
+import br.com.brew.brassia.referencedata.application.port.inbound.PublishImportJobUseCase;
 import br.com.brew.brassia.referencedata.application.port.inbound.PublishReferenceDatasetUseCase;
 import br.com.brew.brassia.referencedata.application.port.inbound.RecordReferenceDatasetUseCase;
 import br.com.brew.brassia.referencedata.application.port.inbound.RegisterReferenceSourceUseCase;
+import br.com.brew.brassia.referencedata.application.port.inbound.SubmitImportJobUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import br.com.brew.brassia.shared.web.PageResponse;
 import jakarta.validation.Valid;
@@ -35,15 +40,22 @@ final class ReferenceDataController {
     private final RecordReferenceDatasetUseCase recordDataset;
     private final ListReferenceDatasetsUseCase listDatasets;
     private final PublishReferenceDatasetUseCase publishDataset;
+    private final SubmitImportJobUseCase submitJob;
+    private final ListImportJobsUseCase listJobs;
+    private final PublishImportJobUseCase publishJob;
 
     ReferenceDataController(RegisterReferenceSourceUseCase registerSource, ListReferenceSourcesUseCase listSources,
             RecordReferenceDatasetUseCase recordDataset, ListReferenceDatasetsUseCase listDatasets,
-            PublishReferenceDatasetUseCase publishDataset) {
+            PublishReferenceDatasetUseCase publishDataset, SubmitImportJobUseCase submitJob,
+            ListImportJobsUseCase listJobs, PublishImportJobUseCase publishJob) {
         this.registerSource = registerSource;
         this.listSources = listSources;
         this.recordDataset = recordDataset;
         this.listDatasets = listDatasets;
         this.publishDataset = publishDataset;
+        this.submitJob = submitJob;
+        this.listJobs = listJobs;
+        this.publishJob = publishJob;
     }
 
     @GetMapping("/sources")
@@ -105,5 +117,37 @@ final class ReferenceDataController {
         var result = publishDataset.handle(new PublishReferenceDatasetUseCase.Command(
                 principal.userId(), principal.requireBrewery(), datasetId));
         return ReferenceDatasetResponse.from(result);
+    }
+
+    @PostMapping("/sources/{sourceId}/import-jobs")
+    ResponseEntity<ImportJobResponse> submitJob(
+            @PathVariable UUID sourceId,
+            @Valid @RequestBody SubmitImportJobRequest request,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("reference.manage");
+        var result = submitJob.handle(new SubmitImportJobUseCase.Command(
+                principal.userId(), principal.requireBrewery(), sourceId, request.datasetVersion(),
+                request.contentType(), request.rawPayload()));
+        return ResponseEntity.created(URI.create("/api/v1/reference/import-jobs/" + result.jobId()))
+                .body(ImportJobResponse.from(result));
+    }
+
+    @GetMapping("/sources/{sourceId}/import-jobs")
+    List<ImportJobResponse> jobs(
+            @PathVariable UUID sourceId,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("reference.read");
+        return listJobs.handle(new ListImportJobsUseCase.Query(principal.requireBrewery(), sourceId))
+                .stream().map(ImportJobResponse::from).toList();
+    }
+
+    @PostMapping("/import-jobs/{jobId}/publish")
+    ImportJobResponse publishJob(
+            @PathVariable UUID jobId,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("reference.publish");
+        var result = publishJob.handle(new PublishImportJobUseCase.Command(
+                principal.userId(), principal.requireBrewery(), jobId));
+        return ImportJobResponse.from(result);
     }
 }

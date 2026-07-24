@@ -183,4 +183,84 @@
       }
     </div>
   </div>
+
+  <div class="card border-0 rounded-10 mt-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-1">Importar via pipeline</h2>
+      <p class="text-muted small mb-3">Recebe → valida → revisão → publicação. Erros de validação bloqueiam a publicação.</p>
+      <form [formGroup]="jobForm" (ngSubmit)="submitJob()" class="row g-3 align-items-end">
+        <div class="col-sm-3">
+          <label class="form-label" for="jobVersion">Versão</label>
+          <input id="jobVersion" type="text" class="form-control" formControlName="datasetVersion" placeholder="2021">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label" for="jobContentType">Formato</label>
+          <select id="jobContentType" class="form-select" formControlName="contentType">
+            <option value="application/json">application/json</option>
+            <option value="application/xml">application/xml</option>
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="jobPayload">Payload</label>
+          <textarea id="jobPayload" class="form-control font-monospace" rows="4" formControlName="rawPayload"
+                    placeholder='{"styles":[…]}'></textarea>
+        </div>
+        <div class="col-sm-3 d-grid">
+          <button type="submit" class="btn btn-primary" [disabled]="jobForm.invalid || store.submitting()">
+            <i class="ri-inbox-archive-line me-1"></i> Submeter
+          </button>
+        </div>
+      </form>
+
+      <h3 class="h6 fw-semibold mt-4 mb-3">Jobs de importação</h3>
+      @if (store.loadingJobs()) {
+        <app-loading-indicator />
+      } @else if (store.jobs().length === 0) {
+        <app-empty-state icon="ri-inbox-archive-line" message="Nenhum job para esta fonte."
+                         hint="Submeta um payload acima para iniciar o pipeline." />
+      } @else {
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead><tr><th>Versão</th><th>Formato</th><th>Status</th><th>Problemas</th><th></th></tr></thead>
+            <tbody>
+              @for (job of store.jobs(); track job.id) {
+                <tr>
+                  <td class="fw-semibold">{{ job.datasetVersion }}</td>
+                  <td class="small">{{ job.contentType }}</td>
+                  <td>
+                    <span class="badge"
+                          [class.bg-success-subtle]="job.status === 'PUBLISHED'"
+                          [class.text-success-emphasis]="job.status === 'PUBLISHED'"
+                          [class.bg-danger-subtle]="job.status === 'FAILED'"
+                          [class.text-danger-emphasis]="job.status === 'FAILED'"
+                          [class.bg-warning-subtle]="job.status === 'REVIEW_REQUIRED'"
+                          [class.text-warning-emphasis]="job.status === 'REVIEW_REQUIRED'">{{ job.status }}</span>
+                  </td>
+                  <td>
+                    @if (job.issues.length === 0) {
+                      <span class="text-muted small">—</span>
+                    } @else {
+                      @for (issue of job.issues; track $index) {
+                        <span class="badge me-1"
+                              [class.text-bg-danger]="issue.severity === 'ERROR'"
+                              [class.text-bg-warning]="issue.severity === 'WARNING'"
+                              [title]="issue.message">{{ issue.code }}</span>
+                      }
+                    }
+                  </td>
+                  <td class="text-end">
+                    @if (canPublishJob(job)) {
+                      <button type="button" class="btn btn-sm btn-outline-success" (click)="publishJob(job.id)">
+                        <i class="ri-checkbox-circle-line me-1"></i> Publicar
+                      </button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </div>
 }

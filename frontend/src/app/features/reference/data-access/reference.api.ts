@@ -1,10 +1,12 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import {
+  ImportJob,
   ReferenceDataset,
   ReferenceSource,
   RecordReferenceDatasetRequest,
   RegisterReferenceSourceRequest,
+  SubmitImportJobRequest,
 } from '../domain/reference.model';
 
 interface PageResponse<T> {
@@ -40,5 +42,17 @@ export class ReferenceApi {
 
   publishDataset(datasetId: string) {
     return this.http.post<ReferenceDataset>(`${this.baseUrl}/datasets/${datasetId}/publish`, {});
+  }
+
+  listJobs(sourceId: string) {
+    return this.http.get<ImportJob[]>(`${this.baseUrl}/sources/${sourceId}/import-jobs`);
+  }
+
+  submitJob(sourceId: string, request: SubmitImportJobRequest) {
+    return this.http.post<ImportJob>(`${this.baseUrl}/sources/${sourceId}/import-jobs`, request);
+  }
+
+  publishJob(jobId: string) {
+    return this.http.post<ImportJob>(`${this.baseUrl}/import-jobs/${jobId}/publish`, {});
   }
 }

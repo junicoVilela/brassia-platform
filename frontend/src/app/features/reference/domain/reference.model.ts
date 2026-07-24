@@ -77,3 +77,29 @@ export interface RecordReferenceDatasetRequest {
   effectiveFrom: string;
   effectiveTo: string | null;
 }
+
+export type ImportJobStatus = 'RECEIVED' | 'VALIDATING' | 'REVIEW_REQUIRED' | 'PUBLISHED' | 'FAILED';
+
+export interface ValidationIssue {
+  line: number | null;
+  field: string | null;
+  code: string;
+  message: string;
+  severity: string;
+}
+
+export interface ImportJob {
+  id: string;
+  datasetVersion: string | null;
+  contentType: string | null;
+  sizeBytes: number | null;
+  status: string;
+  publishedDatasetId: string | null;
+  issues: ValidationIssue[];
+}
+
+export interface SubmitImportJobRequest {
+  datasetVersion: string;
+  contentType: string;
+  rawPayload: string;
+}

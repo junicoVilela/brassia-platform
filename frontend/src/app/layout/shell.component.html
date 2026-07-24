@@ -72,17 +72,34 @@
       </aside>
     </div>
 
+    <div class="container-fluid">
     <div class="main-content d-flex flex-column">
       <header class="header-area bg-white mb-4 rounded-10 border border-white" id="header-area">
         <div class="d-md-flex align-items-center justify-content-between">
-          <div class="left-header-content">
+          <div class="left-header-content d-flex align-items-center gap-2">
             <button type="button" class="header-burger-menu bg-transparent p-0 border-0"
                     (click)="toggle()" aria-label="Alternar menu">
               <i class="ri-menu-line fs-4"></i>
             </button>
+            <div class="header-search position-relative d-none d-sm-block">
+              <i class="ri-search-line position-absolute top-50 translate-middle-y text-muted"
+                 style="left: .75rem;" aria-hidden="true"></i>
+              <input type="search" class="form-control ps-5" style="min-width: 260px;"
+                     placeholder="Buscar nesta tela…" aria-label="Buscar nesta tela"
+                     [value]="search.term()" (input)="onSearch($any($event.target).value)">
+            </div>
           </div>
           <div class="right-header-content mt-3 mt-md-0">
             <ul class="d-flex align-items-center gap-2 mb-0 ps-0 list-unstyled">
+              <li>
+                <button type="button" class="btn btn-light border-0 rounded-circle d-flex align-items-center justify-content-center"
+                        style="width:40px;height:40px;" (click)="toggleTheme()"
+                        [attr.aria-label]="theme.mode() === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'"
+                        [title]="theme.mode() === 'dark' ? 'Tema claro' : 'Tema escuro'">
+                  <i class="fs-5" [class.ri-sun-line]="theme.mode() === 'dark'"
+                     [class.ri-moon-line]="theme.mode() === 'light'"></i>
+                </button>
+              </li>
               @if (auth.user()?.activeBrewery; as active) {
                 <li class="dropdown">
                   <a href="javascript:void(0);" class="dropdown-toggle d-flex align-items-center gap-2 text-decoration-none text-body"
@@ -128,3 +145,6 @@
         <p class="mb-0 py-3 text-muted small">BrassIA — Plataforma inteligente de gestão cervejeira</p>
       </footer>
     </div>
+    </div>
+
+    <app-toast-host />

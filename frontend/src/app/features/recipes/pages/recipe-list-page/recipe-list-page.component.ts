@@ -1,5 +1,17 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  OnInit,
+  computed,
+  inject,
+  viewChild,
+} from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { UiSearchService } from '../../../../core/search/ui-search.service';
+import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
+import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator.component';
+import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
 import { RecipesStore } from '../../data-access/recipes.store';
 import {
   CreateRecipeRequest,
@@ -14,17 +26,30 @@ import {
 @Component({
   selector: 'app-recipe-list-page',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, PageHeaderComponent, EmptyStateComponent, LoadingIndicatorComponent],
   providers: [RecipesStore],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './recipe-list-page.component.html',
 })
 export class RecipeListPageComponent implements OnInit {
   protected readonly store = inject(RecipesStore);
+  protected readonly search = inject(UiSearchService);
   private readonly fb = inject(FormBuilder);
 
   protected readonly stages = RECIPE_STAGES;
   protected readonly units = RECIPE_UNITS;
+
+  /** Botão de fechar do offcanvas de criação — acionado após salvar com sucesso. */
+  private readonly createDismiss = viewChild<ElementRef<HTMLButtonElement>>('createDismiss');
+
+  protected readonly filtered = computed(() => {
+    const term = this.search.term().trim().toLowerCase();
+    const items = this.store.items();
+    if (!term) {
+      return items;
+    }
+    return items.filter(r => `${r.name} ${r.status}`.toLowerCase().includes(term));
+  });
 
   protected readonly form = this.fb.nonNullable.group({
     name: ['', Validators.required],
@@ -166,6 +191,7 @@ export class RecipeListPageComponent implements OnInit {
       });
       this.items.clear();
       this.items.push(this.newItem());
+      this.createDismiss()?.nativeElement.click();
     });
   }
 }

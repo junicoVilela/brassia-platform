@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, finalize } from 'rxjs';
+import { ToastService } from '../../../../core/notifications/toast.service';
 import { InviteUserRequest, SecurityUserSummary } from '../domain/user.model';
 import { UsersApi } from './users.api';
 
@@ -8,6 +9,7 @@ import { UsersApi } from './users.api';
 @Injectable()
 export class UsersStore {
   private readonly api = inject(UsersApi);
+  private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly itemsState = signal<SecurityUserSummary[]>([]);
 
@@ -30,22 +32,27 @@ export class UsersStore {
   }
 
   invite(request: InviteUserRequest, onSuccess?: () => void): void {
-    this.runAction(this.api.invite(request), 'Não foi possível convidar o usuário.', onSuccess);
+    this.runAction(this.api.invite(request), 'Convite enviado.', 'Não foi possível convidar o usuário.', onSuccess);
   }
 
   block(userId: string): void {
-    this.runAction(this.api.block(userId), 'Não foi possível bloquear a conta.');
+    this.runAction(this.api.block(userId), 'Conta bloqueada.', 'Não foi possível bloquear a conta.');
   }
 
   unblock(userId: string): void {
-    this.runAction(this.api.unblock(userId), 'Não foi possível desbloquear a conta.');
+    this.runAction(this.api.unblock(userId), 'Conta desbloqueada.', 'Não foi possível desbloquear a conta.');
   }
 
   disable(userId: string): void {
-    this.runAction(this.api.disable(userId), 'Não foi possível desativar a conta.');
+    this.runAction(this.api.disable(userId), 'Conta desativada.', 'Não foi possível desativar a conta.');
   }
 
-  private runAction(action$: Observable<unknown>, failureMessage: string, onSuccess?: () => void): void {
+  private runAction(
+    action$: Observable<unknown>,
+    successMessage: string,
+    failureMessage: string,
+    onSuccess?: () => void,
+  ): void {
     this.submitting.set(true);
     this.actionError.set(null);
     action$
@@ -53,6 +60,7 @@ export class UsersStore {
       .subscribe({
         next: () => {
           onSuccess?.();
+          this.toast.success(successMessage);
           this.load();
         },
         error: () => this.actionError.set(failureMessage),

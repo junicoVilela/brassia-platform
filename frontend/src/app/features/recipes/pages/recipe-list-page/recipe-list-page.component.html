@@ -1,10 +1,16 @@
-<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
-  <h1 class="h4 mb-0 fw-semibold">Receitas</h1>
-</div>
+<app-page-header title="Receitas" subtitle="Formulações, versões e cálculos cervejeiros">
+  <button type="button" class="btn btn-primary" data-bs-toggle="offcanvas" data-bs-target="#recipeCreate">
+    <i class="ri-add-line me-1"></i> Nova receita
+  </button>
+</app-page-header>
 
-<div class="card border-0 rounded-10 mb-4">
-  <div class="card-body p-4">
-    <h2 class="h6 fw-semibold mb-3">Criar receita</h2>
+<div class="offcanvas offcanvas-end" tabindex="-1" id="recipeCreate" aria-labelledby="recipeCreateLabel"
+     style="width: min(640px, 100%);">
+  <div class="offcanvas-header border-bottom">
+    <h2 class="offcanvas-title h6 fw-semibold mb-0" id="recipeCreateLabel">Nova receita</h2>
+    <button type="button" #createDismiss class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+  </div>
+  <div class="offcanvas-body">
     <form [formGroup]="form" (ngSubmit)="create()">
       <div class="row g-3 mb-2">
         <div class="col-sm-4">
@@ -221,19 +227,22 @@
   <div class="card-body p-4">
     <h2 class="h6 fw-semibold mb-3">Receitas cadastradas</h2>
     @if (store.loading()) {
-      <p class="text-muted mb-0"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</p>
+      <app-loading-indicator />
     } @else if (store.error(); as error) {
       <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
     } @else if (store.empty()) {
-      <p class="text-muted mb-0">Nenhuma receita cadastrada.</p>
+      <app-empty-state icon="ri-book-2-line" message="Nenhuma receita cadastrada."
+                       hint="Clique em “Nova receita” para criar a primeira." />
+    } @else if (filtered().length === 0) {
+      <app-empty-state icon="ri-search-line" message="Nenhuma receita encontrada para a busca." />
     } @else {
       <div class="table-responsive">
-        <table class="table align-middle mb-0">
+        <table class="table table-hover align-middle mb-0">
           <thead>
             <tr><th>Nome</th><th>Status</th><th class="text-end">Batelada (L)</th><th class="text-end">Versão</th><th></th></tr>
           </thead>
           <tbody>
-            @for (recipe of store.items(); track recipe.id) {
+            @for (recipe of filtered(); track recipe.id) {
               <tr>
                 <td class="fw-semibold">{{ recipe.name }}</td>
                 <td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ recipe.status }}</span></td>

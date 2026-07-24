@@ -1,7 +1,16 @@
 package br.com.brew.brassia.water.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.water.application.port.inbound.ChargeBalanceUseCase;
+import br.com.brew.brassia.water.application.port.inbound.CreateWaterReferenceProfileUseCase;
 import br.com.brew.brassia.water.application.port.inbound.ListWaterProfilesUseCase;
+import br.com.brew.brassia.water.application.port.inbound.ListWaterReferenceProfilesUseCase;
+import br.com.brew.brassia.water.application.port.inbound.PublishWaterReferenceProfileUseCase;
+import br.com.brew.brassia.water.application.port.outbound.WaterReferenceProfileRepository;
+import br.com.brew.brassia.water.application.service.ChargeBalanceHandler;
+import br.com.brew.brassia.water.application.service.CreateWaterReferenceProfileHandler;
+import br.com.brew.brassia.water.application.service.ListWaterReferenceProfilesHandler;
+import br.com.brew.brassia.water.application.service.PublishWaterReferenceProfileHandler;
 import br.com.brew.brassia.water.application.port.inbound.ListWaterReportsUseCase;
 import br.com.brew.brassia.water.application.port.inbound.ListWaterSourcesUseCase;
 import br.com.brew.brassia.water.application.port.inbound.RecordWaterReportUseCase;
@@ -90,5 +99,31 @@ class WaterConfiguration {
     SimulateWaterBlendUseCase simulateWaterBlendUseCase(WaterSourceRepository sources,
             WaterReportRepository reports, WaterProfileRepository profiles) {
         return new SimulateWaterBlendHandler(sources, reports, profiles);
+    }
+
+    @Bean
+    CreateWaterReferenceProfileUseCase createWaterReferenceProfileUseCase(WaterReferenceProfileRepository profiles,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new CreateWaterReferenceProfileHandler(profiles, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    PublishWaterReferenceProfileUseCase publishWaterReferenceProfileUseCase(WaterReferenceProfileRepository profiles,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new PublishWaterReferenceProfileHandler(profiles, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ListWaterReferenceProfilesUseCase listWaterReferenceProfilesUseCase(WaterReferenceProfileRepository profiles) {
+        return new ListWaterReferenceProfilesHandler(profiles);
+    }
+
+    @Bean
+    ChargeBalanceUseCase chargeBalanceUseCase() {
+        return new ChargeBalanceHandler();
     }
 }

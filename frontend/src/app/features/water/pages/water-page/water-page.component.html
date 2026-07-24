@@ -130,3 +130,87 @@
         </div>
       </div>
     }
+
+    <div class="card border-0 rounded-10 mt-4">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-1">Perfis de água de referência</h2>
+        <p class="text-muted small mb-3">Água histórica de cidade/região — educativa, versionada e nunca aplicada automaticamente. O balanço de cargas indica a consistência do perfil.</p>
+        <form [formGroup]="refForm" (ngSubmit)="createReferenceProfile()" class="row g-3 align-items-end">
+          <div class="col-sm-3"><label class="form-label" for="refName">Nome</label>
+            <input id="refName" type="text" class="form-control" formControlName="name" placeholder="Pilsen"></div>
+          <div class="col-sm-3"><label class="form-label" for="refRegion">Região</label>
+            <input id="refRegion" type="text" class="form-control" formControlName="region" placeholder="Plzeň"></div>
+          <div class="col-sm-2"><label class="form-label" for="refEdition">Edição</label>
+            <input id="refEdition" type="text" class="form-control" formControlName="edition" placeholder="2026"></div>
+          <div class="col-sm-1"><label class="form-label small" for="refPh">pH</label>
+            <input id="refPh" type="number" step="0.1" class="form-control" formControlName="ph"></div>
+          <div class="col-sm-2"><label class="form-label" for="refSource">Fonte</label>
+            <input id="refSource" type="text" class="form-control" formControlName="sourceName" placeholder="Estudo"></div>
+          <div class="col-sm-2"><label class="form-label small" for="refCa">Ca</label>
+            <input id="refCa" type="number" step="0.01" class="form-control" formControlName="calcium"></div>
+          <div class="col-sm-2"><label class="form-label small" for="refMg">Mg</label>
+            <input id="refMg" type="number" step="0.01" class="form-control" formControlName="magnesium"></div>
+          <div class="col-sm-2"><label class="form-label small" for="refNa">Na</label>
+            <input id="refNa" type="number" step="0.01" class="form-control" formControlName="sodium"></div>
+          <div class="col-sm-2"><label class="form-label small" for="refSo4">SO₄</label>
+            <input id="refSo4" type="number" step="0.01" class="form-control" formControlName="sulfate"></div>
+          <div class="col-sm-2"><label class="form-label small" for="refCl">Cl</label>
+            <input id="refCl" type="number" step="0.01" class="form-control" formControlName="chloride"></div>
+          <div class="col-sm-2"><label class="form-label small" for="refHco3">HCO₃</label>
+            <input id="refHco3" type="number" step="0.01" class="form-control" formControlName="bicarbonate"></div>
+          <div class="col-sm-3 d-grid">
+            <button type="submit" class="btn btn-primary" [disabled]="refForm.invalid || store.submitting()">
+              <i class="ri-add-line me-1"></i> Criar perfil de referência
+            </button>
+          </div>
+        </form>
+
+        <div class="mt-4">
+          @if (store.loadingReferenceProfiles()) {
+            <app-loading-indicator />
+          } @else if (store.noReferenceProfiles()) {
+            <app-empty-state icon="ri-drop-line" message="Nenhum perfil de referência."
+                             hint="Crie um acima (água de cidade, educativa)." />
+          } @else {
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Nome</th><th>Edição</th><th>Escopo</th><th>Balanço de cargas</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                  @for (p of store.referenceProfiles(); track p.id) {
+                    <tr>
+                      <td class="fw-semibold">{{ p.name }} <span class="text-muted small">{{ p.region }}</span></td>
+                      <td>{{ p.edition }}</td>
+                      <td>
+                        @if (p.global) { <span class="badge text-bg-secondary">global</span> }
+                        @else { <span class="text-muted small">cervejaria</span> }
+                      </td>
+                      <td>
+                        @if (p.chargeBalance.withinTolerance) {
+                          <span class="badge bg-success-subtle text-success-emphasis">consistente ({{ p.chargeBalance.percentDifference }}%)</span>
+                        } @else {
+                          <span class="badge bg-warning-subtle text-warning-emphasis"
+                                title="Diferença de cargas acima da tolerância — apenas alerta">inconsistente ({{ p.chargeBalance.percentDifference }}%)</span>
+                        }
+                      </td>
+                      <td>
+                        <span class="badge" [class.bg-success-subtle]="p.status === 'PUBLISHED'"
+                              [class.text-success-emphasis]="p.status === 'PUBLISHED'"
+                              [class.bg-secondary-subtle]="p.status !== 'PUBLISHED'"
+                              [class.text-secondary-emphasis]="p.status !== 'PUBLISHED'">{{ p.status }}</span>
+                      </td>
+                      <td class="text-end">
+                        @if (p.status === 'DRAFT') {
+                          <button type="button" class="btn btn-sm btn-outline-success" (click)="publishReferenceProfile(p.id)">
+                            <i class="ri-checkbox-circle-line me-1"></i> Publicar
+                          </button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+    </div>

@@ -35,12 +35,62 @@ export class WaterPageComponent implements OnInit {
     bicarbonate: [0, [Validators.required, Validators.min(0)]],
   });
 
+  protected readonly refForm = this.fb.nonNullable.group({
+    name: ['', Validators.required],
+    region: '',
+    edition: ['', Validators.required],
+    calcium: [0, [Validators.required, Validators.min(0)]],
+    magnesium: [0, [Validators.required, Validators.min(0)]],
+    sodium: [0, [Validators.required, Validators.min(0)]],
+    sulfate: [0, [Validators.required, Validators.min(0)]],
+    chloride: [0, [Validators.required, Validators.min(0)]],
+    bicarbonate: [0, [Validators.required, Validators.min(0)]],
+    alkalinity: this.fb.control<number | null>(null),
+    hardness: this.fb.control<number | null>(null),
+    ph: this.fb.control<number | null>(null),
+    sourceName: '',
+  });
+
   ngOnInit(): void {
     this.store.loadSources();
+    this.store.loadReferenceProfiles();
   }
 
   protected onSelect(sourceId: string): void {
     this.store.select(sourceId || null);
+  }
+
+  protected createReferenceProfile(): void {
+    if (this.refForm.invalid) {
+      return;
+    }
+    const v = this.refForm.getRawValue();
+    this.store.createReferenceProfile(
+      {
+        name: v.name,
+        region: v.region || null,
+        edition: v.edition,
+        calcium: v.calcium,
+        magnesium: v.magnesium,
+        sodium: v.sodium,
+        sulfate: v.sulfate,
+        chloride: v.chloride,
+        bicarbonate: v.bicarbonate,
+        alkalinity: v.alkalinity,
+        hardness: v.hardness,
+        ph: v.ph,
+        sourceId: null,
+        sourceName: v.sourceName || null,
+      },
+      () => this.refForm.reset({
+        name: '', region: '', edition: '', calcium: 0, magnesium: 0, sodium: 0, sulfate: 0, chloride: 0,
+        bicarbonate: 0, alkalinity: null, hardness: null, ph: null, sourceName: '',
+      }),
+    );
+  }
+
+  protected publishReferenceProfile(id: string): void {
+    this.store.publishReferenceProfile(id);
   }
 
   protected createSource(): void {

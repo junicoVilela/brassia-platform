@@ -5,6 +5,7 @@ import {
   Ingredient,
   IngredientType,
   RegisterIngredientRequest,
+  Substitutions,
   TechnicalProfile,
 } from '../domain/ingredient.model';
 
@@ -46,5 +47,9 @@ export class IngredientsApi {
 
   publishProfile(ingredientId: string) {
     return this.http.post<{ status: string }>(`${this.baseUrl}/${ingredientId}/technical-profile/publish`, {});
+  }
+
+  substitutions(ingredientId: string) {
+    return this.http.get<Substitutions>(`${this.baseUrl}/${ingredientId}/substitutions`);
   }
 }

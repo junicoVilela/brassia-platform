@@ -48,6 +48,32 @@ export interface TechnicalProfile {
   status: string;
 }
 
+export interface SubstitutionComparison {
+  property: string;
+  target: number;
+  candidate: number;
+  unit: string | null;
+  similar: boolean;
+}
+
+export interface SubstitutionMatch {
+  ingredientId: string;
+  code: string;
+  name: string;
+  sourceName: string | null;
+  score: number;
+  confidence: string;
+  comparisons: SubstitutionComparison[];
+}
+
+export interface Substitutions {
+  ingredientId: string;
+  code: string;
+  name: string;
+  hasProfile: boolean;
+  matches: SubstitutionMatch[];
+}
+
 export interface CreateTechnicalProfileRequest {
   manufacturer: string | null;
   origin: string | null;

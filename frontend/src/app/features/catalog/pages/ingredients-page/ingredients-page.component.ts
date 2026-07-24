@@ -1,3 +1,4 @@
+import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { UiSearchService } from '../../../../core/search/ui-search.service';
@@ -15,7 +16,7 @@ import {
 @Component({
   selector: 'app-ingredients-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, PageHeaderComponent, EmptyStateComponent, LoadingIndicatorComponent],
+  imports: [DecimalPipe, ReactiveFormsModule, PageHeaderComponent, EmptyStateComponent, LoadingIndicatorComponent],
   providers: [IngredientsStore],
   templateUrl: './ingredients-page.component.html',
 })
@@ -110,5 +111,9 @@ export class IngredientsPageComponent implements OnInit {
 
   protected publishProfile(): void {
     this.store.publishProfile();
+  }
+
+  protected loadSubstitutions(): void {
+    this.store.loadSubstitutions();
   }
 }

@@ -103,3 +103,102 @@ export interface SubmitImportJobRequest {
   contentType: string;
   rawPayload: string;
 }
+
+export type StyleAuthority =
+  | 'BJCP_BEER'
+  | 'BJCP_MEAD'
+  | 'BJCP_CIDER'
+  | 'BREWERS_ASSOCIATION'
+  | 'INTERNAL';
+
+export const STYLE_AUTHORITIES: StyleAuthority[] = [
+  'BJCP_BEER',
+  'BJCP_MEAD',
+  'BJCP_CIDER',
+  'BREWERS_ASSOCIATION',
+  'INTERNAL',
+];
+
+export interface StyleRange {
+  min: number | null;
+  max: number | null;
+  unit: string | null;
+}
+
+export interface StyleSet {
+  id: string;
+  global: boolean;
+  authority: string;
+  edition: string;
+  language: string;
+  permissionStatus: string;
+  status: string;
+  publishedAt: string | null;
+}
+
+export interface Style {
+  code: string;
+  name: string;
+  family: string | null;
+  category: string | null;
+  og: StyleRange;
+  fg: StyleRange;
+  abv: StyleRange;
+  ibu: StyleRange;
+  color: StyleRange;
+  generalImpression: string | null;
+  hasDetailedProfile: boolean;
+}
+
+export interface StyleSetDetail {
+  id: string;
+  global: boolean;
+  authority: string;
+  edition: string;
+  language: string;
+  permissionStatus: string;
+  status: string;
+  styles: Style[];
+}
+
+export interface RangeCheck {
+  metric: string;
+  value: number;
+  min: number | null;
+  max: number | null;
+  unit: string | null;
+  withinRange: boolean;
+}
+
+export interface CompareStyleResult {
+  styleCode: string;
+  styleName: string;
+  checks: RangeCheck[];
+}
+
+export interface CompareStyleRequest {
+  og: number | null;
+  fg: number | null;
+  abv: number | null;
+  ibu: number | null;
+  colorEbc: number | null;
+}
+
+export interface CreateStyleSetRequest {
+  sourceId: string;
+  authority: StyleAuthority;
+  edition: string;
+  language: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  attribution: string | null;
+  styles: {
+    code: string;
+    name: string;
+    family: string | null;
+    og: StyleRange;
+    ibu: StyleRange;
+    generalImpression: string | null;
+    detailedProfile: string | null;
+  }[];
+}

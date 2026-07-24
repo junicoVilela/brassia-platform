@@ -1,0 +1,217 @@
+<app-page-header title="Estilos cervejeiros" subtitle="Conjuntos versionados por autoridade/edição e comparação com a receita" />
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Criar conjunto</h2>
+    <form [formGroup]="form" (ngSubmit)="create()" class="row g-3 align-items-end">
+      <div class="col-sm-4">
+        <label class="form-label" for="sourceId">Fonte</label>
+        <select id="sourceId" class="form-select" formControlName="sourceId">
+          <option value="">Selecione…</option>
+          @for (s of store.sources(); track s.id) {
+            <option [value]="s.id">{{ s.name }} ({{ s.permissionStatus }})</option>
+          }
+        </select>
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label" for="authority">Autoridade</label>
+        <select id="authority" class="form-select" formControlName="authority">
+          @for (a of authorities; track a) { <option [value]="a">{{ a }}</option> }
+        </select>
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label" for="edition">Edição</label>
+        <input id="edition" type="text" class="form-control" formControlName="edition" placeholder="2021">
+      </div>
+      <div class="col-sm-1">
+        <label class="form-label" for="language">Idioma</label>
+        <input id="language" type="text" class="form-control" formControlName="language" placeholder="en">
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label" for="effectiveFrom">Vigente de</label>
+        <input id="effectiveFrom" type="datetime-local" class="form-control" formControlName="effectiveFrom">
+      </div>
+
+      <div class="col-12"><hr class="my-1"><span class="text-muted small">Estilo inicial do conjunto</span></div>
+      <div class="col-sm-2">
+        <label class="form-label" for="styleCode">Código</label>
+        <input id="styleCode" type="text" class="form-control" formControlName="styleCode" placeholder="21A">
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label" for="styleName">Nome</label>
+        <input id="styleName" type="text" class="form-control" formControlName="styleName" placeholder="American IPA">
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label" for="styleFamily">Família</label>
+        <input id="styleFamily" type="text" class="form-control" formControlName="styleFamily" placeholder="IPA">
+      </div>
+      <div class="col-sm-1"><label class="form-label small" for="ogMin">OG mín</label>
+        <input id="ogMin" type="number" step="0.001" class="form-control" formControlName="ogMin"></div>
+      <div class="col-sm-1"><label class="form-label small" for="ogMax">OG máx</label>
+        <input id="ogMax" type="number" step="0.001" class="form-control" formControlName="ogMax"></div>
+      <div class="col-sm-1"><label class="form-label small" for="ibuMin">IBU mín</label>
+        <input id="ibuMin" type="number" step="0.1" class="form-control" formControlName="ibuMin"></div>
+      <div class="col-sm-1"><label class="form-label small" for="ibuMax">IBU máx</label>
+        <input id="ibuMax" type="number" step="0.1" class="form-control" formControlName="ibuMax"></div>
+      <div class="col-sm-8">
+        <label class="form-label" for="generalImpression">Impressão geral (permitida)</label>
+        <input id="generalImpression" type="text" class="form-control" formControlName="generalImpression">
+      </div>
+      <div class="col-sm-4 d-grid">
+        <button type="submit" class="btn btn-primary" [disabled]="form.invalid || store.submitting()">
+          <i class="ri-add-line me-1"></i> Criar conjunto
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+@if (store.actionError(); as actionError) {
+  <div class="alert alert-danger" role="alert">{{ actionError }}</div>
+}
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Conjuntos</h2>
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-medal-line" message="Nenhum conjunto de estilos cadastrado."
+                       hint="Crie o primeiro no formulário acima." />
+    } @else if (filtered().length === 0) {
+      <app-empty-state icon="ri-search-line" message="Nenhum conjunto encontrado para a busca." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Autoridade</th><th>Edição</th><th>Idioma</th><th>Permissão</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            @for (set of filtered(); track set.id) {
+              <tr [class.table-active]="set.id === store.detail()?.id">
+                <td class="fw-semibold">{{ set.authority }}</td>
+                <td>{{ set.edition }}</td>
+                <td>{{ set.language }}</td>
+                <td><span class="badge" [class]="permissionClass(set.permissionStatus)">{{ set.permissionStatus }}</span></td>
+                <td>
+                  <span class="badge" [class.bg-success-subtle]="set.status === 'PUBLISHED'"
+                        [class.text-success-emphasis]="set.status === 'PUBLISHED'"
+                        [class.bg-secondary-subtle]="set.status !== 'PUBLISHED'"
+                        [class.text-secondary-emphasis]="set.status !== 'PUBLISHED'">{{ set.status }}</span>
+                </td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="onSelect(set.id)">
+                    <i class="ri-list-check me-1"></i> Estilos
+                  </button>
+                  @if (canPublish(set)) {
+                    <button type="button" class="btn btn-sm btn-outline-success" (click)="publish(set.id)">
+                      <i class="ri-checkbox-circle-line me-1"></i> Publicar
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
+
+@if (store.loadingDetail()) {
+  <div class="card border-0 rounded-10"><div class="card-body p-4"><app-loading-indicator /></div></div>
+} @else if (store.detail(); as detail) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-3">
+        Estilos — {{ detail.authority }} {{ detail.edition }} ({{ detail.language }})
+        <span class="badge ms-1" [class]="permissionClass(detail.permissionStatus)">{{ detail.permissionStatus }}</span>
+      </h2>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Código</th><th>Nome</th><th>Família</th><th>OG</th><th>IBU</th><th>Impressão geral</th><th>Perfil</th></tr></thead>
+          <tbody>
+            @for (style of detail.styles; track style.code) {
+              <tr>
+                <td class="fw-semibold">{{ style.code }}</td>
+                <td>{{ style.name }}</td>
+                <td>{{ style.family ?? '—' }}</td>
+                <td class="small">{{ style.og.min ?? '—' }}–{{ style.og.max ?? '—' }}</td>
+                <td class="small">{{ style.ibu.min ?? '—' }}–{{ style.ibu.max ?? '—' }}</td>
+                <td class="small">{{ style.generalImpression ?? '—' }}</td>
+                <td>
+                  @if (style.hasDetailedProfile) {
+                    <span class="badge text-bg-success">integral</span>
+                  } @else {
+                    <span class="badge text-bg-secondary" title="Conteúdo restrito pela permissão da fonte">restrito</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 rounded-10">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-3">Comparar metas da receita com o estilo</h2>
+      <form [formGroup]="compareForm" (ngSubmit)="compare()" class="row g-3 align-items-end">
+        <div class="col-sm-3">
+          <label class="form-label" for="cmpCode">Estilo</label>
+          <select id="cmpCode" class="form-select" formControlName="styleCode">
+            <option value="">Selecione…</option>
+            @for (style of detail.styles; track style.code) {
+              <option [value]="style.code">{{ style.code }} — {{ style.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-sm-2"><label class="form-label small" for="cmpOg">OG</label>
+          <input id="cmpOg" type="number" step="0.001" class="form-control" formControlName="og"></div>
+        <div class="col-sm-2"><label class="form-label small" for="cmpAbv">ABV</label>
+          <input id="cmpAbv" type="number" step="0.01" class="form-control" formControlName="abv"></div>
+        <div class="col-sm-2"><label class="form-label small" for="cmpIbu">IBU</label>
+          <input id="cmpIbu" type="number" step="0.1" class="form-control" formControlName="ibu"></div>
+        <div class="col-sm-2"><label class="form-label small" for="cmpColor">Cor (EBC)</label>
+          <input id="cmpColor" type="number" step="0.1" class="form-control" formControlName="colorEbc"></div>
+        <div class="col-sm-1 d-grid">
+          <button type="submit" class="btn btn-outline-primary" [disabled]="compareForm.invalid">
+            <i class="ri-git-compare-line"></i>
+          </button>
+        </div>
+      </form>
+
+      @if (store.comparison(); as comparison) {
+        <div class="border rounded-10 p-3 mt-3">
+          <h3 class="h6 fw-semibold mb-2">{{ comparison.styleCode }} — {{ comparison.styleName }}</h3>
+          @if (comparison.checks.length === 0) {
+            <p class="text-muted mb-0">Nenhum parâmetro comparável (metas ausentes ou estilo sem faixas).</p>
+          } @else {
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Meta</th><th class="text-end">Valor</th><th class="text-end">Faixa</th><th></th></tr></thead>
+                <tbody>
+                  @for (check of comparison.checks; track check.metric) {
+                    <tr>
+                      <td class="fw-semibold">{{ check.metric }}</td>
+                      <td class="text-end">{{ check.value }}</td>
+                      <td class="text-end">{{ check.min ?? '—' }}–{{ check.max ?? '—' }} {{ check.unit }}</td>
+                      <td class="text-end">
+                        @if (check.withinRange) {
+                          <span class="badge bg-success-subtle text-success-emphasis">na faixa</span>
+                        } @else {
+                          <span class="badge bg-warning-subtle text-warning-emphasis" title="Aviso — nunca bloqueia a receita">fora da faixa</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+}

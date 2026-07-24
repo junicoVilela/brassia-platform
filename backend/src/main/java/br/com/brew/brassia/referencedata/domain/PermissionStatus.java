@@ -16,4 +16,13 @@ public enum PermissionStatus {
     public boolean allowsPublish() {
         return this == LIMITED_PERMISSION || this == GRANTED;
     }
+
+    /**
+     * Permissão para embutir o conteúdo integral (texto sensorial detalhado).
+     * Com {@code LIMITED_PERMISSION} restringe-se a código, nome, parâmetros e
+     * impressão geral; o conteúdo integral exige {@code GRANTED}.
+     */
+    public boolean allowsFullContent() {
+        return this == GRANTED;
+    }
 }

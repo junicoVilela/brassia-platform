@@ -32,9 +32,15 @@
             </a>
           </li>
           <li class="menu-item">
-            <a routerLink="/reference" routerLinkActive="active" class="menu-link">
+            <a routerLink="/reference" routerLinkActive="active" class="menu-link" [routerLinkActiveOptions]="{ exact: true }">
               <i class="ri-database-2-line menu-icon"></i>
               <span class="title">Dados de referência</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a routerLink="/reference/styles" routerLinkActive="active" class="menu-link">
+              <i class="ri-medal-line menu-icon"></i>
+              <span class="title">Estilos</span>
             </a>
           </li>
           <li class="menu-item">

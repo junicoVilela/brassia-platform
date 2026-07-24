@@ -1,11 +1,16 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import {
+  CompareStyleRequest,
+  CompareStyleResult,
+  CreateStyleSetRequest,
   ImportJob,
   ReferenceDataset,
   ReferenceSource,
   RecordReferenceDatasetRequest,
   RegisterReferenceSourceRequest,
+  StyleSet,
+  StyleSetDetail,
   SubmitImportJobRequest,
 } from '../domain/reference.model';
 
@@ -54,5 +59,30 @@ export class ReferenceApi {
 
   publishJob(jobId: string) {
     return this.http.post<ImportJob>(`${this.baseUrl}/import-jobs/${jobId}/publish`, {});
+  }
+
+  listStyleSets() {
+    return this.http.get<PageResponse<StyleSet>>(`${this.baseUrl}/style-sets`, {
+      params: { page: '0', size: '100' },
+    });
+  }
+
+  getStyleSet(id: string) {
+    return this.http.get<StyleSetDetail>(`${this.baseUrl}/style-sets/${id}`);
+  }
+
+  createStyleSet(request: CreateStyleSetRequest) {
+    return this.http.post<{ id: string }>(`${this.baseUrl}/style-sets`, request);
+  }
+
+  publishStyleSet(id: string) {
+    return this.http.post<{ id: string; status: string }>(`${this.baseUrl}/style-sets/${id}/publish`, {});
+  }
+
+  compareStyle(setId: string, code: string, request: CompareStyleRequest) {
+    return this.http.post<CompareStyleResult>(
+      `${this.baseUrl}/style-sets/${setId}/styles/${code}/compare`,
+      request,
+    );
   }
 }

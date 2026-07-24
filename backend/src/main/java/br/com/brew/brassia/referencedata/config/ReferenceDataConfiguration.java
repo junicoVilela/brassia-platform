@@ -1,7 +1,12 @@
 package br.com.brew.brassia.referencedata.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.referencedata.application.port.inbound.CompareToStyleUseCase;
+import br.com.brew.brassia.referencedata.application.port.inbound.CreateStyleSetUseCase;
 import br.com.brew.brassia.referencedata.application.port.inbound.ListImportJobsUseCase;
+import br.com.brew.brassia.referencedata.application.port.inbound.ListStyleSetsUseCase;
+import br.com.brew.brassia.referencedata.application.port.inbound.PublishStyleSetUseCase;
+import br.com.brew.brassia.referencedata.application.port.inbound.StyleSetDetailUseCase;
 import br.com.brew.brassia.referencedata.application.port.inbound.ListReferenceDatasetsUseCase;
 import br.com.brew.brassia.referencedata.application.port.inbound.ListReferenceSourcesUseCase;
 import br.com.brew.brassia.referencedata.application.port.inbound.PublishImportJobUseCase;
@@ -13,7 +18,13 @@ import br.com.brew.brassia.referencedata.application.port.outbound.ImportJobRepo
 import br.com.brew.brassia.referencedata.application.port.outbound.ReferenceDataEventPublisher;
 import br.com.brew.brassia.referencedata.application.port.outbound.ReferenceDatasetRepository;
 import br.com.brew.brassia.referencedata.application.port.outbound.ReferenceSourceRepository;
+import br.com.brew.brassia.referencedata.application.port.outbound.StyleSetRepository;
+import br.com.brew.brassia.referencedata.application.service.CompareToStyleHandler;
+import br.com.brew.brassia.referencedata.application.service.CreateStyleSetHandler;
 import br.com.brew.brassia.referencedata.application.service.ImportPayloadValidator;
+import br.com.brew.brassia.referencedata.application.service.ListStyleSetsHandler;
+import br.com.brew.brassia.referencedata.application.service.PublishStyleSetHandler;
+import br.com.brew.brassia.referencedata.application.service.StyleSetDetailHandler;
 import br.com.brew.brassia.referencedata.application.service.ListImportJobsHandler;
 import br.com.brew.brassia.referencedata.application.service.ListReferenceDatasetsHandler;
 import br.com.brew.brassia.referencedata.application.service.ListReferenceSourcesHandler;
@@ -89,5 +100,36 @@ class ReferenceDataConfiguration {
     @Bean
     ListImportJobsUseCase listImportJobsUseCase(ReferenceSourceRepository sources, ImportJobRepository jobs) {
         return new ListImportJobsHandler(sources, jobs);
+    }
+
+    @Bean
+    CreateStyleSetUseCase createStyleSetUseCase(ReferenceSourceRepository sources, StyleSetRepository styleSets,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new CreateStyleSetHandler(sources, styleSets, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    PublishStyleSetUseCase publishStyleSetUseCase(StyleSetRepository styleSets, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new PublishStyleSetHandler(styleSets, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ListStyleSetsUseCase listStyleSetsUseCase(StyleSetRepository styleSets) {
+        return new ListStyleSetsHandler(styleSets);
+    }
+
+    @Bean
+    StyleSetDetailUseCase styleSetDetailUseCase(StyleSetRepository styleSets) {
+        return new StyleSetDetailHandler(styleSets);
+    }
+
+    @Bean
+    CompareToStyleUseCase compareToStyleUseCase(StyleSetRepository styleSets) {
+        return new CompareToStyleHandler(styleSets);
     }
 }

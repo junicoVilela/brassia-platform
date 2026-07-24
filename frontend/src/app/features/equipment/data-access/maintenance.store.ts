@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
+import { ToastService } from '../../../core/notifications/toast.service';
 import { Equipment } from '../domain/equipment.model';
 import { Maintenance, ScheduleMaintenanceRequest } from '../domain/maintenance.model';
 import { EquipmentApi } from './equipment.api';
@@ -11,6 +12,7 @@ import { MaintenanceApi } from './maintenance.api';
 export class MaintenanceStore {
   private readonly equipmentApi = inject(EquipmentApi);
   private readonly api = inject(MaintenanceApi);
+  private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly equipmentState = signal<Equipment[]>([]);
@@ -71,6 +73,7 @@ export class MaintenanceStore {
       .subscribe({
         next: () => {
           onSuccess?.();
+          this.toast.success('Manutenção agendada.');
           this.loadWindows();
         },
         error: () => this.actionError.set('Não foi possível agendar (equipamento indisponível no período ou dados inválidos).'),
@@ -85,7 +88,7 @@ export class MaintenanceStore {
     this.api.cancel(id, maintenanceId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => this.loadWindows(),
+        next: () => { this.toast.success('Janela de manutenção cancelada.'); this.loadWindows(); },
         error: () => this.actionError.set('Não foi possível cancelar a janela.'),
       });
   }

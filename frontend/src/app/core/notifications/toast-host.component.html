@@ -1,0 +1,12 @@
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;" aria-live="polite" aria-atomic="true">
+  @for (t of toast.toasts(); track t.id) {
+    <div class="toast show border-0 shadow-sm mb-2" role="alert">
+      <div class="toast-body d-flex align-items-start gap-2">
+        <i class="{{ icon(t.kind) }} {{ accent(t.kind) }} fs-5 lh-1 mt-1"></i>
+        <span class="flex-grow-1 pt-1">{{ t.text }}</span>
+        <button type="button" class="btn-close ms-2" aria-label="Fechar"
+                (click)="toast.dismiss(t.id)"></button>
+      </div>
+    </div>
+  }
+</div>

@@ -1,6 +1,5 @@
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
-      <h1 class="h4 mb-0 fw-semibold">Água — fontes e laudos</h1>
-    </div>
+    <app-page-header title="Água — fontes e laudos" subtitle="Fontes de água e histórico de análises físico-químicas" />
+
 
     <div class="card border-0 rounded-10 mb-4">
       <div class="card-body p-4">
@@ -23,8 +22,13 @@
       </div>
     </div>
 
+    @if (store.actionError(); as actionError) {
+      <div class="alert alert-danger" role="alert">{{ actionError }}</div>
+    }
+
     <div class="card border-0 rounded-10 mb-4">
       <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-3">Selecionar fonte</h2>
         <label class="form-label" for="source">Fonte</label>
         <select id="source" class="form-select" (change)="onSelect($any($event.target).value)">
           <option value="">Selecione uma fonte…</option>
@@ -32,6 +36,9 @@
             <option [value]="s.id">{{ s.code }} — {{ s.name }}</option>
           }
         </select>
+        @if (store.sources().length === 0) {
+          <p class="text-muted small mb-0 mt-2">Cadastre uma fonte acima para registrar laudos.</p>
+        }
       </div>
     </div>
 
@@ -82,9 +89,6 @@
               </button>
             </div>
           </form>
-          @if (store.actionError(); as actionError) {
-            <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
-          }
         </div>
       </div>
 
@@ -92,12 +96,13 @@
         <div class="card-body p-4">
           <h2 class="h6 fw-semibold mb-3">Histórico de laudos</h2>
           @if (store.loadingReports()) {
-            <p class="text-muted mb-0"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</p>
+            <app-loading-indicator />
           } @else if (store.noReports()) {
-            <p class="text-muted mb-0">Nenhum laudo para esta fonte.</p>
+            <app-empty-state icon="ri-flask-line" message="Nenhum laudo para esta fonte."
+                             hint="Registre um laudo no formulário acima." />
           } @else {
             <div class="table-responsive">
-              <table class="table align-middle mb-0">
+              <table class="table table-hover align-middle mb-0">
                 <thead>
                   <tr>
                     <th>Data</th><th>Método</th><th class="text-end">Ca</th><th class="text-end">Mg</th>

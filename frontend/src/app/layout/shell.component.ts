@@ -1,6 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../core/auth/auth.service';
+import { ToastHostComponent } from '../core/notifications/toast-host.component';
+import { ThemeModeService } from '../core/theme/theme-mode.service';
+import { UiSearchService } from '../core/search/ui-search.service';
 
 /**
  * Shell de layout (tema Fila): sidebar + header + área de conteúdo + footer.
@@ -10,7 +15,7 @@ import { AuthService } from '../core/auth/auth.service';
 @Component({
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastHostComponent],
   host: {
     '[attr.sidebar-data-theme]': "collapsed() ? 'sidebar-hide' : null",
   },
@@ -19,11 +24,28 @@ import { AuthService } from '../core/auth/auth.service';
 })
 export class ShellComponent {
   protected readonly auth = inject(AuthService);
+  protected readonly theme = inject(ThemeModeService);
+  protected readonly search = inject(UiSearchService);
   private readonly router = inject(Router);
   protected readonly collapsed = signal(false);
 
+  constructor() {
+    // A busca é contextual à tela; limpa ao trocar de rota.
+    this.router.events
+      .pipe(filter(event => event instanceof NavigationEnd), takeUntilDestroyed())
+      .subscribe(() => this.search.clear());
+  }
+
   protected toggle(): void {
     this.collapsed.update(value => !value);
+  }
+
+  protected onSearch(value: string): void {
+    this.search.set(value);
+  }
+
+  protected toggleTheme(): void {
+    this.theme.toggle();
   }
 
   protected initials(): string {

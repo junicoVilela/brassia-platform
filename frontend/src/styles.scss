@@ -8,3 +8,44 @@ body {
   color: var(--color-text);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
+
+/**
+ * Coesão do modo escuro. O tema Fila expõe o dark via `[data-theme=dark]` +
+ * toggles independentes de sidebar/header (aplicados juntos pelo ThemeModeService).
+ * As cores de texto/ícone do sidebar-dark do tema já funcionam; apenas os FUNDOS
+ * da chrome não se aplicam de forma consistente (regras do tema presas em
+ * media-query de 1200–1399px e injetadas após o nosso CSS). Reforçamos só os
+ * fundos, com a paleta exata do tema (#1b232d), sem reinventar o visual.
+ */
+[data-theme='dark'] {
+  // Canvas: o tema não escurece o fundo do conteúdo (`bg-body-bg`) de forma
+  // consistente, deixando os cards escuros sobre um fundo claro. Fixamos um
+  // canvas escuro (mais fundo que os cards #28333f) para coesão total.
+  body,
+  .bg-body-bg {
+    background-color: #12181f !important;
+  }
+
+  // Chrome (sidebar/header/footer): o tema não aplica os fundos de forma
+  // consistente no nosso setup; reforçamos os contêineres com a paleta do tema.
+  // `.menu-link` fica de fora para preservar hover/active do próprio tema.
+  .sidebar-area,
+  .sidebar-area .logo,
+  .sidebar-area .layout-menu,
+  .sidebar-area .menu-inner,
+  .sidebar-area .menu-item,
+  .sidebar-area .menu-title {
+    background-color: #1b232d !important;
+  }
+
+  .header-area,
+  .footer-area {
+    background-color: #1b232d !important;
+  }
+
+  // O título da página fica fora de card; o tema pinta headings escuros mesmo no
+  // dark — forçamos contraste (o subtítulo permanece `text-muted`, proposital).
+  app-page-header h1 {
+    color: #e7ebf3 !important;
+  }
+}

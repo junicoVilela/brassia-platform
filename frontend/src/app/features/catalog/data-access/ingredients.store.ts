@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
+import { ToastService } from '../../../core/notifications/toast.service';
 import { Ingredient, IngredientType, RegisterIngredientRequest } from '../domain/ingredient.model';
 import { IngredientsApi } from './ingredients.api';
 
@@ -8,6 +9,7 @@ import { IngredientsApi } from './ingredients.api';
 @Injectable()
 export class IngredientsStore {
   private readonly api = inject(IngredientsApi);
+  private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly itemsState = signal<Ingredient[]>([]);
   private readonly typeFilterState = signal<IngredientType | null>(null);
@@ -44,6 +46,7 @@ export class IngredientsStore {
       .subscribe({
         next: () => {
           onSuccess?.();
+          this.toast.success('Ingrediente cadastrado.');
           this.load();
         },
         error: () => this.actionError.set('Não foi possível cadastrar o ingrediente (código duplicado ou valor inválido).'),

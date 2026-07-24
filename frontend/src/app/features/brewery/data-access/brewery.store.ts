@@ -7,12 +7,14 @@ import {
   RegisterBreweryRequest,
   UpdatePreferencesRequest,
 } from '../domain/brewery.model';
+import { ToastService } from '../../../core/notifications/toast.service';
 import { BreweryApi } from './brewery.api';
 
 /** Estado da tela de cervejarias: listagem, cadastro e preferências da ativa. */
 @Injectable()
 export class BreweryStore {
   private readonly api = inject(BreweryApi);
+  private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly itemsState = signal<BrewerySummary[]>([]);
   private readonly preferencesState = signal<OperationalPreferences | null>(null);
@@ -58,6 +60,7 @@ export class BreweryStore {
       .subscribe({
         next: () => {
           onSuccess?.();
+          this.toast.success('Cervejaria cadastrada.');
           this.load();
         },
         error: () => this.actionError.set('Não foi possível cadastrar a cervejaria.'),
@@ -70,7 +73,10 @@ export class BreweryStore {
     this.api.updatePreferences(request)
       .pipe(finalize(() => this.submitting.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: prefs => this.preferencesState.set(prefs),
+        next: prefs => {
+          this.preferencesState.set(prefs);
+          this.toast.success('Preferências salvas.');
+        },
         error: () => this.actionError.set('Não foi possível salvar as preferências (conflito ou valor inválido).'),
       });
   }

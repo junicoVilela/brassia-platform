@@ -16,7 +16,7 @@ documentação (ADRs, diagramas, roadmap e referências) foi consolidada sob `do
 > migrations Flyway, Problem Details (RFC 9457), auditoria/observabilidade e CI
 > (GitHub Actions) verdes. Estado e evidências por história em
 > `sprints/sprint-03-recipe-engine/STATUS.md`.
-> Próximo: Sprint 04 (planejamento e ordens de produção).
+> Próximo: Sprint 04 (dados de referência e interoperabilidade).
 
 ## Refatorações de qualidade (SOLID / Clean Code)
 
@@ -90,8 +90,8 @@ Consulte `docs/19_LOCAL_ENVIRONMENT.md` para subida, reset e diagnóstico.
 
 ## Próximo passo
 
-Iniciar a **Sprint 04** (planejamento e ordens de produção) a partir de
-`sprints/sprint-04-planning-orders/`.
+Iniciar a **Sprint 04** (dados de referência e interoperabilidade) a partir de
+`sprints/sprint-04-reference-data-interoperability/`.
 
 ## Licença
 

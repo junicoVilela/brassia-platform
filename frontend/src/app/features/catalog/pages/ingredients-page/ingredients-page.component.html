@@ -76,17 +76,22 @@
             <table class="table table-hover align-middle mb-0">
               <thead>
                 <tr>
-                  <th>Tipo</th><th>Código</th><th>Nome</th><th>Un. uso</th><th>Un. compra</th>
+                  <th>Tipo</th><th>Código</th><th>Nome</th><th>Un. uso</th><th>Un. compra</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 @for (item of filtered(); track item.id) {
-                  <tr>
+                  <tr [class.table-active]="item.id === store.selectedId()">
                     <td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ item.type }}</span></td>
                     <td class="fw-semibold">{{ item.code }}</td>
                     <td>{{ item.name }}</td>
                     <td>{{ item.useUnit }}</td>
                     <td>{{ item.purchaseUnit }}</td>
+                    <td class="text-end">
+                      <button type="button" class="btn btn-sm btn-outline-primary" (click)="selectIngredient(item.id)">
+                        <i class="ri-flask-line me-1"></i> Perfil técnico
+                      </button>
+                    </td>
                   </tr>
                 }
               </tbody>
@@ -95,3 +100,88 @@
         }
       </div>
     </div>
+
+    @if (store.selected(); as ingredient) {
+      <div class="card border-0 rounded-10 mt-4">
+        <div class="card-body p-4">
+          <h2 class="h6 fw-semibold mb-1">Perfil técnico — {{ ingredient.code }} · {{ ingredient.name }}</h2>
+          <p class="text-muted small mb-3">Faixas de referência e proveniência. Valores por safra/lote pertencem ao estoque.</p>
+
+          @if (store.loadingProfile()) {
+            <app-loading-indicator />
+          } @else if (store.profile(); as profile) {
+            <div class="d-flex align-items-center gap-2 mb-3">
+              <span class="badge" [class.bg-success-subtle]="profile.status === 'PUBLISHED'"
+                    [class.text-success-emphasis]="profile.status === 'PUBLISHED'"
+                    [class.bg-secondary-subtle]="profile.status !== 'PUBLISHED'"
+                    [class.text-secondary-emphasis]="profile.status !== 'PUBLISHED'">{{ profile.status }}</span>
+              @if (profile.sourceName) { <span class="text-muted small">Fonte: {{ profile.sourceName }}</span> }
+              @if (profile.status === 'DRAFT') {
+                <button type="button" class="btn btn-sm btn-outline-success ms-auto" (click)="publishProfile()">
+                  <i class="ri-checkbox-circle-line me-1"></i> Publicar
+                </button>
+              }
+            </div>
+            <dl class="row mb-3">
+              @if (profile.manufacturer) { <dt class="col-sm-2 small text-muted">Fabricante</dt><dd class="col-sm-4">{{ profile.manufacturer }}</dd> }
+              @if (profile.origin) { <dt class="col-sm-2 small text-muted">Origem</dt><dd class="col-sm-4">{{ profile.origin }}</dd> }
+              @if (profile.laboratory) { <dt class="col-sm-2 small text-muted">Laboratório</dt><dd class="col-sm-4">{{ profile.laboratory }}</dd> }
+              @if (profile.form) { <dt class="col-sm-2 small text-muted">Forma</dt><dd class="col-sm-4">{{ profile.form }}</dd> }
+            </dl>
+            @if (rangeKeys().length > 0) {
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead><tr><th>Propriedade</th><th class="text-end">Mín</th><th class="text-end">Máx</th><th>Unidade</th></tr></thead>
+                  <tbody>
+                    @for (key of rangeKeys(); track key) {
+                      <tr>
+                        <td class="fw-semibold">{{ key }}</td>
+                        <td class="text-end">{{ profile.ranges[key].min ?? '—' }}</td>
+                        <td class="text-end">{{ profile.ranges[key].max ?? '—' }}</td>
+                        <td>{{ profile.ranges[key].unit ?? '' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+            @if (profile.descriptors.length > 0) {
+              <p class="small mb-0 mt-2">Descritores:
+                @for (d of profile.descriptors; track d) { <span class="badge text-bg-light me-1">{{ d }}</span> }
+              </p>
+            }
+          } @else if (store.noProfile()) {
+            <p class="text-muted small mb-3"><i class="ri-information-line me-1"></i> Este ingrediente ainda não tem perfil técnico. Crie abaixo (entra em revisão como rascunho).</p>
+            <form [formGroup]="profileForm" (ngSubmit)="createProfile()" class="row g-3 align-items-end">
+              <div class="col-sm-3"><label class="form-label" for="manufacturer">Fabricante</label>
+                <input id="manufacturer" type="text" class="form-control" formControlName="manufacturer"></div>
+              <div class="col-sm-3"><label class="form-label" for="origin">Origem</label>
+                <input id="origin" type="text" class="form-control" formControlName="origin"></div>
+              <div class="col-sm-3"><label class="form-label" for="laboratory">Laboratório</label>
+                <input id="laboratory" type="text" class="form-control" formControlName="laboratory"></div>
+              <div class="col-sm-3"><label class="form-label" for="sourceName">Fonte</label>
+                <input id="sourceName" type="text" class="form-control" formControlName="sourceName" placeholder="Yakima Chief"></div>
+              <div class="col-sm-3"><label class="form-label" for="property">Propriedade</label>
+                <input id="property" type="text" class="form-control" formControlName="property" placeholder="alphaAcid"></div>
+              <div class="col-sm-2"><label class="form-label small" for="propMin">Mín</label>
+                <input id="propMin" type="number" step="0.01" class="form-control" formControlName="propMin"></div>
+              <div class="col-sm-2"><label class="form-label small" for="propMax">Máx</label>
+                <input id="propMax" type="number" step="0.01" class="form-control" formControlName="propMax"></div>
+              <div class="col-sm-2"><label class="form-label small" for="propUnit">Unidade</label>
+                <input id="propUnit" type="text" class="form-control" formControlName="propUnit" placeholder="%"></div>
+              <div class="col-sm-3 d-grid">
+                <button type="submit" class="btn btn-primary" [disabled]="store.submitting()">
+                  <i class="ri-add-line me-1"></i> Criar perfil
+                </button>
+              </div>
+              <div class="col-12"><label class="form-label" for="descriptors">Descritores (vírgula)</label>
+                <input id="descriptors" type="text" class="form-control" formControlName="descriptors" placeholder="cítrico, resinoso"></div>
+            </form>
+          }
+
+          @if (store.actionError(); as actionError) {
+            <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+          }
+        </div>
+      </div>
+    }

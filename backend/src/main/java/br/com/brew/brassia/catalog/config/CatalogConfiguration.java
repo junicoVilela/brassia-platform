@@ -2,12 +2,19 @@ package br.com.brew.brassia.catalog.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.catalog.IngredientSpecLookup;
+import br.com.brew.brassia.catalog.application.port.inbound.CreateTechnicalProfileUseCase;
 import br.com.brew.brassia.catalog.application.port.inbound.ListIngredientsUseCase;
+import br.com.brew.brassia.catalog.application.port.inbound.PublishTechnicalProfileUseCase;
 import br.com.brew.brassia.catalog.application.port.inbound.RegisterIngredientUseCase;
+import br.com.brew.brassia.catalog.application.port.inbound.TechnicalProfileUseCase;
 import br.com.brew.brassia.catalog.application.port.inbound.UpdateIngredientUseCase;
 import br.com.brew.brassia.catalog.application.port.outbound.IngredientRepository;
+import br.com.brew.brassia.catalog.application.port.outbound.TechnicalProfileRepository;
+import br.com.brew.brassia.catalog.application.service.CreateTechnicalProfileHandler;
 import br.com.brew.brassia.catalog.application.service.ListIngredientsHandler;
+import br.com.brew.brassia.catalog.application.service.PublishTechnicalProfileHandler;
 import br.com.brew.brassia.catalog.application.service.RegisterIngredientHandler;
+import br.com.brew.brassia.catalog.application.service.TechnicalProfileHandler;
 import br.com.brew.brassia.catalog.application.service.UpdateIngredientHandler;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -51,6 +58,27 @@ class CatalogConfiguration {
                     number(attributes.get("alphaAcid")),
                     number(attributes.get("attenuation")));
         });
+    }
+
+    @Bean
+    CreateTechnicalProfileUseCase createTechnicalProfileUseCase(IngredientRepository ingredients,
+            TechnicalProfileRepository profiles, AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new CreateTechnicalProfileHandler(ingredients, profiles, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    PublishTechnicalProfileUseCase publishTechnicalProfileUseCase(TechnicalProfileRepository profiles,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new PublishTechnicalProfileHandler(profiles, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    TechnicalProfileUseCase technicalProfileUseCase(TechnicalProfileRepository profiles) {
+        return new TechnicalProfileHandler(profiles);
     }
 
     private static java.math.BigDecimal number(String raw) {

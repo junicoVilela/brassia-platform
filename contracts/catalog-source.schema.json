@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brassia.local/schemas/catalog-source.schema.json",
+  "title": "CatalogSource",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "code",
+    "name",
+    "sourceType",
+    "sourceUrl",
+    "permissionStatus",
+    "reviewPolicy"
+  ],
+  "properties": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z0-9_-]{2,50}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 160
+    },
+    "sourceType": {
+      "enum": [
+        "OFFICIAL_STANDARD",
+        "INTERCHANGE_STANDARD",
+        "MANUFACTURER",
+        "USER_INTEGRATION",
+        "MANUAL",
+        "BRASSIA_CURATED"
+      ]
+    },
+    "sourceUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "licenseName": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 120
+    },
+    "permissionStatus": {
+      "enum": [
+        "PENDING",
+        "LIMITED_PERMISSION",
+        "APPROVED",
+        "REJECTED",
+        "NOT_REQUIRED"
+      ]
+    },
+    "commercialUseAllowed": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "attributionText": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 1000
+    },
+    "reviewPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frequency"
+      ],
+      "properties": {
+        "frequency": {
+          "enum": [
+            "ON_DEMAND",
+            "MONTHLY",
+            "QUARTERLY",
+            "ANNUAL"
+          ]
+        },
+        "nextReviewAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        }
+      }
+    }
+  }
+}
+

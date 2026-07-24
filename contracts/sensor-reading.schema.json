@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brassia.local/schemas/sensor-reading.schema.json",
+  "title": "SensorReading",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "deviceId",
+    "externalReadingId",
+    "measuredAt"
+  ],
+  "properties": {
+    "deviceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "externalReadingId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "measuredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "temperatureC": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": -50,
+      "maximum": 200
+    },
+    "specificGravity": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0.8,
+      "maximum": 1.5
+    },
+    "pressureKpa": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 2000
+    },
+    "batteryPercent": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 100
+    },
+    "signal": {
+      "type": [
+        "number",
+        "null"
+      ]
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "temperatureC"
+      ]
+    },
+    {
+      "required": [
+        "specificGravity"
+      ]
+    },
+    {
+      "required": [
+        "pressureKpa"
+      ]
+    }
+  ]
+}
+

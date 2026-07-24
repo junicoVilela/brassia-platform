@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brassia.local/schemas/import-report.schema.json",
+  "title": "ImportReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "importId",
+    "source",
+    "format",
+    "status",
+    "summary",
+    "issues"
+  ],
+  "properties": {
+    "importId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "source": {
+      "type": "string",
+      "maxLength": 80
+    },
+    "format": {
+      "enum": [
+        "BEERJSON_1_0",
+        "BEERXML_1_0",
+        "BREWFATHER_V2",
+        "BREWERS_FRIEND_V1",
+        "CSV",
+        "XLSX",
+        "MANUAL"
+      ]
+    },
+    "status": {
+      "enum": [
+        "VALIDATING",
+        "READY_FOR_REVIEW",
+        "CONFIRMED",
+        "REJECTED",
+        "FAILED"
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "received",
+        "accepted",
+        "warnings",
+        "errors"
+      ],
+      "properties": {
+        "received": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accepted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warnings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "severity",
+          "code",
+          "path",
+          "message"
+        ],
+        "properties": {
+          "severity": {
+            "enum": [
+              "INFO",
+              "WARNING",
+              "ERROR"
+            ]
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "externalValue": {}
+        }
+      }
+    }
+  }
+}
+

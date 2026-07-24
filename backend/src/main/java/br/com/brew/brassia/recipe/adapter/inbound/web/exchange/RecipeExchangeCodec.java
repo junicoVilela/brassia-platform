@@ -24,7 +24,7 @@ import org.w3c.dom.NodeList;
 public class RecipeExchangeCodec {
     public enum Format { BEERJSON, BEERXML }
 
-    private static final Set<String> ROOT_FIELDS = Set.of("name", "equipmentId", "batchVolumeLiters",
+    private static final Set<String> ROOT_FIELDS = Set.of("version", "name", "equipmentId", "batchVolumeLiters",
             "boilTimeMinutes", "targetOgPoints", "targetIbu", "targetColorEbc", "targetAbv", "items");
     private static final Set<String> ITEM_FIELDS = Set.of("ingredientId", "stage", "quantity", "unit",
             "timingMinutes", "percentage");
@@ -53,6 +53,58 @@ public class RecipeExchangeCodec {
     public String write(Format format, RecipeDocument document) {
         return format == Format.BEERXML ? writeXml(document) : writeJson(document);
     }
+
+    /**
+     * Prévia (dry-run) da importação: analisa e valida sem persistir, reportando
+     * mapeamentos, avisos, campos não reconhecidos (perdas) e bloqueios. Base para
+     * o REC-007/REC-008 — o usuário confirma antes de importar de fato.
+     */
+    public ImportPreview preview(Format format, String content) {
+        var parsed = parse(format, content); // documento malformado → 400
+        var d = parsed.document();
+        var warnings = new ArrayList<String>();
+        var blocking = new ArrayList<String>();
+
+        if (format == Format.BEERJSON && !declaresVersion1(content)) {
+            warnings.add("BeerJSON sem \"version\": 1 declarada; assumindo a versão 1.0 fixada.");
+        }
+        if (format == Format.BEERXML) {
+            warnings.add("BeerXML pode representar menos dados que BrassIA/BeerJSON (etapas e precisão).");
+        }
+        if (isBlank(d.name())) {
+            blocking.add("nome ausente");
+        }
+        if (d.equipmentId() == null) {
+            blocking.add("equipmentId ausente");
+        }
+        if (d.batchVolumeLiters() == null) {
+            blocking.add("batchVolumeLiters ausente");
+        }
+        if (d.items() == null || d.items().isEmpty()) {
+            blocking.add("ao menos um item é obrigatório");
+        }
+
+        return new ImportPreview(format.name().toLowerCase(Locale.ROOT), d.name(),
+                d.items() == null ? 0 : d.items().size(), blocking.isEmpty(), parsed.unknownFields(), warnings,
+                blocking);
+    }
+
+    private boolean declaresVersion1(String content) {
+        try {
+            var version = json.readTree(content).get("version");
+            return version != null && version.asInt(0) == 1;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    /** Relatório de prévia da importação (dry-run), sem persistência. */
+    public record ImportPreview(String format, String name, int itemCount, boolean importable,
+            List<String> unknownFields, List<String> warnings, List<String> blockingIssues) {}
 
     // ---------- BeerJSON ----------
 

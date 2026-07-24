@@ -62,6 +62,16 @@ export interface ImportReport {
   unknownFields: string[];
 }
 
+export interface ImportPreview {
+  format: string;
+  name: string | null;
+  itemCount: number;
+  importable: boolean;
+  unknownFields: string[];
+  warnings: string[];
+  blockingIssues: string[];
+}
+
 export interface VolumeBalance {
   recipeId: string;
   grainMassKg: number;

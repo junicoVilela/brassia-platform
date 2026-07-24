@@ -9,6 +9,7 @@ import {
   CalculatedMetrics,
   CreateRecipeRequest,
   ExchangeFormat,
+  ImportPreview,
   ImportReport,
   RecipeComparison,
   RecipeSummary,
@@ -45,6 +46,7 @@ export class RecipesStore {
   readonly comparison = signal<RecipeComparison | null>(null);
   readonly comparisonError = signal<string | null>(null);
   readonly importReport = signal<ImportReport | null>(null);
+  readonly importPreview = signal<ImportPreview | null>(null);
   readonly importError = signal<string | null>(null);
 
   load(): void {
@@ -165,13 +167,25 @@ export class RecipesStore {
       });
   }
 
+  previewImport(format: ExchangeFormat, content: string): void {
+    this.importPreview.set(null);
+    this.importReport.set(null);
+    this.importError.set(null);
+    this.api.previewImport(format, content)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: preview => this.importPreview.set(preview),
+        error: () => this.importError.set('Não foi possível gerar a prévia (documento inválido).'),
+      });
+  }
+
   importRecipe(format: ExchangeFormat, content: string): void {
     this.importReport.set(null);
     this.importError.set(null);
     this.api.import(format, content)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: report => { this.importReport.set(report); this.load(); },
+        next: report => { this.importPreview.set(null); this.importReport.set(report); this.load(); },
         error: () => this.importError.set('Importação inválida (o documento não foi persistido).'),
       });
   }

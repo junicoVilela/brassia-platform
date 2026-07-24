@@ -154,6 +154,14 @@ export class RecipeListPageComponent implements OnInit {
     this.store.export(recipeId, format);
   }
 
+  protected previewImport(): void {
+    const v = this.importForm.getRawValue();
+    if (!v.content.trim()) {
+      return;
+    }
+    this.store.previewImport(v.format, v.content);
+  }
+
   protected importRecipe(): void {
     const v = this.importForm.getRawValue();
     if (!v.content.trim()) {

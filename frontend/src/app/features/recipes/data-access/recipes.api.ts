@@ -5,6 +5,7 @@ import {
   CreateRecipeRequest,
   CreatedRecipe,
   ExchangeFormat,
+  ImportPreview,
   ImportReport,
   RecipeComparison,
   RecipeSummary,
@@ -64,6 +65,13 @@ export class RecipesApi {
 
   export(recipeId: string, format: ExchangeFormat) {
     return this.http.get(`${this.baseUrl}/${recipeId}/export`, { params: { format }, responseType: 'text' });
+  }
+
+  previewImport(format: ExchangeFormat, content: string) {
+    return this.http.post<ImportPreview>(`${this.baseUrl}/import/preview`, content, {
+      params: { format },
+      headers: { 'Content-Type': 'text/plain' },
+    });
   }
 
   import(format: ExchangeFormat, content: string) {

@@ -185,6 +185,66 @@
 
 <div class="card border-0 rounded-10 mb-4">
   <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-1">Assistente de formulação</h2>
+    <p class="text-muted small mb-3">Compara suas metas com as faixas alvo (estilo ou perfil personalizado) e sugere ajustes — apenas orientação, nada é aplicado à receita.</p>
+    <form [formGroup]="assistForm" (ngSubmit)="assist()">
+      <div class="table-responsive mb-2">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Atributo</th><th>Meta</th><th>Faixa mín</th><th>Faixa máx</th></tr></thead>
+          <tbody>
+            <tr><td class="fw-semibold">OG (SG)</td>
+              <td><input type="number" step="0.001" class="form-control form-control-sm" formControlName="ogTarget"></td>
+              <td><input type="number" step="0.001" class="form-control form-control-sm" formControlName="ogMin"></td>
+              <td><input type="number" step="0.001" class="form-control form-control-sm" formControlName="ogMax"></td></tr>
+            <tr><td class="fw-semibold">ABV (%)</td>
+              <td><input type="number" step="0.01" class="form-control form-control-sm" formControlName="abvTarget"></td>
+              <td><input type="number" step="0.01" class="form-control form-control-sm" formControlName="abvMin"></td>
+              <td><input type="number" step="0.01" class="form-control form-control-sm" formControlName="abvMax"></td></tr>
+            <tr><td class="fw-semibold">IBU</td>
+              <td><input type="number" step="0.1" class="form-control form-control-sm" formControlName="ibuTarget"></td>
+              <td><input type="number" step="0.1" class="form-control form-control-sm" formControlName="ibuMin"></td>
+              <td><input type="number" step="0.1" class="form-control form-control-sm" formControlName="ibuMax"></td></tr>
+            <tr><td class="fw-semibold">Cor (EBC)</td>
+              <td><input type="number" step="0.1" class="form-control form-control-sm" formControlName="colorTarget"></td>
+              <td><input type="number" step="0.1" class="form-control form-control-sm" formControlName="colorMin"></td>
+              <td><input type="number" step="0.1" class="form-control form-control-sm" formControlName="colorMax"></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button type="submit" class="btn btn-outline-primary"><i class="ri-lightbulb-line me-1"></i> Orientar</button>
+    </form>
+    @if (store.guidanceError(); as guidanceError) {
+      <div class="alert alert-danger mt-3 mb-0" role="alert">{{ guidanceError }}</div>
+    } @else if (store.guidance(); as guidance) {
+      <div class="border rounded-10 p-3 mt-3">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Atributo</th><th class="text-end">Valor</th><th class="text-end">Faixa</th><th>Situação</th><th>Sugestão</th></tr></thead>
+            <tbody>
+              @for (g of guidance; track g.attribute) {
+                <tr>
+                  <td class="fw-semibold">{{ g.attribute }}</td>
+                  <td class="text-end">{{ g.value }}</td>
+                  <td class="text-end">{{ g.min ?? '—' }}–{{ g.max ?? '—' }} {{ g.unit }}</td>
+                  <td>
+                    <span class="badge"
+                          [class.bg-success-subtle]="g.status === 'WITHIN'" [class.text-success-emphasis]="g.status === 'WITHIN'"
+                          [class.bg-warning-subtle]="g.status === 'BELOW' || g.status === 'ABOVE'" [class.text-warning-emphasis]="g.status === 'BELOW' || g.status === 'ABOVE'"
+                          [class.bg-secondary-subtle]="g.status === 'NO_RANGE'" [class.text-secondary-emphasis]="g.status === 'NO_RANGE'">{{ g.status }}</span>
+                  </td>
+                  <td class="small">{{ g.suggestion ?? '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
     <h2 class="h6 fw-semibold mb-3">Importar (BeerJSON / BeerXML)</h2>
     <form [formGroup]="importForm" (ngSubmit)="importRecipe()">
       <div class="row g-3 align-items-end mb-2">

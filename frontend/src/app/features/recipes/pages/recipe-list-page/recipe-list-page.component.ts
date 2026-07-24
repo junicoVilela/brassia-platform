@@ -154,6 +154,35 @@ export class RecipeListPageComponent implements OnInit {
     this.store.export(recipeId, format);
   }
 
+  protected readonly assistForm = this.fb.nonNullable.group({
+    ogTarget: this.fb.control<number | null>(null), ogMin: this.fb.control<number | null>(null), ogMax: this.fb.control<number | null>(null),
+    abvTarget: this.fb.control<number | null>(null), abvMin: this.fb.control<number | null>(null), abvMax: this.fb.control<number | null>(null),
+    ibuTarget: this.fb.control<number | null>(null), ibuMin: this.fb.control<number | null>(null), ibuMax: this.fb.control<number | null>(null),
+    colorTarget: this.fb.control<number | null>(null), colorMin: this.fb.control<number | null>(null), colorMax: this.fb.control<number | null>(null),
+  });
+
+  protected assist(): void {
+    const v = this.assistForm.getRawValue();
+    const targets: Record<string, number> = {};
+    const ranges: Record<string, { min: number | null; max: number | null; unit: string | null }> = {};
+    const add = (key: string, unit: string, target: number | null, min: number | null, max: number | null): void => {
+      if (target !== null) {
+        targets[key] = target;
+      }
+      if (min !== null || max !== null) {
+        ranges[key] = { min, max, unit };
+      }
+    };
+    add('OG', 'SG', v.ogTarget, v.ogMin, v.ogMax);
+    add('ABV', '%', v.abvTarget, v.abvMin, v.abvMax);
+    add('IBU', 'IBU', v.ibuTarget, v.ibuMin, v.ibuMax);
+    add('COLOR', 'EBC', v.colorTarget, v.colorMin, v.colorMax);
+    if (Object.keys(targets).length === 0) {
+      return;
+    }
+    this.store.assist({ targets, ranges });
+  }
+
   protected previewImport(): void {
     const v = this.importForm.getRawValue();
     if (!v.content.trim()) {

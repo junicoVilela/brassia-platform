@@ -9,6 +9,8 @@ import {
   CalculatedMetrics,
   CreateRecipeRequest,
   ExchangeFormat,
+  AssistRequest,
+  AttributeGuidance,
   ImportPreview,
   ImportReport,
   RecipeComparison,
@@ -48,6 +50,8 @@ export class RecipesStore {
   readonly importReport = signal<ImportReport | null>(null);
   readonly importPreview = signal<ImportPreview | null>(null);
   readonly importError = signal<string | null>(null);
+  readonly guidance = signal<AttributeGuidance[] | null>(null);
+  readonly guidanceError = signal<string | null>(null);
 
   load(): void {
     this.loading.set(true);
@@ -164,6 +168,17 @@ export class RecipesStore {
           this.toast.success(`Arquivo ${format === 'beerxml' ? 'BeerXML' : 'BeerJSON'} exportado.`);
         },
         error: () => this.actionError.set('Não foi possível exportar a receita.'),
+      });
+  }
+
+  assist(request: AssistRequest): void {
+    this.guidance.set(null);
+    this.guidanceError.set(null);
+    this.api.assist(request)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: guidance => this.guidance.set(guidance),
+        error: () => this.guidanceError.set('Não foi possível gerar as orientações.'),
       });
   }
 

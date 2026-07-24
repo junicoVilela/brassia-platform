@@ -72,6 +72,21 @@ export interface ImportPreview {
   blockingIssues: string[];
 }
 
+export interface AttributeGuidance {
+  attribute: string;
+  value: number;
+  min: number | null;
+  max: number | null;
+  unit: string | null;
+  status: string;
+  suggestion: string | null;
+}
+
+export interface AssistRequest {
+  targets: Record<string, number>;
+  ranges: Record<string, { min: number | null; max: number | null; unit: string | null }>;
+}
+
 export interface VolumeBalance {
   recipeId: string;
   grainMassKg: number;

@@ -3,6 +3,8 @@ import { Injectable, inject } from '@angular/core';
 import {
   CalculatedMetrics,
   CreateRecipeRequest,
+  AssistRequest,
+  AttributeGuidance,
   CreatedRecipe,
   ExchangeFormat,
   ImportPreview,
@@ -65,6 +67,10 @@ export class RecipesApi {
 
   export(recipeId: string, format: ExchangeFormat) {
     return this.http.get(`${this.baseUrl}/${recipeId}/export`, { params: { format }, responseType: 'text' });
+  }
+
+  assist(request: AssistRequest) {
+    return this.http.post<AttributeGuidance[]>(`${this.baseUrl}/formulation/assist`, request);
   }
 
   previewImport(format: ExchangeFormat, content: string) {

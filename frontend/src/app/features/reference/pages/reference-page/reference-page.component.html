@@ -1,0 +1,186 @@
+<app-page-header title="Dados de referência" subtitle="Fontes licenciadas e datasets versionados com proveniência" />
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Registrar fonte</h2>
+    <form [formGroup]="sourceForm" (ngSubmit)="register()" class="row g-3 align-items-end">
+      <div class="col-sm-3">
+        <label class="form-label" for="type">Tipo</label>
+        <select id="type" class="form-select" formControlName="type">
+          @for (t of types; track t) { <option [value]="t">{{ t }}</option> }
+        </select>
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label" for="name">Nome</label>
+        <input id="name" type="text" class="form-control" formControlName="name" placeholder="BJCP Beer 2021">
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label" for="owner">Proprietário</label>
+        <input id="owner" type="text" class="form-control" formControlName="owner" placeholder="BJCP">
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label" for="permissionStatus">Permissão</label>
+        <select id="permissionStatus" class="form-select" formControlName="permissionStatus">
+          @for (p of permissions; track p) { <option [value]="p">{{ p }}</option> }
+        </select>
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label" for="licenseName">Licença</label>
+        <input id="licenseName" type="text" class="form-control" formControlName="licenseName" placeholder="BJCP">
+      </div>
+      <div class="col-sm-5">
+        <label class="form-label" for="url">URL</label>
+        <input id="url" type="url" class="form-control" formControlName="url" placeholder="https://bjcp.org">
+      </div>
+      <div class="col-sm-3 d-grid">
+        <button type="submit" class="btn btn-primary" [disabled]="sourceForm.invalid || store.submitting()">
+          <i class="ri-add-line me-1"></i> Registrar
+        </button>
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label" for="attribution">Atribuição</label>
+        <input id="attribution" type="text" class="form-control" formControlName="attribution" placeholder="BJCP.org">
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label" for="reviewFrequency">Revisão</label>
+        <input id="reviewFrequency" type="text" class="form-control" formControlName="reviewFrequency" placeholder="anual">
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label" for="responsible">Responsável</label>
+        <input id="responsible" type="text" class="form-control" formControlName="responsible">
+      </div>
+    </form>
+  </div>
+</div>
+
+@if (store.actionError(); as actionError) {
+  <div class="alert alert-danger" role="alert">{{ actionError }}</div>
+}
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Fontes cadastradas</h2>
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-database-2-line" message="Nenhuma fonte cadastrada."
+                       hint="Registre a primeira fonte no formulário acima." />
+    } @else if (filtered().length === 0) {
+      <app-empty-state icon="ri-search-line" message="Nenhuma fonte encontrada para a busca." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr><th>Nome</th><th>Tipo</th><th>Licença</th><th>Permissão</th><th>Escopo</th><th></th></tr>
+          </thead>
+          <tbody>
+            @for (source of filtered(); track source.id) {
+              <tr [class.table-active]="source.id === store.selectedId()">
+                <td class="fw-semibold">{{ source.name }}</td>
+                <td>{{ source.type }}</td>
+                <td>{{ source.licenseName }}</td>
+                <td><span class="badge" [class]="permissionClass(source.permissionStatus)">{{ source.permissionStatus }}</span></td>
+                <td>
+                  @if (source.global) { <span class="badge text-bg-secondary">global</span> }
+                  @else { <span class="text-muted small">cervejaria</span> }
+                </td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="onSelect(source.id)">
+                    <i class="ri-folder-open-line me-1"></i> Datasets
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
+
+@if (store.selected(); as source) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-1">Registrar dataset</h2>
+      <p class="text-muted small mb-3">Fonte: <strong>{{ source.name }}</strong> — permissão {{ source.permissionStatus }}</p>
+      <form [formGroup]="datasetForm" (ngSubmit)="recordDataset()" class="row g-3 align-items-end">
+        <div class="col-sm-3">
+          <label class="form-label" for="datasetVersion">Versão</label>
+          <input id="datasetVersion" type="text" class="form-control" formControlName="datasetVersion" placeholder="2021">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label" for="sourceSystem">Sistema/origem</label>
+          <input id="sourceSystem" type="text" class="form-control" formControlName="sourceSystem" placeholder="BJCP">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label" for="retrievedAt">Obtido em</label>
+          <input id="retrievedAt" type="datetime-local" class="form-control" formControlName="retrievedAt">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label" for="effectiveFrom">Vigente de</label>
+          <input id="effectiveFrom" type="datetime-local" class="form-control" formControlName="effectiveFrom">
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="rawPayload">Payload bruto</label>
+          <textarea id="rawPayload" class="form-control font-monospace" rows="4" formControlName="rawPayload"
+                    placeholder='{"styles":[…]}'></textarea>
+        </div>
+        <div class="col-sm-3 d-grid">
+          <button type="submit" class="btn btn-primary" [disabled]="datasetForm.invalid || store.submitting()">
+            <i class="ri-upload-2-line me-1"></i> Registrar dataset
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 rounded-10">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-3">Datasets da fonte</h2>
+      @if (store.loadingDatasets()) {
+        <app-loading-indicator />
+      } @else if (store.noDatasets()) {
+        <app-empty-state icon="ri-inbox-2-line" message="Nenhum dataset para esta fonte."
+                         hint="Registre um dataset no formulário acima." />
+      } @else {
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr><th>Versão</th><th>Checksum</th><th>Status</th><th>Revisão</th><th>Publicado em</th><th></th></tr>
+            </thead>
+            <tbody>
+              @for (dataset of store.datasets(); track dataset.id) {
+                <tr>
+                  <td class="fw-semibold">{{ dataset.version }}</td>
+                  <td><code class="small">{{ (dataset.checksum || '').slice(0, 12) }}…</code></td>
+                  <td>
+                    <span class="badge"
+                          [class.bg-success-subtle]="dataset.status === 'PUBLISHED'"
+                          [class.text-success-emphasis]="dataset.status === 'PUBLISHED'"
+                          [class.bg-secondary-subtle]="dataset.status !== 'PUBLISHED'"
+                          [class.text-secondary-emphasis]="dataset.status !== 'PUBLISHED'">{{ dataset.status }}</span>
+                  </td>
+                  <td>{{ dataset.reviewStatus }}</td>
+                  <td class="text-muted small">{{ dataset.publishedAt || '—' }}</td>
+                  <td class="text-end">
+                    @if (canPublish(dataset)) {
+                      <button type="button" class="btn btn-sm btn-outline-success" (click)="publish(dataset.id)">
+                        <i class="ri-checkbox-circle-line me-1"></i> Publicar
+                      </button>
+                    } @else if (dataset.status === 'DRAFT') {
+                      <span class="text-muted small" title="A permissão da fonte não autoriza publicação">
+                        <i class="ri-lock-line"></i> bloqueado
+                      </span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </div>
+}

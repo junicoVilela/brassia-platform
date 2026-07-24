@@ -31,6 +31,10 @@ export const routes: Routes = [
         loadChildren: () => import('./features/water/water.routes').then(m => m.WATER_ROUTES),
       },
       {
+        path: 'reference',
+        loadChildren: () => import('./features/reference/reference.routes').then(m => m.REFERENCE_ROUTES),
+      },
+      {
         path: 'security/users',
         loadChildren: () =>
           import('./features/security/users/security-users.routes').then(m => m.SECURITY_USERS_ROUTES),

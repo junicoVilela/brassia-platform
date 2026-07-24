@@ -5,6 +5,7 @@ import br.com.brew.brassia.catalog.IngredientSpecLookup;
 import br.com.brew.brassia.catalog.application.port.inbound.CreateTechnicalProfileUseCase;
 import br.com.brew.brassia.catalog.application.port.inbound.ListIngredientsUseCase;
 import br.com.brew.brassia.catalog.application.port.inbound.PublishTechnicalProfileUseCase;
+import br.com.brew.brassia.catalog.application.port.inbound.RankSubstitutionsUseCase;
 import br.com.brew.brassia.catalog.application.port.inbound.RegisterIngredientUseCase;
 import br.com.brew.brassia.catalog.application.port.inbound.TechnicalProfileUseCase;
 import br.com.brew.brassia.catalog.application.port.inbound.UpdateIngredientUseCase;
@@ -13,6 +14,7 @@ import br.com.brew.brassia.catalog.application.port.outbound.TechnicalProfileRep
 import br.com.brew.brassia.catalog.application.service.CreateTechnicalProfileHandler;
 import br.com.brew.brassia.catalog.application.service.ListIngredientsHandler;
 import br.com.brew.brassia.catalog.application.service.PublishTechnicalProfileHandler;
+import br.com.brew.brassia.catalog.application.service.RankSubstitutionsHandler;
 import br.com.brew.brassia.catalog.application.service.RegisterIngredientHandler;
 import br.com.brew.brassia.catalog.application.service.TechnicalProfileHandler;
 import br.com.brew.brassia.catalog.application.service.UpdateIngredientHandler;
@@ -79,6 +81,12 @@ class CatalogConfiguration {
     @Bean
     TechnicalProfileUseCase technicalProfileUseCase(TechnicalProfileRepository profiles) {
         return new TechnicalProfileHandler(profiles);
+    }
+
+    @Bean
+    RankSubstitutionsUseCase rankSubstitutionsUseCase(
+            IngredientRepository ingredients, TechnicalProfileRepository profiles) {
+        return new RankSubstitutionsHandler(ingredients, profiles);
     }
 
     private static java.math.BigDecimal number(String raw) {

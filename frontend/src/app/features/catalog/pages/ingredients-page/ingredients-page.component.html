@@ -150,6 +150,67 @@
                 @for (d of profile.descriptors; track d) { <span class="badge text-bg-light me-1">{{ d }}</span> }
               </p>
             }
+
+            <hr class="my-4">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+              <h3 class="h6 fw-semibold mb-0">Substitutos técnicos</h3>
+              <button type="button" class="btn btn-sm btn-outline-primary"
+                      [disabled]="store.loadingSubstitutions()" (click)="loadSubstitutions()">
+                <i class="ri-swap-line me-1"></i> Buscar substitutos
+              </button>
+            </div>
+            <p class="text-muted small mb-3">Ranqueados pela proximidade das propriedades técnicas do mesmo tipo. Aplicar um substituto é uma alteração explícita na versão em edição.</p>
+
+            @if (store.loadingSubstitutions()) {
+              <app-loading-indicator />
+            } @else if (store.substitutions(); as subs) {
+              @if (subs.matches.length === 0) {
+                <app-empty-state icon="ri-search-line"
+                                 message="Nenhum candidato do mesmo tipo com perfil técnico comparável." />
+              } @else {
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Candidato</th><th>Fonte</th><th class="text-end">Aderência</th>
+                        <th>Confiança</th><th>Comparativo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (m of subs.matches; track m.ingredientId) {
+                        <tr>
+                          <td>
+                            <span class="fw-semibold">{{ m.code }}</span>
+                            <span class="text-muted d-block small">{{ m.name }}</span>
+                          </td>
+                          <td class="small">{{ m.sourceName ?? '—' }}</td>
+                          <td class="text-end fw-semibold">{{ (m.score * 100) | number:'1.0-0' }}%</td>
+                          <td>
+                            <span class="badge"
+                                  [class.bg-success-subtle]="m.confidence === 'HIGH'"
+                                  [class.text-success-emphasis]="m.confidence === 'HIGH'"
+                                  [class.bg-warning-subtle]="m.confidence === 'MEDIUM'"
+                                  [class.text-warning-emphasis]="m.confidence === 'MEDIUM'"
+                                  [class.bg-secondary-subtle]="m.confidence !== 'HIGH' && m.confidence !== 'MEDIUM'"
+                                  [class.text-secondary-emphasis]="m.confidence !== 'HIGH' && m.confidence !== 'MEDIUM'">{{ m.confidence }}</span>
+                          </td>
+                          <td>
+                            @for (c of m.comparisons; track c.property) {
+                              <span class="badge me-1 mb-1"
+                                    [class.bg-success-subtle]="c.similar" [class.text-success-emphasis]="c.similar"
+                                    [class.bg-danger-subtle]="!c.similar" [class.text-danger-emphasis]="!c.similar"
+                                    [title]="'alvo ' + c.target + ' · candidato ' + c.candidate + (c.unit ? ' ' + c.unit : '')">
+                                <i class="me-1" [class.ri-check-line]="c.similar" [class.ri-close-line]="!c.similar"></i>{{ c.property }}
+                              </span>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            }
           } @else if (store.noProfile()) {
             <p class="text-muted small mb-3"><i class="ri-information-line me-1"></i> Este ingrediente ainda não tem perfil técnico. Crie abaixo (entra em revisão como rascunho).</p>
             <form [formGroup]="profileForm" (ngSubmit)="createProfile()" class="row g-3 align-items-end">

@@ -3,10 +3,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
 import {
+  ImportJob,
   ReferenceDataset,
   ReferenceSource,
   RecordReferenceDatasetRequest,
   RegisterReferenceSourceRequest,
+  SubmitImportJobRequest,
 } from '../domain/reference.model';
 import { ReferenceApi } from './reference.api';
 
@@ -20,12 +22,15 @@ export class ReferenceStore {
   private readonly sourcesState = signal<ReferenceSource[]>([]);
   private readonly selectedIdState = signal<string | null>(null);
   private readonly datasetsState = signal<ReferenceDataset[]>([]);
+  private readonly jobsState = signal<ImportJob[]>([]);
 
   readonly sources = this.sourcesState.asReadonly();
   readonly selectedId = this.selectedIdState.asReadonly();
   readonly datasets = this.datasetsState.asReadonly();
+  readonly jobs = this.jobsState.asReadonly();
   readonly loading = signal(false);
   readonly loadingDatasets = signal(false);
+  readonly loadingJobs = signal(false);
   readonly error = signal<string | null>(null);
   readonly actionError = signal<string | null>(null);
   readonly submitting = signal(false);
@@ -64,10 +69,60 @@ export class ReferenceStore {
   select(sourceId: string | null): void {
     this.selectedIdState.set(sourceId);
     this.datasetsState.set([]);
+    this.jobsState.set([]);
     this.actionError.set(null);
     if (sourceId) {
       this.loadDatasets();
+      this.loadJobs();
     }
+  }
+
+  private loadJobs(): void {
+    const id = this.selectedIdState();
+    if (!id) {
+      return;
+    }
+    this.loadingJobs.set(true);
+    this.api.listJobs(id)
+      .pipe(finalize(() => this.loadingJobs.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: jobs => this.jobsState.set(jobs),
+        error: () => this.error.set('Não foi possível carregar os jobs de importação.'),
+      });
+  }
+
+  submitJob(request: SubmitImportJobRequest, onSuccess?: () => void): void {
+    const id = this.selectedIdState();
+    if (!id) {
+      return;
+    }
+    this.submitting.set(true);
+    this.actionError.set(null);
+    this.api.submitJob(id, request)
+      .pipe(finalize(() => this.submitting.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: job => {
+          onSuccess?.();
+          this.toast.success(job.status === 'FAILED' ? 'Job com erros de validação.' : 'Job em revisão.');
+          this.loadJobs();
+        },
+        error: () => this.actionError.set('Não foi possível submeter o job (dados inválidos).'),
+      });
+  }
+
+  publishJob(jobId: string): void {
+    this.actionError.set(null);
+    this.api.publishJob(jobId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success('Job publicado.');
+          this.loadJobs();
+          this.loadDatasets();
+        },
+        error: () =>
+          this.actionError.set('Não foi possível publicar o job (permissão da fonte não autoriza ou conteúdo já publicado).'),
+      });
   }
 
   private loadDatasets(): void {

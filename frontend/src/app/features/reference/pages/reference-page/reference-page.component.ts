@@ -6,6 +6,7 @@ import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicat
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
 import { ReferenceStore } from '../../data-access/reference.store';
 import {
+  ImportJob,
   PERMISSION_STATUSES,
   PermissionStatus,
   ReferenceDataset,
@@ -57,6 +58,12 @@ export class ReferencePageComponent implements OnInit {
     retrievedAt: ['', Validators.required],
     effectiveFrom: ['', Validators.required],
     effectiveTo: '',
+  });
+
+  protected readonly jobForm = this.fb.nonNullable.group({
+    datasetVersion: ['', [Validators.required, Validators.maxLength(60)]],
+    contentType: ['application/json', Validators.required],
+    rawPayload: ['', Validators.required],
   });
 
   ngOnInit(): void {
@@ -139,6 +146,26 @@ export class ReferencePageComponent implements OnInit {
 
   protected publish(datasetId: string): void {
     this.store.publish(datasetId);
+  }
+
+  protected canPublishJob(job: ImportJob): boolean {
+    const source = this.store.selected();
+    return job.status === 'REVIEW_REQUIRED' && !!source && allowsPublish(source.permissionStatus);
+  }
+
+  protected submitJob(): void {
+    if (this.jobForm.invalid) {
+      return;
+    }
+    const v = this.jobForm.getRawValue();
+    this.store.submitJob(
+      { datasetVersion: v.datasetVersion, contentType: v.contentType, rawPayload: v.rawPayload },
+      () => this.jobForm.reset({ datasetVersion: '', contentType: 'application/json', rawPayload: '' }),
+    );
+  }
+
+  protected publishJob(jobId: string): void {
+    this.store.publishJob(jobId);
   }
 }
 

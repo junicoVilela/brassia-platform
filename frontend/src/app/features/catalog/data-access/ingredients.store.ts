@@ -1,8 +1,15 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { Ingredient, IngredientType, RegisterIngredientRequest } from '../domain/ingredient.model';
+import {
+  CreateTechnicalProfileRequest,
+  Ingredient,
+  IngredientType,
+  RegisterIngredientRequest,
+  TechnicalProfile,
+} from '../domain/ingredient.model';
 import { IngredientsApi } from './ingredients.api';
 
 /** Estado da tela de ingredientes: listagem filtrável por tipo e cadastro. */
@@ -21,6 +28,16 @@ export class IngredientsStore {
   readonly actionError = signal<string | null>(null);
   readonly submitting = signal(false);
   readonly empty = computed(() => !this.loading() && !this.error() && this.items().length === 0);
+
+  private readonly selectedIdState = signal<string | null>(null);
+  private readonly profileState = signal<TechnicalProfile | null>(null);
+  readonly selectedId = this.selectedIdState.asReadonly();
+  readonly profile = this.profileState.asReadonly();
+  readonly loadingProfile = signal(false);
+  readonly selected = computed(() => this.items().find(i => i.id === this.selectedIdState()) ?? null);
+  readonly noProfile = computed(
+    () => !!this.selectedIdState() && !this.loadingProfile() && this.profileState() === null,
+  );
 
   load(): void {
     this.loading.set(true);
@@ -50,6 +67,64 @@ export class IngredientsStore {
           this.load();
         },
         error: () => this.actionError.set('Não foi possível cadastrar o ingrediente (código duplicado ou valor inválido).'),
+      });
+  }
+
+  selectIngredient(ingredientId: string | null): void {
+    this.selectedIdState.set(ingredientId);
+    this.profileState.set(null);
+    this.actionError.set(null);
+    if (!ingredientId) {
+      return;
+    }
+    this.loadingProfile.set(true);
+    this.api.getProfile(ingredientId)
+      .pipe(finalize(() => this.loadingProfile.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: profile => this.profileState.set(profile),
+        // 404 = ingrediente ainda sem perfil técnico (mostra o formulário de criação).
+        error: (e: HttpErrorResponse) => {
+          this.profileState.set(null);
+          if (e.status !== 404) {
+            this.error.set('Não foi possível carregar o perfil técnico.');
+          }
+        },
+      });
+  }
+
+  createProfile(request: CreateTechnicalProfileRequest, onSuccess?: () => void): void {
+    const id = this.selectedIdState();
+    if (!id) {
+      return;
+    }
+    this.submitting.set(true);
+    this.actionError.set(null);
+    this.api.createProfile(id, request)
+      .pipe(finalize(() => this.submitting.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          onSuccess?.();
+          this.toast.success('Perfil técnico criado.');
+          this.selectIngredient(id);
+        },
+        error: () => this.actionError.set('Não foi possível criar o perfil (já existe ou dados inválidos).'),
+      });
+  }
+
+  publishProfile(): void {
+    const id = this.selectedIdState();
+    if (!id) {
+      return;
+    }
+    this.actionError.set(null);
+    this.api.publishProfile(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success('Perfil técnico publicado.');
+          this.selectIngredient(id);
+        },
+        error: () => this.actionError.set('Não foi possível publicar o perfil técnico.'),
       });
   }
 }

@@ -1,6 +1,12 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Ingredient, IngredientType, RegisterIngredientRequest } from '../domain/ingredient.model';
+import {
+  CreateTechnicalProfileRequest,
+  Ingredient,
+  IngredientType,
+  RegisterIngredientRequest,
+  TechnicalProfile,
+} from '../domain/ingredient.model';
 
 interface PageResponse<T> {
   content: T[];
@@ -25,5 +31,20 @@ export class IngredientsApi {
 
   create(request: RegisterIngredientRequest) {
     return this.http.post<Ingredient>(this.baseUrl, request);
+  }
+
+  getProfile(ingredientId: string) {
+    return this.http.get<TechnicalProfile>(`${this.baseUrl}/${ingredientId}/technical-profile`);
+  }
+
+  createProfile(ingredientId: string, request: CreateTechnicalProfileRequest) {
+    return this.http.post<{ id: string; status: string }>(
+      `${this.baseUrl}/${ingredientId}/technical-profile`,
+      request,
+    );
+  }
+
+  publishProfile(ingredientId: string) {
+    return this.http.post<{ status: string }>(`${this.baseUrl}/${ingredientId}/technical-profile/publish`, {});
   }
 }

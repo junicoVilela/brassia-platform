@@ -26,3 +26,37 @@ export interface RegisterIngredientRequest {
   purchaseUnit: MeasurementUnit;
   attributes?: Record<string, string>;
 }
+
+export interface PropertyRange {
+  min: number | null;
+  max: number | null;
+  unit: string | null;
+}
+
+export interface TechnicalProfile {
+  ingredientId: string;
+  manufacturer: string | null;
+  origin: string | null;
+  form: string | null;
+  purpose: string | null;
+  laboratory: string | null;
+  labCode: string | null;
+  ranges: Record<string, PropertyRange>;
+  descriptors: string[];
+  sourceId: string | null;
+  sourceName: string | null;
+  status: string;
+}
+
+export interface CreateTechnicalProfileRequest {
+  manufacturer: string | null;
+  origin: string | null;
+  form: string | null;
+  purpose: string | null;
+  laboratory: string | null;
+  labCode: string | null;
+  ranges: Record<string, PropertyRange>;
+  descriptors: string[];
+  sourceId: string | null;
+  sourceName: string | null;
+}

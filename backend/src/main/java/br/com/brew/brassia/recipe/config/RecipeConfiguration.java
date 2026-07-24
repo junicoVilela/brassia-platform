@@ -115,4 +115,9 @@ class RecipeConfiguration {
     CompareRecipesUseCase compareRecipesUseCase(RecipeRepository repository) {
         return new CompareRecipesHandler(repository);
     }
+
+    @Bean
+    br.com.brew.brassia.recipe.domain.FormulationAssistant formulationAssistant() {
+        return new br.com.brew.brassia.recipe.domain.FormulationAssistant();
+    }
 }

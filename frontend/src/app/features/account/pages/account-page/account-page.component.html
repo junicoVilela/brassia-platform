@@ -107,6 +107,94 @@
       </div>
     </div>
 
+    <div class="card border-0 rounded-10 mb-4">
+      <div class="card-body p-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+          <div>
+            <h2 class="h6 fw-semibold mb-1">Sessões ativas</h2>
+            <p class="text-muted small mb-0">Onde a sua conta está conectada. Encerre o que não reconhecer.</p>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-danger"
+                  [disabled]="!activity.hasOtherSessions()" (click)="revokeOtherSessions()">
+            <i class="ri-logout-circle-line me-1"></i> Encerrar as demais
+          </button>
+        </div>
+
+        @if (activity.loadingSessions()) {
+          <p class="text-muted small mb-0">Carregando…</p>
+        } @else if (activity.sessions().length === 0) {
+          <p class="text-muted small mb-0">Nenhuma sessão ativa.</p>
+        } @else {
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr><th>Sessão</th><th>Criada em</th><th>Último acesso</th><th></th></tr>
+              </thead>
+              <tbody>
+                @for (session of activity.sessions(); track session.ref) {
+                  <tr>
+                    <td>
+                      @if (session.current) {
+                        <span class="badge bg-success-subtle text-success-emphasis">Esta sessão</span>
+                      } @else {
+                        <span class="text-muted small">Outro dispositivo</span>
+                      }
+                    </td>
+                    <td class="small">{{ session.createdAt | date:'short' }}</td>
+                    <td class="small">{{ session.lastAccessedAt | date:'short' }}</td>
+                    <td class="text-end">
+                      @if (!session.current) {
+                        <button type="button" class="btn btn-sm btn-outline-secondary" (click)="revokeSession(session.ref)">
+                          <i class="ri-close-line me-1"></i> Encerrar
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="card border-0 rounded-10 mb-4">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-1">Histórico de login</h2>
+        <p class="text-muted small mb-3">Tentativas recentes de acesso à sua conta.</p>
+        @if (activity.loadingHistory()) {
+          <p class="text-muted small mb-0">Carregando…</p>
+        } @else if (activity.history().length === 0) {
+          <p class="text-muted small mb-0">Sem registros recentes.</p>
+        } @else {
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead><tr><th>Quando</th><th>Resultado</th><th>Motivo</th></tr></thead>
+              <tbody>
+                @for (event of activity.history(); track $index) {
+                  <tr>
+                    <td class="small">{{ event.occurredAt | date:'short' }}</td>
+                    <td>
+                      <span class="badge"
+                            [class.bg-success-subtle]="event.outcome === 'SUCCESS'"
+                            [class.text-success-emphasis]="event.outcome === 'SUCCESS'"
+                            [class.bg-danger-subtle]="event.outcome !== 'SUCCESS'"
+                            [class.text-danger-emphasis]="event.outcome !== 'SUCCESS'">{{ event.outcome }}</span>
+                    </td>
+                    <td class="small text-muted">{{ event.reasonCode ?? '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </div>
+
+    @if (activity.error(); as error) {
+      <div class="alert alert-danger" role="alert">{{ error }}</div>
+    }
+
     <div class="card border-0 rounded-10">
       <div class="card-body p-4">
         <h2 class="h6 fw-semibold mb-1">Desativar MFA</h2>

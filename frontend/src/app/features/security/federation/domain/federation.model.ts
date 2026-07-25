@@ -20,3 +20,11 @@ export interface CreateFederationProvider {
   issuerOrEntityId: string;
   configuration: Record<string, unknown>;
 }
+
+/** Identidade externa vinculada a um provedor (SEC-B06). */
+export interface ExternalIdentity {
+  userId: string;
+  externalSubject: string;
+  normalizedEmail: string | null;
+  linkedAt: string;
+}

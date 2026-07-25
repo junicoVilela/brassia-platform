@@ -57,4 +57,15 @@ describe('FederationStore', () => {
     store.validate('p1');
     expect(store.actionError()).not.toBeNull();
   });
+
+  it('seleciona provedor e carrega identidades vinculadas', () => {
+    const listIdentities = vi.fn(() => of([{ userId: 'u1', externalSubject: 'okta|1', normalizedEmail: null, linkedAt: 'x' }]));
+    const { store } = setup({ listIdentities });
+
+    store.selectProvider({ id: 'p1', code: 'okta', displayName: 'Okta', protocol: 'OIDC', status: 'VALIDATED', issuerOrEntityId: 'i', metadataUri: null, jitMode: false, version: 0 });
+
+    expect(listIdentities).toHaveBeenCalledWith('p1');
+    expect(store.identities()).toHaveLength(1);
+    expect(store.selected()?.id).toBe('p1');
+  });
 });

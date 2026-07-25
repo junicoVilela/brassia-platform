@@ -1,6 +1,7 @@
 package br.com.brew.brassia.security.adapter.inbound.web;
 
 import br.com.brew.brassia.security.adapter.inbound.web.dto.CreateFederationProviderRequest;
+import br.com.brew.brassia.security.adapter.inbound.web.dto.ExternalIdentityResponse;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.LinkExternalIdentityRequest;
 import br.com.brew.brassia.security.application.port.inbound.ManageFederationProviderUseCase;
 import br.com.brew.brassia.security.application.port.outbound.FederationProviderRepository;
@@ -64,6 +65,14 @@ final class FederationProviderController {
                 principal.requireBrewery(), principal.userId(), id, request.userId(),
                 request.externalSubject(), request.normalizedEmail()));
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/identities")
+    List<ExternalIdentityResponse> identities(
+            @PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("security.federation.read");
+        return federation.listIdentities(principal.requireBrewery(), id)
+                .stream().map(ExternalIdentityResponse::from).toList();
     }
 
     @GetMapping("/{id}/resolve")

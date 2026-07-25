@@ -1,5 +1,6 @@
 package br.com.brew.brassia.security.application.port.inbound;
 
+import br.com.brew.brassia.security.application.port.outbound.ExternalIdentityRepository;
 import br.com.brew.brassia.security.application.port.outbound.FederationProviderRepository;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +12,9 @@ public interface ManageFederationProviderUseCase {
     void validate(ValidateCommand command);
     void linkIdentity(LinkCommand command);
     UUID resolveUserId(UUID providerId, String externalSubject);
+
+    /** Identidades externas vinculadas a um provedor da cervejaria (SEC-B06). */
+    List<ExternalIdentityRepository.IdentityView> listIdentities(UUID breweryId, UUID providerId);
 
     record CreateCommand(UUID breweryId, UUID actorId, String code, String displayName,
             String protocol, String issuerOrEntityId, Map<String, Object> configuration) {}

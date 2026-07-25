@@ -42,4 +42,13 @@ describe('FederationApi', () => {
     expect(req.request.method).toBe('POST');
     req.flush(null);
   });
+
+  it('lista as identidades vinculadas do provedor', () => {
+    let identities: unknown;
+    api.listIdentities('p1').subscribe(i => (identities = i));
+    const req = http.expectOne('/api/v1/security/federation-providers/p1/identities');
+    expect(req.request.method).toBe('GET');
+    req.flush([{ userId: 'u1', externalSubject: 'okta|1', normalizedEmail: 'a@x.com', linkedAt: 'x' }]);
+    expect(identities).toHaveLength(1);
+  });
 });

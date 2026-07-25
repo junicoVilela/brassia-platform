@@ -2,7 +2,9 @@ package br.com.brew.brassia.security;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup;
 
@@ -51,6 +53,41 @@ class FederationIT {
         var id = JsonPath.read(created.getResponse().getContentAsString(), "$.id");
         mockMvc.perform(post("/api/v1/security/federation-providers/" + id + "/validate").session(admin).with(csrf()))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void linksAndListsExternalIdentities() throws Exception {
+        var admin = login();
+        var created = mockMvc.perform(post("/api/v1/security/federation-providers").session(admin).with(csrf())
+                        .contentType("application/json")
+                        .content("""
+                                {"code":"corp-saml","displayName":"Corp SAML","protocol":"SAML",
+                                 "issuerOrEntityId":"https://idp.example.com/entity",
+                                 "configuration":{}}
+                                """))
+                .andExpect(status().isCreated()).andReturn();
+        String id = JsonPath.read(created.getResponse().getContentAsString(), "$.id");
+        var adminUserId = jdbc.queryForObject(
+                "SELECT id FROM security_user WHERE email = 'admin@brassia.local'", String.class);
+
+        // Sem vínculos, a lista vem vazia.
+        mockMvc.perform(get("/api/v1/security/federation-providers/" + id + "/identities").session(admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        mockMvc.perform(post("/api/v1/security/federation-providers/" + id + "/identities")
+                        .session(admin).with(csrf()).contentType("application/json")
+                        .content("{\"userId\":\"" + adminUserId + "\",\"externalSubject\":\"okta|123\","
+                                + "\"normalizedEmail\":\"user@corp.example\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/security/federation-providers/" + id + "/identities").session(admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].externalSubject").value("okta|123"))
+                .andExpect(jsonPath("$[0].normalizedEmail").value("user@corp.example"))
+                .andExpect(jsonPath("$[0].userId").value(adminUserId))
+                .andExpect(jsonPath("$[0].linkedAt").exists());
     }
 
     private MockHttpSession login() throws Exception {

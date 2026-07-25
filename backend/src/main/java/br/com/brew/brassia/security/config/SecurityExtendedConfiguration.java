@@ -222,6 +222,10 @@ class SecurityExtendedConfiguration {
             @Override public java.util.UUID resolveUserId(java.util.UUID providerId, String externalSubject) {
                 return h.resolveUserId(providerId, externalSubject);
             }
+            @Override public java.util.List<br.com.brew.brassia.security.application.port.outbound.ExternalIdentityRepository.IdentityView>
+                    listIdentities(java.util.UUID breweryId, java.util.UUID providerId) {
+                return h.listIdentities(breweryId, providerId);
+            }
         };
     }
 

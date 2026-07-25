@@ -3,14 +3,15 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { EmptyStateComponent } from '../../../../../shared/ui/empty-state.component';
 import { LoadingIndicatorComponent } from '../../../../../shared/ui/loading-indicator.component';
 import { PageHeaderComponent } from '../../../../../shared/ui/page-header.component';
+import { DatePipe } from '@angular/common';
 import { FederationStore } from '../../data-access/federation.store';
-import { FederationProtocol } from '../../domain/federation.model';
+import { FederationProtocol, FederationProvider } from '../../domain/federation.model';
 
 @Component({
   selector: 'app-federation-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, PageHeaderComponent, EmptyStateComponent, LoadingIndicatorComponent],
+  imports: [ReactiveFormsModule, DatePipe, PageHeaderComponent, EmptyStateComponent, LoadingIndicatorComponent],
   providers: [FederationStore],
   templateUrl: './federation-page.component.html',
 })
@@ -59,6 +60,11 @@ export class FederationPageComponent implements OnInit {
       },
       () => this.form.reset({ code: '', displayName: '', protocol: 'SAML', issuerOrEntityId: '', configuration: '' }),
     );
+  }
+
+  protected toggleIdentities(provider: FederationProvider): void {
+    const open = this.store.selected()?.id === provider.id;
+    this.store.selectProvider(open ? null : provider);
   }
 
   protected statusClass(status: string): string {

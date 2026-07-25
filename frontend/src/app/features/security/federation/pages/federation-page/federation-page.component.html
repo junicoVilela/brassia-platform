@@ -71,10 +71,14 @@
                       @if (provider.jitMode) { <span class="badge bg-info-subtle text-info-emphasis">JIT</span> }
                     </td>
                     <td><span class="badge" [class]="statusClass(provider.status)">{{ provider.status }}</span></td>
-                    <td class="text-end">
-                      <button type="button" class="btn btn-sm btn-outline-primary"
+                    <td class="text-end text-nowrap">
+                      <button type="button" class="btn btn-sm btn-outline-primary me-1"
                               (click)="store.validate(provider.id)">
-                        <i class="ri-shield-check-line me-1"></i> Validar metadata
+                        <i class="ri-shield-check-line me-1"></i> Validar
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary"
+                              (click)="toggleIdentities(provider)">
+                        <i class="ri-user-shared-line me-1"></i> Identidades
                       </button>
                     </td>
                   </tr>
@@ -85,6 +89,38 @@
         }
       </div>
     </div>
+
+    @if (store.selected(); as selected) {
+      <div class="card border-0 rounded-10 mt-4">
+        <div class="card-body p-4">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <h2 class="h6 fw-semibold mb-0">Identidades vinculadas — {{ selected.code }}</h2>
+            <button type="button" class="btn-close" aria-label="Fechar" (click)="store.selectProvider(null)"></button>
+          </div>
+          @if (store.loadingIdentities()) {
+            <p class="text-muted small mb-0">Carregando identidades…</p>
+          } @else if (store.identities().length === 0) {
+            <p class="text-muted small mb-0">Nenhuma identidade externa vinculada a este provedor.</p>
+          } @else {
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Subject externo</th><th>E-mail</th><th>Usuário interno</th><th>Vinculada em</th></tr></thead>
+                <tbody>
+                  @for (identity of store.identities(); track identity.externalSubject) {
+                    <tr>
+                      <td class="small"><code>{{ identity.externalSubject }}</code></td>
+                      <td class="small">{{ identity.normalizedEmail ?? '—' }}</td>
+                      <td class="small text-muted">{{ identity.userId }}</td>
+                      <td class="small">{{ identity.linkedAt | date:'short' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+    }
 
     <p class="text-muted small mt-3 mb-0">
       <i class="ri-information-line me-1"></i>

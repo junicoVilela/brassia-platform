@@ -1,6 +1,6 @@
 # Status — Sprint 01-C
 
-Estado: EM ANDAMENTO
+Estado: CONCLUÍDA
 
 Contexto: fecha o débito de frontend das capacidades de administração/governança de segurança entregues como "fatia 1" (só backend) na Sprint 01. Depende do gate de permissão (SEC-F11) da Sprint 01-B.
 
@@ -14,7 +14,7 @@ Contexto: fecha o débito de frontend das capacidades de administração/governa
 | SEC-F07 | Concluída | IA | #67 | Alertas de segurança: listar (filtro por estado), reconhecer/resolver, evidência. Backend completo (só frontend). |
 | SEC-F08 | Concluída | IA | #68 | Auditoria: viewer com filtros no cliente (termo/resultado/período) sobre os 50 recentes. Débito: filtro/paginação server-side. |
 | SEC-F09 | Concluída | IA | #69 | Contas de serviço + API keys: criar conta, emitir credencial (segredo uma vez), revogar; escopos visíveis. Débito: backend não lista credenciais existentes. |
-| SEC-F10 | A fazer | — | — | Administração de federação/SCIM. |
+| SEC-F10 | Concluída | IA | #70 | Administração de federação SAML/OIDC (criar/listar/validar metadata). SCIM admin fica como débito (sem endpoint de sessão; provisionamento é via IdP/API key). |
 
 ## Decisões e bloqueios
 
@@ -23,12 +23,13 @@ Contexto: fecha o débito de frontend das capacidades de administração/governa
 - SEC-F09/F10 podem migrar para a Sprint 15 (integrações/PWA) conforme prioridade.
 - SEC-F08: o `GET /audit-events` devolve os 50 mais recentes sem parâmetros de filtro/paginação. A tela filtra no cliente (ação/recurso/ator/período). Débito: filtro e paginação server-side no módulo `audit` para grandes volumes.
 - SEC-F09: o `GET /service-accounts` não retorna as credenciais existentes (`credentialPrefixes` vem vazio) e não há listagem de credenciais. As credenciais emitidas ficam apenas na sessão (segredo mostrado uma vez); revogar só vale para as emitidas na sessão. Débito: expor credenciais por conta (prefixo/escopos/estado) para listar/revogar as já existentes.
+- SEC-F10: administração de federação (SAML/OIDC) entregue por completo (criar/listar/validar). A parte SCIM não tem endpoint de sessão — `/scim/v2/**` e os mapeamentos de grupo são consumidos/criados pelo IdP via API key (provisionamento máquina-a-máquina), não por tela admin. Vincular identidade externa existe (POST /identities) mas não é listável. Débitos: endpoint admin para mapeamentos SCIM e para listar identidades vinculadas; fluxo de login SSO no browser (já fora de escopo desde o BACKLOG).
 - Fluxo real de SSO no browser e LDAP real permanecem fora de escopo.
 
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Contratos consumidos:
-- Riscos remanescentes:
-- Aceite:
+- Build/commit: `main` verde após #64–#70; frontend build e ESLint limpos.
+- Testes executados: Vitest 98/98 (memberships, temporary-access, access-review, alerts, audit, service-accounts, federation) + backend `AccessManagementIT` (SEC-F04) e `ModularityTest` verdes.
+- Contratos consumidos: memberships (GET aditivo + grant/revoke), acesso temporário, revisão/segregação, alertas, auditoria, contas de serviço/API keys, federação SAML/OIDC. Uma adição aditiva de backend (SEC-F04 GET memberships); nenhuma migration.
+- Riscos remanescentes: débitos de leitura server-side (auditoria com filtro/paginação, credenciais de service account, mapeamentos/identidades SCIM) e SSO no browser — todos registrados acima.
+- Aceite: 7/7 histórias (SEC-F04..F10) entregues, revisadas e mescladas em `main`.

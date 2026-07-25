@@ -73,7 +73,7 @@
               <span class="title">Mistura</span>
             </a>
           </li>
-          @if (auth.hasAnyPermission(['security.user.read', 'security.group.read', 'security.permission.read', 'security.temporary-access.read', 'security.access-review.read', 'security.segregation.manage', 'security.alert.read', 'security.audit.read', 'security.service-account.read'])) {
+          @if (auth.hasAnyPermission(['security.user.read', 'security.group.read', 'security.permission.read', 'security.temporary-access.read', 'security.access-review.read', 'security.segregation.manage', 'security.alert.read', 'security.audit.read', 'security.service-account.read', 'security.federation.read'])) {
             <li class="menu-title small text-uppercase"><span class="menu-title-text">Segurança</span></li>
             @if (auth.hasPermission('security.user.read')) {
               <li class="menu-item">
@@ -128,6 +128,14 @@
                 <a routerLink="/security/service-accounts" routerLinkActive="active" class="menu-link">
                   <i class="ri-robot-line menu-icon"></i>
                   <span class="title">Contas de serviço</span>
+                </a>
+              </li>
+            }
+            @if (auth.hasPermission('security.federation.read')) {
+              <li class="menu-item">
+                <a routerLink="/security/federation" routerLinkActive="active" class="menu-link">
+                  <i class="ri-links-line menu-icon"></i>
+                  <span class="title">Federação</span>
                 </a>
               </li>
             }

@@ -1,0 +1,92 @@
+    <app-page-header title="Federação" subtitle="Provedores de identidade SAML 2.0 e OpenID Connect" />
+
+    <div class="card border-0 rounded-10 mb-4">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-3">Novo provedor</h2>
+        <form [formGroup]="form" (ngSubmit)="create()" class="row g-3 align-items-end">
+          <div class="col-sm-3">
+            <label class="form-label" for="code">Código</label>
+            <input id="code" type="text" class="form-control" formControlName="code" placeholder="okta">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label" for="displayName">Nome</label>
+            <input id="displayName" type="text" class="form-control" formControlName="displayName" placeholder="Okta corporativo">
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label" for="protocol">Protocolo</label>
+            <select id="protocol" class="form-select" formControlName="protocol">
+              @for (p of protocols; track p) { <option [value]="p">{{ p }}</option> }
+            </select>
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label" for="issuerOrEntityId">Issuer / Entity ID</label>
+            <input id="issuerOrEntityId" type="text" class="form-control" formControlName="issuerOrEntityId"
+                   placeholder="https://idp.exemplo.com">
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="configuration">Configuração (JSON opcional)</label>
+            <textarea id="configuration" rows="3" class="form-control font-monospace" formControlName="configuration"
+                      placeholder='{"metadataUri":"https://idp.exemplo.com/metadata"}'></textarea>
+            @if (configError(); as err) {
+              <div class="form-text text-danger">{{ err }}</div>
+            }
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-primary" [disabled]="form.invalid || store.submitting()">
+              <i class="ri-shield-user-line me-1"></i> Criar provedor
+            </button>
+          </div>
+        </form>
+        @if (store.actionError(); as actionError) {
+          <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+        }
+      </div>
+    </div>
+
+    <div class="card border-0 rounded-10">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-3">Provedores</h2>
+        @if (store.loading()) {
+          <app-loading-indicator />
+        } @else if (store.error(); as error) {
+          <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+        } @else if (store.empty()) {
+          <app-empty-state icon="ri-shield-user-line" message="Nenhum provedor de federação."
+                           hint="Crie um acima (SAML ou OIDC)." />
+        } @else {
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr><th>Código</th><th>Nome</th><th>Protocolo</th><th>Issuer/Entity</th>
+                <th>JIT</th><th>Estado</th><th class="text-end">Ações</th></tr>
+              </thead>
+              <tbody>
+                @for (provider of store.providers(); track provider.id) {
+                  <tr>
+                    <td class="fw-medium">{{ provider.code }}</td>
+                    <td>{{ provider.displayName }}</td>
+                    <td><span class="badge text-bg-light">{{ provider.protocol }}</span></td>
+                    <td class="small text-muted">{{ provider.issuerOrEntityId }}</td>
+                    <td>
+                      @if (provider.jitMode) { <span class="badge bg-info-subtle text-info-emphasis">JIT</span> }
+                    </td>
+                    <td><span class="badge" [class]="statusClass(provider.status)">{{ provider.status }}</span></td>
+                    <td class="text-end">
+                      <button type="button" class="btn btn-sm btn-outline-primary"
+                              (click)="store.validate(provider.id)">
+                        <i class="ri-shield-check-line me-1"></i> Validar metadata
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </div>
+
+    <p class="text-muted small mt-3 mb-0">
+      <i class="ri-information-line me-1"></i>
+      Provisionamento SCIM e login SSO no browser são executados pelo IdP via API key (fora desta administração).
+    </p>

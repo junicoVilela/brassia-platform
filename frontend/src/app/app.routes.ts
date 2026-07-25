@@ -103,6 +103,13 @@ export const routes: Routes = [
             m => m.SERVICE_ACCOUNTS_ROUTES,
           ),
       },
+      {
+        path: 'security/federation',
+        canActivate: [permissionGuard],
+        data: { permission: 'security.federation.read' },
+        loadChildren: () =>
+          import('./features/security/federation/federation.routes').then(m => m.FEDERATION_ROUTES),
+      },
       { path: 'forbidden', component: ForbiddenPageComponent },
       { path: '', pathMatch: 'full', redirectTo: 'recipes' },
     ],

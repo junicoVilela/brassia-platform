@@ -9,6 +9,13 @@
 
 O mantenedor informou que as Sprints 00–03 já foram desenvolvidas. A execução deste kit começa na Sprint 04 e deve validar a implementação real antes de adaptar contratos.
 
+## Débito de frontend de segurança (inserções aditivas)
+
+As capacidades de segurança da Sprint 01 foram entregues como "fatia 1" (só backend). As telas correspondentes ficaram sem dono no roadmap e são recuperadas em duas sprints aditivas, sem renumerar as demais:
+
+- Sprint 01-B — [Segurança: autoatendimento (frontend)](../../sprints/sprint-01b-security-frontend/README.md): MFA no login, troca/recuperação de senha, minha conta (sessões/histórico) e gate de navegação por permissão. Executar **antes da Sprint 05**.
+- Sprint 01-C — [Segurança: administração e governança (frontend)](../../sprints/sprint-01c-security-admin-frontend/README.md): memberships, acesso temporário, revisão/segregação, alertas, auditoria, contas de serviço/API keys e federação/SCIM. Executar **antes da Sprint 17**; SEC-F09/F10 podem migrar para a Sprint 15.
+
 ## Próxima execução
 
 - Sprint 04 — [Dados de referência e interoperabilidade](../../sprints/sprint-04-reference-data-interoperability/README.md): Versionar estilos, ingredientes e água, adotar BeerJSON/BeerXML e ampliar calculadoras.

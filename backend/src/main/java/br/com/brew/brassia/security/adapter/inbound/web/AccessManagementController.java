@@ -96,6 +96,13 @@ final class AccessManagementController {
         return GroupResponse.from(result);
     }
 
+    @GetMapping("/users/{userId}/memberships")
+    List<AccessCatalogQuery.MembershipView> memberships(@PathVariable UUID userId,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("security.membership.manage");
+        return catalog.membershipsByUser(principal.requireBrewery(), userId);
+    }
+
     @PostMapping("/users/{userId}/memberships")
     ResponseEntity<Void> grant(@PathVariable UUID userId, @Valid @RequestBody MembershipRequest request,
             @AuthenticationPrincipal SecurityPrincipal principal) {

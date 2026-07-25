@@ -1,9 +1,11 @@
 package br.com.brew.brassia.security.adapter.outbound.persistence;
 
 import br.com.brew.brassia.security.application.port.inbound.AccessCatalogQuery.GroupView;
+import br.com.brew.brassia.security.application.port.inbound.AccessCatalogQuery.MembershipView;
 import br.com.brew.brassia.security.application.port.inbound.AccessCatalogQuery.PermissionView;
 import br.com.brew.brassia.security.application.port.outbound.SecurityCatalogRepository;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -46,6 +48,23 @@ class JdbcSecurityCatalogRepository implements SecurityCatalogRepository {
                         rs.getObject("brewery_id", java.util.UUID.class),
                         rs.getBoolean("system_group"), rs.getBoolean("active"), rs.getLong("version"),
                         List.of((String[]) rs.getArray("permissions").getArray())))
+                .list();
+    }
+
+    @Override
+    public List<MembershipView> listMembershipsByUser(UUID breweryId, UUID userId) {
+        return jdbcClient.sql("""
+                SELECT g.id, g.code, g.name
+                FROM user_group_membership m
+                JOIN security_group g ON g.id = m.group_id
+                WHERE m.user_id = :userId AND m.revoked_at IS NULL
+                  AND m.brewery_id IS NOT DISTINCT FROM :breweryId
+                ORDER BY g.name
+                """)
+                .param("userId", userId)
+                .param("breweryId", breweryId)
+                .query((rs, n) -> new MembershipView(
+                        rs.getObject("id", UUID.class), rs.getString("code"), rs.getString("name")))
                 .list();
     }
 }

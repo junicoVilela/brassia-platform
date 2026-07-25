@@ -84,6 +84,48 @@ class AccessManagementIT {
     }
 
     @Test
+    void listsUserMembershipsAndReflectsGrantAndRevoke() throws Exception {
+        var memberId = onboard("listed@example.com", "segredo123");
+        var adminSession = login("admin@brassia.local", "admin-local-123");
+        var adminGroupId = jdbc.queryForObject(
+                "SELECT id FROM security_group WHERE code = 'ADMINISTRATORS'", UUID.class);
+
+        // Sem associação, a lista vem vazia.
+        mockMvc.perform(get("/api/v1/security/users/" + memberId + "/memberships").session(adminSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        mockMvc.perform(post("/api/v1/security/users/" + memberId + "/memberships")
+                        .session(adminSession).with(csrf()).contentType("application/json")
+                        .content("{\"groupId\":\"" + adminGroupId + "\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/security/users/" + memberId + "/memberships").session(adminSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].code").value("ADMINISTRATORS"))
+                .andExpect(jsonPath("$[0].groupId").value(adminGroupId.toString()));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/v1/security/users/" + memberId + "/memberships/" + adminGroupId)
+                        .session(adminSession).with(csrf()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/security/users/" + memberId + "/memberships").session(adminSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void listingMembershipsRequiresPermission() throws Exception {
+        onboard("nolist@example.com", "segredo123");
+        var session = login("nolist@example.com", "segredo123");
+
+        mockMvc.perform(get("/api/v1/security/users/" + UUID.randomUUID() + "/memberships").session(session))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void membershipManagementRequiresPermission() throws Exception {
         onboard("nogroup@example.com", "segredo123");
         var session = login("nogroup@example.com", "segredo123");

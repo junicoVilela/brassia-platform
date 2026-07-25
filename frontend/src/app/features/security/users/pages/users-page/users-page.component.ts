@@ -4,7 +4,7 @@ import { UiSearchService } from '../../../../../core/search/ui-search.service';
 import { EmptyStateComponent } from '../../../../../shared/ui/empty-state.component';
 import { LoadingIndicatorComponent } from '../../../../../shared/ui/loading-indicator.component';
 import { PageHeaderComponent } from '../../../../../shared/ui/page-header.component';
-import { AccountStatus } from '../../domain/user.model';
+import { AccountStatus, SecurityUserSummary } from '../../domain/user.model';
 import { UsersStore } from '../../data-access/users.store';
 
 @Component({
@@ -42,6 +42,21 @@ export class UsersPageComponent implements OnInit {
       return;
     }
     this.store.invite(this.form.getRawValue(), () => this.form.reset());
+  }
+
+  protected selectUser(user: SecurityUserSummary): void {
+    const alreadyOpen = this.store.selected()?.id === user.id;
+    this.store.selectUser(alreadyOpen ? null : user);
+  }
+
+  protected grant(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    const groupId = select.value;
+    if (!groupId) {
+      return;
+    }
+    this.store.grantMembership(groupId);
+    select.value = '';
   }
 
   protected badgeClass(status: AccountStatus): string {

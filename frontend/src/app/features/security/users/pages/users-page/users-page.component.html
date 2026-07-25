@@ -52,11 +52,15 @@
               </thead>
               <tbody>
                 @for (user of filtered(); track user.id) {
-                  <tr>
+                  <tr [class.table-active]="user.id === store.selected()?.id">
                     <td class="fw-medium">{{ user.displayName }}</td>
                     <td>{{ user.email }}</td>
                     <td><span class="badge" [class]="badgeClass(user.status)">{{ user.status }}</span></td>
                     <td class="text-end">
+                      <button type="button" class="btn btn-sm btn-outline-primary me-1"
+                              (click)="selectUser(user)">
+                        <i class="ri-shield-user-line me-1"></i> Grupos
+                      </button>
                       @if (user.status === 'ACTIVE') {
                         <button type="button" class="btn btn-sm btn-outline-warning me-1"
                                 [disabled]="store.submitting()" (click)="store.block(user.id)">Bloquear</button>
@@ -78,3 +82,48 @@
         }
       </div>
     </div>
+
+    @if (store.selected(); as selected) {
+      <div class="card border-0 rounded-10 mt-4">
+        <div class="card-body p-4">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+            <h2 class="h6 fw-semibold mb-0">Grupos de {{ selected.displayName }}</h2>
+            <button type="button" class="btn-close" aria-label="Fechar" (click)="store.selectUser(null)"></button>
+          </div>
+          <p class="text-muted small mb-3">Associações na cervejaria ativa. Remover ou associar altera o acesso do usuário.</p>
+
+          @if (store.membershipError(); as error) {
+            <div class="alert alert-danger" role="alert">{{ error }}</div>
+          }
+
+          @if (store.loadingMemberships()) {
+            <p class="text-muted small mb-3">Carregando grupos…</p>
+          } @else if (store.memberships().length === 0) {
+            <p class="text-muted small mb-3">Sem grupos associados.</p>
+          } @else {
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              @for (group of store.memberships(); track group.groupId) {
+                <span class="badge text-bg-light d-inline-flex align-items-center gap-2 py-2">
+                  {{ group.name }}
+                  <button type="button" class="btn-close btn-close-sm" aria-label="Remover"
+                          (click)="store.revokeMembership(group.groupId)"></button>
+                </span>
+              }
+            </div>
+          }
+
+          <div class="row g-2 align-items-end">
+            <div class="col-sm-6">
+              <label class="form-label small" for="groupSelect">Associar a um grupo</label>
+              <select id="groupSelect" class="form-select" (change)="grant($event)"
+                      [disabled]="store.availableGroups().length === 0">
+                <option value="">Selecione um grupo…</option>
+                @for (group of store.availableGroups(); track group.groupId) {
+                  <option [value]="group.groupId">{{ group.name }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    }

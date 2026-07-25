@@ -4,6 +4,7 @@ import br.com.brew.brassia.security.application.port.inbound.AccessCatalogQuery;
 import br.com.brew.brassia.security.application.port.outbound.SecurityCatalogRepository;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 public final class AccessCatalogQueryHandler implements AccessCatalogQuery {
     private final SecurityCatalogRepository catalog;
@@ -20,5 +21,10 @@ public final class AccessCatalogQueryHandler implements AccessCatalogQuery {
     @Override
     public List<GroupView> groups() {
         return catalog.listGroups();
+    }
+
+    @Override
+    public List<MembershipView> membershipsByUser(UUID breweryId, UUID userId) {
+        return catalog.listMembershipsByUser(breweryId, userId);
     }
 }

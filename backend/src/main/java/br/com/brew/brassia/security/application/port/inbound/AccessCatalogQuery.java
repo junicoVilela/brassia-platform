@@ -8,7 +8,12 @@ public interface AccessCatalogQuery {
     List<PermissionView> permissions();
     List<GroupView> groups();
 
+    /** Grupos ativos aos quais o usuário pertence, no escopo da cervejaria ativa. */
+    List<MembershipView> membershipsByUser(UUID breweryId, UUID userId);
+
     record PermissionView(String domain, String code, String name, boolean critical, boolean active) {}
+
+    record MembershipView(UUID groupId, String code, String name) {}
 
     record GroupView(
             UUID id,

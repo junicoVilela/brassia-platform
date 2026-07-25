@@ -1,0 +1,152 @@
+    <app-page-header title="Revisão de acessos" subtitle="Campanhas de revisão e regras de segregação de funções" />
+
+    @if (store.actionError(); as actionError) {
+      <div class="alert alert-danger" role="alert">{{ actionError }}</div>
+    }
+
+    @if (canReview) {
+      <div class="card border-0 rounded-10 mb-4">
+        <div class="card-body p-4">
+          <h2 class="h6 fw-semibold mb-3">Campanhas de revisão</h2>
+          <form [formGroup]="reviewForm" (ngSubmit)="createReview()" class="row g-3 align-items-end mb-3">
+            <div class="col-sm-5">
+              <label class="form-label" for="reviewName">Nome</label>
+              <input id="reviewName" type="text" class="form-control" formControlName="name" placeholder="Revisão trimestral">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label" for="dueAt">Prazo</label>
+              <input id="dueAt" type="datetime-local" class="form-control" formControlName="dueAt">
+            </div>
+            <div class="col-sm-3 d-grid">
+              <button type="submit" class="btn btn-primary" [disabled]="reviewForm.invalid || store.submitting()">
+                <i class="ri-add-line me-1"></i> Criar revisão
+              </button>
+            </div>
+          </form>
+
+          @if (store.error(); as error) {
+            <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+          } @else if (store.reviews().length === 0) {
+            <p class="text-muted small mb-0">Nenhuma campanha de revisão.</p>
+          } @else {
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Nome</th><th>Prazo</th><th>Estado</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                  @for (review of store.reviews(); track review.id) {
+                    <tr [class.table-active]="review.id === store.selectedReview()">
+                      <td class="fw-medium">{{ review.name }}</td>
+                      <td class="small">{{ review.dueAt | date:'short' }}</td>
+                      <td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ review.status }}</span></td>
+                      <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                (click)="store.selectReview(review.id === store.selectedReview() ? null : review.id)">
+                          <i class="ri-list-check me-1"></i> Itens
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+
+      @if (store.selectedReview()) {
+        <div class="card border-0 rounded-10 mb-4">
+          <div class="card-body p-4">
+            <h2 class="h6 fw-semibold mb-3">Itens da revisão</h2>
+            <div class="mb-3" style="max-width: 480px;">
+              <label class="form-label small" for="justification">Justificativa (aplicada à decisão)</label>
+              <input id="justification" type="text" class="form-control" [formControl]="justification"
+                     placeholder="Motivo de manter ou remover">
+            </div>
+            @if (store.loadingItems()) {
+              <p class="text-muted small mb-0">Carregando itens…</p>
+            } @else if (store.items().length === 0) {
+              <p class="text-muted small mb-0">Sem itens pendentes nesta revisão.</p>
+            } @else {
+              <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                  <thead><tr><th>Usuário</th><th>Grupo</th><th>Decisão</th><th class="text-end">Ações</th></tr></thead>
+                  <tbody>
+                    @for (item of store.items(); track item.id) {
+                      <tr>
+                        <td>{{ store.userName(item.userId) }}</td>
+                        <td>{{ store.groupName(item.groupId) }}</td>
+                        <td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ item.decision }}</span></td>
+                        <td class="text-end">
+                          <button type="button" class="btn btn-sm btn-outline-success me-1"
+                                  (click)="decide(item.id, 'KEEP')">Manter</button>
+                          <button type="button" class="btn btn-sm btn-outline-danger"
+                                  (click)="decide(item.id, 'REMOVE')">Remover</button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    }
+
+    @if (canManageSegregation) {
+      <div class="card border-0 rounded-10">
+        <div class="card-body p-4">
+          <h2 class="h6 fw-semibold mb-3">Regras de segregação de funções</h2>
+          <form [formGroup]="ruleForm" (ngSubmit)="createRule()" class="row g-3 align-items-end mb-3">
+            <div class="col-sm-4">
+              <label class="form-label" for="leftPermissionCode">Permissão A</label>
+              <input id="leftPermissionCode" type="text" class="form-control" formControlName="leftPermissionCode"
+                     list="permCodes" placeholder="recipe.publish">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label" for="rightPermissionCode">Permissão B (conflita com A)</label>
+              <input id="rightPermissionCode" type="text" class="form-control" formControlName="rightPermissionCode"
+                     list="permCodes" placeholder="recipe.approve">
+            </div>
+            <div class="col-sm-4 d-grid">
+              <button type="submit" class="btn btn-primary" [disabled]="ruleForm.invalid || store.submitting()">
+                <i class="ri-git-branch-line me-1"></i> Criar regra
+              </button>
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="ruleReason">Motivo</label>
+              <input id="ruleReason" type="text" class="form-control" formControlName="reason"
+                     placeholder="Por que essas permissões não podem coexistir">
+            </div>
+            <datalist id="permCodes">
+              @for (code of store.permissions(); track code) { <option [value]="code"></option> }
+            </datalist>
+          </form>
+
+          @if (store.rules().length === 0) {
+            <p class="text-muted small mb-0">Nenhuma regra de segregação definida.</p>
+          } @else {
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Permissão A</th><th>Permissão B</th><th>Motivo</th><th>Ativa</th></tr></thead>
+                <tbody>
+                  @for (rule of store.rules(); track rule.id) {
+                    <tr>
+                      <td class="fw-medium">{{ rule.leftPermissionCode }}</td>
+                      <td class="fw-medium">{{ rule.rightPermissionCode }}</td>
+                      <td class="small text-muted">{{ rule.reason }}</td>
+                      <td>
+                        <span class="badge" [class.bg-success-subtle]="rule.active" [class.text-success-emphasis]="rule.active"
+                              [class.bg-secondary-subtle]="!rule.active" [class.text-secondary-emphasis]="!rule.active">
+                          {{ rule.active ? 'sim' : 'não' }}
+                        </span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+    }

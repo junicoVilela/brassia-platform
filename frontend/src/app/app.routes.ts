@@ -73,6 +73,13 @@ export const routes: Routes = [
             m => m.TEMPORARY_ACCESS_ROUTES,
           ),
       },
+      {
+        path: 'security/access-review',
+        canActivate: [permissionGuard],
+        data: { permission: ['security.access-review.read', 'security.segregation.manage'] },
+        loadChildren: () =>
+          import('./features/security/access-review/access-review.routes').then(m => m.ACCESS_REVIEW_ROUTES),
+      },
       { path: 'forbidden', component: ForbiddenPageComponent },
       { path: '', pathMatch: 'full', redirectTo: 'recipes' },
     ],

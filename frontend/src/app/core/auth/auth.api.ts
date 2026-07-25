@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { LoginRequest, SessionUser } from './session-user.model';
+import { LoginRequest, LoginResult, MfaLoginRequest, SessionUser } from './session-user.model';
 
 @Injectable({ providedIn: 'root' })
 export class AuthApi {
@@ -13,7 +13,12 @@ export class AuthApi {
   }
 
   login(request: LoginRequest) {
-    return this.http.post<SessionUser>(`${this.baseUrl}/login`, request);
+    return this.http.post<LoginResult>(`${this.baseUrl}/login`, request);
+  }
+
+  /** Conclui o login em duas etapas com o código do segundo fator. */
+  completeMfa(request: MfaLoginRequest) {
+    return this.http.post<SessionUser>(`${this.baseUrl}/login/mfa`, request);
   }
 
   logout() {

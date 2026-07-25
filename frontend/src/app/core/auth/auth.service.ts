@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, catchError, map, of, switchMap, tap } from 'rxjs';
 import { AuthApi } from './auth.api';
-import { LoginRequest, SessionUser } from './session-user.model';
+import { LoginRequest, LoginResult, MfaLoginRequest, SessionUser, isMfaRequired } from './session-user.model';
 
 /** Estado de autenticação da aplicação (sessão via cookie no servidor). */
 @Injectable({ providedIn: 'root' })
@@ -14,15 +14,33 @@ export class AuthService {
   readonly user = this.userState.asReadonly();
   readonly isAuthenticated = computed(() => this.userState() !== null);
 
-  /** Faz login: garante o token CSRF, autentica e guarda o principal. */
-  login(request: LoginRequest): Observable<SessionUser> {
+  /**
+   * Faz login: garante o token CSRF e autentica. Guarda o principal quando a
+   * sessão conclui; se a conta exigir MFA, devolve `MFA_REQUIRED` sem autenticar.
+   */
+  login(request: LoginRequest): Observable<LoginResult> {
     return this.api.csrf().pipe(
       switchMap(() => this.api.login(request)),
+      tap(result => this.storeIfSession(result)),
+    );
+  }
+
+  /** Conclui o login em duas etapas com o código do segundo fator (TOTP/recuperação). */
+  completeMfa(request: MfaLoginRequest): Observable<SessionUser> {
+    return this.api.csrf().pipe(
+      switchMap(() => this.api.completeMfa(request)),
       tap(user => {
         this.userState.set(user);
         this.resolved.set(true);
       }),
     );
+  }
+
+  private storeIfSession(result: LoginResult): void {
+    if (!isMfaRequired(result)) {
+      this.userState.set(result);
+      this.resolved.set(true);
+    }
   }
 
   logout(): Observable<void> {

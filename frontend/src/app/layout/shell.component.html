@@ -147,6 +147,8 @@
                   <span class="d-none d-sm-inline fw-medium">{{ auth.user()?.displayName ?? 'Conta' }}</span>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end">
+                  <li><a class="dropdown-item" routerLink="/account"><i class="ri-user-settings-line me-2"></i>Minha conta</a></li>
+                  <li><hr class="dropdown-divider"></li>
                   <li><button type="button" class="dropdown-item" (click)="logout()">Sair</button></li>
                 </ul>
               </li>

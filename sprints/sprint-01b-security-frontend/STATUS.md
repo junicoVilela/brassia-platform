@@ -19,7 +19,7 @@ Contexto: fecha o débito de frontend das capacidades de segurança entregues co
 - Passkeys/WebAuthn e administração de terceiros permanecem fora de escopo (débito da Sprint 01).
 - SEC-F01: ~~o backend não expõe GET de status persistente de MFA~~ — **RESOLVIDO pelo SEC-B01** (#72): novo `GET /totp/status` ({ mfaEnabled, recoveryCodesRemaining }); a tela "Minha conta" agora indica Ativo/Inativo e os códigos restantes no carregamento.
 - SEC-F01: QR não é renderizado (sem lib de UI externa); enroll mostra segredo + URI otpauth para entrada manual. Débito: gerar QR inline (SVG) se desejável.
-- SEC-F03: o backend expõe apenas `occurredAt/outcome/reasonCode` no histórico de login (IP/UA são armazenados em hash, não retornados). A tela mostra o que está disponível. Débito: expor IP/UA mascarados na resposta se necessário.
+- SEC-F03: ~~o histórico expõe apenas occurredAt/outcome/reasonCode~~ — **RESOLVIDO pelo SEC-B02** (#76): migration V34 + `LoginOriginMasker` passam a persistir e expor uma origem **mascarada** (IP com octetos finais ocultos + rótulo de navegador/SO); a tela "Minha conta" mostra a coluna Origem. O IP/UA em claro nunca é persistido (só hash + máscara de exibição).
 
 ## Evidências de encerramento
 

@@ -1,6 +1,7 @@
 package br.com.brew.brassia.security.adapter.outbound.persistence;
 
 import br.com.brew.brassia.security.application.port.outbound.LoginEventRepository;
+import br.com.brew.brassia.security.domain.LoginOriginMasker;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -23,8 +24,10 @@ class JdbcLoginEventRepository implements LoginEventRepository {
             String ip, String userAgent, String traceId) {
         jdbcClient.sql("""
                 INSERT INTO login_event
-                    (id, user_id, attempted_identifier_hash, outcome, reason_code, ip_hash, user_agent_hash, trace_id)
-                VALUES (:id, :userId, :identifierHash, :outcome, :reasonCode, :ipHash, :uaHash, :traceId)
+                    (id, user_id, attempted_identifier_hash, outcome, reason_code, ip_hash, user_agent_hash,
+                     ip_masked, user_agent_label, trace_id)
+                VALUES (:id, :userId, :identifierHash, :outcome, :reasonCode, :ipHash, :uaHash,
+                        :ipMasked, :uaLabel, :traceId)
                 """)
                 .param("id", UUID.randomUUID())
                 .param("userId", userId)
@@ -33,6 +36,8 @@ class JdbcLoginEventRepository implements LoginEventRepository {
                 .param("reasonCode", reasonCode)
                 .param("ipHash", sha256(ip))
                 .param("uaHash", sha256(userAgent))
+                .param("ipMasked", LoginOriginMasker.maskIp(ip))
+                .param("uaLabel", LoginOriginMasker.browserLabel(userAgent))
                 .param("traceId", traceId)
                 .update();
     }
@@ -40,7 +45,7 @@ class JdbcLoginEventRepository implements LoginEventRepository {
     @Override
     public List<LoginEventView> recentByUser(UUID userId, int limit) {
         return jdbcClient.sql("""
-                SELECT occurred_at, outcome, reason_code FROM login_event
+                SELECT occurred_at, outcome, reason_code, ip_masked, user_agent_label FROM login_event
                 WHERE user_id = :userId
                 ORDER BY occurred_at DESC
                 LIMIT :limit
@@ -50,7 +55,9 @@ class JdbcLoginEventRepository implements LoginEventRepository {
                 .query((rs, n) -> new LoginEventView(
                         rs.getTimestamp("occurred_at").toInstant(),
                         rs.getString("outcome"),
-                        rs.getString("reason_code")))
+                        rs.getString("reason_code"),
+                        rs.getString("ip_masked"),
+                        rs.getString("user_agent_label")))
                 .list();
     }
 

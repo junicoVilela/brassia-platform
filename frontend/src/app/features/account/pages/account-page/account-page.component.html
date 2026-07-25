@@ -175,7 +175,7 @@
         } @else {
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
-              <thead><tr><th>Quando</th><th>Resultado</th><th>Motivo</th></tr></thead>
+              <thead><tr><th>Quando</th><th>Resultado</th><th>Origem</th><th>Motivo</th></tr></thead>
               <tbody>
                 @for (event of activity.history(); track $index) {
                   <tr>
@@ -186,6 +186,10 @@
                             [class.text-success-emphasis]="event.outcome === 'SUCCESS'"
                             [class.bg-danger-subtle]="event.outcome !== 'SUCCESS'"
                             [class.text-danger-emphasis]="event.outcome !== 'SUCCESS'">{{ event.outcome }}</span>
+                    </td>
+                    <td class="small text-muted">
+                      {{ event.ipMasked ?? '—' }}
+                      @if (event.userAgentLabel) { <span class="d-block">{{ event.userAgentLabel }}</span> }
                     </td>
                     <td class="small text-muted">{{ event.reasonCode ?? '—' }}</td>
                   </tr>

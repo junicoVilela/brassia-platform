@@ -20,5 +20,6 @@ public interface LoginEventRepository {
 
     List<LoginEventView> recentByUser(UUID userId, int limit);
 
-    record LoginEventView(Instant occurredAt, String outcome, String reasonCode) {}
+    record LoginEventView(Instant occurredAt, String outcome, String reasonCode,
+            String ipMasked, String userAgentLabel) {}
 }

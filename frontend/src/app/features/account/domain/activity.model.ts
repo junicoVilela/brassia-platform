@@ -12,4 +12,7 @@ export interface LoginEvent {
   occurredAt: string;
   outcome: string;
   reasonCode: string | null;
+  /** Origem mascarada só para exibição (SEC-B02). */
+  ipMasked: string | null;
+  userAgentLabel: string | null;
 }

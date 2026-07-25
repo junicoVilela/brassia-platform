@@ -73,7 +73,14 @@ class SessionIT {
 
         mockMvc.perform(get("/api/v1/security/login-events").session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].outcome", hasItem("SUCCESS")));
+                .andExpect(jsonPath("$[*].outcome", hasItem("SUCCESS")))
+                // Origem mascarada exibível (SEC-B02): IP do MockMvc (127.0.0.1) com octetos finais ocultos.
+                .andExpect(jsonPath("$[*].ipMasked", hasItem("127.0.x.x")));
+
+        // O IP em claro nunca é persistido: só hash e a máscara de exibição.
+        var plaintextIp = jdbc.queryForObject(
+                "SELECT count(*) FROM login_event WHERE ip_hash = '127.0.0.1' OR ip_masked = '127.0.0.1'", Integer.class);
+        org.assertj.core.api.Assertions.assertThat(plaintextIp).isZero();
 
         var failures = jdbc.queryForObject("SELECT count(*) FROM login_event WHERE outcome = 'FAILURE'", Integer.class);
         assertThatFailureIsHashed();

@@ -1,6 +1,13 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { CreateFederationProvider, ExternalIdentity, FederationProvider } from '../domain/federation.model';
+import { map } from 'rxjs';
+import {
+  CreateFederationProvider,
+  ExternalIdentity,
+  FederationProvider,
+  GroupOption,
+  ScimMapping,
+} from '../domain/federation.model';
 
 @Injectable({ providedIn: 'root' })
 export class FederationApi {
@@ -23,5 +30,24 @@ export class FederationApi {
   /** Identidades externas vinculadas a um provedor. */
   listIdentities(id: string) {
     return this.http.get<ExternalIdentity[]>(`${this.baseUrl}/${id}/identities`);
+  }
+
+  listScimMappings(id: string) {
+    return this.http.get<ScimMapping[]>(`${this.baseUrl}/${id}/scim-mappings`);
+  }
+
+  upsertScimMapping(id: string, externalGroupId: string, securityGroupId: string) {
+    return this.http.post<void>(`${this.baseUrl}/${id}/scim-mappings`, { externalGroupId, securityGroupId });
+  }
+
+  deactivateScimMapping(id: string, externalGroupId: string) {
+    return this.http.delete<void>(`${this.baseUrl}/${id}/scim-mappings/${encodeURIComponent(externalGroupId)}`);
+  }
+
+  /** Catálogo de grupos internos, normalizado para o seletor. */
+  listGroups() {
+    return this.http
+      .get<{ id: string; name: string }[]>('/api/v1/security/groups')
+      .pipe(map(groups => groups.map((g): GroupOption => ({ id: g.id, name: g.name }))));
   }
 }

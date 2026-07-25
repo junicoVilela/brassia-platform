@@ -200,8 +200,10 @@ class SecurityExtendedConfiguration {
 
     @Bean FederationProviderHandler federationProviderHandler(
             FederationProviderRepository providers, ExternalIdentityRepository identities,
+            ScimGroupMappingRepository scimMappings,
             SamlAssertionValidator samlValidator, OidcTokenClaimsValidator oidcValidator, AuditTrail audit) {
-        return new FederationProviderHandler(providers, identities, samlValidator, oidcValidator, audit);
+        return new FederationProviderHandler(
+                providers, identities, scimMappings, samlValidator, oidcValidator, audit);
     }
 
     @Bean ManageFederationProviderUseCase manageFederationProviderUseCase(FederationProviderHandler h, PlatformTransactionManager tm) {
@@ -225,6 +227,17 @@ class SecurityExtendedConfiguration {
             @Override public java.util.List<br.com.brew.brassia.security.application.port.outbound.ExternalIdentityRepository.IdentityView>
                     listIdentities(java.util.UUID breweryId, java.util.UUID providerId) {
                 return h.listIdentities(breweryId, providerId);
+            }
+            @Override public java.util.List<br.com.brew.brassia.security.application.port.outbound.ScimGroupMappingRepository.MappingView>
+                    listScimMappings(java.util.UUID breweryId, java.util.UUID providerId) {
+                return h.listScimMappings(breweryId, providerId);
+            }
+            @Override public void upsertScimMapping(ScimMappingCommand c) {
+                tx.executeWithoutResult(s -> h.upsertScimMapping(c));
+            }
+            @Override public void deactivateScimMapping(
+                    java.util.UUID breweryId, java.util.UUID actorId, java.util.UUID providerId, String externalGroupId) {
+                tx.executeWithoutResult(s -> h.deactivateScimMapping(breweryId, actorId, providerId, externalGroupId));
             }
         };
     }

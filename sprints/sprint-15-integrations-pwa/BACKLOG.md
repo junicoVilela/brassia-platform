@@ -116,3 +116,17 @@
 - Prévia mostra criar, atualizar, ignorar ou conflitar.
 - Retry preserva cursor/idempotência.
 - Credencial é mascarada e alteração crítica é auditada.
+
+
+## SEC-B07 — Login SSO no browser (SAML/OIDC)
+
+**Objetivo:** Autenticar via provedor de federação validado, com fluxo real no browser (SP-initiated) e JIT provisioning.
+
+**Critérios específicos:**
+
+- Redirect/callback SAML 2.0 e OIDC (Authorization Code + PKCE) consumindo provedores validados; sessão criada com escopo e cervejaria corretos.
+- Reaproveita `SamlAssertionValidator`/`OidcTokenClaimsValidator` já existentes; account linking seguro (sem sequestro).
+- Operação respeita estado, permissão, `brewery_id` e concorrência.
+- Erro usa Problem Details RFC 9457 e não deixa persistência parcial.
+- Comando relevante gera auditoria e evento quando aplicável.
+- Testes cobrem sucesso, limite, falha, outra cervejaria e repetição.

@@ -2,6 +2,7 @@ package br.com.brew.brassia.security;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -63,6 +64,36 @@ class MfaIT {
                         .content("{\"email\":\"mfa@example.com\",\"password\":\"segredo123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("MFA_REQUIRED"));
+    }
+
+    @Test
+    void statusReflectsMfaAndRecoveryCodes() throws Exception {
+        onboard("mfastatus@example.com", "segredo123");
+        var session = login("mfastatus@example.com", "segredo123");
+
+        mockMvc.perform(get("/api/v1/security/totp/status").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mfaEnabled").value(false))
+                .andExpect(jsonPath("$.recoveryCodesRemaining").value(0));
+
+        var enroll = mockMvc.perform(post("/api/v1/security/totp/enroll").session(session).with(csrf()))
+                .andExpect(status().isOk()).andReturn();
+        var secret = com.jayway.jsonpath.JsonPath.read(enroll.getResponse().getContentAsString(), "$.secret");
+        var code = Totp.currentCode((String) secret, System.currentTimeMillis() / 1000L);
+        mockMvc.perform(post("/api/v1/security/totp/confirm").session(session).with(csrf())
+                        .contentType("application/json").content("{\"code\":\"" + code + "\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/security/totp/status").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mfaEnabled").value(true));
+
+        mockMvc.perform(post("/api/v1/security/recovery-codes/regenerate").session(session).with(csrf()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/security/totp/status").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recoveryCodesRemaining", org.hamcrest.Matchers.greaterThan(0)));
     }
 
     @Test

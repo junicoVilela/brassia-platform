@@ -5,6 +5,7 @@ import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.security.application.port.inbound.CompleteMfaLoginUseCase;
 import br.com.brew.brassia.security.application.port.inbound.ConfirmTotpUseCase;
 import br.com.brew.brassia.security.application.port.inbound.DisableTotpUseCase;
+import br.com.brew.brassia.security.application.port.inbound.MfaStatusQuery;
 import br.com.brew.brassia.security.application.port.inbound.EnrollTotpUseCase;
 import br.com.brew.brassia.security.application.port.inbound.HasActiveMfaQuery;
 import br.com.brew.brassia.security.application.port.inbound.RegenerateRecoveryCodesUseCase;
@@ -121,6 +122,12 @@ public final class MfaManagementHandler {
 
     public boolean hasActiveTotp(UUID userId) {
         return factors.findActiveTotpByUserId(new UserId(userId)).isPresent();
+    }
+
+    public MfaStatusQuery.Status status(UUID userId) {
+        var id = new UserId(userId);
+        boolean enabled = factors.findActiveTotpByUserId(id).isPresent();
+        return new MfaStatusQuery.Status(enabled, enabled ? recoveryCodes.countUnused(id) : 0);
     }
 
     public CompleteMfaLoginUseCase.Result completeMfaLogin(CompleteMfaLoginUseCase.Command command) {

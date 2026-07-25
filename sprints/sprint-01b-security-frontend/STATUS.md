@@ -17,7 +17,7 @@ Contexto: fecha o débito de frontend das capacidades de segurança entregues co
 
 - Nenhuma migration nova: todo o backend consumido já existe (SEC-002/003/006/009/010).
 - Passkeys/WebAuthn e administração de terceiros permanecem fora de escopo (débito da Sprint 01).
-- SEC-F01: o backend não expõe GET de status persistente de MFA — a tela "Minha conta" reflete apenas as ações da sessão. Débito: expor status de MFA (candidato a fatia futura do SEC-009) para indicar ativo/inativo ao carregar a página.
+- SEC-F01: ~~o backend não expõe GET de status persistente de MFA~~ — **RESOLVIDO pelo SEC-B01** (#72): novo `GET /totp/status` ({ mfaEnabled, recoveryCodesRemaining }); a tela "Minha conta" agora indica Ativo/Inativo e os códigos restantes no carregamento.
 - SEC-F01: QR não é renderizado (sem lib de UI externa); enroll mostra segredo + URI otpauth para entrada manual. Débito: gerar QR inline (SVG) se desejável.
 - SEC-F03: o backend expõe apenas `occurredAt/outcome/reasonCode` no histórico de login (IP/UA são armazenados em hash, não retornados). A tela mostra o que está disponível. Débito: expor IP/UA mascarados na resposta se necessário.
 

@@ -7,3 +7,9 @@ export interface TotpEnrollment {
 export interface RecoveryCodes {
   codes: string[];
 }
+
+/** Status persistido do MFA da conta (SEC-B01). */
+export interface MfaStatus {
+  mfaEnabled: boolean;
+  recoveryCodesRemaining: number;
+}

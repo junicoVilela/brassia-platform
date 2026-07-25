@@ -7,10 +7,11 @@ import { MfaStore } from './mfa.store';
 
 function setup(api: Partial<Record<keyof MfaApi, unknown>>) {
   const toast = { success: vi.fn(), error: vi.fn() };
+  const base = { status: vi.fn(() => of({ mfaEnabled: false, recoveryCodesRemaining: 0 })) };
   TestBed.configureTestingModule({
     providers: [
       MfaStore,
-      { provide: MfaApi, useValue: api },
+      { provide: MfaApi, useValue: { ...base, ...api } },
       { provide: ToastService, useValue: toast },
     ],
   });
@@ -18,6 +19,14 @@ function setup(api: Partial<Record<keyof MfaApi, unknown>>) {
 }
 
 describe('MfaStore', () => {
+  it('carrega o status persistido do MFA', () => {
+    const { store } = setup({ status: vi.fn(() => of({ mfaEnabled: true, recoveryCodesRemaining: 7 })) });
+
+    store.loadStatus();
+
+    expect(store.status()).toEqual({ mfaEnabled: true, recoveryCodesRemaining: 7 });
+  });
+
   it('inicia o enroll e entra no passo de configuração', () => {
     const { store } = setup({ enroll: vi.fn(() => of({ secret: 'S', otpauthUri: 'otpauth://x' })) });
 

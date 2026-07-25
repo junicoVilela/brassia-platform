@@ -94,6 +94,15 @@ export const routes: Routes = [
         loadChildren: () =>
           import('./features/security/audit/audit.routes').then(m => m.AUDIT_ROUTES),
       },
+      {
+        path: 'security/service-accounts',
+        canActivate: [permissionGuard],
+        data: { permission: 'security.service-account.read' },
+        loadChildren: () =>
+          import('./features/security/service-accounts/service-accounts.routes').then(
+            m => m.SERVICE_ACCOUNTS_ROUTES,
+          ),
+      },
       { path: 'forbidden', component: ForbiddenPageComponent },
       { path: '', pathMatch: 'full', redirectTo: 'recipes' },
     ],

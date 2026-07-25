@@ -62,4 +62,56 @@ describe('UsersStore', () => {
     expect(store.actionError()).not.toBeNull();
     expect(store.submitting()).toBe(false);
   });
+
+  const user = { id: '42', email: 'a@x.com', displayName: 'Ana', status: 'ACTIVE' as const, emailVerifiedAt: null };
+
+  it('seleciona usuário, carrega grupos e calcula disponíveis', () => {
+    const api = {
+      listMemberships: vi.fn(() => of([{ groupId: 'g1', code: 'A', name: 'Admin' }])),
+      listGroups: vi.fn(() => of([
+        { groupId: 'g1', code: 'A', name: 'Admin' },
+        { groupId: 'g2', code: 'B', name: 'Brewers' },
+      ])),
+    };
+    TestBed.configureTestingModule({ providers: [UsersStore, { provide: UsersApi, useValue: api }] });
+    const store = TestBed.inject(UsersStore);
+
+    store.selectUser(user);
+
+    expect(store.memberships()).toHaveLength(1);
+    expect(store.availableGroups().map(g => g.groupId)).toEqual(['g2']);
+  });
+
+  it('bloqueio por segregação (409) vira membershipError', () => {
+    const api = {
+      listMemberships: vi.fn(() => of([])),
+      listGroups: vi.fn(() => of([])),
+      grantMembership: vi.fn(() => throwError(() => ({ status: 409 }))),
+    };
+    TestBed.configureTestingModule({ providers: [UsersStore, { provide: UsersApi, useValue: api }] });
+    const store = TestBed.inject(UsersStore);
+
+    store.selectUser(user);
+    store.grantMembership('g2');
+
+    expect(store.membershipError()).toContain('segregação');
+  });
+
+  it('associa com sucesso e recarrega os grupos', () => {
+    const listMemberships = vi.fn(() => of([{ groupId: 'g1', code: 'A', name: 'Admin' }]));
+    const api = {
+      listMemberships,
+      listGroups: vi.fn(() => of([])),
+      grantMembership: vi.fn(() => of(undefined)),
+    };
+    TestBed.configureTestingModule({ providers: [UsersStore, { provide: UsersApi, useValue: api }] });
+    const store = TestBed.inject(UsersStore);
+
+    store.selectUser(user);
+    store.grantMembership('g1');
+
+    expect(api.grantMembership).toHaveBeenCalledWith('42', 'g1');
+    expect(listMemberships).toHaveBeenCalledTimes(2);
+    expect(store.membershipError()).toBeNull();
+  });
 });

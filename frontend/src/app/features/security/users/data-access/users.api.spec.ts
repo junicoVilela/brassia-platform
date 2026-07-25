@@ -50,4 +50,28 @@ describe('UsersApi', () => {
     api.disable('42').subscribe();
     http.expectOne(r => r.method === 'POST' && r.url === '/api/v1/security/users/42/disable').flush(null);
   });
+
+  it('lê, associa e remove memberships do usuário', () => {
+    let memberships: unknown;
+    api.listMemberships('42').subscribe(m => (memberships = m));
+    http.expectOne(r => r.method === 'GET' && r.url === '/api/v1/security/users/42/memberships')
+      .flush([{ groupId: 'g1', code: 'ADMIN', name: 'Administradores' }]);
+    expect(memberships).toHaveLength(1);
+
+    api.grantMembership('42', 'g2').subscribe();
+    const grant = http.expectOne(r => r.method === 'POST' && r.url === '/api/v1/security/users/42/memberships');
+    expect(grant.request.body).toEqual({ groupId: 'g2' });
+    grant.flush(null);
+
+    api.revokeMembership('42', 'g2').subscribe();
+    http.expectOne(r => r.method === 'DELETE' && r.url === '/api/v1/security/users/42/memberships/g2').flush(null);
+  });
+
+  it('normaliza o catálogo de grupos (id → groupId)', () => {
+    let groups: unknown;
+    api.listGroups().subscribe(g => (groups = g));
+    http.expectOne(r => r.method === 'GET' && r.url === '/api/v1/security/groups')
+      .flush([{ id: 'g1', code: 'ADMIN', name: 'Administradores', description: '', permissions: [] }]);
+    expect(groups).toEqual([{ groupId: 'g1', code: 'ADMIN', name: 'Administradores' }]);
+  });
 });

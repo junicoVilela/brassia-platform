@@ -59,4 +59,28 @@ describe('ServiceAccountsStore', () => {
     expect(store.actionError()).not.toBeNull();
     expect(store.submitting()).toBe(false);
   });
+
+  it('seleciona conta e carrega credenciais persistidas', () => {
+    const listCredentials = vi.fn(() => of([
+      { id: 'c1', keyPrefix: 'brassia_a', scopes: ['scim.read'], expiresAt: null, revokedAt: null, active: true },
+    ]));
+    const { store } = setup({ listCredentials });
+
+    store.selectAccount(account);
+
+    expect(listCredentials).toHaveBeenCalledWith('s1');
+    expect(store.credentials()).toHaveLength(1);
+    expect(store.selected()?.id).toBe('s1');
+  });
+
+  it('revogar recarrega as credenciais da conta selecionada', () => {
+    const listCredentials = vi.fn(() => of([]));
+    const { store } = setup({ listCredentials, revokeCredential: vi.fn(() => of(undefined)) });
+
+    store.selectAccount(account);
+    store.revokeCredential('c1');
+
+    // uma vez ao selecionar + uma vez após revogar
+    expect(listCredentials).toHaveBeenCalledTimes(2);
+  });
 });

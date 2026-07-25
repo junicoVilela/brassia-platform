@@ -50,4 +50,9 @@ export class ServiceAccountsPageComponent implements OnInit {
   protected onScopeInput(accountId: string, value: string): void {
     this.scopeInputs.set(accountId, value);
   }
+
+  protected toggleCredentials(account: ServiceAccount): void {
+    const open = this.store.selected()?.id === account.id;
+    this.store.selectAccount(open ? null : account);
+  }
 }

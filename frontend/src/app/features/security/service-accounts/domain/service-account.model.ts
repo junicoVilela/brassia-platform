@@ -10,6 +10,16 @@ export interface CreateServiceAccount {
   name: string;
 }
 
+/** Credencial persistida (metadados; sem segredo) — vinda do GID de credenciais. */
+export interface ServiceAccountCredential {
+  id: string;
+  keyPrefix: string;
+  scopes: string[];
+  expiresAt: string | null;
+  revokedAt: string | null;
+  active: boolean;
+}
+
 /**
  * Credencial emitida nesta sessão. O `rawKey` (segredo) só é retornado uma vez,
  * na emissão — não é persistido nem relido do backend.

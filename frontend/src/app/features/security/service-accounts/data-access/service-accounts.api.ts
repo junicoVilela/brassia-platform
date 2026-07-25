@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { CreateServiceAccount, ServiceAccount } from '../domain/service-account.model';
+import { CreateServiceAccount, ServiceAccount, ServiceAccountCredential } from '../domain/service-account.model';
 
 interface IssueResponse {
   credentialId: string;
@@ -19,6 +19,10 @@ export class ServiceAccountsApi {
 
   create(body: CreateServiceAccount) {
     return this.http.post<ServiceAccount>(this.baseUrl, body);
+  }
+
+  listCredentials(serviceAccountId: string) {
+    return this.http.get<ServiceAccountCredential[]>(`${this.baseUrl}/${serviceAccountId}/credentials`);
   }
 
   issueCredential(serviceAccountId: string, scopes: string[]) {

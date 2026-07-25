@@ -8,7 +8,7 @@ Contexto: fecha os débitos de backend descobertos ao entregar o frontend de seg
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| SEC-B04 | Em andamento | IA | — | Leitura de credenciais de conta de serviço (repo já pronto). |
+| SEC-B04 | Concluída | IA | #71 | GET /service-accounts/{id}/credentials (sem segredo) + tela lista/revoga credenciais persistidas. Remove o débito do SEC-F09. |
 | SEC-B01 | A fazer | — | — | Status de MFA do usuário. |
 | SEC-B03 | A fazer | — | — | Filtros e paginação da auditoria. |
 | SEC-B06 | A fazer | — | — | Identidades externas vinculadas (leitura). |

@@ -130,6 +130,9 @@ class SecurityExtendedConfiguration {
             @Override public void revokeCredential(RevokeCommand c) {
                 tx.executeWithoutResult(s -> h.revokeCredential(c));
             }
+            @Override public java.util.List<CredentialView> listCredentials(ListCredentialsCommand c) {
+                return Objects.requireNonNull(tx.execute(s -> h.listCredentials(c)));
+            }
         };
     }
     @Bean AuthenticateApiKeyUseCase authenticateApiKeyUseCase(ServiceAccountHandler h) { return h::authenticate; }

@@ -16,7 +16,8 @@ public final class LoginHistoryQueryHandler implements LoginHistoryQuery {
     @Override
     public List<LoginEventView> recentByUser(UUID userId, int limit) {
         return loginEvents.recentByUser(userId, limit).stream()
-                .map(e -> new LoginEventView(e.occurredAt(), e.outcome(), e.reasonCode()))
+                .map(e -> new LoginEventView(e.occurredAt(), e.outcome(), e.reasonCode(),
+                        e.ipMasked(), e.userAgentLabel()))
                 .toList();
     }
 }

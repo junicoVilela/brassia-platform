@@ -14,6 +14,16 @@ export class AuthService {
   readonly user = this.userState.asReadonly();
   readonly isAuthenticated = computed(() => this.userState() !== null);
 
+  /** true se o principal atual possui a permissão informada. */
+  hasPermission(permission: string): boolean {
+    return this.userState()?.permissions.includes(permission) ?? false;
+  }
+
+  /** true se o principal possui ao menos uma das permissões informadas. */
+  hasAnyPermission(permissions: string[]): boolean {
+    return permissions.some(permission => this.hasPermission(permission));
+  }
+
   /**
    * Faz login: garante o token CSRF e autentica. Guarda o principal quando a
    * sessão conclui; se a conta exigir MFA, devolve `MFA_REQUIRED` sem autenticar.

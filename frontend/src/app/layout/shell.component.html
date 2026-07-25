@@ -73,19 +73,25 @@
               <span class="title">Mistura</span>
             </a>
           </li>
-          <li class="menu-title small text-uppercase"><span class="menu-title-text">Segurança</span></li>
-          <li class="menu-item">
-            <a routerLink="/security/users" routerLinkActive="active" class="menu-link">
-              <i class="ri-group-line menu-icon"></i>
-              <span class="title">Usuários</span>
-            </a>
-          </li>
-          <li class="menu-item">
-            <a routerLink="/security/groups" routerLinkActive="active" class="menu-link">
-              <i class="ri-shield-keyhole-line menu-icon"></i>
-              <span class="title">Grupos</span>
-            </a>
-          </li>
+          @if (auth.hasAnyPermission(['security.user.read', 'security.group.read', 'security.permission.read'])) {
+            <li class="menu-title small text-uppercase"><span class="menu-title-text">Segurança</span></li>
+            @if (auth.hasPermission('security.user.read')) {
+              <li class="menu-item">
+                <a routerLink="/security/users" routerLinkActive="active" class="menu-link">
+                  <i class="ri-group-line menu-icon"></i>
+                  <span class="title">Usuários</span>
+                </a>
+              </li>
+            }
+            @if (auth.hasAnyPermission(['security.group.read', 'security.permission.read'])) {
+              <li class="menu-item">
+                <a routerLink="/security/groups" routerLinkActive="active" class="menu-link">
+                  <i class="ri-shield-keyhole-line menu-icon"></i>
+                  <span class="title">Grupos</span>
+                </a>
+              </li>
+            }
+          }
         </ul>
       </aside>
     </div>

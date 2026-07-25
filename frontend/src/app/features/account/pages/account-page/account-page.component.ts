@@ -1,7 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
+import { ActivityStore } from '../../data-access/activity.store';
 import { MfaStore } from '../../data-access/mfa.store';
 import { PasswordStore } from '../../data-access/password.store';
 
@@ -9,14 +11,20 @@ import { PasswordStore } from '../../data-access/password.store';
   selector: 'app-account-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, PageHeaderComponent],
-  providers: [MfaStore, PasswordStore],
+  imports: [ReactiveFormsModule, DatePipe, PageHeaderComponent],
+  providers: [MfaStore, PasswordStore, ActivityStore],
   templateUrl: './account-page.component.html',
 })
-export class AccountPageComponent {
+export class AccountPageComponent implements OnInit {
   protected readonly store = inject(MfaStore);
   protected readonly passwords = inject(PasswordStore);
+  protected readonly activity = inject(ActivityStore);
   private readonly fb = inject(FormBuilder);
+
+  ngOnInit(): void {
+    this.activity.loadSessions();
+    this.activity.loadHistory();
+  }
 
   protected readonly passwordForm = this.fb.nonNullable.group({
     currentPassword: ['', [Validators.required]],
@@ -77,5 +85,13 @@ export class AccountPageComponent {
 
   protected regenerate(): void {
     this.store.regenerateRecoveryCodes();
+  }
+
+  protected revokeSession(ref: string): void {
+    this.activity.revoke(ref);
+  }
+
+  protected revokeOtherSessions(): void {
+    this.activity.revokeOthers();
   }
 }

@@ -12,7 +12,7 @@ Contexto: fecha o débito de frontend das capacidades de administração/governa
 | SEC-F05 | Concluída | IA | #65 | Acesso temporário: solicitar/aprovar/revogar + lista com vigência/estado/aprovador. Backend completo (só frontend). |
 | SEC-F06 | Concluída | IA | #66 | Revisão de acessos (criar/listar/itens KEEP-REMOVE) + regras de segregação (criar/listar). Backend completo (só frontend). |
 | SEC-F07 | Concluída | IA | #67 | Alertas de segurança: listar (filtro por estado), reconhecer/resolver, evidência. Backend completo (só frontend). |
-| SEC-F08 | A fazer | — | — | Auditoria consultável com filtros. |
+| SEC-F08 | Concluída | IA | #68 | Auditoria: viewer com filtros no cliente (termo/resultado/período) sobre os 50 recentes. Débito: filtro/paginação server-side. |
 | SEC-F09 | A fazer | — | — | Contas de serviço + API keys. |
 | SEC-F10 | A fazer | — | — | Administração de federação/SCIM. |
 
@@ -21,6 +21,7 @@ Contexto: fecha o débito de frontend das capacidades de administração/governa
 - Nenhuma migration nova em toda a sprint.
 - SEC-F04: exceção à regra "só frontend" (decisão do mantenedor) — o backend não tinha leitura de memberships; adicionado `GET /users/{userId}/memberships` (aditivo, sem migration, sem alterar endpoints existentes; perm `security.membership.manage`). Demais histórias seguem só-frontend salvo gaps semelhantes.
 - SEC-F09/F10 podem migrar para a Sprint 15 (integrações/PWA) conforme prioridade.
+- SEC-F08: o `GET /audit-events` devolve os 50 mais recentes sem parâmetros de filtro/paginação. A tela filtra no cliente (ação/recurso/ator/período). Débito: filtro e paginação server-side no módulo `audit` para grandes volumes.
 - Fluxo real de SSO no browser e LDAP real permanecem fora de escopo.
 
 ## Evidências de encerramento

@@ -1,0 +1,73 @@
+    <app-page-header title="Auditoria" subtitle="Trilha de eventos da cervejaria (50 mais recentes)" />
+
+    <div class="card border-0 rounded-10 mb-4">
+      <div class="card-body p-4">
+        <div class="row g-3 align-items-end">
+          <div class="col-sm-4">
+            <label class="form-label small" for="term">Buscar (ação, recurso, ator)</label>
+            <input id="term" type="text" class="form-control" [value]="store.term()"
+                   (input)="store.term.set($any($event.target).value)" placeholder="ex.: login, ingredient, Ana">
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label small" for="outcome">Resultado</label>
+            <select id="outcome" class="form-select" [value]="store.outcome()"
+                    (change)="store.outcome.set($any($event.target).value)">
+              <option value="">Todos</option>
+              <option value="SUCCESS">SUCCESS</option>
+              <option value="FAILURE">FAILURE</option>
+            </select>
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label small" for="from">De</label>
+            <input id="from" type="datetime-local" class="form-control" [value]="store.from()"
+                   (change)="store.from.set($any($event.target).value)">
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label small" for="to">Até</label>
+            <input id="to" type="datetime-local" class="form-control" [value]="store.to()"
+                   (change)="store.to.set($any($event.target).value)">
+          </div>
+          <div class="col-sm-1 d-grid">
+            <button type="button" class="btn btn-outline-secondary" (click)="store.clearFilters()"
+                    title="Limpar filtros"><i class="ri-filter-off-line"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 rounded-10">
+      <div class="card-body p-4">
+        @if (store.loading()) {
+          <app-loading-indicator />
+        } @else if (store.error(); as error) {
+          <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+        } @else if (store.empty()) {
+          <app-empty-state icon="ri-file-list-3-line" message="Nenhum evento de auditoria." />
+        } @else if (store.filtered().length === 0) {
+          <app-empty-state icon="ri-search-line" message="Nenhum evento para os filtros aplicados." />
+        } @else {
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr><th>Quando</th><th>Ação</th><th>Recurso</th><th>Ator</th><th>Resultado</th><th>Resumo</th></tr>
+              </thead>
+              <tbody>
+                @for (event of store.filtered(); track $index) {
+                  <tr>
+                    <td class="small text-nowrap">{{ event.occurredAt | date:'short' }}</td>
+                    <td class="fw-medium">{{ event.action }}</td>
+                    <td class="small">
+                      {{ event.targetType }}
+                      @if (event.targetId) { <span class="text-muted d-block">{{ event.targetId }}</span> }
+                    </td>
+                    <td class="small">{{ store.actorName(event.actorId) }}</td>
+                    <td><span class="badge" [class]="outcomeClass(event.outcome)">{{ event.outcome }}</span></td>
+                    <td class="small text-muted">{{ event.changeSummary }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </div>

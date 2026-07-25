@@ -1,9 +1,11 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
+import { permissionGuard } from './core/auth/permission.guard';
 import { ForgotPasswordPageComponent } from './features/auth/forgot-password-page/forgot-password-page.component';
 import { LoginPageComponent } from './features/auth/login-page/login-page.component';
 import { ResetPasswordPageComponent } from './features/auth/reset-password-page/reset-password-page.component';
 import { VerifyEmailPageComponent } from './features/auth/verify-email-page/verify-email-page.component';
+import { ForbiddenPageComponent } from './features/errors/forbidden-page/forbidden-page.component';
 import { ShellComponent } from './layout/shell.component';
 
 export const routes: Routes = [
@@ -50,14 +52,19 @@ export const routes: Routes = [
       },
       {
         path: 'security/users',
+        canActivate: [permissionGuard],
+        data: { permission: 'security.user.read' },
         loadChildren: () =>
           import('./features/security/users/security-users.routes').then(m => m.SECURITY_USERS_ROUTES),
       },
       {
         path: 'security/groups',
+        canActivate: [permissionGuard],
+        data: { permission: ['security.group.read', 'security.permission.read'] },
         loadChildren: () =>
           import('./features/security/groups/security-groups.routes').then(m => m.SECURITY_GROUPS_ROUTES),
       },
+      { path: 'forbidden', component: ForbiddenPageComponent },
       { path: '', pathMatch: 'full', redirectTo: 'recipes' },
     ],
   },

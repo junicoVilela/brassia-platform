@@ -4,63 +4,57 @@ import { describe, expect, it, vi } from 'vitest';
 import { AuditApi } from './audit.api';
 import { AuditStore } from './audit.store';
 
-const event = (over: Partial<Record<string, unknown>> = {}) => ({
-  occurredAt: '2026-07-01T12:00:00Z', action: 'security.login.success', outcome: 'SUCCESS',
-  targetType: 'security_user', targetId: 't1', actorId: 'u1', changeSummary: '', ...over,
-});
+function page(content: unknown[], p = 0, totalPages = 1, totalElements = content.length) {
+  return of({ content, page: p, size: 25, totalElements, totalPages });
+}
 
-function setup(events: unknown[], users: unknown[] = []) {
-  const api = { list: vi.fn(() => of(events)), listUsers: vi.fn(() => of(users)) };
-  TestBed.configureTestingModule({ providers: [AuditStore, { provide: AuditApi, useValue: api }] });
-  return { store: TestBed.inject(AuditStore), api };
+function setup(api: Partial<Record<keyof AuditApi, unknown>>) {
+  const base = { search: vi.fn(() => page([])), listUsers: vi.fn(() => of([])) };
+  TestBed.configureTestingModule({ providers: [AuditStore, { provide: AuditApi, useValue: { ...base, ...api } }] });
+  return { store: TestBed.inject(AuditStore), api: { ...base, ...api } };
 }
 
 describe('AuditStore', () => {
-  it('carrega eventos e resolve nome do ator', () => {
-    const { store } = setup([event()], [{ id: 'u1', displayName: 'Ana' }]);
-    store.load();
-    expect(store.filtered()).toHaveLength(1);
+  it('init carrega a primeira página e resolve nome do ator', () => {
+    const { store } = setup({
+      search: vi.fn(() => page([{ actorId: 'u1' }], 0, 3, 60)),
+      listUsers: vi.fn(() => of([{ id: 'u1', displayName: 'Ana' }])),
+    });
+
+    store.init();
+
+    expect(store.events()).toHaveLength(1);
+    expect(store.totalPages()).toBe(3);
     expect(store.actorName('u1')).toBe('Ana');
     expect(store.actorName('zzzzzzzz-1')).toBe('zzzzzzzz');
   });
 
-  it('filtra por termo (ação/recurso/ator)', () => {
-    const { store } = setup(
-      [
-        event({ action: 'catalog.ingredient.create', actorId: 'u1' }),
-        event({ action: 'security.login.success', actorId: 'u2' }),
-      ],
-      [{ id: 'u1', displayName: 'Ana' }],
+  it('applyFilter repassa filtros ao backend e volta à página 0', () => {
+    const search = vi.fn(() => page([]));
+    const { store } = setup({ search });
+
+    store.applyFilter({ action: 'login' });
+
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'login' }), 0, 25,
     );
-    store.load();
-
-    store.term.set('ingredient');
-    expect(store.filtered()).toHaveLength(1);
-
-    store.term.set('ana');
-    expect(store.filtered()).toHaveLength(1);
+    expect(store.filter().action).toBe('login');
   });
 
-  it('filtra por resultado e período', () => {
-    const { store } = setup([
-      event({ occurredAt: '2026-07-01T00:00:00Z', outcome: 'SUCCESS' }),
-      event({ occurredAt: '2026-07-10T00:00:00Z', outcome: 'FAILURE' }),
-    ]);
-    store.load();
+  it('nextPage só avança quando há próxima', () => {
+    const search = vi.fn(() => page([{}], 0, 2, 40));
+    const { store } = setup({ search });
 
-    store.outcome.set('FAILURE');
-    expect(store.filtered()).toHaveLength(1);
+    store.load(0);
+    store.nextPage();
 
-    store.outcome.set('');
-    store.from.set('2026-07-05T00:00');
-    expect(store.filtered()).toHaveLength(1);
+    expect(search).toHaveBeenLastCalledWith(expect.anything(), 1, 25);
   });
 
   it('marca erro quando a carga falha', () => {
-    const api = { list: vi.fn(() => throwError(() => new Error('boom'))), listUsers: vi.fn(() => of([])) };
-    TestBed.configureTestingModule({ providers: [AuditStore, { provide: AuditApi, useValue: api }] });
-    const store = TestBed.inject(AuditStore);
-    store.load();
+    const { store } = setup({ search: vi.fn(() => throwError(() => new Error('boom'))) });
+    store.load(0);
     expect(store.error()).not.toBeNull();
+    expect(store.loading()).toBe(false);
   });
 });

@@ -1,35 +1,52 @@
-    <app-page-header title="Auditoria" subtitle="Trilha de eventos da cervejaria (50 mais recentes)" />
+    <app-page-header title="Auditoria" subtitle="Trilha de eventos da cervejaria com filtros e paginação" />
 
     <div class="card border-0 rounded-10 mb-4">
       <div class="card-body p-4">
         <div class="row g-3 align-items-end">
-          <div class="col-sm-4">
-            <label class="form-label small" for="term">Buscar (ação, recurso, ator)</label>
-            <input id="term" type="text" class="form-control" [value]="store.term()"
-                   (input)="store.term.set($any($event.target).value)" placeholder="ex.: login, ingredient, Ana">
-          </div>
           <div class="col-sm-3">
+            <label class="form-label small" for="action">Ação</label>
+            <input id="action" type="text" class="form-control" [value]="store.filter().action"
+                   (change)="apply({ action: $any($event.target).value })" placeholder="ex.: login, ingredient">
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label small" for="targetType">Recurso</label>
+            <input id="targetType" type="text" class="form-control" [value]="store.filter().targetType"
+                   (change)="apply({ targetType: $any($event.target).value })" placeholder="ex.: security_user">
+          </div>
+          <div class="col-sm-2">
             <label class="form-label small" for="outcome">Resultado</label>
-            <select id="outcome" class="form-select" [value]="store.outcome()"
-                    (change)="store.outcome.set($any($event.target).value)">
+            <select id="outcome" class="form-select" [value]="store.filter().outcome"
+                    (change)="apply({ outcome: $any($event.target).value })">
               <option value="">Todos</option>
               <option value="SUCCESS">SUCCESS</option>
               <option value="FAILURE">FAILURE</option>
             </select>
           </div>
           <div class="col-sm-2">
-            <label class="form-label small" for="from">De</label>
-            <input id="from" type="datetime-local" class="form-control" [value]="store.from()"
-                   (change)="store.from.set($any($event.target).value)">
+            <label class="form-label small" for="actorId">Ator</label>
+            <select id="actorId" class="form-select" [value]="store.filter().actorId"
+                    (change)="apply({ actorId: $any($event.target).value })">
+              <option value="">Todos</option>
+              @for (user of store.users(); track user.id) {
+                <option [value]="user.id">{{ user.displayName }}</option>
+              }
+            </select>
           </div>
-          <div class="col-sm-2">
-            <label class="form-label small" for="to">Até</label>
-            <input id="to" type="datetime-local" class="form-control" [value]="store.to()"
-                   (change)="store.to.set($any($event.target).value)">
-          </div>
-          <div class="col-sm-1 d-grid">
-            <button type="button" class="btn btn-outline-secondary" (click)="store.clearFilters()"
-                    title="Limpar filtros"><i class="ri-filter-off-line"></i></button>
+          <div class="col-sm-3 d-flex gap-2">
+            <div class="flex-grow-1">
+              <label class="form-label small" for="from">De</label>
+              <input id="from" type="datetime-local" class="form-control" [value]="store.filter().from"
+                     (change)="apply({ from: $any($event.target).value })">
+            </div>
+            <div class="flex-grow-1">
+              <label class="form-label small" for="to">Até</label>
+              <input id="to" type="datetime-local" class="form-control" [value]="store.filter().to"
+                     (change)="apply({ to: $any($event.target).value })">
+            </div>
+            <div class="d-grid align-self-end">
+              <button type="button" class="btn btn-outline-secondary" (click)="store.clearFilters()"
+                      title="Limpar filtros"><i class="ri-filter-off-line"></i></button>
+            </div>
           </div>
         </div>
       </div>
@@ -42,8 +59,6 @@
         } @else if (store.error(); as error) {
           <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
         } @else if (store.empty()) {
-          <app-empty-state icon="ri-file-list-3-line" message="Nenhum evento de auditoria." />
-        } @else if (store.filtered().length === 0) {
           <app-empty-state icon="ri-search-line" message="Nenhum evento para os filtros aplicados." />
         } @else {
           <div class="table-responsive">
@@ -52,7 +67,7 @@
                 <tr><th>Quando</th><th>Ação</th><th>Recurso</th><th>Ator</th><th>Resultado</th><th>Resumo</th></tr>
               </thead>
               <tbody>
-                @for (event of store.filtered(); track $index) {
+                @for (event of store.events(); track $index) {
                   <tr>
                     <td class="small text-nowrap">{{ event.occurredAt | date:'short' }}</td>
                     <td class="fw-medium">{{ event.action }}</td>
@@ -67,6 +82,22 @@
                 }
               </tbody>
             </table>
+          </div>
+
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3">
+            <span class="text-muted small">
+              {{ store.totalElements() }} evento(s) · página {{ store.page() + 1 }} de {{ store.totalPages() }}
+            </span>
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-outline-secondary"
+                      [disabled]="store.page() === 0" (click)="store.prevPage()">
+                <i class="ri-arrow-left-s-line"></i> Anterior
+              </button>
+              <button type="button" class="btn btn-outline-secondary"
+                      [disabled]="store.page() + 1 >= store.totalPages()" (click)="store.nextPage()">
+                Próxima <i class="ri-arrow-right-s-line"></i>
+              </button>
+            </div>
           </div>
         }
       </div>

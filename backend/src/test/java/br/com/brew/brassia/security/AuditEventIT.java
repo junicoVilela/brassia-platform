@@ -57,9 +57,38 @@ class AuditEventIT {
 
         mockMvc.perform(get("/api/v1/security/audit-events").session(admin))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].action", hasItem("security.user.invite")))
+                .andExpect(jsonPath("$.content[*].action", hasItem("security.user.invite")))
                 // Evento global (login, sem cervejaria) não aparece na visão tenant.
-                .andExpect(jsonPath("$[*].action", not(hasItem("security.login.success"))));
+                .andExpect(jsonPath("$.content[*].action", not(hasItem("security.login.success"))))
+                .andExpect(jsonPath("$.totalElements").isNumber())
+                .andExpect(jsonPath("$.page").value(0));
+    }
+
+    @Test
+    void filtersByActionAndResultAndPaginates() throws Exception {
+        var admin = login("admin@brassia.local", "admin-local-123");
+        mockMvc.perform(post("/api/v1/security/users").session(admin).with(csrf()).contentType("application/json")
+                        .content("{\"email\":\"filtered@example.com\",\"displayName\":\"Filtered\"}"))
+                .andExpect(status().isCreated());
+
+        // Filtro por ação (substring) só devolve eventos que casam.
+        mockMvc.perform(get("/api/v1/security/audit-events").session(admin)
+                        .param("action", "user.invite").param("outcome", "SUCCESS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].action", hasItem("security.user.invite")))
+                .andExpect(jsonPath("$.content[*].action", not(hasItem("security.group.create"))));
+
+        // Paginação: size=1 devolve no máximo um item e reporta o tamanho.
+        mockMvc.perform(get("/api/v1/security/audit-events").session(admin).param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.size").value(1));
+
+        // Período no futuro não retorna nada.
+        mockMvc.perform(get("/api/v1/security/audit-events").session(admin)
+                        .param("from", "2999-01-01T00:00:00Z"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(0));
     }
 
     @Test

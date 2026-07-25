@@ -9,9 +9,21 @@ export interface AuditEvent {
   changeSummary: string;
 }
 
+/** Página de eventos (filtros/paginação server-side, SEC-B03). */
+export interface AuditPage {
+  content: AuditEvent[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+/** Filtros aplicados no servidor. Vazios são omitidos. */
 export interface AuditFilter {
-  term: string;
+  action: string;
+  targetType: string;
   outcome: string;
+  actorId: string;
   from: string;
   to: string;
 }

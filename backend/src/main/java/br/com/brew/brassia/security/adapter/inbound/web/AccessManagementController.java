@@ -1,6 +1,7 @@
 package br.com.brew.brassia.security.adapter.inbound.web;
 
 import br.com.brew.brassia.audit.AuditQuery;
+import br.com.brew.brassia.security.adapter.inbound.web.dto.AuditEventPageResponse;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.CreateGroupRequest;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.GroupResponse;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.MembershipRequest;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -44,9 +46,25 @@ final class AccessManagementController {
     }
 
     @GetMapping("/audit-events")
-    List<AuditQuery.AuditEntry> auditEvents(@AuthenticationPrincipal SecurityPrincipal principal) {
+    AuditEventPageResponse auditEvents(
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) String targetType,
+            @RequestParam(required = false) UUID actorId,
+            @RequestParam(required = false) String outcome,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("security.audit.read");
-        return auditQuery.recent(principal.requireBrewery(), 50);
+        var result = auditQuery.search(new AuditQuery.SearchCriteria(
+                principal.requireBrewery(), action, targetType, actorId, outcome,
+                parseInstant(from), parseInstant(to), page, size));
+        return AuditEventPageResponse.from(result);
+    }
+
+    private static java.time.Instant parseInstant(String value) {
+        return value == null || value.isBlank() ? null : java.time.Instant.parse(value.trim());
     }
 
     @GetMapping("/permissions")

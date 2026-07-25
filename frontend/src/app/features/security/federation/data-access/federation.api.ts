@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { CreateFederationProvider, FederationProvider } from '../domain/federation.model';
+import { CreateFederationProvider, ExternalIdentity, FederationProvider } from '../domain/federation.model';
 
 @Injectable({ providedIn: 'root' })
 export class FederationApi {
@@ -18,5 +18,10 @@ export class FederationApi {
   /** Valida a metadata/config do provedor. */
   validate(id: string) {
     return this.http.post<void>(`${this.baseUrl}/${id}/validate`, {});
+  }
+
+  /** Identidades externas vinculadas a um provedor. */
+  listIdentities(id: string) {
+    return this.http.get<ExternalIdentity[]>(`${this.baseUrl}/${id}/identities`);
   }
 }

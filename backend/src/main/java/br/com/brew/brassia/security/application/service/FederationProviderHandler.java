@@ -75,6 +75,15 @@ public final class FederationProviderHandler {
                 .orElseThrow(() -> new IllegalArgumentException("identidade externa não vinculada"));
     }
 
+    public List<ExternalIdentityRepository.IdentityView> listIdentities(UUID breweryId, UUID providerId) {
+        var provider = providers.findById(providerId)
+                .orElseThrow(() -> new IllegalArgumentException("provedor inexistente"));
+        if (!provider.breweryId().equals(breweryId)) {
+            throw new ForbiddenException("provedor de outra cervejaria");
+        }
+        return identities.listByProvider(providerId);
+    }
+
     private void validateSaml(FederationProviderRepository.ProviderView provider) {
         if (provider.issuerOrEntityId() == null || provider.issuerOrEntityId().isBlank()) {
             throw new IllegalArgumentException("issuer SAML obrigatório");

@@ -1,6 +1,7 @@
 package br.com.brew.brassia.security.adapter.outbound.persistence;
 
 import br.com.brew.brassia.security.application.port.outbound.ExternalIdentityRepository;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -27,6 +28,23 @@ class JdbcExternalIdentityRepository implements ExternalIdentityRepository {
                 .param("subject", externalSubject)
                 .param("email", normalizedEmail)
                 .update();
+    }
+
+    @Override
+    public List<IdentityView> listByProvider(UUID providerId) {
+        return jdbc.sql("""
+                SELECT user_id, external_subject, normalized_email_at_link, linked_at
+                FROM external_identity
+                WHERE provider_id = :providerId
+                ORDER BY linked_at DESC
+                """)
+                .param("providerId", providerId)
+                .query((rs, n) -> new IdentityView(
+                        rs.getObject("user_id", UUID.class),
+                        rs.getString("external_subject"),
+                        rs.getString("normalized_email_at_link"),
+                        rs.getTimestamp("linked_at").toInstant()))
+                .list();
     }
 
     @Override

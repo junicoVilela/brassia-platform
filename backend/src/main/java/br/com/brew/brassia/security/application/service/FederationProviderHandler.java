@@ -5,16 +5,18 @@ import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.security.application.port.inbound.ManageFederationProviderUseCase;
 import br.com.brew.brassia.security.application.port.outbound.ExternalIdentityRepository;
 import br.com.brew.brassia.security.application.port.outbound.FederationProviderRepository;
+import br.com.brew.brassia.security.application.port.outbound.ScimGroupMappingRepository;
 import br.com.brew.brassia.shared.security.ForbiddenException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-/** CRUD e validação de provedores SAML/OIDC (SEC-014/015). */
+/** CRUD e validação de provedores SAML/OIDC (SEC-014/015) e mapeamentos SCIM (SEC-B05). */
 public final class FederationProviderHandler {
     private final FederationProviderRepository providers;
     private final ExternalIdentityRepository identities;
+    private final ScimGroupMappingRepository scimMappings;
     private final SamlAssertionValidator samlValidator;
     private final OidcTokenClaimsValidator oidcValidator;
     private final AuditTrail audit;
@@ -22,14 +24,45 @@ public final class FederationProviderHandler {
     public FederationProviderHandler(
             FederationProviderRepository providers,
             ExternalIdentityRepository identities,
+            ScimGroupMappingRepository scimMappings,
             SamlAssertionValidator samlValidator,
             OidcTokenClaimsValidator oidcValidator,
             AuditTrail audit) {
         this.providers = Objects.requireNonNull(providers);
         this.identities = Objects.requireNonNull(identities);
+        this.scimMappings = Objects.requireNonNull(scimMappings);
         this.samlValidator = Objects.requireNonNull(samlValidator);
         this.oidcValidator = Objects.requireNonNull(oidcValidator);
         this.audit = Objects.requireNonNull(audit);
+    }
+
+    private FederationProviderRepository.ProviderView requireProvider(UUID breweryId, UUID providerId) {
+        var provider = providers.findById(providerId)
+                .orElseThrow(() -> new IllegalArgumentException("provedor inexistente"));
+        if (!provider.breweryId().equals(breweryId)) {
+            throw new ForbiddenException("provedor de outra cervejaria");
+        }
+        return provider;
+    }
+
+    public List<ScimGroupMappingRepository.MappingView> listScimMappings(UUID breweryId, UUID providerId) {
+        requireProvider(breweryId, providerId);
+        return scimMappings.listByProvider(providerId);
+    }
+
+    public void upsertScimMapping(ManageFederationProviderUseCase.ScimMappingCommand command) {
+        requireProvider(command.breweryId(), command.providerId());
+        scimMappings.upsert(command.providerId(), command.externalGroupId(), command.securityGroupId());
+        audit.record(AuditEvent.success(command.breweryId(), command.actorId(), "security.scim.mapping.upsert",
+                "scim_group_mapping", command.externalGroupId(),
+                Map.of("group", command.securityGroupId().toString())));
+    }
+
+    public void deactivateScimMapping(UUID breweryId, UUID actorId, UUID providerId, String externalGroupId) {
+        requireProvider(breweryId, providerId);
+        scimMappings.deactivate(providerId, externalGroupId);
+        audit.record(AuditEvent.success(breweryId, actorId, "security.scim.mapping.deactivate",
+                "scim_group_mapping", externalGroupId, Map.of()));
     }
 
     public UUID create(ManageFederationProviderUseCase.CreateCommand command) {

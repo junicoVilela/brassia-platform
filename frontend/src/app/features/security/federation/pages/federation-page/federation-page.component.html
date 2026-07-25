@@ -118,11 +118,66 @@
               </table>
             </div>
           }
+
+          <hr class="my-4">
+          <h3 class="h6 fw-semibold mb-1">Mapeamentos de grupo SCIM</h3>
+          <p class="text-muted small mb-3">Associe um grupo do IdP (SCIM) a um grupo interno. O provisionamento em si é feito pelo IdP via API key.</p>
+          <form [formGroup]="mappingForm" (ngSubmit)="saveMapping()" class="row g-2 align-items-end mb-3">
+            <div class="col-sm-5">
+              <label class="form-label small" for="externalGroupId">Grupo externo (SCIM)</label>
+              <input id="externalGroupId" type="text" class="form-control" formControlName="externalGroupId"
+                     placeholder="ex.: idp-admins">
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label small" for="securityGroupId">Grupo interno</label>
+              <select id="securityGroupId" class="form-select" formControlName="securityGroupId">
+                <option value="">Selecione…</option>
+                @for (group of store.groups(); track group.id) {
+                  <option [value]="group.id">{{ group.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-sm-2 d-grid">
+              <button type="submit" class="btn btn-outline-primary" [disabled]="mappingForm.invalid">
+                <i class="ri-links-line me-1"></i> Salvar
+              </button>
+            </div>
+          </form>
+
+          @if (store.mappings().length === 0) {
+            <p class="text-muted small mb-0">Nenhum mapeamento SCIM definido.</p>
+          } @else {
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Grupo externo</th><th>Grupo interno</th><th>Ativo</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                  @for (mapping of store.mappings(); track mapping.externalGroupId) {
+                    <tr [class.opacity-50]="!mapping.active">
+                      <td class="fw-medium">{{ mapping.externalGroupId }}</td>
+                      <td class="small">{{ store.groupName(mapping.securityGroupId) }}</td>
+                      <td>
+                        <span class="badge" [class.bg-success-subtle]="mapping.active" [class.text-success-emphasis]="mapping.active"
+                              [class.bg-secondary-subtle]="!mapping.active" [class.text-secondary-emphasis]="!mapping.active">
+                          {{ mapping.active ? 'sim' : 'não' }}
+                        </span>
+                      </td>
+                      <td class="text-end">
+                        @if (mapping.active) {
+                          <button type="button" class="btn btn-sm btn-outline-danger"
+                                  (click)="store.deactivateMapping(mapping.externalGroupId)">Desativar</button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
         </div>
       </div>
     }
 
     <p class="text-muted small mt-3 mb-0">
       <i class="ri-information-line me-1"></i>
-      Provisionamento SCIM e login SSO no browser são executados pelo IdP via API key (fora desta administração).
+      Login SSO no browser é executado pelo IdP (fora desta administração; ver roadmap).
     </p>

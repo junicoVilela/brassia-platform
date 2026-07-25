@@ -30,6 +30,11 @@ export class FederationPageComponent implements OnInit {
     configuration: [''],
   });
 
+  protected readonly mappingForm = this.fb.nonNullable.group({
+    externalGroupId: ['', Validators.required],
+    securityGroupId: ['', Validators.required],
+  });
+
   ngOnInit(): void {
     this.store.load();
   }
@@ -65,6 +70,17 @@ export class FederationPageComponent implements OnInit {
   protected toggleIdentities(provider: FederationProvider): void {
     const open = this.store.selected()?.id === provider.id;
     this.store.selectProvider(open ? null : provider);
+    this.mappingForm.reset({ externalGroupId: '', securityGroupId: '' });
+  }
+
+  protected saveMapping(): void {
+    if (this.mappingForm.invalid) {
+      return;
+    }
+    const { externalGroupId, securityGroupId } = this.mappingForm.getRawValue();
+    this.store.upsertMapping(externalGroupId, securityGroupId, () =>
+      this.mappingForm.reset({ externalGroupId: '', securityGroupId: '' }),
+    );
   }
 
   protected statusClass(status: string): string {

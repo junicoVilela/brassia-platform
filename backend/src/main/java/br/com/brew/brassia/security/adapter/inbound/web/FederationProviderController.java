@@ -1,8 +1,10 @@
 package br.com.brew.brassia.security.adapter.inbound.web;
 
 import br.com.brew.brassia.security.adapter.inbound.web.dto.CreateFederationProviderRequest;
+import br.com.brew.brassia.security.adapter.inbound.web.dto.CreateScimMappingRequest;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.ExternalIdentityResponse;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.LinkExternalIdentityRequest;
+import br.com.brew.brassia.security.adapter.inbound.web.dto.ScimMappingResponse;
 import br.com.brew.brassia.security.application.port.inbound.ManageFederationProviderUseCase;
 import br.com.brew.brassia.security.application.port.outbound.FederationProviderRepository;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
@@ -73,6 +75,36 @@ final class FederationProviderController {
         principal.requirePermission("security.federation.read");
         return federation.listIdentities(principal.requireBrewery(), id)
                 .stream().map(ExternalIdentityResponse::from).toList();
+    }
+
+    @GetMapping("/{id}/scim-mappings")
+    List<ScimMappingResponse> scimMappings(
+            @PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("security.federation.read");
+        return federation.listScimMappings(principal.requireBrewery(), id)
+                .stream().map(ScimMappingResponse::from).toList();
+    }
+
+    @PostMapping("/{id}/scim-mappings")
+    ResponseEntity<Void> upsertScimMapping(
+            @PathVariable UUID id,
+            @Valid @RequestBody CreateScimMappingRequest request,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("security.federation.manage");
+        federation.upsertScimMapping(new ManageFederationProviderUseCase.ScimMappingCommand(
+                principal.requireBrewery(), principal.userId(), id,
+                request.externalGroupId(), request.securityGroupId()));
+        return ResponseEntity.noContent().build();
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}/scim-mappings/{externalGroupId}")
+    ResponseEntity<Void> deactivateScimMapping(
+            @PathVariable UUID id,
+            @PathVariable String externalGroupId,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("security.federation.manage");
+        federation.deactivateScimMapping(principal.requireBrewery(), principal.userId(), id, externalGroupId);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{id}/resolve")

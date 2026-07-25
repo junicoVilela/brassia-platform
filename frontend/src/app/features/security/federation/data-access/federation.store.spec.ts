@@ -7,7 +7,12 @@ import { FederationStore } from './federation.store';
 
 function setup(api: Partial<Record<keyof FederationApi, unknown>>) {
   const toast = { success: vi.fn(), error: vi.fn() };
-  const base = { list: vi.fn(() => of([])) };
+  const base = {
+    list: vi.fn(() => of([])),
+    listIdentities: vi.fn(() => of([])),
+    listScimMappings: vi.fn(() => of([])),
+    listGroups: vi.fn(() => of([])),
+  };
   TestBed.configureTestingModule({
     providers: [
       FederationStore,
@@ -58,14 +63,34 @@ describe('FederationStore', () => {
     expect(store.actionError()).not.toBeNull();
   });
 
-  it('seleciona provedor e carrega identidades vinculadas', () => {
-    const listIdentities = vi.fn(() => of([{ userId: 'u1', externalSubject: 'okta|1', normalizedEmail: null, linkedAt: 'x' }]));
-    const { store } = setup({ listIdentities });
+  const provider = { id: 'p1', code: 'okta', displayName: 'Okta', protocol: 'OIDC', status: 'VALIDATED', issuerOrEntityId: 'i', metadataUri: null, jitMode: false, version: 0 } as const;
 
-    store.selectProvider({ id: 'p1', code: 'okta', displayName: 'Okta', protocol: 'OIDC', status: 'VALIDATED', issuerOrEntityId: 'i', metadataUri: null, jitMode: false, version: 0 });
+  it('seleciona provedor e carrega identidades, mapeamentos e grupos', () => {
+    const listIdentities = vi.fn(() => of([{ userId: 'u1', externalSubject: 'okta|1', normalizedEmail: null, linkedAt: 'x' }]));
+    const listScimMappings = vi.fn(() => of([{ externalGroupId: 'idp-admins', securityGroupId: 'g1', active: true }]));
+    const { store } = setup({
+      listIdentities,
+      listScimMappings,
+      listGroups: vi.fn(() => of([{ id: 'g1', name: 'Admin' }])),
+    });
+
+    store.selectProvider({ ...provider });
 
     expect(listIdentities).toHaveBeenCalledWith('p1');
     expect(store.identities()).toHaveLength(1);
+    expect(store.mappings()).toHaveLength(1);
+    expect(store.groupName('g1')).toBe('Admin');
     expect(store.selected()?.id).toBe('p1');
+  });
+
+  it('upsert de mapeamento recarrega a lista', () => {
+    const listScimMappings = vi.fn(() => of([]));
+    const { store, toast } = setup({ listScimMappings, upsertScimMapping: vi.fn(() => of(undefined)) });
+
+    store.selectProvider({ ...provider });
+    store.upsertMapping('idp-admins', 'g1');
+
+    expect(toast.success).toHaveBeenCalled();
+    expect(listScimMappings).toHaveBeenCalledTimes(2);
   });
 });

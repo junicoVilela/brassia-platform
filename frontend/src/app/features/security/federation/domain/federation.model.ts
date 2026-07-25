@@ -28,3 +28,16 @@ export interface ExternalIdentity {
   normalizedEmail: string | null;
   linkedAt: string;
 }
+
+/** Mapeamento de grupo SCIM: grupo externo → grupo interno (SEC-B05). */
+export interface ScimMapping {
+  externalGroupId: string;
+  securityGroupId: string;
+  active: boolean;
+}
+
+/** Grupo interno (catálogo) para o seletor de mapeamento. */
+export interface GroupOption {
+  id: string;
+  name: string;
+}

@@ -90,6 +90,46 @@ class FederationIT {
                 .andExpect(jsonPath("$[0].linkedAt").exists());
     }
 
+    @Test
+    void managesScimGroupMappings() throws Exception {
+        var admin = login();
+        var created = mockMvc.perform(post("/api/v1/security/federation-providers").session(admin).with(csrf())
+                        .contentType("application/json")
+                        .content("""
+                                {"code":"corp-scim","displayName":"Corp SCIM","protocol":"OIDC",
+                                 "issuerOrEntityId":"https://idp.example.com/scim","configuration":{}}
+                                """))
+                .andExpect(status().isCreated()).andReturn();
+        String id = JsonPath.read(created.getResponse().getContentAsString(), "$.id");
+        var groupId = jdbc.queryForObject(
+                "SELECT id FROM security_group WHERE code = 'ADMINISTRATORS'", String.class);
+
+        mockMvc.perform(get("/api/v1/security/federation-providers/" + id + "/scim-mappings").session(admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        mockMvc.perform(post("/api/v1/security/federation-providers/" + id + "/scim-mappings")
+                        .session(admin).with(csrf()).contentType("application/json")
+                        .content("{\"externalGroupId\":\"idp-admins\",\"securityGroupId\":\"" + groupId + "\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/security/federation-providers/" + id + "/scim-mappings").session(admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].externalGroupId").value("idp-admins"))
+                .andExpect(jsonPath("$[0].securityGroupId").value(groupId))
+                .andExpect(jsonPath("$[0].active").value(true));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/v1/security/federation-providers/" + id + "/scim-mappings/idp-admins")
+                        .session(admin).with(csrf()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/security/federation-providers/" + id + "/scim-mappings").session(admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].active").value(false));
+    }
+
     private MockHttpSession login() throws Exception {
         var result = mockMvc.perform(post("/api/v1/security/login").with(csrf()).contentType("application/json")
                         .content("{\"email\":\"admin@brassia.local\",\"password\":\"admin-local-123\"}"))

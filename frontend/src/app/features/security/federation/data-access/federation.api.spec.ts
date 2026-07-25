@@ -51,4 +51,26 @@ describe('FederationApi', () => {
     req.flush([{ userId: 'u1', externalSubject: 'okta|1', normalizedEmail: 'a@x.com', linkedAt: 'x' }]);
     expect(identities).toHaveLength(1);
   });
+
+  it('gerencia mapeamentos SCIM (listar/upsert/desativar)', () => {
+    api.listScimMappings('p1').subscribe();
+    http.expectOne(r => r.method === 'GET' && r.url === '/api/v1/security/federation-providers/p1/scim-mappings')
+      .flush([{ externalGroupId: 'idp-admins', securityGroupId: 'g1', active: true }]);
+
+    api.upsertScimMapping('p1', 'idp-admins', 'g1').subscribe();
+    const post = http.expectOne(r => r.method === 'POST' && r.url === '/api/v1/security/federation-providers/p1/scim-mappings');
+    expect(post.request.body).toEqual({ externalGroupId: 'idp-admins', securityGroupId: 'g1' });
+    post.flush(null);
+
+    api.deactivateScimMapping('p1', 'idp/admins').subscribe();
+    http.expectOne(r => r.method === 'DELETE'
+      && r.url === '/api/v1/security/federation-providers/p1/scim-mappings/idp%2Fadmins').flush(null);
+  });
+
+  it('normaliza o catálogo de grupos', () => {
+    let groups: unknown;
+    api.listGroups().subscribe(g => (groups = g));
+    http.expectOne('/api/v1/security/groups').flush([{ id: 'g1', name: 'Admin', code: 'ADMIN' }]);
+    expect(groups).toEqual([{ id: 'g1', name: 'Admin' }]);
+  });
 });

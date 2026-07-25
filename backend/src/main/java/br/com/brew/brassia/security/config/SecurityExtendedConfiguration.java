@@ -79,6 +79,9 @@ class SecurityExtendedConfiguration {
     @Bean DisableTotpUseCase disableTotpUseCase(MfaManagementHandler h) { return h::disable; }
     @Bean RegenerateRecoveryCodesUseCase regenerateRecoveryCodesUseCase(MfaManagementHandler h) { return h::regenerate; }
     @Bean HasActiveMfaQuery hasActiveMfaQuery(MfaManagementHandler h) { return h::hasActiveTotp; }
+    @Bean br.com.brew.brassia.security.application.port.inbound.MfaStatusQuery mfaStatusQuery(MfaManagementHandler h) {
+        return h::status;
+    }
     @Bean CompleteMfaLoginUseCase completeMfaLoginUseCase(MfaManagementHandler h, PlatformTransactionManager tm) {
         var tx = new TransactionTemplate(tm);
         return command -> Objects.requireNonNull(tx.execute(s -> h.completeMfaLogin(command)));

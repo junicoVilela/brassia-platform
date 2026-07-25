@@ -9,7 +9,7 @@ Contexto: fecha os débitos de backend descobertos ao entregar o frontend de seg
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
 | SEC-B04 | Concluída | IA | #71 | GET /service-accounts/{id}/credentials (sem segredo) + tela lista/revoga credenciais persistidas. Remove o débito do SEC-F09. |
-| SEC-B01 | A fazer | — | — | Status de MFA do usuário. |
+| SEC-B01 | Concluída | IA | #72 | GET /totp/status (mfaEnabled + recoveryCodesRemaining); Minha conta indica ativo/inativo no load. Remove o débito do SEC-F01. |
 | SEC-B03 | A fazer | — | — | Filtros e paginação da auditoria. |
 | SEC-B06 | A fazer | — | — | Identidades externas vinculadas (leitura). |
 | SEC-B05 | A fazer | — | — | Administração de mapeamentos SCIM. |

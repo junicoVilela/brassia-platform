@@ -9,8 +9,14 @@
               Proteja o login com um aplicativo autenticador (TOTP) e códigos de recuperação.
             </p>
           </div>
-          @if (store.confirmed()) {
-            <span class="badge bg-success-subtle text-success-emphasis align-self-center">Ativado nesta sessão</span>
+          @if (store.status(); as status) {
+            @if (status.mfaEnabled) {
+              <span class="badge bg-success-subtle text-success-emphasis align-self-center">
+                Ativo · {{ status.recoveryCodesRemaining }} código(s) de recuperação
+              </span>
+            } @else {
+              <span class="badge bg-secondary-subtle text-secondary-emphasis align-self-center">Inativo</span>
+            }
           }
         </div>
 

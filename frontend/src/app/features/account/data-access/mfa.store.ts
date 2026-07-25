@@ -2,7 +2,7 @@ import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { TotpEnrollment } from '../domain/mfa.model';
+import { MfaStatus, TotpEnrollment } from '../domain/mfa.model';
 import { MfaApi } from './mfa.api';
 
 /**
@@ -17,14 +17,24 @@ export class MfaStore {
 
   private readonly enrollmentState = signal<TotpEnrollment | null>(null);
   private readonly recoveryCodesState = signal<string[] | null>(null);
+  private readonly statusState = signal<MfaStatus | null>(null);
 
   readonly enrollment = this.enrollmentState.asReadonly();
   readonly recoveryCodes = this.recoveryCodesState.asReadonly();
+  /** Status persistido (backend): fonte da verdade para ativo/inativo. */
+  readonly status = this.statusState.asReadonly();
   readonly submitting = signal(false);
   readonly error = signal<string | null>(null);
   /** true assim que o enroll foi confirmado nesta sessão. */
   readonly confirmed = signal(false);
   readonly enrolling = computed(() => this.enrollmentState() !== null && !this.confirmed());
+
+  /** Carrega o status persistido do MFA (fonte da verdade para ativo/inativo). */
+  loadStatus(): void {
+    this.api.status()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: status => this.statusState.set(status), error: () => undefined });
+  }
 
   startEnroll(): void {
     this.submitting.set(true);
@@ -48,6 +58,7 @@ export class MfaStore {
         next: () => {
           this.confirmed.set(true);
           this.enrollmentState.set(null);
+          this.loadStatus();
           this.toast.success('MFA ativado.');
         },
         error: () => this.error.set('Código inválido. Verifique o app autenticador e tente novamente.'),
@@ -68,6 +79,7 @@ export class MfaStore {
         next: () => {
           this.confirmed.set(false);
           this.recoveryCodesState.set(null);
+          this.loadStatus();
           this.toast.success('MFA desativado.');
         },
         error: () => this.error.set('Não foi possível desativar o MFA (confira a senha atual).'),
@@ -82,6 +94,7 @@ export class MfaStore {
       .subscribe({
         next: result => {
           this.recoveryCodesState.set(result.codes);
+          this.loadStatus();
           this.toast.success('Novos códigos de recuperação gerados.');
         },
         error: () => this.error.set('Não foi possível regenerar os códigos de recuperação.'),

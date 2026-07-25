@@ -22,6 +22,7 @@ export class AccountPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
 
   ngOnInit(): void {
+    this.store.loadStatus();
     this.activity.loadSessions();
     this.activity.loadHistory();
   }

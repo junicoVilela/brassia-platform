@@ -1,11 +1,16 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { RecoveryCodes, TotpEnrollment } from '../domain/mfa.model';
+import { MfaStatus, RecoveryCodes, TotpEnrollment } from '../domain/mfa.model';
 
 @Injectable({ providedIn: 'root' })
 export class MfaApi {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = '/api/v1/security';
+
+  /** Status persistido do MFA: ativo/inativo e códigos de recuperação restantes. */
+  status() {
+    return this.http.get<MfaStatus>(`${this.baseUrl}/totp/status`);
+  }
 
   /** Inicia o enroll: gera segredo e URI otpauth (ainda não ativo até confirmar). */
   enroll() {

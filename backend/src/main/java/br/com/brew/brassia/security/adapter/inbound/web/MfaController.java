@@ -7,6 +7,7 @@ import br.com.brew.brassia.security.adapter.inbound.web.dto.RecoveryCodesRespons
 import br.com.brew.brassia.security.application.port.inbound.ConfirmTotpUseCase;
 import br.com.brew.brassia.security.application.port.inbound.DisableTotpUseCase;
 import br.com.brew.brassia.security.application.port.inbound.EnrollTotpUseCase;
+import br.com.brew.brassia.security.application.port.inbound.MfaStatusQuery;
 import br.com.brew.brassia.security.application.port.inbound.RegenerateRecoveryCodesUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,16 +27,24 @@ final class MfaController {
     private final ConfirmTotpUseCase confirmTotp;
     private final DisableTotpUseCase disableTotp;
     private final RegenerateRecoveryCodesUseCase regenerateRecoveryCodes;
+    private final MfaStatusQuery mfaStatus;
 
     MfaController(
             EnrollTotpUseCase enrollTotp,
             ConfirmTotpUseCase confirmTotp,
             DisableTotpUseCase disableTotp,
-            RegenerateRecoveryCodesUseCase regenerateRecoveryCodes) {
+            RegenerateRecoveryCodesUseCase regenerateRecoveryCodes,
+            MfaStatusQuery mfaStatus) {
         this.enrollTotp = enrollTotp;
         this.confirmTotp = confirmTotp;
         this.disableTotp = disableTotp;
         this.regenerateRecoveryCodes = regenerateRecoveryCodes;
+        this.mfaStatus = mfaStatus;
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/totp/status")
+    MfaStatusQuery.Status status(@AuthenticationPrincipal SecurityPrincipal principal) {
+        return mfaStatus.of(principal.userId());
     }
 
     @PostMapping("/totp/enroll")

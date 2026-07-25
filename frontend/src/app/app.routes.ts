@@ -1,10 +1,16 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
+import { ForgotPasswordPageComponent } from './features/auth/forgot-password-page/forgot-password-page.component';
 import { LoginPageComponent } from './features/auth/login-page/login-page.component';
+import { ResetPasswordPageComponent } from './features/auth/reset-password-page/reset-password-page.component';
+import { VerifyEmailPageComponent } from './features/auth/verify-email-page/verify-email-page.component';
 import { ShellComponent } from './layout/shell.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPageComponent },
+  { path: 'forgot-password', component: ForgotPasswordPageComponent },
+  { path: 'reset-password', component: ResetPasswordPageComponent },
+  { path: 'verify-email', component: VerifyEmailPageComponent },
   {
     path: '',
     component: ShellComponent,

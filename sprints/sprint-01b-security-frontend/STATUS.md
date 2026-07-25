@@ -9,7 +9,7 @@ Contexto: fecha o débito de frontend das capacidades de segurança entregues co
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
 | SEC-F01 | Concluída | IA | #60 | MFA no login (2 etapas: TOTP/recuperação) + Minha conta com enroll/confirm/desativar/regenerar. |
-| SEC-F02 | A fazer | — | — | Troca autenticada + forgot/reset/verify anônimos. |
+| SEC-F02 | Concluída | IA | #61 | Trocar senha (Minha conta) + forgot/reset/verify anônimos (fora do authGuard); reset sem auto-login. |
 | SEC-F03 | A fazer | — | — | Minha conta: sessões próprias + histórico de login. |
 | SEC-F11 | A fazer | — | — | Gate de menu/rota por permissão (transversal). |
 

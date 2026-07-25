@@ -1,19 +1,47 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
 import { MfaStore } from '../../data-access/mfa.store';
+import { PasswordStore } from '../../data-access/password.store';
 
 @Component({
   selector: 'app-account-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, PageHeaderComponent],
-  providers: [MfaStore],
+  providers: [MfaStore, PasswordStore],
   templateUrl: './account-page.component.html',
 })
 export class AccountPageComponent {
   protected readonly store = inject(MfaStore);
+  protected readonly passwords = inject(PasswordStore);
   private readonly fb = inject(FormBuilder);
+
+  protected readonly passwordForm = this.fb.nonNullable.group({
+    currentPassword: ['', [Validators.required]],
+    newPassword: ['', [Validators.required, Validators.minLength(8)]],
+    confirm: ['', [Validators.required]],
+  });
+
+  private readonly passwordValue = toSignal(this.passwordForm.valueChanges, {
+    initialValue: this.passwordForm.getRawValue(),
+  });
+
+  protected readonly passwordMismatch = computed(() => {
+    const { newPassword, confirm } = this.passwordValue();
+    return !!confirm && newPassword !== confirm;
+  });
+
+  protected changePassword(): void {
+    if (this.passwordForm.invalid || this.passwordMismatch()) {
+      return;
+    }
+    const { currentPassword, newPassword } = this.passwordForm.getRawValue();
+    this.passwords.change(currentPassword, newPassword, () =>
+      this.passwordForm.reset({ currentPassword: '', newPassword: '', confirm: '' }),
+    );
+  }
 
   protected readonly confirmForm = this.fb.nonNullable.group({
     code: ['', [Validators.required, Validators.pattern(/^\d{6}$/)]],

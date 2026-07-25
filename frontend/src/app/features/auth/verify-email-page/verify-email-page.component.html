@@ -1,0 +1,33 @@
+    <div class="container-fluid">
+      <div class="main-content d-flex flex-column p-0">
+        <div class="m-auto w-100 py-5" style="max-width: 460px;">
+          <div class="card bg-white border rounded-10 border-white">
+            <div class="card-body p-4 p-md-5 text-center">
+              <img src="assets/fila/images/logo-icon.png" alt="BrassIA" width="40" height="40" class="mb-3">
+              <h1 class="h4 fw-semibold mb-3">Verificação de e-mail</h1>
+
+              @switch (state()) {
+                @case ('loading') {
+                  <div class="py-3">
+                    <span class="spinner-border text-primary" role="status"></span>
+                    <p class="text-secondary mt-3 mb-0">Confirmando o seu e-mail…</p>
+                  </div>
+                }
+                @case ('success') {
+                  <div class="alert alert-success" role="alert">E-mail verificado com sucesso.</div>
+                  <a routerLink="/login" class="btn btn-primary w-100 py-2">Ir para o login</a>
+                }
+                @case ('no-token') {
+                  <div class="alert alert-danger" role="alert">Link inválido: token ausente.</div>
+                  <a routerLink="/login" class="btn btn-outline-secondary w-100 py-2">Voltar ao login</a>
+                }
+                @default {
+                  <div class="alert alert-danger" role="alert">Não foi possível verificar o e-mail. O link pode ter expirado.</div>
+                  <a routerLink="/login" class="btn btn-outline-secondary w-100 py-2">Voltar ao login</a>
+                }
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>

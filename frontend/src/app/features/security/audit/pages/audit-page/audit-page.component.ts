@@ -4,6 +4,7 @@ import { EmptyStateComponent } from '../../../../../shared/ui/empty-state.compon
 import { LoadingIndicatorComponent } from '../../../../../shared/ui/loading-indicator.component';
 import { PageHeaderComponent } from '../../../../../shared/ui/page-header.component';
 import { AuditStore } from '../../data-access/audit.store';
+import { AuditFilter } from '../../domain/audit-event.model';
 
 @Component({
   selector: 'app-audit-page',
@@ -17,7 +18,11 @@ export class AuditPageComponent implements OnInit {
   protected readonly store = inject(AuditStore);
 
   ngOnInit(): void {
-    this.store.load();
+    this.store.init();
+  }
+
+  protected apply(patch: Partial<AuditFilter>): void {
+    this.store.applyFilter(patch);
   }
 
   protected outcomeClass(outcome: string): string {

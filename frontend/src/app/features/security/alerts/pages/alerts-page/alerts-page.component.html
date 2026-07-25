@@ -1,0 +1,65 @@
+    <app-page-header title="Alertas de segurança" subtitle="Atividade suspeita e proteção de acesso" />
+
+    @if (store.actionError(); as actionError) {
+      <div class="alert alert-danger" role="alert">{{ actionError }}</div>
+    }
+
+    <div class="card border-0 rounded-10">
+      <div class="card-body p-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+          <h2 class="h6 fw-semibold mb-0">Alertas</h2>
+          <select class="form-select w-auto" [value]="store.statusFilter() ?? ''"
+                  (change)="onFilter($any($event.target).value)">
+            <option value="">Todos os estados</option>
+            @for (status of statuses; track status) {
+              <option [value]="status">{{ status }}</option>
+            }
+          </select>
+        </div>
+
+        @if (store.loading()) {
+          <app-loading-indicator />
+        } @else if (store.error(); as error) {
+          <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+        } @else if (store.empty()) {
+          <app-empty-state icon="ri-shield-check-line" message="Nenhum alerta de segurança."
+                           hint="Tudo tranquilo por aqui." />
+        } @else {
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Severidade</th><th>Tipo</th><th>Evidência</th><th>Quando</th>
+                  <th>Estado</th><th class="text-end">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (alert of store.alerts(); track alert.id) {
+                  <tr>
+                    <td><span class="badge" [class]="severityClass(alert.severity)">{{ alert.severity }}</span></td>
+                    <td class="fw-medium">{{ alert.alertType }}</td>
+                    <td class="small">
+                      @for (entry of store.evidenceEntries(alert); track entry.key) {
+                        <span class="d-block text-muted">{{ entry.key }}: {{ entry.value }}</span>
+                      }
+                    </td>
+                    <td class="small">{{ alert.createdAt | date:'short' }}</td>
+                    <td><span class="badge" [class]="statusClass(alert.status)">{{ alert.status }}</span></td>
+                    <td class="text-end">
+                      @if (alert.status === 'OPEN') {
+                        <button type="button" class="btn btn-sm btn-outline-warning me-1"
+                                (click)="store.updateStatus(alert.id, 'ACKNOWLEDGED')">Reconhecer</button>
+                      }
+                      @if (alert.status !== 'RESOLVED') {
+                        <button type="button" class="btn btn-sm btn-outline-success"
+                                (click)="store.updateStatus(alert.id, 'RESOLVED')">Resolver</button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </div>

@@ -80,6 +80,13 @@ export const routes: Routes = [
         loadChildren: () =>
           import('./features/security/access-review/access-review.routes').then(m => m.ACCESS_REVIEW_ROUTES),
       },
+      {
+        path: 'security/alerts',
+        canActivate: [permissionGuard],
+        data: { permission: 'security.alert.read' },
+        loadChildren: () =>
+          import('./features/security/alerts/alerts.routes').then(m => m.ALERTS_ROUTES),
+      },
       { path: 'forbidden', component: ForbiddenPageComponent },
       { path: '', pathMatch: 'full', redirectTo: 'recipes' },
     ],

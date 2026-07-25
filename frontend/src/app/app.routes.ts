@@ -64,6 +64,15 @@ export const routes: Routes = [
         loadChildren: () =>
           import('./features/security/groups/security-groups.routes').then(m => m.SECURITY_GROUPS_ROUTES),
       },
+      {
+        path: 'security/temporary-access',
+        canActivate: [permissionGuard],
+        data: { permission: 'security.temporary-access.read' },
+        loadChildren: () =>
+          import('./features/security/temporary-access/temporary-access.routes').then(
+            m => m.TEMPORARY_ACCESS_ROUTES,
+          ),
+      },
       { path: 'forbidden', component: ForbiddenPageComponent },
       { path: '', pathMatch: 'full', redirectTo: 'recipes' },
     ],

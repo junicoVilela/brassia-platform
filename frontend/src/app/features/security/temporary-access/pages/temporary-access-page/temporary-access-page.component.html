@@ -1,0 +1,95 @@
+    <app-page-header title="Acesso temporário" subtitle="Conceder permissão pontual com vigência e aprovação" />
+
+    <div class="card border-0 rounded-10 mb-4">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-3">Solicitar acesso</h2>
+        <form [formGroup]="form" (ngSubmit)="request()" class="row g-3 align-items-end">
+          <div class="col-sm-4">
+            <label class="form-label" for="userId">Usuário</label>
+            <select id="userId" class="form-select" formControlName="userId">
+              <option value="">Selecione…</option>
+              @for (user of store.users(); track user.id) {
+                <option [value]="user.id">{{ user.displayName }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label" for="permissionCode">Permissão</label>
+            <select id="permissionCode" class="form-select" formControlName="permissionCode">
+              <option value="">Selecione…</option>
+              @for (permission of store.permissions(); track permission.code) {
+                <option [value]="permission.code">{{ permission.code }}{{ permission.critical ? ' (crítica)' : '' }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label" for="durationHours">Horas</label>
+            <input id="durationHours" type="number" min="1" max="720" class="form-control" formControlName="durationHours">
+          </div>
+          <div class="col-sm-2 d-grid">
+            <button type="submit" class="btn btn-primary" [disabled]="form.invalid || store.submitting()">
+              <i class="ri-time-line me-1"></i> Solicitar
+            </button>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="reason">Justificativa</label>
+            <input id="reason" type="text" class="form-control" formControlName="reason"
+                   placeholder="Motivo do acesso temporário">
+          </div>
+        </form>
+        @if (store.actionError(); as actionError) {
+          <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+        }
+      </div>
+    </div>
+
+    <div class="card border-0 rounded-10">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-3">Concessões</h2>
+        @if (store.loading()) {
+          <app-loading-indicator />
+        } @else if (store.error(); as error) {
+          <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+        } @else if (store.empty()) {
+          <app-empty-state icon="ri-time-line" message="Nenhuma concessão de acesso temporário."
+                           hint="Use o formulário acima para solicitar." />
+        } @else {
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Usuário</th><th>Permissão</th><th>Vigência</th><th>Solicitante</th>
+                  <th>Aprovador</th><th>Estado</th><th class="text-end">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (grant of store.grants(); track grant.id) {
+                  <tr>
+                    <td class="fw-medium">{{ store.nameFor(grant.userId) }}</td>
+                    <td>
+                      <span class="d-block">{{ grant.permissionCode }}</span>
+                      @if (grant.critical) { <span class="badge bg-danger-subtle text-danger-emphasis">crítica</span> }
+                      <span class="text-muted d-block small">{{ grant.reason }}</span>
+                    </td>
+                    <td class="small">{{ grant.validFrom | date:'short' }} → {{ grant.validUntil | date:'short' }}</td>
+                    <td class="small">{{ store.nameFor(grant.requestedBy) }}</td>
+                    <td class="small">{{ store.nameFor(grant.approvedBy) }}</td>
+                    <td><span class="badge" [class]="badgeClass(grant.status)">{{ grant.status }}</span></td>
+                    <td class="text-end">
+                      @if (grant.status === 'PENDING_APPROVAL') {
+                        <button type="button" class="btn btn-sm btn-outline-success me-1"
+                                (click)="store.approve(grant.id)">Aprovar</button>
+                      }
+                      @if (grant.status !== 'REVOKED') {
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                (click)="store.revoke(grant.id)">Revogar</button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </div>

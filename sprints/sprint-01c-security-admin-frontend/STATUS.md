@@ -9,7 +9,7 @@ Contexto: fecha o débito de frontend das capacidades de administração/governa
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
 | SEC-F04 | Concluída | IA | #64 | Memberships no detalhe do usuário: listar/associar/remover + bloqueio por segregação. Exigiu GET aditivo /users/{id}/memberships. |
-| SEC-F05 | A fazer | — | — | Acesso temporário: solicitar/aprovar/revogar. |
+| SEC-F05 | Concluída | IA | #65 | Acesso temporário: solicitar/aprovar/revogar + lista com vigência/estado/aprovador. Backend completo (só frontend). |
 | SEC-F06 | A fazer | — | — | Revisão de acessos + regras de segregação. |
 | SEC-F07 | A fazer | — | — | Alertas de segurança. |
 | SEC-F08 | A fazer | — | — | Auditoria consultável com filtros. |

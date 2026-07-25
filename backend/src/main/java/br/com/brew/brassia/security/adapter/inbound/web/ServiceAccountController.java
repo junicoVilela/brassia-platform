@@ -3,6 +3,7 @@ package br.com.brew.brassia.security.adapter.inbound.web;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.CreateServiceAccountRequest;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.IssueCredentialRequest;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.IssueCredentialResponse;
+import br.com.brew.brassia.security.adapter.inbound.web.dto.ServiceAccountCredentialResponse;
 import br.com.brew.brassia.security.adapter.inbound.web.dto.ServiceAccountResponse;
 import br.com.brew.brassia.security.application.port.inbound.ManageServiceAccountUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
@@ -51,6 +52,16 @@ final class ServiceAccountController {
                 principal.userId(), principal.requireBrewery(), request.code(), request.name()));
         return ResponseEntity.created(URI.create("/api/v1/security/service-accounts/" + result.id()))
                 .body(ServiceAccountResponse.from(result));
+    }
+
+    @GetMapping("/{id}/credentials")
+    List<ServiceAccountCredentialResponse> credentials(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("security.service-account.read");
+        return manage.listCredentials(new ManageServiceAccountUseCase.ListCredentialsCommand(
+                        principal.requireBrewery(), id))
+                .stream().map(ServiceAccountCredentialResponse::from).toList();
     }
 
     @PostMapping("/{id}/credentials")

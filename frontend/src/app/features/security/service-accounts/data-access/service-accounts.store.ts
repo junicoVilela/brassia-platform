@@ -2,7 +2,12 @@ import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { ToastService } from '../../../../core/notifications/toast.service';
-import { CreateServiceAccount, IssuedCredential, ServiceAccount } from '../domain/service-account.model';
+import {
+  CreateServiceAccount,
+  IssuedCredential,
+  ServiceAccount,
+  ServiceAccountCredential,
+} from '../domain/service-account.model';
 import { ServiceAccountsApi } from './service-accounts.api';
 
 /**
@@ -18,9 +23,14 @@ export class ServiceAccountsStore {
 
   private readonly accountsState = signal<ServiceAccount[]>([]);
   private readonly issuedState = signal<IssuedCredential[]>([]);
+  private readonly selectedState = signal<ServiceAccount | null>(null);
+  private readonly credentialsState = signal<ServiceAccountCredential[]>([]);
 
   readonly accounts = this.accountsState.asReadonly();
   readonly issued = this.issuedState.asReadonly();
+  readonly selected = this.selectedState.asReadonly();
+  readonly credentials = this.credentialsState.asReadonly();
+  readonly loadingCredentials = signal(false);
   readonly loading = signal(false);
   readonly submitting = signal(false);
   readonly error = signal<string | null>(null);
@@ -53,6 +63,25 @@ export class ServiceAccountsStore {
       });
   }
 
+  /** Seleciona uma conta e carrega suas credenciais persistidas (metadados, sem segredo). */
+  selectAccount(account: ServiceAccount | null): void {
+    this.selectedState.set(account);
+    this.credentialsState.set([]);
+    if (account) {
+      this.loadCredentials(account.id);
+    }
+  }
+
+  private loadCredentials(serviceAccountId: string): void {
+    this.loadingCredentials.set(true);
+    this.api.listCredentials(serviceAccountId)
+      .pipe(finalize(() => this.loadingCredentials.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: credentials => this.credentialsState.set(credentials),
+        error: () => this.actionError.set('Não foi possível carregar as credenciais da conta.'),
+      });
+  }
+
   issueCredential(account: ServiceAccount, scopes: string[]): void {
     this.actionError.set(null);
     this.api.issueCredential(account.id, scopes)
@@ -71,6 +100,9 @@ export class ServiceAccountsStore {
             ...list,
           ]);
           this.toast.success('Credencial emitida. Copie o segredo agora.');
+          if (this.selectedState()?.id === account.id) {
+            this.loadCredentials(account.id);
+          }
         },
         error: () => this.actionError.set('Não foi possível emitir a credencial.'),
       });
@@ -86,6 +118,10 @@ export class ServiceAccountsStore {
             list.map(c => (c.credentialId === credentialId ? { ...c, revoked: true } : c)),
           );
           this.toast.success('Credencial revogada.');
+          const selected = this.selectedState();
+          if (selected) {
+            this.loadCredentials(selected.id);
+          }
         },
         error: () => this.actionError.set('Não foi possível revogar a credencial.'),
       });

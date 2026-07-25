@@ -23,6 +23,7 @@ Sprints 07–14
 - `INT-005` — Conector Brewer's Friend API v1
 - `INT-006` — Adapters HTTP/MQTT para dispositivos
 - `INT-007` — Central de sincronização e conflitos
+- `SEC-B07` — Login SSO no browser (SAML/OIDC) — fecha o ciclo de federação (SEC-014/015)
 
 ## Entregáveis técnicos
 

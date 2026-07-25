@@ -15,6 +15,7 @@ As capacidades de segurança da Sprint 01 foram entregues como "fatia 1" (só ba
 
 - Sprint 01-B — [Segurança: autoatendimento (frontend)](../../sprints/sprint-01b-security-frontend/README.md): MFA no login, troca/recuperação de senha, minha conta (sessões/histórico) e gate de navegação por permissão. Executar **antes da Sprint 05**.
 - Sprint 01-C — [Segurança: administração e governança (frontend)](../../sprints/sprint-01c-security-admin-frontend/README.md): memberships, acesso temporário, revisão/segregação, alertas, auditoria, contas de serviço/API keys e federação/SCIM. Executar **antes da Sprint 17**; SEC-F09/F10 podem migrar para a Sprint 15.
+- Sprint 01-D — [Segurança: leituras e administração (backend)](../../sprints/sprint-01d-security-backend-gaps/README.md): endpoints de leitura/administração (SEC-B01–B06) que faltavam ao entregar o frontend de segurança, removendo os workarounds de cliente. O login SSO no browser (SEC-B07) fica na Sprint 15.
 
 ## Próxima execução
 

@@ -28,6 +28,15 @@ describe('ServiceAccountsApi', () => {
     post.flush({ id: 's1', code: 'ci', active: true });
   });
 
+  it('lista credenciais persistidas da conta', () => {
+    let creds: unknown;
+    api.listCredentials('s1').subscribe(c => (creds = c));
+    const req = http.expectOne('/api/v1/security/service-accounts/s1/credentials');
+    expect(req.request.method).toBe('GET');
+    req.flush([{ id: 'c1', keyPrefix: 'brassia_a', scopes: ['scim.read'], expiresAt: null, revokedAt: null, active: true }]);
+    expect(creds).toHaveLength(1);
+  });
+
   it('emite credencial com escopos e revoga', () => {
     let issued: unknown;
     api.issueCredential('s1', ['scim.read']).subscribe(r => (issued = r));

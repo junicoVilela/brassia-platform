@@ -64,6 +64,17 @@ public final class ServiceAccountHandler {
         return new ManageServiceAccountUseCase.IssueCredentialResult(id, rawKey, prefix);
     }
 
+    public List<ManageServiceAccountUseCase.CredentialView> listCredentials(
+            ManageServiceAccountUseCase.ListCredentialsCommand command) {
+        if (!accounts.belongsToBrewery(command.serviceAccountId(), command.breweryId())) {
+            throw new ForbiddenException("conta de serviço de outra cervejaria");
+        }
+        return credentials.listByServiceAccount(command.serviceAccountId()).stream()
+                .map(c -> new ManageServiceAccountUseCase.CredentialView(
+                        c.id(), c.keyPrefix(), c.scopes(), c.expiresAt(), c.revokedAt()))
+                .toList();
+    }
+
     public void revokeCredential(ManageServiceAccountUseCase.RevokeCommand command) {
         credentials.revoke(command.credentialId());
         audit.record(AuditEvent.success(command.breweryId(), command.actorId(), "security.api-credential.revoke",

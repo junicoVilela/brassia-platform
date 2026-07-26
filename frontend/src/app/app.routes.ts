@@ -51,6 +51,10 @@ export const routes: Routes = [
         loadChildren: () => import('./features/account/account.routes').then(m => m.ACCOUNT_ROUTES),
       },
       {
+        path: 'settings',
+        loadChildren: () => import('./features/settings/settings.routes').then(m => m.SETTINGS_ROUTES),
+      },
+      {
         path: 'security/users',
         canActivate: [permissionGuard],
         data: { permission: 'security.user.read' },

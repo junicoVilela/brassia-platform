@@ -1,0 +1,42 @@
+<app-page-header title="Configurações"
+                 subtitle="Administração de segurança e acesso da plataforma" />
+
+@if (!hasAny()) {
+  <div class="card border-0 rounded-10">
+    <div class="card-body p-4">
+      <app-empty-state icon="ri-lock-2-line"
+                       message="Você não tem acesso a nenhuma área de configuração."
+                       hint="Fale com um administrador para receber as permissões necessárias." />
+    </div>
+  </div>
+}
+
+@for (section of sections(); track section.title) {
+  <section class="mb-4">
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <i class="{{ section.icon }} fs-5 text-muted"></i>
+      <h2 class="h6 fw-semibold mb-0">{{ section.title }}</h2>
+    </div>
+
+    <div class="row g-3">
+      @for (card of section.cards; track card.route) {
+        <div class="col-sm-6 col-xl-4">
+          <a [routerLink]="card.route"
+             class="settings-card card border-0 rounded-10 h-100 text-decoration-none accent-{{ card.accent }}"
+             [attr.aria-label]="card.title">
+            <div class="card-body p-4 d-flex flex-column">
+              <div class="d-flex align-items-start justify-content-between mb-3">
+                <span class="settings-icon">
+                  <i class="{{ card.icon }}"></i>
+                </span>
+                <i class="settings-arrow ri-arrow-right-line"></i>
+              </div>
+              <h3 class="h6 fw-semibold mb-1 settings-title">{{ card.title }}</h3>
+              <p class="text-muted small mb-0">{{ card.description }}</p>
+            </div>
+          </a>
+        </div>
+      }
+    </div>
+  </section>
+}

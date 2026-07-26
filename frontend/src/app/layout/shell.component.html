@@ -74,71 +74,13 @@
             </a>
           </li>
           @if (auth.hasAnyPermission(['security.user.read', 'security.group.read', 'security.permission.read', 'security.temporary-access.read', 'security.access-review.read', 'security.segregation.manage', 'security.alert.read', 'security.audit.read', 'security.service-account.read', 'security.federation.read'])) {
-            <li class="menu-title small text-uppercase"><span class="menu-title-text">Segurança</span></li>
-            @if (auth.hasPermission('security.user.read')) {
-              <li class="menu-item">
-                <a routerLink="/security/users" routerLinkActive="active" class="menu-link">
-                  <i class="ri-group-line menu-icon"></i>
-                  <span class="title">Usuários</span>
-                </a>
-              </li>
-            }
-            @if (auth.hasAnyPermission(['security.group.read', 'security.permission.read'])) {
-              <li class="menu-item">
-                <a routerLink="/security/groups" routerLinkActive="active" class="menu-link">
-                  <i class="ri-shield-keyhole-line menu-icon"></i>
-                  <span class="title">Grupos</span>
-                </a>
-              </li>
-            }
-            @if (auth.hasPermission('security.temporary-access.read')) {
-              <li class="menu-item">
-                <a routerLink="/security/temporary-access" routerLinkActive="active" class="menu-link">
-                  <i class="ri-time-line menu-icon"></i>
-                  <span class="title">Acesso temporário</span>
-                </a>
-              </li>
-            }
-            @if (auth.hasAnyPermission(['security.access-review.read', 'security.segregation.manage'])) {
-              <li class="menu-item">
-                <a routerLink="/security/access-review" routerLinkActive="active" class="menu-link">
-                  <i class="ri-list-check-2 menu-icon"></i>
-                  <span class="title">Revisão de acessos</span>
-                </a>
-              </li>
-            }
-            @if (auth.hasPermission('security.alert.read')) {
-              <li class="menu-item">
-                <a routerLink="/security/alerts" routerLinkActive="active" class="menu-link">
-                  <i class="ri-alarm-warning-line menu-icon"></i>
-                  <span class="title">Alertas</span>
-                </a>
-              </li>
-            }
-            @if (auth.hasPermission('security.audit.read')) {
-              <li class="menu-item">
-                <a routerLink="/security/audit" routerLinkActive="active" class="menu-link">
-                  <i class="ri-file-list-3-line menu-icon"></i>
-                  <span class="title">Auditoria</span>
-                </a>
-              </li>
-            }
-            @if (auth.hasPermission('security.service-account.read')) {
-              <li class="menu-item">
-                <a routerLink="/security/service-accounts" routerLinkActive="active" class="menu-link">
-                  <i class="ri-robot-line menu-icon"></i>
-                  <span class="title">Contas de serviço</span>
-                </a>
-              </li>
-            }
-            @if (auth.hasPermission('security.federation.read')) {
-              <li class="menu-item">
-                <a routerLink="/security/federation" routerLinkActive="active" class="menu-link">
-                  <i class="ri-links-line menu-icon"></i>
-                  <span class="title">Federação</span>
-                </a>
-              </li>
-            }
+            <li class="menu-title small text-uppercase"><span class="menu-title-text">Administração</span></li>
+            <li class="menu-item">
+              <a routerLink="/settings" routerLinkActive="active" class="menu-link">
+                <i class="ri-settings-3-line menu-icon"></i>
+                <span class="title">Configurações</span>
+              </a>
+            </li>
           }
         </ul>
       </aside>
@@ -147,66 +89,110 @@
     <div class="container-fluid">
     <div class="main-content d-flex flex-column">
       <header class="header-area bg-white mb-4 rounded-10 border border-white" id="header-area">
-        <div class="d-md-flex align-items-center justify-content-between">
-          <div class="left-header-content d-flex align-items-center gap-2">
-            <button type="button" class="header-burger-menu bg-transparent p-0 border-0"
-                    (click)="toggle()" aria-label="Alternar menu">
-              <i class="ri-menu-line fs-4"></i>
-            </button>
-            <div class="header-search position-relative d-none d-sm-block">
-              <i class="ri-search-line position-absolute top-50 translate-middle-y text-muted"
-                 style="left: .75rem;" aria-hidden="true"></i>
-              <input type="search" class="form-control ps-5" style="min-width: 260px;"
-                     placeholder="Buscar nesta tela…" aria-label="Buscar nesta tela"
-                     [value]="search.term()" (input)="onSearch($any($event.target).value)">
+        <div class="row align-items-center">
+          <div class="col-md-6">
+            <div class="left-header-content">
+              <ul class="d-flex align-items-center ps-0 mb-0 list-unstyled justify-content-center justify-content-md-start gap-2">
+                <li>
+                  <button type="button" class="header-burger-menu bg-transparent p-0 border-0"
+                          (click)="toggle()" aria-label="Alternar menu">
+                    <i class="ri-menu-line fs-4"></i>
+                  </button>
+                </li>
+                <li class="flex-grow-1">
+                  <div class="header-search position-relative d-none d-sm-block">
+                    <i class="ri-search-line position-absolute top-50 translate-middle-y text-muted"
+                       style="left: .75rem;" aria-hidden="true"></i>
+                    <input type="search" class="form-control ps-5" style="min-width: 260px;"
+                           placeholder="Buscar nesta tela…" aria-label="Buscar nesta tela"
+                           [value]="search.term()" (input)="onSearch($any($event.target).value)">
+                  </div>
+                </li>
+              </ul>
             </div>
           </div>
-          <div class="right-header-content mt-3 mt-md-0">
-            <ul class="d-flex align-items-center gap-2 mb-0 ps-0 list-unstyled">
-              <li>
-                <button type="button" class="btn btn-light border-0 rounded-circle d-flex align-items-center justify-content-center"
-                        style="width:40px;height:40px;" (click)="toggleTheme()"
-                        [attr.aria-label]="theme.mode() === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'"
-                        [title]="theme.mode() === 'dark' ? 'Tema claro' : 'Tema escuro'">
-                  <i class="fs-5" [class.ri-sun-line]="theme.mode() === 'dark'"
-                     [class.ri-moon-line]="theme.mode() === 'light'"></i>
-                </button>
-              </li>
-              @if (auth.user()?.activeBrewery; as active) {
-                <li class="dropdown">
-                  <a href="javascript:void(0);" class="dropdown-toggle d-flex align-items-center gap-2 text-decoration-none text-body"
-                     data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="ri-store-2-line"></i>
-                    <span class="fw-medium">{{ active.name }}</span>
-                  </a>
-                  <ul class="dropdown-menu dropdown-menu-end">
-                    <li><h6 class="dropdown-header">Cervejaria ativa</h6></li>
-                    @for (brewery of auth.user()?.accessibleBreweries ?? []; track brewery.id) {
-                      <li>
-                        <button type="button" class="dropdown-item d-flex align-items-center justify-content-between"
-                                (click)="selectBrewery(brewery.id)">
-                          {{ brewery.name }}
-                          @if (brewery.id === active.id) { <i class="ri-check-line text-primary"></i> }
-                        </button>
-                      </li>
-                    }
-                  </ul>
+
+          <div class="col-md-6">
+            <div class="right-header-content mt-3 mt-md-0">
+              <ul class="d-flex align-items-center justify-content-center justify-content-md-end ps-0 mb-0 list-unstyled">
+                <li class="header-right-item light-dark-item">
+                  <div class="light-dark">
+                    <button type="button" class="switch-toggle dark-btn p-0 bg-transparent lh-0 border-0"
+                            (click)="toggleTheme()"
+                            [attr.aria-label]="theme.mode() === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'"
+                            [title]="theme.mode() === 'dark' ? 'Tema claro' : 'Tema escuro'">
+                      <i class="ri-sun-line fs-4" [class.d-none]="theme.mode() === 'light'"></i>
+                      <i class="ri-moon-line fs-4" [class.d-none]="theme.mode() === 'dark'"></i>
+                    </button>
+                  </div>
                 </li>
-              }
-              <li class="dropdown">
-                <a href="javascript:void(0);" class="dropdown-toggle d-flex align-items-center gap-2 text-decoration-none text-body"
-                   data-bs-toggle="dropdown" aria-expanded="false">
-                  <span class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
-                        style="width:36px;height:36px;">{{ initials() }}</span>
-                  <span class="d-none d-sm-inline fw-medium">{{ auth.user()?.displayName ?? 'Conta' }}</span>
-                </a>
-                <ul class="dropdown-menu dropdown-menu-end">
-                  <li><a class="dropdown-item" routerLink="/account"><i class="ri-user-settings-line me-2"></i>Minha conta</a></li>
-                  <li><hr class="dropdown-divider"></li>
-                  <li><button type="button" class="dropdown-item" (click)="logout()">Sair</button></li>
-                </ul>
-              </li>
-            </ul>
+
+                <li class="header-right-item">
+                  <div class="dropdown admin-profile">
+                    <div class="dropdown-toggle d-flex align-items-center bg-transparent border-0 text-start p-0 cursor"
+                         role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                      <div class="flex-shrink-0 position-relative">
+                        <span class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-semibold"
+                              style="width:40px;height:40px;">{{ initials() }}</span>
+                        <span class="d-block border border-2 border-white rounded-circle position-absolute end-0 bottom-0"
+                              style="width:11px;height:11px;background:#22c55e;"></span>
+                      </div>
+                    </div>
+
+                    <div class="dropdown-menu border-0 bg-white dropdown-menu-end">
+                      <div class="d-flex align-items-center info">
+                        <div class="flex-shrink-0">
+                          <span class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-semibold"
+                                style="width:40px;height:40px;">{{ initials() }}</span>
+                        </div>
+                        <div class="flex-grow-1 ms-10">
+                          <h3 class="fw-medium fs-17 mb-0">{{ auth.user()?.displayName ?? 'Conta' }}</h3>
+                          <span class="fs-15 fw-medium text-muted d-flex align-items-center gap-1">
+                            <i class="ri-store-2-line"></i>{{ auth.user()?.activeBrewery?.name ?? 'Sem cervejaria' }}
+                          </span>
+                        </div>
+                      </div>
+
+                      @if ((auth.user()?.accessibleBreweries?.length ?? 0) > 1) {
+                        <ul class="admin-link mb-0 list-unstyled">
+                          @for (brewery of auth.user()?.accessibleBreweries ?? []; track brewery.id) {
+                            <li>
+                              <button type="button"
+                                      class="dropdown-item admin-item-link d-flex align-items-center text-body w-100"
+                                      [class.active]="brewery.id === auth.user()?.activeBrewery?.id"
+                                      (click)="selectBrewery(brewery.id)">
+                                <i class="ri-store-2-line"></i>
+                                <span class="ms-2">{{ brewery.name }}</span>
+                                @if (brewery.id === auth.user()?.activeBrewery?.id) {
+                                  <i class="ri-check-line ms-auto"></i>
+                                }
+                              </button>
+                            </li>
+                          }
+                        </ul>
+                      }
+
+                      <ul class="admin-link mb-0 list-unstyled">
+                        <li>
+                          <a class="dropdown-item admin-item-link d-flex align-items-center text-body" routerLink="/account">
+                            <i class="ri-user-settings-line"></i>
+                            <span class="ms-2">Minha conta</span>
+                          </a>
+                        </li>
+                        <li>
+                          <button type="button"
+                                  class="dropdown-item admin-item-link d-flex align-items-center text-body w-100"
+                                  (click)="logout()">
+                            <i class="ri-logout-box-r-line"></i>
+                            <span class="ms-2">Sair</span>
+                          </button>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </header>

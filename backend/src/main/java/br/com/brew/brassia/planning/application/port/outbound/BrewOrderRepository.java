@@ -30,6 +30,9 @@ public interface BrewOrderRepository {
 
     List<BrewOrder> findPage(UUID breweryId, int page, int size);
 
+    /** Ordens liberadas (base da demanda de compra). */
+    List<BrewOrder> findReleased(UUID breweryId);
+
     long count(UUID breweryId);
 
     Optional<BrewOrder> findById(UUID breweryId, UUID id);

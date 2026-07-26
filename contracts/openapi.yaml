@@ -532,6 +532,13 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /purchasing/needs:
+    get:
+      operationId: listPurchaseNeeds
+      summary: "Necessidade de compra por ingrediente (demanda das OPs liberadas menos saldo)"
+      responses:
+        '200': {description: Necessidades de compra}
+        '403': {$ref: '#/components/responses/Problem'}
   /inventory/lots:
     get:
       operationId: listStockLots

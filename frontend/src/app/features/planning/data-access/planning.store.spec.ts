@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
+import { IngredientsApi } from '../../catalog/data-access/ingredients.api';
 import { EquipmentApi } from '../../equipment/data-access/equipment.api';
 import { RecipesApi } from '../../recipes/data-access/recipes.api';
 import { UsersApi } from '../../security/users/data-access/users.api';
@@ -20,6 +21,7 @@ function setup(planning: Partial<PlanningApi>) {
       { provide: EquipmentApi, useValue: { list: vi.fn(emptyPage) } },
       { provide: RecipesApi, useValue: { list: vi.fn(emptyPage) } },
       { provide: UsersApi, useValue: { list: vi.fn(emptyPage) } },
+      { provide: IngredientsApi, useValue: { list: vi.fn(emptyPage) } },
       { provide: ToastService, useValue: { success: vi.fn() } },
     ],
   });
@@ -41,6 +43,18 @@ describe('PlanningStore', () => {
     store.simulate({ equipmentId: 'eq', scheduledStart: 's', scheduledEnd: 'e' });
     expect(simulate).toHaveBeenCalledOnce();
     expect(store.simulation()?.hasConflict).toBe(true);
+  });
+
+  it('carrega a necessidade de materiais de uma entrada', () => {
+    const materials = vi.fn(() => of([{ ingredientId: 'i', requiredQuantity: 20, unit: 'KG' }]));
+    const store = setup({ materials });
+    store.showMaterials('entry-1');
+    expect(materials).toHaveBeenCalledWith('entry-1');
+    expect(store.materialsEntryId()).toBe('entry-1');
+    expect(store.materials()?.length).toBe(1);
+    // Segundo clique na mesma entrada alterna (fecha).
+    store.showMaterials('entry-1');
+    expect(store.materialsEntryId()).toBeNull();
   });
 
   it('cria uma entrada e recarrega a agenda', () => {

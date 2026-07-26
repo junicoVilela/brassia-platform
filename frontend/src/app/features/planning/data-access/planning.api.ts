@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import {
   CreateScheduleEntryRequest,
   CreatedScheduleEntry,
+  MaterialLine,
   ScheduleEntry,
   SimulateScheduleRequest,
   SimulateScheduleResult,
@@ -23,5 +24,9 @@ export class PlanningApi {
 
   simulate(request: SimulateScheduleRequest) {
     return this.http.post<SimulateScheduleResult>(`${this.baseUrl}/simulate`, request);
+  }
+
+  materials(entryId: string) {
+    return this.http.get<MaterialLine[]>(`${this.baseUrl}/${entryId}/materials`);
   }
 }

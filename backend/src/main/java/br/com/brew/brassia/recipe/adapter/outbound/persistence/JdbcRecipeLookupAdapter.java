@@ -1,6 +1,8 @@
 package br.com.brew.brassia.recipe.adapter.outbound.persistence;
 
 import br.com.brew.brassia.recipe.RecipeLookup;
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -25,5 +27,32 @@ class JdbcRecipeLookupAdapter implements RecipeLookup {
                 .query((rs, n) -> new PublishedRecipe(
                         rs.getObject("id", UUID.class), (int) rs.getLong("version"), rs.getString("name")))
                 .optional();
+    }
+
+    @Override
+    public Optional<PublishedComposition> findPublishedComposition(UUID breweryId, UUID recipeId) {
+        var header = jdbc.sql("""
+                SELECT id, version, batch_volume_liters FROM recipe
+                WHERE brewery_id = :brewery AND id = :id AND status = 'PUBLISHED'
+                """)
+                .param("brewery", breweryId).param("id", recipeId)
+                .query((rs, n) -> new Object[] {
+                        rs.getObject("id", UUID.class), rs.getLong("version"), rs.getBigDecimal("batch_volume_liters")})
+                .optional();
+        if (header.isEmpty()) {
+            return Optional.empty();
+        }
+        var items = jdbc.sql("""
+                SELECT ingredient_id, stage, quantity, unit
+                FROM recipe_item WHERE recipe_id = :id AND brewery_id = :brewery ORDER BY position
+                """)
+                .param("id", recipeId).param("brewery", breweryId)
+                .query((rs, n) -> new CompositionItem(
+                        rs.getObject("ingredient_id", UUID.class), rs.getString("stage"),
+                        rs.getBigDecimal("quantity"), rs.getString("unit")))
+                .list();
+        var row = header.get();
+        return Optional.of(new PublishedComposition(
+                (UUID) row[0], (int) (long) (Long) row[1], (BigDecimal) row[2], List.copyOf(items)));
     }
 }

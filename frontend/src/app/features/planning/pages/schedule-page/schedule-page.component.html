@@ -97,11 +97,12 @@
                 <th scope="col">Responsável</th>
                 <th scope="col">Volume</th>
                 <th scope="col">Status</th>
+                <th scope="col" class="text-end">Ações</th>
               </tr>
             </thead>
             <tbody>
               @for (entry of group.items; track entry.id) {
-                <tr>
+                <tr [class.table-active]="entry.id === store.materialsEntryId()">
                   <td class="fw-medium">
                     {{ entry.scheduledStart | date:'HH:mm' }}–{{ entry.scheduledEnd | date:'HH:mm' }}
                   </td>
@@ -110,6 +111,11 @@
                   <td>{{ store.userName(entry.assignedUserId) }}</td>
                   <td>{{ entry.plannedVolumeLiters }} L</td>
                   <td><span class="badge bg-info-subtle text-info-emphasis">{{ entry.status }}</span></td>
+                  <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-primary" (click)="store.showMaterials(entry.id)">
+                      <i class="ri-list-check-2 me-1"></i> Materiais
+                    </button>
+                  </td>
                 </tr>
               }
             </tbody>
@@ -119,3 +125,47 @@
     }
   </div>
 </div>
+
+@if (store.materialsEntryId()) {
+  <div class="card border-0 rounded-10 mt-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h2 class="h6 fw-semibold mb-0">Necessidade de materiais</h2>
+        <button type="button" class="btn-close" aria-label="Fechar"
+                (click)="store.showMaterials(store.materialsEntryId()!)"></button>
+      </div>
+      <p class="text-muted small mb-3">Explosão da receita pelo volume planejado. Não reserva estoque — a
+        disponibilidade e faltas entram com o módulo de inventário.</p>
+      @if (store.materialsLoading()) {
+        <app-loading-indicator />
+      } @else if (store.materialsError(); as error) {
+        <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+      } @else if (store.materials(); as lines) {
+        @if (lines.length === 0) {
+          <app-empty-state icon="ri-list-check-2" message="A receita não tem itens para explodir." />
+        } @else {
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th scope="col">Ingrediente</th>
+                  <th scope="col" class="text-end">Necessário</th>
+                  <th scope="col">Unidade</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (line of lines; track line.ingredientId) {
+                  <tr>
+                    <td class="fw-medium">{{ store.ingredientName(line.ingredientId) }}</td>
+                    <td class="text-end">{{ line.requiredQuantity }}</td>
+                    <td>{{ line.unit }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      }
+    </div>
+  </div>
+}

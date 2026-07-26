@@ -1,6 +1,8 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
+import { IngredientsApi } from '../../catalog/data-access/ingredients.api';
+import { Ingredient } from '../../catalog/domain/ingredient.model';
 import { EquipmentApi } from '../../equipment/data-access/equipment.api';
 import { Equipment } from '../../equipment/domain/equipment.model';
 import { RecipesApi } from '../../recipes/data-access/recipes.api';
@@ -10,6 +12,7 @@ import { SecurityUserSummary } from '../../security/users/domain/user.model';
 import { ToastService } from '../../../core/notifications/toast.service';
 import {
   CreateScheduleEntryRequest,
+  MaterialLine,
   ScheduleEntry,
   SimulateScheduleRequest,
   SimulateScheduleResult,
@@ -23,6 +26,7 @@ export class PlanningStore {
   private readonly equipmentApi = inject(EquipmentApi);
   private readonly recipesApi = inject(RecipesApi);
   private readonly usersApi = inject(UsersApi);
+  private readonly ingredientsApi = inject(IngredientsApi);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -30,6 +34,7 @@ export class PlanningStore {
   private readonly equipmentState = signal<Equipment[]>([]);
   private readonly recipesState = signal<RecipeSummary[]>([]);
   private readonly usersState = signal<SecurityUserSummary[]>([]);
+  private readonly ingredientsState = signal<Ingredient[]>([]);
 
   readonly entries = this.entriesState.asReadonly();
   readonly equipment = this.equipmentState.asReadonly();
@@ -44,6 +49,11 @@ export class PlanningStore {
   readonly actionError = signal<string | null>(null);
   readonly simulation = signal<SimulateScheduleResult | null>(null);
   readonly simulating = signal(false);
+  /** Entrada selecionada para ver materiais e as linhas de necessidade. */
+  readonly materialsEntryId = signal<string | null>(null);
+  readonly materials = signal<MaterialLine[] | null>(null);
+  readonly materialsLoading = signal(false);
+  readonly materialsError = signal<string | null>(null);
 
   private range = defaultRange();
 
@@ -66,6 +76,32 @@ export class PlanningStore {
     this.usersApi.list(0, 100)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: page => this.usersState.set(page.content), error: () => {} });
+    this.ingredientsApi.list()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: page => this.ingredientsState.set(page.content), error: () => {} });
+  }
+
+  /** Carrega (ou alterna) a necessidade de materiais de uma entrada da agenda. */
+  showMaterials(entryId: string): void {
+    if (this.materialsEntryId() === entryId) {
+      this.materialsEntryId.set(null);
+      this.materials.set(null);
+      return;
+    }
+    this.materialsEntryId.set(entryId);
+    this.materials.set(null);
+    this.materialsError.set(null);
+    this.materialsLoading.set(true);
+    this.api.materials(entryId)
+      .pipe(finalize(() => this.materialsLoading.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: lines => this.materials.set(lines),
+        error: () => this.materialsError.set('Não foi possível calcular a necessidade de materiais.'),
+      });
+  }
+
+  ingredientName(id: string): string {
+    return this.ingredientsState().find(i => i.id === id)?.name ?? id;
   }
 
   simulate(request: SimulateScheduleRequest): void {

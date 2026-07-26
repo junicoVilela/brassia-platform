@@ -1,0 +1,75 @@
+<app-page-header title="Lista de compras"
+                 subtitle="Necessidade consolidada por fornecedor, em unidade de compra">
+  @if (!store.empty() && !store.loading() && !store.error()) {
+    <button type="button" class="btn btn-outline-primary" (click)="exportCsv()">
+      <i class="ri-download-2-line me-1"></i> Exportar CSV
+    </button>
+  }
+</app-page-header>
+
+@if (store.loading()) {
+  <app-loading-indicator />
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+} @else if (store.empty()) {
+  <div class="card border-0 rounded-10">
+    <div class="card-body p-4">
+      <app-empty-state icon="ri-shopping-cart-2-line" message="Nada a comprar."
+                       hint="A demanda das ordens liberadas está coberta pelo estoque atual." />
+    </div>
+  </div>
+} @else {
+  @for (group of store.groups(); track group.supplierId ?? group.supplierName) {
+    <div class="card border-0 rounded-10 mb-4">
+      <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h6 fw-semibold mb-0">
+            <i class="ri-truck-line me-1"></i> {{ group.supplierName }}
+          </h2>
+          @if (canSeeCosts && group.estimatedTotal !== null) {
+            <span class="badge text-bg-light">Estimado: {{ group.estimatedTotal | number: '1.2-2' }}</span>
+          }
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Ingrediente</th>
+                <th scope="col" class="text-end">A comprar</th>
+                <th scope="col">Un. compra</th>
+                <th scope="col" class="text-end">Necessidade</th>
+                <th scope="col" class="text-end">Em estoque</th>
+                <th scope="col" class="text-end">Reservado</th>
+                <th scope="col">Un. téc.</th>
+                @if (canSeeCosts) {
+                  <th scope="col" class="text-end">Custo unit.</th>
+                  <th scope="col" class="text-end">Custo est.</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of group.items; track item.ingredientId) {
+                <tr>
+                  <td class="fw-medium">
+                    {{ item.ingredientName ?? item.ingredientId }}
+                    @if (item.ingredientCode) { <span class="text-muted small">({{ item.ingredientCode }})</span> }
+                  </td>
+                  <td class="text-end fw-semibold text-danger">{{ item.purchaseQuantity | number: '1.0-3' }}</td>
+                  <td>{{ item.purchaseUnit }}</td>
+                  <td class="text-end">{{ item.suggested | number: '1.0-3' }}</td>
+                  <td class="text-end">{{ item.onHand | number: '1.0-3' }}</td>
+                  <td class="text-end">{{ item.reserved | number: '1.0-3' }}</td>
+                  <td>{{ item.unit }}</td>
+                  @if (canSeeCosts) {
+                    <td class="text-end">{{ item.unitCost !== null ? (item.unitCost | number: '1.2-4') : '—' }}</td>
+                    <td class="text-end">{{ item.estimatedCost !== null ? (item.estimatedCost | number: '1.2-2') : '—' }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  }
+}

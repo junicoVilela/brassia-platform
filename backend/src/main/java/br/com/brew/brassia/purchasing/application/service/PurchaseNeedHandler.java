@@ -29,16 +29,22 @@ public final class PurchaseNeedHandler implements PurchaseNeedUseCase {
     @Override
     public List<Need> handle(UUID breweryId) {
         var onHand = new LinkedHashMap<String, BigDecimal>();
+        var reserved = new LinkedHashMap<String, BigDecimal>();
         for (var stock : stockLookup.onHandByIngredient(breweryId)) {
-            onHand.merge(key(stock.ingredientId(), stock.unit()), stock.onHand(), BigDecimal::add);
+            var key = key(stock.ingredientId(), stock.unit());
+            onHand.merge(key, stock.onHand(), BigDecimal::add);
+            reserved.merge(key, stock.reserved(), BigDecimal::add);
         }
 
         var needs = new ArrayList<Need>();
         for (var demand : demandLookup.aggregatedDemand(breweryId)) {
-            var available = onHand.getOrDefault(key(demand.ingredientId(), demand.unit()), BigDecimal.ZERO);
+            var key = key(demand.ingredientId(), demand.unit());
+            var available = onHand.getOrDefault(key, BigDecimal.ZERO);
+            var reservedQty = reserved.getOrDefault(key, BigDecimal.ZERO);
             var suggested = demand.quantity().subtract(available);
             if (suggested.signum() > 0) {
-                needs.add(new Need(demand.ingredientId(), demand.quantity(), available, suggested, demand.unit()));
+                needs.add(new Need(demand.ingredientId(), demand.quantity(), available, reservedQty,
+                        suggested, demand.unit()));
             }
         }
         return needs;

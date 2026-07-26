@@ -8,5 +8,6 @@ import java.util.UUID;
 public interface PurchaseNeedUseCase {
     List<Need> handle(UUID breweryId);
 
-    record Need(UUID ingredientId, BigDecimal demand, BigDecimal onHand, BigDecimal suggested, String unit) {}
+    record Need(UUID ingredientId, BigDecimal demand, BigDecimal onHand, BigDecimal reserved,
+            BigDecimal suggested, String unit) {}
 }

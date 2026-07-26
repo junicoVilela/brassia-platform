@@ -11,7 +11,7 @@ Estado: EM ANDAMENTO
 | STK-003 | Concluída | IA | (local) | Reserva FEFO por ingrediente: aloca sobre lotes disponíveis (validade mais próxima primeiro), pula vencido/BLOCKED, converte unidades; lock pessimista dos lotes candidatos (duas OPs não estouram o disponível); insuficiente → 409 sem parcial; emite StockReserved. Release por referência. `POST /inventory/reservations` e `/release`; UI de reserva. Backend +8 testes (FEFO, expirado/bloqueado, concorrência) ; frontend 139. |
 | STK-004 | Concluída | IA | (local) | Inventário físico: contagem (OPEN) por lote captura o saldo do sistema; aprovar (permissão distinta) reconcilia — delta = contado − on_hand vivo → ADJUSTMENT_IN/OUT ref=contagem; saldo final = contado; contagem original permanece; re-aprovar → 409. `POST /inventory/counts`, `/{id}/approve`, `GET`; UI de contagens. Migration V42. Backend +8 testes; frontend 144. |
 | PUR-001 | Concluída | IA | (local) | Necessidade de compra: por ingrediente, `sugerido = max(0, demanda − saldo)`; demanda = Σ das OPs **RELEASED** (explosão da receita publicada pelo volume da OP), saldo = on-hand do ledger; unidade canônica. Itens cobertos são omitidos. `GET /purchasing/needs` (`purchasing.purchase.read`, V43); UI "Necessidade de compra". Backend +3 testes; frontend +4. |
-| PUR-002 | A fazer | — | — | — |
+| PUR-002 | Concluída | IA | (local) | Lista de compras consolidada por fornecedor: agrupa a necessidade (PUR-001) pelo fornecedor do último lote; distingue unidade técnica × unidade de compra (conversão), estoque e reserva; custo estimado (custo do último lote) gated por `purchasing.cost.read` (V44) — export CSV sai sem custo p/ quem não tem. Ingredientes sem histórico → "Sem fornecedor definido". `GET /purchasing/shopping-list`; UI "Lista de compras" com export CSV. Backend +4 testes; frontend +3. |
 | STK-005 | A fazer | — | — | — |
 
 ## Decisões e bloqueios
@@ -48,6 +48,12 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Necessidade** = `max(0, demanda − on_hand)`; itens totalmente cobertos são omitidos (só aparece o que falta). On-hand vem do ledger (todos os lotes, canônico).
 - **Inversão de dependência (evita ciclo)**: `inventory` já depende de `purchasing` (`SupplierLookup`). O saldo é exposto por uma porta `purchasing.StockOnHandLookup` **declarada em compras** e **implementada pelo adaptador de estoque** — mantém o sentido `inventory → purchasing` (Spring Modulith verde), sem `purchasing → inventory`.
 - **Leitura pura**: não cria pedido de compra nem reserva. Permissão `purchasing.purchase.read` (V43). **DÉBITO PUR-001-A**: lead time / ponto de pedido (antecedência do fornecedor) não considerado — futura consolidação (PUR-002).
+
+### PUR-002 — decisões (confirmadas com o mantenedor)
+- **Fornecedor preferencial** = fornecedor do **último lote recebido** do ingrediente (derivado do histórico, sem cadastro novo). Sem histórico → grupo **"Sem fornecedor definido"**. Consolidação por `ingredientId` (referência), não por nome. Porta `purchasing.IngredientSourcingLookup` declarada em compras e implementada pelo estoque (mesma inversão do PUR-001).
+- **Unidade de compra**: converte o sugerido (unidade técnica canônica) para a `purchaseUnit` do catálogo quando de mesma dimensão (`catalog.IngredientPurchaseLookup`); exibe também estoque e reservado. Sem tamanho de embalagem modelado → **DÉBITO PUR-002-A**: arredondamento para múltiplos de embalagem (PACK/pack size) fica fora; PACK cai no fallback (mantém unidade técnica).
+- **Custo**: estimado = sugerido × custo do último lote (convertido p/ a unidade canônica). Exibição/CSV de custos **gated** por `purchasing.cost.read` (V44); sem a permissão, custos vêm nulos do backend e o export sai sem colunas de custo. **Não cria pedido** (sugestão apenas).
+- Reservado passou a ser propagado no `Need` do PUR-001 (saldo do ledger com dimensão reservada), aditivo à resposta de `GET /purchasing/needs`.
 
 ## Evidências de encerramento
 

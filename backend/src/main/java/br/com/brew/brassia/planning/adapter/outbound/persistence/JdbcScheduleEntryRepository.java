@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -83,6 +84,20 @@ class JdbcScheduleEntryRepository implements ScheduleEntryRepository {
                 .param("to", Timestamp.from(to))
                 .query((rs, n) -> map(rs))
                 .list();
+    }
+
+    @Override
+    public Optional<ScheduleEntry> findById(UUID breweryId, UUID id) {
+        return jdbc.sql("""
+                SELECT id, brewery_id, recipe_id, equipment_id, assigned_user_id, planned_volume_liters,
+                       scheduled_start, scheduled_end, status, version
+                FROM planning_schedule_entry
+                WHERE brewery_id = :brewery AND id = :id
+                """)
+                .param("brewery", breweryId)
+                .param("id", id)
+                .query((rs, n) -> map(rs))
+                .optional();
     }
 
     private static ScheduleEntry map(ResultSet rs) throws SQLException {

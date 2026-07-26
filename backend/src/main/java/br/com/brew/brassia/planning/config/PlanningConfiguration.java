@@ -4,10 +4,14 @@ import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
 import br.com.brew.brassia.planning.application.port.inbound.CreateScheduleEntryUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.ListScheduleEntriesUseCase;
+import br.com.brew.brassia.planning.application.port.inbound.MaterialRequirementUseCase;
+import br.com.brew.brassia.planning.application.port.inbound.ScheduleMaterialsUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.SimulateScheduleUseCase;
 import br.com.brew.brassia.planning.application.port.outbound.ScheduleEntryRepository;
 import br.com.brew.brassia.planning.application.service.CreateScheduleEntryHandler;
 import br.com.brew.brassia.planning.application.service.ListScheduleEntriesHandler;
+import br.com.brew.brassia.planning.application.service.MaterialRequirementHandler;
+import br.com.brew.brassia.planning.application.service.ScheduleMaterialsHandler;
 import br.com.brew.brassia.planning.application.service.SimulateScheduleHandler;
 import br.com.brew.brassia.planning.domain.ScheduleConflictException;
 import br.com.brew.brassia.recipe.RecipeLookup;
@@ -58,5 +62,16 @@ class PlanningConfiguration {
     @Bean
     ListScheduleEntriesUseCase listScheduleEntriesUseCase(ScheduleEntryRepository repository) {
         return new ListScheduleEntriesHandler(repository);
+    }
+
+    @Bean
+    MaterialRequirementUseCase materialRequirementUseCase(RecipeLookup recipes) {
+        return new MaterialRequirementHandler(recipes);
+    }
+
+    @Bean
+    ScheduleMaterialsUseCase scheduleMaterialsUseCase(
+            ScheduleEntryRepository repository, MaterialRequirementUseCase requirement) {
+        return new ScheduleMaterialsHandler(repository, requirement);
     }
 }

@@ -41,3 +41,10 @@ export interface CreatedScheduleEntry {
   id: string;
   status: string;
 }
+
+/** Necessidade de um ingrediente (unidade canônica); sem disponibilidade/falta (Sprint 06). */
+export interface MaterialLine {
+  ingredientId: string;
+  requiredQuantity: number;
+  unit: string;
+}

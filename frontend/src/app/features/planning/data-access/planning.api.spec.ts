@@ -53,4 +53,15 @@ describe('PlanningApi (contrato da agenda de produção)', () => {
     expect(req.request.method).toBe('POST');
     req.flush({ id: 'x', status: 'PLANNED' });
   });
+
+  it('busca a necessidade de materiais de uma entrada (GET)', () => {
+    setup();
+    let lines: unknown;
+    api.materials('entry-1').subscribe(r => (lines = r));
+
+    const req = http.expectOne('/api/v1/planning/schedule/entry-1/materials');
+    expect(req.request.method).toBe('GET');
+    req.flush([{ ingredientId: 'i', requiredQuantity: 20, unit: 'KG' }]);
+    expect(lines).toEqual([{ ingredientId: 'i', requiredQuantity: 20, unit: 'KG' }]);
+  });
 });

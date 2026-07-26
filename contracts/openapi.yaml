@@ -496,6 +496,38 @@ paths:
               schema: {$ref: '#/components/schemas/SimulateScheduleResult'}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /planning/schedule/{id}/materials:
+    get:
+      operationId: scheduleEntryMaterials
+      summary: Necessidade de materiais de uma entrada da agenda (sem reservar)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: lossPercent, in: query, required: false, schema: {type: number, minimum: 0}}
+      responses:
+        '200':
+          description: Necessidade por ingrediente
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/MaterialLine'}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /planning/material-requirement:
+    post:
+      operationId: materialRequirement
+      summary: Explode receita publicada em necessidade de materiais (sem reservar)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MaterialRequirement'}
+      responses:
+        '200':
+          description: Necessidade por ingrediente
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/MaterialLine'}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
     RegisterBrewery:
@@ -703,6 +735,19 @@ components:
         scheduledStart: {type: string, format: date-time}
         scheduledEnd: {type: string, format: date-time}
         status: {type: string, enum: [PLANNED]}
+    MaterialRequirement:
+      type: object
+      required: [recipeId, volumeLiters]
+      properties:
+        recipeId: {type: string, format: uuid}
+        volumeLiters: {type: number, exclusiveMinimum: 0}
+        lossPercent: {type: number, minimum: 0}
+    MaterialLine:
+      type: object
+      properties:
+        ingredientId: {type: string, format: uuid}
+        requiredQuantity: {type: number}
+        unit: {type: string, enum: [KG, L, UNIT]}
   responses:
     Problem:
       description: Problem Details

@@ -1,0 +1,118 @@
+<app-page-header title="Inventário físico"
+                 subtitle="Conte, concilie e aprove — a aprovação ajusta o saldo ao contado" />
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Nova contagem</h2>
+    @if (store.lots().length === 0) {
+      <app-empty-state icon="ri-archive-2-line" message="Nenhum lote em estoque para contar." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Lote</th>
+              <th scope="col">Unidade</th>
+              <th scope="col">Recebido</th>
+              <th scope="col" style="width:180px;">Contado</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (lot of store.lots(); track lot.id) {
+              <tr>
+                <td class="fw-medium">{{ lot.supplierLotCode || lot.id.slice(0, 8) }}</td>
+                <td>{{ lot.unit }}</td>
+                <td>{{ lot.receivedQuantity }}</td>
+                <td>
+                  <input type="number" step="any" min="0" class="form-control form-control-sm"
+                         [value]="counted()[lot.id] || ''" (input)="setCounted(lot.id, $any($event.target).value)"
+                         placeholder="—">
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="d-flex justify-content-end mt-3">
+        <button type="button" class="btn btn-primary" [disabled]="store.submitting()" (click)="create()">
+          <i class="ri-clipboard-line me-1"></i> Registrar contagem
+        </button>
+      </div>
+    }
+    @if (store.actionError(); as actionError) {
+      <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+    }
+  </div>
+</div>
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Contagens</h2>
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-clipboard-line" message="Nenhuma contagem registrada." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Data</th>
+              <th scope="col">Linhas</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (count of store.counts(); track count.id) {
+              <tr [class.table-active]="count.id === store.expandedId()">
+                <td class="fw-medium">{{ count.createdAt | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td>{{ count.lines.length }}</td>
+                <td>
+                  <span class="badge"
+                        [class]="count.status === 'APPROVED' ? 'bg-success-subtle text-success-emphasis' : 'bg-secondary-subtle text-secondary-emphasis'">
+                    {{ count.status }}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="store.toggle(count.id)">
+                    <i class="ri-eye-line me-1"></i> Diferenças
+                  </button>
+                  @if (count.status === 'OPEN') {
+                    <button type="button" class="btn btn-sm btn-outline-success" (click)="store.approve(count.id)">
+                      <i class="ri-check-double-line me-1"></i> Aprovar
+                    </button>
+                  }
+                </td>
+              </tr>
+              @if (count.id === store.expandedId()) {
+                <tr>
+                  <td colspan="4">
+                    <table class="table table-sm mb-0">
+                      <thead>
+                        <tr><th>Lote</th><th class="text-end">Sistema</th><th class="text-end">Contado</th><th class="text-end">Diferença</th></tr>
+                      </thead>
+                      <tbody>
+                        @for (line of count.lines; track line.lotId) {
+                          <tr>
+                            <td>{{ line.lotId.slice(0, 8) }}</td>
+                            <td class="text-end">{{ line.systemQuantity }} {{ line.unit }}</td>
+                            <td class="text-end">{{ line.countedQuantity }} {{ line.unit }}</td>
+                            <td class="text-end" [class.text-danger]="line.difference < 0"
+                                [class.text-success]="line.difference > 0">{{ line.difference }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

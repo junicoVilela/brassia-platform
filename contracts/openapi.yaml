@@ -579,6 +579,46 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /inventory/counts:
+    get:
+      operationId: listPhysicalCounts
+      summary: Lista contagens físicas
+      responses:
+        '200': {description: Contagens}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createPhysicalCount
+      summary: Registra uma contagem física (OPEN; ajustes só na aprovação)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateCount'}
+      responses:
+        '201': {description: Contagem criada (OPEN)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /inventory/counts/{id}:
+    get:
+      operationId: getPhysicalCount
+      summary: Detalha uma contagem com linhas e diferenças
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Contagem}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /inventory/counts/{id}/approve:
+    post:
+      operationId: approvePhysicalCount
+      summary: Aprova a contagem e gera os ajustes (delta = contado − saldo atual)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Contagem aprovada; ajustes lançados}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /inventory/reservations:
     post:
       operationId: reserveStock
@@ -983,6 +1023,19 @@ components:
         reserved: {type: number}
         available: {type: number}
         movementId: {type: string, format: uuid}
+    CreateCount:
+      type: object
+      required: [lines]
+      properties:
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [lotId, countedQuantity]
+            properties:
+              lotId: {type: string, format: uuid}
+              countedQuantity: {type: number, minimum: 0}
     ReserveStock:
       type: object
       required: [ingredientId, quantity, unit]

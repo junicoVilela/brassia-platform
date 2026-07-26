@@ -7,14 +7,21 @@ import br.com.brew.brassia.inventory.application.port.inbound.ListStockLotsUseCa
 import br.com.brew.brassia.inventory.application.port.inbound.ListStockMovementsUseCase;
 import br.com.brew.brassia.inventory.application.port.inbound.ReceiveStockLotUseCase;
 import br.com.brew.brassia.inventory.application.port.inbound.RecordStockMovementUseCase;
+import br.com.brew.brassia.inventory.application.port.inbound.ApprovePhysicalCountUseCase;
+import br.com.brew.brassia.inventory.application.port.inbound.CreatePhysicalCountUseCase;
+import br.com.brew.brassia.inventory.application.port.inbound.PhysicalCountQueries;
 import br.com.brew.brassia.inventory.application.port.inbound.ReleaseStockUseCase;
 import br.com.brew.brassia.inventory.application.port.inbound.ReserveStockUseCase;
+import br.com.brew.brassia.inventory.application.port.outbound.PhysicalCountRepository;
 import br.com.brew.brassia.inventory.application.port.outbound.StockEventPublisher;
 import br.com.brew.brassia.inventory.application.port.outbound.StockLedgerRepository;
 import br.com.brew.brassia.inventory.application.port.outbound.StockLotRepository;
+import br.com.brew.brassia.inventory.application.service.ApprovePhysicalCountHandler;
+import br.com.brew.brassia.inventory.application.service.CreatePhysicalCountHandler;
 import br.com.brew.brassia.inventory.application.service.GetStockBalanceHandler;
 import br.com.brew.brassia.inventory.application.service.ListStockLotsHandler;
 import br.com.brew.brassia.inventory.application.service.ListStockMovementsHandler;
+import br.com.brew.brassia.inventory.application.service.PhysicalCountQueriesHandler;
 import br.com.brew.brassia.inventory.application.service.ReceiveStockLotHandler;
 import br.com.brew.brassia.inventory.application.service.RecordStockMovementHandler;
 import br.com.brew.brassia.inventory.application.service.ReleaseStockHandler;
@@ -82,5 +89,28 @@ class InventoryConfiguration {
         var handler = new ReleaseStockHandler(lots, ledger, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    CreatePhysicalCountUseCase createPhysicalCountUseCase(
+            PhysicalCountRepository counts, StockLotRepository lots, StockLedgerRepository ledger, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new CreatePhysicalCountHandler(counts, lots, ledger, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ApprovePhysicalCountUseCase approvePhysicalCountUseCase(
+            PhysicalCountRepository counts, StockLotRepository lots, StockLedgerRepository ledger, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ApprovePhysicalCountHandler(counts, lots, ledger, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    PhysicalCountQueries physicalCountQueries(PhysicalCountRepository counts) {
+        return new PhysicalCountQueriesHandler(counts);
     }
 }

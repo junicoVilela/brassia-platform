@@ -21,8 +21,24 @@ export class OrdersPageComponent implements OnInit {
     volumeLiters: [0, [Validators.required, Validators.min(0.001)]],
   });
 
+  protected readonly releaseForm = this.fb.nonNullable.group({
+    assignedUserId: ['', Validators.required],
+  });
+
   ngOnInit(): void {
     this.store.load();
+  }
+
+  protected startRelease(orderId: string): void {
+    this.releaseForm.reset({ assignedUserId: '' });
+    this.store.startRelease(orderId);
+  }
+
+  protected confirmRelease(orderId: string): void {
+    if (this.releaseForm.invalid) {
+      return;
+    }
+    this.store.confirmRelease(orderId, this.releaseForm.getRawValue().assignedUserId);
   }
 
   protected create(): void {

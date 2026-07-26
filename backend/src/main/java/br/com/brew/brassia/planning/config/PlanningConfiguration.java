@@ -9,8 +9,10 @@ import br.com.brew.brassia.planning.application.port.inbound.GetBrewOrderUseCase
 import br.com.brew.brassia.planning.application.port.inbound.ListBrewOrdersUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.ListScheduleEntriesUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.MaterialRequirementUseCase;
+import br.com.brew.brassia.planning.application.port.inbound.ReleaseBrewOrderUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.ScheduleMaterialsUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.SimulateScheduleUseCase;
+import br.com.brew.brassia.planning.application.port.outbound.BrewOrderEventPublisher;
 import br.com.brew.brassia.planning.application.port.outbound.BrewOrderRepository;
 import br.com.brew.brassia.planning.application.port.outbound.ScheduleEntryRepository;
 import br.com.brew.brassia.planning.application.service.CreateBrewOrderHandler;
@@ -19,6 +21,7 @@ import br.com.brew.brassia.planning.application.service.GetBrewOrderHandler;
 import br.com.brew.brassia.planning.application.service.ListBrewOrdersHandler;
 import br.com.brew.brassia.planning.application.service.ListScheduleEntriesHandler;
 import br.com.brew.brassia.planning.application.service.MaterialRequirementHandler;
+import br.com.brew.brassia.planning.application.service.ReleaseBrewOrderHandler;
 import br.com.brew.brassia.planning.application.service.ScheduleMaterialsHandler;
 import br.com.brew.brassia.planning.application.service.SimulateScheduleHandler;
 import br.com.brew.brassia.planning.domain.ScheduleConflictException;
@@ -103,5 +106,17 @@ class PlanningConfiguration {
     @Bean
     GetBrewOrderUseCase getBrewOrderUseCase(BrewOrderRepository repository) {
         return new GetBrewOrderHandler(repository);
+    }
+
+    @Bean
+    ReleaseBrewOrderUseCase releaseBrewOrderUseCase(
+            BrewOrderRepository repository,
+            EquipmentProfileLookup equipment,
+            BrewOrderEventPublisher events,
+            AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ReleaseBrewOrderHandler(repository, equipment, events, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }
 }

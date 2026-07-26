@@ -4,9 +4,11 @@ import br.com.brew.brassia.planning.adapter.inbound.web.dto.BrewOrderDetailView;
 import br.com.brew.brassia.planning.adapter.inbound.web.dto.BrewOrderResponse;
 import br.com.brew.brassia.planning.adapter.inbound.web.dto.BrewOrderSummaryView;
 import br.com.brew.brassia.planning.adapter.inbound.web.dto.CreateBrewOrderRequest;
+import br.com.brew.brassia.planning.adapter.inbound.web.dto.ReleaseBrewOrderRequest;
 import br.com.brew.brassia.planning.application.port.inbound.CreateBrewOrderUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.GetBrewOrderUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.ListBrewOrdersUseCase;
+import br.com.brew.brassia.planning.application.port.inbound.ReleaseBrewOrderUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import br.com.brew.brassia.shared.web.PageResponse;
 import jakarta.validation.Valid;
@@ -29,12 +31,14 @@ final class BrewOrderController {
     private final CreateBrewOrderUseCase createOrder;
     private final ListBrewOrdersUseCase listOrders;
     private final GetBrewOrderUseCase getOrder;
+    private final ReleaseBrewOrderUseCase releaseOrder;
 
     BrewOrderController(CreateBrewOrderUseCase createOrder, ListBrewOrdersUseCase listOrders,
-            GetBrewOrderUseCase getOrder) {
+            GetBrewOrderUseCase getOrder, ReleaseBrewOrderUseCase releaseOrder) {
         this.createOrder = createOrder;
         this.listOrders = listOrders;
         this.getOrder = getOrder;
+        this.releaseOrder = releaseOrder;
     }
 
     @PostMapping
@@ -63,5 +67,15 @@ final class BrewOrderController {
     BrewOrderDetailView detail(@PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("planning.order.read");
         return BrewOrderDetailView.from(getOrder.handle(principal.requireBrewery(), id));
+    }
+
+    @PostMapping("/{id}/release")
+    BrewOrderResponse release(@PathVariable UUID id, @RequestBody(required = false) ReleaseBrewOrderRequest request,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("planning.order.manage");
+        var assignedUserId = request == null ? null : request.assignedUserId();
+        var result = releaseOrder.handle(new ReleaseBrewOrderUseCase.Command(
+                principal.userId(), principal.requireBrewery(), id, assignedUserId));
+        return new BrewOrderResponse(result.id(), null, result.status());
     }
 }

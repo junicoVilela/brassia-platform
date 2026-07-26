@@ -9,7 +9,7 @@ Estado: EM ANDAMENTO
 | PLN-001 | Concluída | IA | (local) | Fatia vertical completa: domínio, aplicação, persistência (V35), web (`/planning/schedule` + `/simulate` + `GET`), OpenAPI e frontend (agenda). Backend 18 testes verdes + ModularityTest; frontend 114 (Vitest). |
 | PLN-002 | Concluída | IA | (local) | Necessidade de materiais: explosão da receita publicada por volume + perda %, conversão de unidades (KG/L/UNIT), agregação por ingrediente. Endpoints `POST /planning/material-requirement` e `GET /planning/schedule/{id}/materials`; UI "Materiais" na agenda. Sem disponibilidade/faltas (Sprint 06). Backend +11 testes; frontend 116. |
 | BOP-001 | Concluída | IA | (local) | Criar OP: só de receita publicada, com snapshot JSONB (cálculo + equipamento) e código único OP-<ano>-<n> (sequência atômica); nasce DRAFT; falha "snapshot incompleto" (409) sem métricas. `POST/GET /brew-orders` + `GET /{id}`; UI de ordens com snapshot. Backend +12 testes; frontend 122. |
-| BOP-002 | A fazer | — | — | — |
+| BOP-002 | Concluída | IA | (local) | Liberar OP: DRAFT→RELEASED com responsável; bloqueios (estado, responsável, equipamento) listados em 409; estoque/sanitização = débito S06/S08. Emite `BrewOrderReleased` + auditoria; guarda de concorrência. `POST /brew-orders/{id}/release`; UI com seletor de responsável e bloqueios. Backend +7 testes; frontend 125. |
 | BOP-003 | A fazer | — | — | — |
 
 ## Decisões e bloqueios
@@ -41,6 +41,13 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Entrada**: receita publicada + volume (equipamento vem da receita). OP nasce `DRAFT`. Auditoria no create; **sem evento** (o evento é `BrewOrderReleased` na BOP-002).
 - **Módulo**: `BrewOrder` vive no módulo `planning` (o domínio o classifica como planejamento); permissões `planning.order.read/manage`. Endpoints `POST/GET /brew-orders` + `GET /brew-orders/{id}` (detalhe com snapshot).
 - Nota: `JdbcBrewOrderRepository` usa um `ObjectMapper` próprio p/ o JSONB (não há bean de `ObjectMapper` para injeção fora do web).
+
+### BOP-002 — decisões (confirmadas com o mantenedor)
+- **Bloqueios verificados agora**: estado=DRAFT, responsável presente, equipamento do snapshot existe. **Estoque (S06) e sanitização (S08) = débito** — respeita "não antecipar sprint futura".
+- **Responsável** informado no `POST /brew-orders/{id}/release` (corpo `{assignedUserId}`); ausência é **bloqueio** (não erro de validação). A OP passa a guardar `assigned_user_id`/`released_at` (migration V37).
+- **Falha lista bloqueios**: 409 Problem Details com extensão `blockers: [{code,message}]` (advice local `PlanningExceptionHandler`).
+- **Sucesso**: DRAFT→RELEASED via update guardado por estado (fecha corrida de liberação concorrente) + emite `BrewOrderReleased` (porta `BrewOrderEventPublisher`, `ApplicationEventPublisher` como no recipe) + auditoria.
+- **DÉBITO BOP-002-A**: validar que o responsável é membro da cervejaria (mesma pendência do PLN-001-A); hoje só exige presença.
 
 ## Evidências de encerramento
 

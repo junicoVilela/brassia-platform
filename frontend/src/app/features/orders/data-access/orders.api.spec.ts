@@ -43,4 +43,13 @@ describe('OrdersApi (contrato de ordens de produção)', () => {
     expect(req.request.method).toBe('GET');
     req.flush({ id: 'o1', code: 'OP-2026-0001' });
   });
+
+  it('libera uma OP (POST /{id}/release)', () => {
+    setup();
+    api.release('o1', 'u1').subscribe();
+    const req = http.expectOne('/api/v1/brew-orders/o1/release');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ assignedUserId: 'u1' });
+    req.flush({ id: 'o1', status: 'RELEASED' });
+  });
 });

@@ -47,6 +47,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/calculators/calculators.routes').then(m => m.CALCULATORS_ROUTES),
       },
       {
+        path: 'planning',
+        canActivate: [permissionGuard],
+        data: { permission: 'planning.schedule.read' },
+        loadChildren: () => import('./features/planning/planning.routes').then(m => m.PLANNING_ROUTES),
+      },
+      {
         path: 'account',
         loadChildren: () => import('./features/account/account.routes').then(m => m.ACCOUNT_ROUTES),
       },

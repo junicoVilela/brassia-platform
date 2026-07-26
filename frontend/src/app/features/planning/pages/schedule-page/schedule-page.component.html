@@ -1,0 +1,121 @@
+<app-page-header title="Agenda de produção"
+                 subtitle="Planeje brassagens de receitas publicadas, sem conflito de equipamento" />
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Planejar brassagem</h2>
+    <form [formGroup]="form" (ngSubmit)="schedule()" class="row g-3 align-items-end">
+      <div class="col-sm-6 col-lg-4">
+        <label class="form-label" for="recipeId">Receita (publicada)</label>
+        <select id="recipeId" class="form-select" formControlName="recipeId">
+          <option value="">Selecione…</option>
+          @for (recipe of store.publishedRecipes(); track recipe.id) {
+            <option [value]="recipe.id">{{ recipe.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="col-sm-6 col-lg-4">
+        <label class="form-label" for="equipmentId">Equipamento</label>
+        <select id="equipmentId" class="form-select" formControlName="equipmentId">
+          <option value="">Selecione…</option>
+          @for (item of store.equipment(); track item.id) {
+            <option [value]="item.id">{{ item.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="col-sm-6 col-lg-4">
+        <label class="form-label" for="assignedUserId">Responsável</label>
+        <select id="assignedUserId" class="form-select" formControlName="assignedUserId">
+          <option value="">Selecione…</option>
+          @for (user of store.users(); track user.id) {
+            <option [value]="user.id">{{ user.displayName }}</option>
+          }
+        </select>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <label class="form-label" for="volume">Volume (L)</label>
+        <input id="volume" type="number" step="any" min="0" class="form-control" formControlName="plannedVolumeLiters">
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <label class="form-label" for="start">Início</label>
+        <input id="start" type="datetime-local" class="form-control" formControlName="scheduledStart">
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <label class="form-label" for="end">Fim</label>
+        <input id="end" type="datetime-local" class="form-control" formControlName="scheduledEnd">
+      </div>
+      <div class="col-sm-6 col-lg-3 d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary w-100" [disabled]="!canSimulate() || store.simulating()"
+                (click)="simulate()">
+          <i class="ri-search-eye-line me-1"></i> Verificar
+        </button>
+        <button type="submit" class="btn btn-primary w-100" [disabled]="form.invalid || store.submitting()">
+          <i class="ri-calendar-check-line me-1"></i> Agendar
+        </button>
+      </div>
+    </form>
+
+    @if (store.simulation(); as sim) {
+      @if (sim.hasConflict) {
+        <div class="alert alert-warning mt-3 mb-0" role="status">
+          <i class="ri-error-warning-line me-1"></i>
+          Conflito de equipamento: {{ sim.conflicts.length }} brassagem(ns) já ocupam essa janela.
+        </div>
+      } @else {
+        <div class="alert alert-success mt-3 mb-0" role="status">
+          <i class="ri-checkbox-circle-line me-1"></i> Sem conflito de equipamento nessa janela.
+        </div>
+      }
+    }
+
+    @if (store.actionError(); as actionError) {
+      <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+    }
+  </div>
+</div>
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Próximas brassagens</h2>
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-calendar-line" message="Nenhuma brassagem agendada no período."
+                       hint="Planeje a primeira usando o formulário acima." />
+    } @else {
+      @for (group of days(); track group.day) {
+        <h3 class="h6 text-muted fw-semibold mt-3 mb-2">{{ group.day | date:'EEEE, d MMM y' }}</h3>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Janela</th>
+                <th scope="col">Receita</th>
+                <th scope="col">Equipamento</th>
+                <th scope="col">Responsável</th>
+                <th scope="col">Volume</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (entry of group.items; track entry.id) {
+                <tr>
+                  <td class="fw-medium">
+                    {{ entry.scheduledStart | date:'HH:mm' }}–{{ entry.scheduledEnd | date:'HH:mm' }}
+                  </td>
+                  <td>{{ store.recipeName(entry.recipeId) }}</td>
+                  <td>{{ store.equipmentName(entry.equipmentId) }}</td>
+                  <td>{{ store.userName(entry.assignedUserId) }}</td>
+                  <td>{{ entry.plannedVolumeLiters }} L</td>
+                  <td><span class="badge bg-info-subtle text-info-emphasis">{{ entry.status }}</span></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  </div>
+</div>

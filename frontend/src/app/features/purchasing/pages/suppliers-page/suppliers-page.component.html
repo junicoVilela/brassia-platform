@@ -1,0 +1,46 @@
+<app-page-header title="Fornecedores" subtitle="Cadastro de fornecedores de insumos" />
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Cadastrar fornecedor</h2>
+    <form [formGroup]="form" (ngSubmit)="register()" class="row g-3 align-items-end">
+      <div class="col-sm-6"><label class="form-label" for="name">Nome</label>
+        <input id="name" type="text" class="form-control" formControlName="name" placeholder="Maltaria Sul"></div>
+      <div class="col-sm-4"><label class="form-label" for="code">Código</label>
+        <input id="code" type="text" class="form-control" formControlName="code" placeholder="MSUL"></div>
+      <div class="col-sm-2 d-grid">
+        <button type="submit" class="btn btn-primary" [disabled]="form.invalid || store.submitting()">
+          <i class="ri-add-line me-1"></i> Cadastrar
+        </button>
+      </div>
+    </form>
+    @if (store.actionError(); as actionError) {
+      <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+    }
+  </div>
+</div>
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Fornecedores</h2>
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-truck-line" message="Nenhum fornecedor cadastrado."
+                       hint="Cadastre o primeiro no formulário acima." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th scope="col">Nome</th><th scope="col">Código</th></tr></thead>
+          <tbody>
+            @for (supplier of store.items(); track supplier.id) {
+              <tr><td class="fw-medium">{{ supplier.name }}</td><td>{{ supplier.code }}</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

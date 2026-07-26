@@ -3,6 +3,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { RecipesApi } from '../../recipes/data-access/recipes.api';
 import { RecipeSummary } from '../../recipes/domain/recipe.model';
+import { UsersApi } from '../../security/users/data-access/users.api';
+import { SecurityUserSummary } from '../../security/users/domain/user.model';
 import { ToastService } from '../../../core/notifications/toast.service';
 import { BrewOrderDetail, BrewOrderSummary, CreateBrewOrderRequest } from '../domain/order.model';
 import { OrdersApi } from './orders.api';
@@ -12,14 +14,22 @@ import { OrdersApi } from './orders.api';
 export class OrdersStore {
   private readonly api = inject(OrdersApi);
   private readonly recipesApi = inject(RecipesApi);
+  private readonly usersApi = inject(UsersApi);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly ordersState = signal<BrewOrderSummary[]>([]);
   private readonly recipesState = signal<RecipeSummary[]>([]);
+  private readonly usersState = signal<SecurityUserSummary[]>([]);
 
   readonly orders = this.ordersState.asReadonly();
   readonly publishedRecipes = computed(() => this.recipesState().filter(r => r.status === 'PUBLISHED'));
+  readonly users = this.usersState.asReadonly();
+
+  /** OP em processo de liberação (mostra o seletor de responsável) e bloqueios retornados. */
+  readonly releasingId = signal<string | null>(null);
+  readonly releaseBlockers = signal<{ code: string; message: string }[]>([]);
+  readonly releasing = signal(false);
 
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -42,6 +52,36 @@ export class OrdersStore {
     this.recipesApi.list()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: page => this.recipesState.set(page.content), error: () => {} });
+    this.usersApi.list(0, 100)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: page => this.usersState.set(page.content), error: () => {} });
+  }
+
+  /** Abre (ou fecha) o seletor de responsável para liberar uma OP. */
+  startRelease(orderId: string): void {
+    this.releaseBlockers.set([]);
+    this.releasingId.set(this.releasingId() === orderId ? null : orderId);
+  }
+
+  confirmRelease(orderId: string, assignedUserId: string): void {
+    this.releasing.set(true);
+    this.releaseBlockers.set([]);
+    this.api.release(orderId, assignedUserId)
+      .pipe(finalize(() => this.releasing.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.releasingId.set(null);
+          this.toast.success('Ordem liberada.');
+          this.load();
+        },
+        error: (err: { status?: number; error?: { blockers?: { code: string; message: string }[] } }) => {
+          if (err?.status === 409 && err.error?.blockers) {
+            this.releaseBlockers.set(err.error.blockers);
+          } else {
+            this.releaseBlockers.set([{ code: 'error', message: 'Não foi possível liberar a ordem.' }]);
+          }
+        },
+      });
   }
 
   create(request: CreateBrewOrderRequest, onSuccess?: () => void): void {

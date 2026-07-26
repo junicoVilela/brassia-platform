@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { RecipesApi } from '../../recipes/data-access/recipes.api';
+import { UsersApi } from '../../security/users/data-access/users.api';
 import { ToastService } from '../../../core/notifications/toast.service';
 import { BrewOrderDetail } from '../domain/order.model';
 import { OrdersApi } from './orders.api';
@@ -17,6 +18,7 @@ function setup(orders: Partial<OrdersApi>) {
       OrdersStore,
       { provide: OrdersApi, useValue: orders },
       { provide: RecipesApi, useValue: { list: vi.fn(emptyPage) } },
+      { provide: UsersApi, useValue: { list: vi.fn(emptyPage) } },
       { provide: ToastService, useValue: { success: vi.fn() } },
     ],
   });
@@ -41,6 +43,23 @@ describe('OrdersStore', () => {
     expect(create).toHaveBeenCalledOnce();
     expect(onSuccess).toHaveBeenCalledOnce();
     expect(list).toHaveBeenCalled();
+  });
+
+  it('libera uma OP e recarrega', () => {
+    const release = vi.fn(() => of({ id: 'o1', status: 'RELEASED' }));
+    const list = vi.fn(emptyPage);
+    const store = setup({ release, list });
+    store.confirmRelease('o1', 'u1');
+    expect(release).toHaveBeenCalledWith('o1', 'u1');
+    expect(list).toHaveBeenCalled();
+  });
+
+  it('mostra os bloqueios quando a liberação falha (409)', () => {
+    const release = vi.fn(() => throwError(() => ({ status: 409, error: { blockers: [{ code: 'missing_responsible', message: 'Informe o responsável.' }] } })));
+    const store = setup({ release });
+    store.confirmRelease('o1', 'u1');
+    expect(store.releaseBlockers()).toHaveLength(1);
+    expect(store.releaseBlockers()[0].code).toBe('missing_responsible');
   });
 
   it('carrega e alterna o detalhe (snapshot)', () => {

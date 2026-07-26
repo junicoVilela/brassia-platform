@@ -21,7 +21,8 @@ import org.springframework.stereotype.Repository;
 class JdbcBrewOrderRepository implements BrewOrderRepository {
 
     private static final String COLUMNS = """
-            SELECT id, brewery_id, code, recipe_id, recipe_version, volume_liters, snapshot, status, version
+            SELECT id, brewery_id, code, recipe_id, recipe_version, volume_liters, snapshot, status,
+                   assigned_user_id, released_at, version
             FROM brew_order
             """;
 
@@ -93,7 +94,23 @@ class JdbcBrewOrderRepository implements BrewOrderRepository {
                 .optional();
     }
 
+    @Override
+    public boolean markReleased(UUID breweryId, UUID id, UUID assignedUserId, Instant at) {
+        int updated = jdbc.sql("""
+                UPDATE brew_order
+                SET status = 'RELEASED', assigned_user_id = :user, released_at = :at, version = version + 1
+                WHERE brewery_id = :brewery AND id = :id AND status = 'DRAFT'
+                """)
+                .param("brewery", breweryId)
+                .param("id", id)
+                .param("user", assignedUserId)
+                .param("at", Timestamp.from(at))
+                .update();
+        return updated > 0;
+    }
+
     private BrewOrder map(ResultSet rs) throws SQLException {
+        var releasedAt = rs.getTimestamp("released_at");
         return BrewOrder.reconstitute(
                 new BrewOrderId(rs.getObject("id", UUID.class)),
                 rs.getObject("brewery_id", UUID.class),
@@ -103,6 +120,8 @@ class JdbcBrewOrderRepository implements BrewOrderRepository {
                 rs.getBigDecimal("volume_liters"),
                 read(rs.getString("snapshot")),
                 BrewOrderStatus.valueOf(rs.getString("status")),
+                rs.getObject("assigned_user_id", UUID.class),
+                releasedAt == null ? null : releasedAt.toInstant(),
                 rs.getLong("version"));
     }
 

@@ -468,6 +468,26 @@ paths:
               schema: {$ref: '#/components/schemas/BrewOrderDetail'}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /brew-orders/{id}/release:
+    post:
+      operationId: releaseBrewOrder
+      summary: Libera a OP (valida bloqueios; sucesso emite evento e auditoria)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReleaseBrewOrder'}
+      responses:
+        '200': {description: OP liberada (RELEASED)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: Bloqueada — corpo Problem Details com a lista de bloqueios
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ReleaseBlocked'}
   /brew-orders/{orderId}/start:
     post:
       operationId: startBrewOrder
@@ -791,6 +811,25 @@ components:
       properties:
         recipeId: {type: string, format: uuid}
         volumeLiters: {type: number, exclusiveMinimum: 0}
+    ReleaseBrewOrder:
+      type: object
+      properties:
+        assignedUserId: {type: string, format: uuid, description: Responsável pela liberação}
+    ReleaseBlocked:
+      type: object
+      description: Problem Details com a lista de bloqueios da liberação
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        code: {type: string}
+        blockers:
+          type: array
+          items:
+            type: object
+            properties:
+              code: {type: string}
+              message: {type: string}
     BrewOrderDetail:
       type: object
       properties:

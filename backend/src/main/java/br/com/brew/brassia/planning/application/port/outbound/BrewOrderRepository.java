@@ -15,6 +15,13 @@ public interface BrewOrderRepository {
 
     void insert(BrewOrder order);
 
+    /**
+     * Marca a OP como liberada (DRAFT → RELEASED), de forma atômica e guardada pelo
+     * estado (fecha corrida de liberação concorrente). Retorna {@code false} se a OP
+     * não estava mais em rascunho.
+     */
+    boolean markReleased(UUID breweryId, UUID id, UUID assignedUserId, java.time.Instant at);
+
     List<BrewOrder> findPage(UUID breweryId, int page, int size);
 
     long count(UUID breweryId);

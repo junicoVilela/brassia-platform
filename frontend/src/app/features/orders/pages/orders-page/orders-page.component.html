@@ -60,6 +60,11 @@
                 <td>{{ order.volumeLiters }} L</td>
                 <td><span class="badge" [class]="badgeClass(order.status)">{{ order.status }}</span></td>
                 <td class="text-end">
+                  @if (order.status === 'DRAFT') {
+                    <button type="button" class="btn btn-sm btn-outline-success me-1" (click)="startRelease(order.id)">
+                      <i class="ri-play-circle-line me-1"></i> Liberar
+                    </button>
+                  }
                   <button type="button" class="btn btn-sm btn-outline-primary" (click)="store.showDetail(order.id)">
                     <i class="ri-camera-lens-line me-1"></i> Snapshot
                   </button>
@@ -72,6 +77,45 @@
     }
   </div>
 </div>
+
+@if (store.releasingId(); as releasingId) {
+  <div class="card border-0 rounded-10 mt-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h2 class="h6 fw-semibold mb-0">Liberar ordem</h2>
+        <button type="button" class="btn-close" aria-label="Fechar" (click)="store.startRelease(releasingId)"></button>
+      </div>
+      <p class="text-muted small mb-3">Defina o responsável pela liberação. Bloqueios (estoque e sanitização)
+        entram com os módulos das próximas sprints.</p>
+      <form [formGroup]="releaseForm" (ngSubmit)="confirmRelease(releasingId)" class="row g-3 align-items-end">
+        <div class="col-sm-7 col-lg-5">
+          <label class="form-label" for="assignedUserId">Responsável</label>
+          <select id="assignedUserId" class="form-select" formControlName="assignedUserId">
+            <option value="">Selecione…</option>
+            @for (user of store.users(); track user.id) {
+              <option [value]="user.id">{{ user.displayName }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-sm-5 col-lg-3 d-grid">
+          <button type="submit" class="btn btn-primary" [disabled]="releaseForm.invalid || store.releasing()">
+            <i class="ri-play-circle-line me-1"></i> Confirmar liberação
+          </button>
+        </div>
+      </form>
+      @if (store.releaseBlockers().length > 0) {
+        <div class="alert alert-warning mt-3 mb-0" role="alert">
+          <strong>Não foi possível liberar:</strong>
+          <ul class="mb-0 mt-1">
+            @for (blocker of store.releaseBlockers(); track blocker.code) {
+              <li>{{ blocker.message }}</li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+  </div>
+}
 
 @if (store.detailLoading()) {
   <div class="card border-0 rounded-10 mt-4"><div class="card-body p-4"><app-loading-indicator /></div></div>

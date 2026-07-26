@@ -31,4 +31,8 @@ export class OrdersApi {
   get(orderId: string) {
     return this.http.get<BrewOrderDetail>(`${this.baseUrl}/${orderId}`);
   }
+
+  release(orderId: string, assignedUserId: string) {
+    return this.http.post<{ id: string; status: string }>(`${this.baseUrl}/${orderId}/release`, { assignedUserId });
+  }
 }

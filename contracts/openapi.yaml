@@ -451,6 +451,51 @@ paths:
             schema: {$ref: '#/components/schemas/Measurement'}
       responses:
         '201': {description: Recorded}
+  /planning/schedule:
+    get:
+      operationId: listScheduleEntries
+      summary: Agenda de produção no período (calendário)
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+      responses:
+        '200':
+          description: Entradas da agenda
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ScheduleEntry'}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createScheduleEntry
+      summary: Planeja uma brassagem (receita publicada, equipamento, janela, responsável)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateScheduleEntry'}
+      responses:
+        '201': {description: Entrada da agenda criada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /planning/schedule/simulate:
+    post:
+      operationId: simulateScheduleEntry
+      summary: Verifica conflito de equipamento sem persistir
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SimulateSchedule'}
+      responses:
+        '200':
+          description: Resultado da simulação
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SimulateScheduleResult'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
     RegisterBrewery:
@@ -617,6 +662,47 @@ components:
         unit: {type: string}
         measuredAt: {type: string, format: date-time}
         source: {type: string, enum: [MANUAL, SENSOR, IMPORT]}
+    CreateScheduleEntry:
+      type: object
+      required: [recipeId, equipmentId, assignedUserId, plannedVolumeLiters, scheduledStart, scheduledEnd]
+      properties:
+        recipeId: {type: string, format: uuid}
+        equipmentId: {type: string, format: uuid}
+        assignedUserId: {type: string, format: uuid}
+        plannedVolumeLiters: {type: number, exclusiveMinimum: 0}
+        scheduledStart: {type: string, format: date-time}
+        scheduledEnd: {type: string, format: date-time}
+    SimulateSchedule:
+      type: object
+      required: [equipmentId, scheduledStart, scheduledEnd]
+      properties:
+        equipmentId: {type: string, format: uuid}
+        scheduledStart: {type: string, format: date-time}
+        scheduledEnd: {type: string, format: date-time}
+    SimulateScheduleResult:
+      type: object
+      required: [hasConflict, conflicts]
+      properties:
+        hasConflict: {type: boolean}
+        conflicts:
+          type: array
+          items:
+            type: object
+            properties:
+              entryId: {type: string, format: uuid}
+              scheduledStart: {type: string, format: date-time}
+              scheduledEnd: {type: string, format: date-time}
+    ScheduleEntry:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        recipeId: {type: string, format: uuid}
+        equipmentId: {type: string, format: uuid}
+        assignedUserId: {type: string, format: uuid}
+        plannedVolumeLiters: {type: number}
+        scheduledStart: {type: string, format: date-time}
+        scheduledEnd: {type: string, format: date-time}
+        status: {type: string, enum: [PLANNED]}
   responses:
     Problem:
       description: Problem Details

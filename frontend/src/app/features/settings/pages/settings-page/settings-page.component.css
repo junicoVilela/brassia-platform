@@ -1,0 +1,73 @@
+:host {
+  display: block;
+}
+
+/* O acento é definido no card e herdado por ícone, título e seta. */
+.accent-primary { --accent: #0f79f3; }
+.accent-indigo { --accent: #6366f1; }
+.accent-info { --accent: #0aa2c0; }
+.accent-teal { --accent: #14b8a6; }
+.accent-warning { --accent: #e0912a; }
+.accent-secondary { --accent: #64748b; }
+.accent-success { --accent: #1a9e5b; }
+.accent-danger { --accent: #e5484d; }
+
+/* Cartão de navegação: elevação sutil que reage ao hover/foco. */
+.settings-card {
+  color: inherit;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.settings-card:hover,
+.settings-card:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px -10px rgba(16, 24, 40, 0.22) !important;
+  outline: none;
+}
+
+/* Distintivo do ícone: tom translúcido do acento (funciona no claro e no escuro). */
+.settings-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  font-size: 24px;
+  color: var(--accent, #0f79f3);
+  background: color-mix(in srgb, var(--accent, #0f79f3) 14%, transparent);
+  transition: transform 0.18s ease;
+}
+
+.settings-card:hover .settings-icon {
+  transform: scale(1.06);
+}
+
+/* Título herda a cor do texto, mas assume o acento no hover. */
+.settings-title {
+  transition: color 0.18s ease;
+}
+
+.settings-card:hover .settings-title {
+  color: var(--accent, #0f79f3);
+}
+
+/* A seta se revela e desliza no hover. */
+.settings-arrow {
+  font-size: 20px;
+  color: #b6bdc9;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    color 0.18s ease;
+}
+
+.settings-card:hover .settings-arrow {
+  opacity: 1;
+  transform: translateX(0);
+  color: var(--accent, #0f79f3);
+}

@@ -13,11 +13,18 @@ const STYLES = [
 const SCRIPTS = ['assets/fila/js/bootstrap.bundle.min.js'];
 
 export function loadFilaTheme(): void {
+  // Inserimos o CSS do tema ANTES do bundle de estilos do Angular (`styles.scss`),
+  // que o CLI já injeta no `<head>` do index.html. Assim os nossos overrides em
+  // `styles.scss` vencem a cascata naturalmente (mesma especificidade → o que
+  // carrega depois vence), sem precisar de `!important`. Inserir cada link antes
+  // do mesmo nó âncora preserva a ordem entre os arquivos do tema.
+  const head = document.head;
+  const anchor = head.firstChild;
   for (const href of STYLES) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = href;
-    document.head.appendChild(link);
+    head.insertBefore(link, anchor);
   }
   for (const src of SCRIPTS) {
     const script = document.createElement('script');

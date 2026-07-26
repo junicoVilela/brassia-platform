@@ -49,3 +49,356 @@ body {
     color: #e7ebf3 !important;
   }
 }
+
+/**
+ * Coesão do modo claro (sistema de painéis).
+ *
+ * No dark os cards se destacam porque forçamos um canvas mais fundo que eles.
+ * No claro o tema Fila define `--bs-card-bg: var(--bs-body-bg)` (#eff3f9), quase
+ * idêntico ao canvas, com `--bs-card-box-shadow` vazio e as páginas usando
+ * `.card border-0`: resultado, os painéis somem no fundo e a informação parece
+ * solta. Tratamos aqui, uma vez, para todas as telas:
+ *   1. Canvas um pouco mais frio/acinzentado, para dar contraste aos painéis.
+ *   2. Cards em branco puro, com borda hairline + elevação em duas camadas
+ *      (`!important` na borda porque `.border-0` do layout usa `!important`).
+ *   3. Chrome (header/footer/sidebar `bg-white`) recebe a mesma linguagem de
+ *      elevação para ler como painel, sem borda dupla.
+ */
+[data-theme='light'] {
+  body,
+  .bg-body-bg {
+    background-color: #eceff4 !important;
+  }
+
+  .card {
+    background-color: #ffffff !important;
+    border: 1px solid #e5e8ef !important;
+    border-radius: 0.875rem;
+    box-shadow:
+      0 1px 2px rgba(16, 24, 40, 0.04),
+      0 8px 20px -8px rgba(16, 24, 40, 0.12) !important;
+  }
+
+  // Cabeçalho/rodapé da casca são `bg-white` (não `.card`): mesma elevação para
+  // consistência visual, mas sem borda (evita moldura dupla na chrome).
+  .header-area,
+  .footer-area {
+    border: 1px solid #e5e8ef;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  }
+
+  /**
+   * Tabelas: alinhamento e cores do tema (ref. to-do-list / `.default-table-area`).
+   * Cabeçalho em faixa azul suave sem borda; linhas com borda inferior tracejada;
+   * tudo verticalmente centralizado, com respiro e cor de texto consistentes.
+   * Aplica a todas as tabelas dentro de cards, sem mexer na marcação página a
+   * página. Escopado no claro — no escuro as tabelas seguem o comportamento atual.
+   */
+  .card .table {
+    margin-bottom: 0;
+    vertical-align: middle;
+    --bs-table-bg: transparent;
+  }
+  .card .table > thead > tr > th {
+    background-color: #e7effd;
+    color: #475569;
+    font-weight: 500;
+    font-size: 15px;
+    padding: 14px 20px;
+    border-bottom: 0;
+    white-space: nowrap;
+  }
+  .card .table > tbody > tr > td {
+    color: #475569;
+    font-size: 15px;
+    padding: 14px 20px;
+    vertical-align: middle;
+    border-bottom: 1px dashed #e0e0e0;
+  }
+  // Última linha sem borda, para a faixa terminar limpa dentro do card.
+  .card .table > tbody > tr:last-child > td {
+    border-bottom: 0;
+  }
+}
+
+/**
+ * Tabelas no tema escuro. As tabelas do sistema não são `.default-table-area`, e
+ * o bloco claro acima é escopado no claro — então no escuro as listagens ficavam
+ * sem tratamento (texto/borda claros sobre card escuro). Espelhamos aqui a paleta
+ * dark do tema: cabeçalho `#131920`, texto claro e borda tracejada translúcida.
+ */
+[data-theme='dark'] .card .table {
+  margin-bottom: 0;
+  vertical-align: middle;
+  --bs-table-bg: transparent;
+  --bs-table-color: #cbd5e1;
+  --bs-table-hover-bg: rgba(255, 255, 255, 0.04);
+  --bs-table-hover-color: #fff;
+}
+[data-theme='dark'] .card .table > thead > tr > th {
+  background-color: #131920;
+  color: #fff;
+  font-weight: 500;
+  font-size: 15px;
+  padding: 14px 20px;
+  border-bottom: 0;
+  white-space: nowrap;
+}
+[data-theme='dark'] .card .table > tbody > tr > td {
+  color: #cbd5e1;
+  font-size: 15px;
+  padding: 14px 20px;
+  vertical-align: middle;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.09);
+}
+[data-theme='dark'] .card .table > tbody > tr:last-child > td {
+  border-bottom: 0;
+}
+// Linha "selecionada" (table-active) legível no escuro.
+[data-theme='dark'] .card .table > tbody > tr.table-active > td {
+  --bs-table-active-bg: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+/**
+ * Legibilidade de formulários no escuro. O tema pinta `.label` de branco, mas
+ * nossas páginas usam `.form-label` (Bootstrap), sem regra dark — e o nome do
+ * usuário (`.info h3`) no dropdown é heading, que o tema escurece. Forçamos claro.
+ */
+[data-theme='dark'] .form-label {
+  color: rgba(255, 255, 255, 0.85);
+}
+[data-theme='dark'] .admin-profile .dropdown-menu .info h3 {
+  color: #fff;
+}
+
+/**
+ * Badges no tema escuro — visual uniforme.
+ *
+ * O sistema mistura dois formatos: "suave" (`bg-*-subtle` + `text-*-emphasis`) e
+ * "sólido" (`text-bg-*`). Os tokens `-subtle`/`-emphasis` só adaptam sob
+ * `[data-bs-theme=dark]` (o tema Fila usa `data-theme`), então no escuro viravam
+ * manchas claras; os sólidos ficavam berrantes. Unificamos tudo num badge suave
+ * escuro: tom translúcido da cor + texto claro da mesma cor.
+ *   (1) Redefinimos os tokens do Bootstrap (corrige todos os `-subtle`/`-emphasis`).
+ *   (2) Reescrevemos os `text-bg-*` para o mesmo estilo (mesma aparência).
+ */
+[data-theme='dark'] {
+  --bs-success-bg-subtle: rgba(74, 222, 128, 0.15);
+  --bs-success-text-emphasis: #4ade80;
+  --bs-danger-bg-subtle: rgba(248, 113, 113, 0.15);
+  --bs-danger-text-emphasis: #f87171;
+  --bs-warning-bg-subtle: rgba(251, 191, 36, 0.15);
+  --bs-warning-text-emphasis: #fbbf24;
+  --bs-info-bg-subtle: rgba(56, 189, 248, 0.15);
+  --bs-info-text-emphasis: #38bdf8;
+  --bs-secondary-bg-subtle: rgba(148, 163, 184, 0.15);
+  --bs-secondary-text-emphasis: #cbd5e1;
+  --bs-primary-bg-subtle: rgba(56, 132, 245, 0.18);
+  --bs-primary-text-emphasis: #7bb0ff;
+}
+
+[data-theme='dark'] .badge.text-bg-success {
+  background-color: rgba(74, 222, 128, 0.15) !important;
+  color: #4ade80 !important;
+}
+[data-theme='dark'] .badge.text-bg-danger {
+  background-color: rgba(248, 113, 113, 0.15) !important;
+  color: #f87171 !important;
+}
+[data-theme='dark'] .badge.text-bg-warning {
+  background-color: rgba(251, 191, 36, 0.15) !important;
+  color: #fbbf24 !important;
+}
+[data-theme='dark'] .badge.text-bg-info {
+  background-color: rgba(56, 189, 248, 0.15) !important;
+  color: #38bdf8 !important;
+}
+[data-theme='dark'] .badge.text-bg-secondary,
+[data-theme='dark'] .badge.text-bg-light {
+  background-color: rgba(148, 163, 184, 0.15) !important;
+  color: #cbd5e1 !important;
+}
+
+/**
+ * Sidebar: caber todos os itens sem zoom.
+ *
+ * O tema Fila foi feito para menus curtos: `.menu-inner > .menu-item` tem
+ * `margin-bottom: 24px` e o `.layout-menu` é `height:100%` SEM overflow. Com os
+ * ~19 itens da plataforma a lista estoura a altura fixa do sidebar e some no
+ * rodapé (era preciso dar zoom out). Aqui: (1) sidebar vira coluna flex com o
+ * menu rolável dentro da altura da viewport; (2) compactamos o ritmo vertical;
+ * (3) hover/active viram uma "pílula" com área de clique confortável.
+ * Não escopado por tema — vale no claro e no escuro (o dark recolore texto/ícone
+ * pelas próprias regras do tema).
+ */
+.sidebar-area {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-area .logo {
+  flex: 0 0 auto;
+  padding: 20px 25px;
+}
+
+.sidebar-area .layout-menu {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: 8px;
+  padding-bottom: 16px;
+  // Scrollbar fina e discreta.
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.5) transparent;
+}
+.sidebar-area .layout-menu::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-area .layout-menu::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45);
+  border-radius: 6px;
+}
+
+// Ritmo vertical compacto (era 24–25px entre itens).
+.menu-vertical .menu-inner > .menu-item,
+.menu-vertical .menu-item {
+  margin-bottom: 2px;
+}
+
+// Título de seção compacto, com respiro só acima.
+.menu-vertical .menu-title {
+  margin-top: 14px;
+  margin-bottom: 6px;
+}
+.menu-vertical .menu-title:first-child {
+  margin-top: 0;
+}
+
+// Link como pílula: área de clique confortável, ícone e rótulo alinhados.
+.menu-vertical .menu-item .menu-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.menu-vertical .menu-item .menu-link .menu-icon {
+  font-size: 18px;
+}
+
+// Hover/active no claro: fundo suave + realce do acento do tema.
+[data-theme='light'] .menu-vertical .menu-item .menu-link:hover {
+  background-color: #eef2f7;
+}
+[data-theme='light'] .menu-vertical .menu-item .menu-link.active {
+  background-color: #e8effb;
+}
+[data-theme='light'] .menu-vertical .menu-item .menu-link.active .title,
+[data-theme='light'] .menu-vertical .menu-item .menu-link.active .menu-icon {
+  color: #0f79f3;
+}
+
+// Hover/active no escuro: realce translúcido sobre a chrome escura.
+[data-theme='dark'] .menu-vertical .menu-item .menu-link:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+[data-theme='dark'] .menu-vertical .menu-item .menu-link.active {
+  background-color: rgba(56, 132, 245, 0.18);
+}
+[data-theme='dark'] .menu-vertical .menu-item .menu-link.active .title,
+[data-theme='dark'] .menu-vertical .menu-item .menu-link.active .menu-icon {
+  color: #7bb0ff !important;
+}
+
+/**
+ * Formulários: selects na mesma estrutura dos inputs.
+ *
+ * O tema Fila só estiliza `.form-control` (altura 56px, fonte 16px, borda
+ * `#dae0ec`, raio 5px) — a marcação do tema usa `class="form-select form-control"`
+ * nos selects. Nossas páginas usam apenas `.form-select`, então os selects
+ * ficavam mais baixos (~38px), com fundo cinza e fonte menor, destoando dos
+ * inputs ao lado. Replicamos aqui o tratamento do `.form-control` no `.form-select`
+ * (uma vez, para todos os selects atuais e futuros), preservando o espaço da seta.
+ */
+.form-select {
+  height: 56px;
+  min-height: 56px;
+  padding: 14px 40px 14px 15px;
+  font-size: 16px;
+  font-weight: 400;
+  border-radius: 5px;
+  cursor: pointer;
+}
+// Cores por tema: no claro segue o `.form-control` (branco); no escuro acompanha
+// o input do tema (`[data-theme=dark] .form-control` = #1b232d) — o tema só pinta
+// `.form-control`, e nossos selects usam só `.form-select`, então ficavam brancos
+// no escuro. Trocamos também a seta por uma versão clara (a padrão é escura).
+[data-theme='light'] .form-select {
+  color: #475569;
+  background-color: #fff;
+  border: 1px solid #dae0ec;
+}
+[data-theme='dark'] .form-select {
+  color: #fff;
+  background-color: #1b232d;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+// Placeholder legível nos inputs escuros.
+[data-theme='dark'] .form-control::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/**
+ * Botões primários: contraste correto do texto.
+ *
+ * O tema Fila define `--bs-btn-color:#000` no `.btn-primary` — texto preto sobre
+ * azul escuro (#0f79f3), ilegível. Regra: azul cheio (escuro) → texto BRANCO;
+ * contorno (azul claro) → texto azul escuro no repouso e BRANCO quando preenche
+ * no hover/active (senão o tema volta a pintar de preto).
+ */
+.btn-primary {
+  --bs-btn-color: #fff;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-active-color: #fff;
+  --bs-btn-disabled-color: #fff;
+}
+
+.btn-outline-primary {
+  --bs-btn-color: #0f79f3;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-active-color: #fff;
+}
+
+/**
+ * Listas (`.list-group`) no tema escuro. O item usa `--bs-list-group-bg:
+ * var(--bs-body-bg)`, que não escurece sob `data-theme` → itens ficavam brancos
+ * no escuro (ex.: "Escolha" em Calculadoras, e Grupos). Tornamos os itens
+ * transparentes sobre o card escuro, com texto claro e hover/ativo coerentes.
+ */
+[data-theme='dark'] .list-group {
+  --bs-list-group-bg: transparent;
+  --bs-list-group-color: #cbd5e1;
+  --bs-list-group-border-color: rgba(255, 255, 255, 0.09);
+  --bs-list-group-action-color: #cbd5e1;
+  --bs-list-group-action-hover-color: #fff;
+  --bs-list-group-action-hover-bg: rgba(255, 255, 255, 0.05);
+  --bs-list-group-action-active-color: #fff;
+  --bs-list-group-action-active-bg: rgba(255, 255, 255, 0.06);
+}
+
+/**
+ * Ícone do toggle de tema (claro/escuro). Usamos remixicon (`ri-*`), mas o tema
+ * só colore `.material-symbols-outlined` — então no header escuro o ícone ficava
+ * sem contraste. Definimos a cor explícita: claro `#475569`, escuro `#fff`.
+ */
+.header-right-item .light-dark .switch-toggle i {
+  color: #475569;
+}
+[data-theme='dark'] .header-right-item .light-dark .switch-toggle i {
+  color: #fff;
+}

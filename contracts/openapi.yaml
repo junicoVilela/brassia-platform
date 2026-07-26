@@ -539,6 +539,13 @@ paths:
       responses:
         '200': {description: Necessidades de compra}
         '403': {$ref: '#/components/responses/Problem'}
+  /purchasing/shopping-list:
+    get:
+      operationId: listShoppingList
+      summary: "Lista de compras consolidada por fornecedor (custos apenas com purchasing.cost.read)"
+      responses:
+        '200': {description: Lista de compras agrupada por fornecedor}
+        '403': {$ref: '#/components/responses/Problem'}
   /inventory/lots:
     get:
       operationId: listStockLots

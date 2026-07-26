@@ -13,5 +13,5 @@ import java.util.UUID;
 public interface StockOnHandLookup {
     List<IngredientOnHand> onHandByIngredient(UUID breweryId);
 
-    record IngredientOnHand(UUID ingredientId, BigDecimal onHand, String unit) {}
+    record IngredientOnHand(UUID ingredientId, BigDecimal onHand, BigDecimal reserved, String unit) {}
 }

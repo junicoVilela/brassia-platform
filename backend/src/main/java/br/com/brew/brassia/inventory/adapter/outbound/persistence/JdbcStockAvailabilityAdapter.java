@@ -27,7 +27,8 @@ class JdbcStockAvailabilityAdapter implements StockOnHandLookup {
     public List<IngredientOnHand> onHandByIngredient(UUID breweryId) {
         var rows = jdbc.sql("""
                 SELECT l.ingredient_id AS ingredient_id, l.unit AS unit,
-                       COALESCE(SUM(m.on_hand_delta), 0) AS on_hand
+                       COALESCE(SUM(m.on_hand_delta), 0) AS on_hand,
+                       COALESCE(SUM(m.reserved_delta), 0) AS reserved
                 FROM stock_lot l JOIN stock_movement m ON m.lot_id = l.id
                 WHERE l.brewery_id = :brewery
                 GROUP BY l.ingredient_id, l.unit
@@ -35,24 +36,25 @@ class JdbcStockAvailabilityAdapter implements StockOnHandLookup {
                 .param("brewery", breweryId)
                 .query((rs, n) -> new Object[] {
                         rs.getObject("ingredient_id", UUID.class), rs.getString("unit"),
-                        rs.getBigDecimal("on_hand")})
+                        rs.getBigDecimal("on_hand"), rs.getBigDecimal("reserved")})
                 .list();
 
         // Converte cada (unidade do lote) para a canônica e agrega por ingrediente.
-        var byIngredient = new LinkedHashMap<UUID, BigDecimal[]>(); // [onHandCanonical]; unidade canônica derivada
+        var byIngredient = new LinkedHashMap<UUID, BigDecimal[]>(); // [onHandCanonical, reservedCanonical]
         var canonicalUnit = new LinkedHashMap<UUID, String>();
         for (var row : rows) {
             var ingredientId = (UUID) row[0];
             var unit = StockUnit.valueOf((String) row[1]);
-            var onHand = (BigDecimal) row[2];
-            var canonical = unit.toCanonical(onHand);
-            byIngredient.merge(ingredientId, new BigDecimal[] {canonical},
-                    (a, b) -> new BigDecimal[] {a[0].add(b[0])});
+            var onHand = unit.toCanonical((BigDecimal) row[2]);
+            var reserved = unit.toCanonical((BigDecimal) row[3]);
+            byIngredient.merge(ingredientId, new BigDecimal[] {onHand, reserved},
+                    (a, b) -> new BigDecimal[] {a[0].add(b[0]), a[1].add(b[1])});
             canonicalUnit.put(ingredientId, unit.canonical());
         }
 
         return byIngredient.entrySet().stream()
-                .map(e -> new IngredientOnHand(e.getKey(), e.getValue()[0], canonicalUnit.get(e.getKey())))
+                .map(e -> new IngredientOnHand(
+                        e.getKey(), e.getValue()[0], e.getValue()[1], canonicalUnit.get(e.getKey())))
                 .toList();
     }
 }

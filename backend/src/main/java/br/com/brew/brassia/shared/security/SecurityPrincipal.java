@@ -36,6 +36,11 @@ public record SecurityPrincipal(
         }
     }
 
+    /** Checagem não-lançadora, para decidir a granularidade de uma resposta (ex.: expor custos). */
+    public boolean hasPermission(String permission) {
+        return permissions.contains(permission);
+    }
+
     /** Cervejaria ativa da sessão; nega quando a operação exige tenant e não há. */
     public UUID requireBrewery() {
         if (breweryId == null) {

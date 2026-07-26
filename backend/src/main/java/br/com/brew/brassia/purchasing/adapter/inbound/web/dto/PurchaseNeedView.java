@@ -5,10 +5,11 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public record PurchaseNeedView(
-        UUID ingredientId, BigDecimal demand, BigDecimal onHand, BigDecimal suggested, String unit) {
+        UUID ingredientId, BigDecimal demand, BigDecimal onHand, BigDecimal reserved,
+        BigDecimal suggested, String unit) {
 
     public static PurchaseNeedView from(PurchaseNeedUseCase.Need need) {
-        return new PurchaseNeedView(
-                need.ingredientId(), need.demand(), need.onHand(), need.suggested(), need.unit());
+        return new PurchaseNeedView(need.ingredientId(), need.demand(), need.onHand(), need.reserved(),
+                need.suggested(), need.unit());
     }
 }

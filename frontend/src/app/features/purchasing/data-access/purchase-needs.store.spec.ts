@@ -26,7 +26,8 @@ describe('PurchaseNeedsStore', () => {
   });
 
   it('expõe as sugestões carregadas', () => {
-    const list = vi.fn(() => of([{ ingredientId: 'i1', demand: 20, onHand: 5, suggested: 15, unit: 'KG' }]));
+    const list = vi.fn(() =>
+      of([{ ingredientId: 'i1', demand: 20, onHand: 5, reserved: 0, suggested: 15, unit: 'KG' }]));
     const store = setup({ list });
     store.load();
     expect(store.items().length).toBe(1);

@@ -47,16 +47,34 @@ class JdbcStockLotRepository implements StockLotRepository {
                 .update();
     }
 
+    private static final String COLUMNS = """
+            SELECT id, brewery_id, ingredient_id, supplier_id, supplier_lot_code, received_quantity, unit,
+                   unit_cost, expiry_date, received_at, inspection, version
+            FROM stock_lot
+            """;
+
     @Override
     public List<StockLot> findAll(UUID breweryId) {
-        return jdbc.sql("""
-                SELECT id, brewery_id, ingredient_id, supplier_id, supplier_lot_code, received_quantity, unit,
-                       unit_cost, expiry_date, received_at, inspection, version
-                FROM stock_lot WHERE brewery_id = :brewery ORDER BY received_at DESC
-                """)
+        return jdbc.sql(COLUMNS + " WHERE brewery_id = :brewery ORDER BY received_at DESC")
                 .param("brewery", breweryId)
                 .query((rs, n) -> map(rs))
                 .list();
+    }
+
+    @Override
+    public java.util.Optional<StockLot> findById(UUID breweryId, UUID lotId) {
+        return jdbc.sql(COLUMNS + " WHERE brewery_id = :brewery AND id = :id")
+                .param("brewery", breweryId).param("id", lotId)
+                .query((rs, n) -> map(rs))
+                .optional();
+    }
+
+    @Override
+    public java.util.Optional<StockLot> lockForUpdate(UUID breweryId, UUID lotId) {
+        return jdbc.sql(COLUMNS + " WHERE brewery_id = :brewery AND id = :id FOR UPDATE")
+                .param("brewery", breweryId).param("id", lotId)
+                .query((rs, n) -> map(rs))
+                .optional();
     }
 
     private static StockLot map(ResultSet rs) throws SQLException {

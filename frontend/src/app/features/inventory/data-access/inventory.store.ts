@@ -9,6 +9,8 @@ import { ToastService } from '../../../core/notifications/toast.service';
 import {
   RecordMovementRequest,
   ReceiveStockLotRequest,
+  ReserveStockRequest,
+  ReserveStockResult,
   StockBalance,
   StockLot,
   StockMovement,
@@ -36,6 +38,11 @@ export class InventoryStore {
   readonly empty = computed(() => !this.loading() && !this.error() && this.lots().length === 0);
   readonly submitting = signal(false);
   readonly actionError = signal<string | null>(null);
+
+  /** Resultado/erro da última reserva FEFO. */
+  readonly reservation = signal<ReserveStockResult | null>(null);
+  readonly reservationError = signal<string | null>(null);
+  readonly reserving = signal(false);
 
   /** Lote selecionado para ver/registrar movimentos, seu saldo e ledger. */
   readonly movementsLotId = signal<string | null>(null);
@@ -70,6 +77,21 @@ export class InventoryStore {
       .subscribe({
         next: () => { onSuccess?.(); this.toast.success('Lote recebido.'); this.load(); },
         error: () => this.actionError.set('Não foi possível receber o lote (ingrediente/fornecedor inválido ou dados incorretos).'),
+      });
+  }
+
+  reserve(request: ReserveStockRequest, onSuccess?: () => void): void {
+    this.reserving.set(true);
+    this.reservationError.set(null);
+    this.reservation.set(null);
+    this.api.reserve(request)
+      .pipe(finalize(() => this.reserving.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: result => { this.reservation.set(result); onSuccess?.(); this.toast.success('Estoque reservado.'); this.load(); },
+        error: (err: { status?: number }) =>
+          this.reservationError.set(err?.status === 409
+            ? 'Disponível insuficiente para reservar (FEFO).'
+            : 'Não foi possível reservar o estoque.'),
       });
   }
 

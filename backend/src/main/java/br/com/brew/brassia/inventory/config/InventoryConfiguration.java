@@ -7,6 +7,9 @@ import br.com.brew.brassia.inventory.application.port.inbound.ListStockLotsUseCa
 import br.com.brew.brassia.inventory.application.port.inbound.ListStockMovementsUseCase;
 import br.com.brew.brassia.inventory.application.port.inbound.ReceiveStockLotUseCase;
 import br.com.brew.brassia.inventory.application.port.inbound.RecordStockMovementUseCase;
+import br.com.brew.brassia.inventory.application.port.inbound.ReleaseStockUseCase;
+import br.com.brew.brassia.inventory.application.port.inbound.ReserveStockUseCase;
+import br.com.brew.brassia.inventory.application.port.outbound.StockEventPublisher;
 import br.com.brew.brassia.inventory.application.port.outbound.StockLedgerRepository;
 import br.com.brew.brassia.inventory.application.port.outbound.StockLotRepository;
 import br.com.brew.brassia.inventory.application.service.GetStockBalanceHandler;
@@ -14,6 +17,8 @@ import br.com.brew.brassia.inventory.application.service.ListStockLotsHandler;
 import br.com.brew.brassia.inventory.application.service.ListStockMovementsHandler;
 import br.com.brew.brassia.inventory.application.service.ReceiveStockLotHandler;
 import br.com.brew.brassia.inventory.application.service.RecordStockMovementHandler;
+import br.com.brew.brassia.inventory.application.service.ReleaseStockHandler;
+import br.com.brew.brassia.inventory.application.service.ReserveStockHandler;
 import br.com.brew.brassia.purchasing.SupplierLookup;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -59,5 +64,23 @@ class InventoryConfiguration {
     @Bean
     ListStockMovementsUseCase listStockMovementsUseCase(StockLedgerRepository ledger) {
         return new ListStockMovementsHandler(ledger);
+    }
+
+    @Bean
+    ReserveStockUseCase reserveStockUseCase(
+            StockLotRepository lots, StockLedgerRepository ledger, StockEventPublisher events, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ReserveStockHandler(lots, ledger, events, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ReleaseStockUseCase releaseStockUseCase(
+            StockLotRepository lots, StockLedgerRepository ledger, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ReleaseStockHandler(lots, ledger, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }
 }

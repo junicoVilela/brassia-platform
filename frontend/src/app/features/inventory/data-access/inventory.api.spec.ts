@@ -42,4 +42,21 @@ describe('InventoryApi (contrato de estoque/ledger)', () => {
     expect(req.request.body).toEqual({ type: 'CONSUMPTION', quantity: 10 });
     req.flush({ onHand: 15, reserved: 0, available: 15 });
   });
+
+  it('reserva estoque (FEFO)', () => {
+    setup();
+    api.reserve({ ingredientId: 'i', quantity: 15, unit: 'KG' }).subscribe();
+    const req = http.expectOne('/api/v1/inventory/reservations');
+    expect(req.request.method).toBe('POST');
+    req.flush({ ingredientId: 'i', reservedQuantity: 15, unit: 'KG', allocations: [] });
+  });
+
+  it('libera reservas de uma ordem', () => {
+    setup();
+    api.releaseReservation('o1').subscribe();
+    const req = http.expectOne('/api/v1/inventory/reservations/release');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ orderId: 'o1' });
+    req.flush({ reference: 'o1', releasedLots: 2 });
+  });
 });

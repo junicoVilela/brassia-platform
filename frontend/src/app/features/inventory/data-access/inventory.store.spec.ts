@@ -61,6 +61,18 @@ describe('InventoryStore', () => {
     expect(store.movementsLotId()).toBeNull();
   });
 
+  it('reserva estoque (FEFO) e guarda o resultado', () => {
+    const reserve = vi.fn(() => of({ ingredientId: 'i', reservedQuantity: 15, unit: 'KG',
+      allocations: [{ lotId: 'l1', quantity: 10, unit: 'KG' }, { lotId: 'l2', quantity: 5, unit: 'KG' }] }));
+    const list = vi.fn(() => of([]));
+    const onSuccess = vi.fn();
+    const store = setup({ reserve, list });
+    store.reserve({ ingredientId: 'i', quantity: 15, unit: 'KG' }, onSuccess);
+    expect(reserve).toHaveBeenCalledOnce();
+    expect(onSuccess).toHaveBeenCalledOnce();
+    expect(store.reservation()?.allocations).toHaveLength(2);
+  });
+
   it('registra movimento e atualiza saldo', () => {
     const recordMovement = vi.fn(() => of({ onHand: 15, reserved: 0, available: 15 }));
     const balance = vi.fn(() => of({ onHand: 15, reserved: 0, available: 15 }));

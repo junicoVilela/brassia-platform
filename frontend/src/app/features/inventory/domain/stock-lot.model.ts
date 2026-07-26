@@ -57,3 +57,23 @@ export interface RecordMovementRequest {
   quantity: number;
   reason?: string | null;
 }
+
+export interface ReserveStockRequest {
+  ingredientId: string;
+  quantity: number;
+  unit: StockUnit;
+  orderId?: string | null;
+}
+
+export interface StockAllocation {
+  lotId: string;
+  quantity: number;
+  unit: string;
+}
+
+export interface ReserveStockResult {
+  ingredientId: string;
+  reservedQuantity: number;
+  unit: string;
+  allocations: StockAllocation[];
+}

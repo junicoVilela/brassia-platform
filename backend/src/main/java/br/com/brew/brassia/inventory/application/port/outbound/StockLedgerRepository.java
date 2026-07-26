@@ -12,4 +12,9 @@ public interface StockLedgerRepository {
     StockBalance balance(UUID breweryId, UUID lotId);
 
     List<StockMovement> findByLot(UUID breweryId, UUID lotId);
+
+    /** Reservado líquido por lote para uma referência (base da liberação). */
+    List<ReservedLot> reservedByReference(UUID breweryId, UUID reference);
+
+    record ReservedLot(UUID lotId, UUID ingredientId, java.math.BigDecimal reserved) {}
 }

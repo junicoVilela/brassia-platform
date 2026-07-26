@@ -37,6 +37,13 @@ export class InventoryPageComponent implements OnInit {
     reason: [''],
   });
 
+  protected readonly reserveForm = this.fb.nonNullable.group({
+    ingredientId: ['', Validators.required],
+    quantity: [0, [Validators.required, Validators.min(0.0001)]],
+    unit: this.fb.nonNullable.control<StockUnit>('KG', Validators.required),
+    orderId: [''],
+  });
+
   ngOnInit(): void {
     this.store.load();
   }
@@ -53,6 +60,15 @@ export class InventoryPageComponent implements OnInit {
     const v = this.movementForm.getRawValue();
     this.store.recordMovement(lotId, { type: v.type, quantity: v.quantity, reason: v.reason || null },
       () => this.movementForm.reset({ type: 'CONSUMPTION', quantity: 0, reason: '' }));
+  }
+
+  protected reserve(): void {
+    if (this.reserveForm.invalid) {
+      return;
+    }
+    const v = this.reserveForm.getRawValue();
+    this.store.reserve({ ingredientId: v.ingredientId, quantity: v.quantity, unit: v.unit, orderId: v.orderId || null },
+      () => this.reserveForm.reset({ ingredientId: '', quantity: 0, unit: 'KG', orderId: '' }));
   }
 
   protected receive(): void {

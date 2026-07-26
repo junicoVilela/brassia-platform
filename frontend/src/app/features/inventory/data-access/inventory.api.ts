@@ -3,6 +3,8 @@ import { Injectable, inject } from '@angular/core';
 import {
   RecordMovementRequest,
   ReceiveStockLotRequest,
+  ReserveStockRequest,
+  ReserveStockResult,
   StockBalance,
   StockLot,
   StockMovement,
@@ -31,5 +33,14 @@ export class InventoryApi {
 
   recordMovement(lotId: string, request: RecordMovementRequest) {
     return this.http.post<StockBalance>(`${this.baseUrl}/${lotId}/movements`, request);
+  }
+
+  reserve(request: ReserveStockRequest) {
+    return this.http.post<ReserveStockResult>('/api/v1/inventory/reservations', request);
+  }
+
+  releaseReservation(orderId: string) {
+    return this.http.post<{ reference: string; releasedLots: number }>(
+      '/api/v1/inventory/reservations/release', { orderId });
   }
 }

@@ -579,6 +579,40 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /inventory/reservations:
+    post:
+      operationId: reserveStock
+      summary: Reserva estoque de um ingrediente por FEFO (vencido/bloqueado excluídos)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReserveStock'}
+      responses:
+        '200':
+          description: Reserva alocada por lote
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReserveStockResult'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /inventory/reservations/release:
+    post:
+      operationId: releaseStock
+      summary: "Libera as reservas de uma referência (ex.: OP cancelada)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId]
+              properties: {orderId: {type: string, format: uuid}}
+      responses:
+        '200': {description: Reservas liberadas}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /inventory/lots/{lotId}/balance:
     get:
       operationId: getStockBalance
@@ -949,6 +983,28 @@ components:
         reserved: {type: number}
         available: {type: number}
         movementId: {type: string, format: uuid}
+    ReserveStock:
+      type: object
+      required: [ingredientId, quantity, unit]
+      properties:
+        ingredientId: {type: string, format: uuid}
+        quantity: {type: number, exclusiveMinimum: 0}
+        unit: {type: string, enum: [KG, G, MG, L, ML, UNIT]}
+        orderId: {type: string, format: uuid}
+    ReserveStockResult:
+      type: object
+      properties:
+        ingredientId: {type: string, format: uuid}
+        reservedQuantity: {type: number}
+        unit: {type: string}
+        allocations:
+          type: array
+          items:
+            type: object
+            properties:
+              lotId: {type: string, format: uuid}
+              quantity: {type: number}
+              unit: {type: string}
     ReleaseBlocked:
       type: object
       description: Problem Details com a lista de bloqueios da liberação

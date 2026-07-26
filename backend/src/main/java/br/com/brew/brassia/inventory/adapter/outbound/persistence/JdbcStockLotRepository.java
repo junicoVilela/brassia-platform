@@ -77,6 +77,20 @@ class JdbcStockLotRepository implements StockLotRepository {
                 .optional();
     }
 
+    @Override
+    public List<StockLot> lockCandidateLots(UUID breweryId, UUID ingredientId, java.time.LocalDate today) {
+        return jdbc.sql(COLUMNS + """
+                 WHERE brewery_id = :brewery AND ingredient_id = :ingredient AND inspection = 'APPROVED'
+                   AND (expiry_date IS NULL OR expiry_date >= :today)
+                 ORDER BY expiry_date ASC NULLS LAST, received_at ASC
+                 FOR UPDATE
+                """)
+                .param("brewery", breweryId).param("ingredient", ingredientId)
+                .param("today", java.sql.Date.valueOf(today))
+                .query((rs, n) -> map(rs))
+                .list();
+    }
+
     private static StockLot map(ResultSet rs) throws SQLException {
         var expiry = rs.getDate("expiry_date");
         return StockLot.reconstitute(

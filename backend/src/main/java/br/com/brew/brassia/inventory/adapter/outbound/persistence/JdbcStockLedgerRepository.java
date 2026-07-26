@@ -68,6 +68,21 @@ class JdbcStockLedgerRepository implements StockLedgerRepository {
                 .list();
     }
 
+    @Override
+    public List<ReservedLot> reservedByReference(UUID breweryId, UUID reference) {
+        return jdbc.sql("""
+                SELECT lot_id, ingredient_id, SUM(reserved_delta) AS reserved
+                FROM stock_movement WHERE brewery_id = :brewery AND reference = :reference
+                GROUP BY lot_id, ingredient_id HAVING SUM(reserved_delta) > 0
+                """)
+                .param("brewery", breweryId).param("reference", reference)
+                .query((rs, n) -> new ReservedLot(
+                        rs.getObject("lot_id", UUID.class),
+                        rs.getObject("ingredient_id", UUID.class),
+                        rs.getBigDecimal("reserved")))
+                .list();
+    }
+
     private static StockMovement map(ResultSet rs) throws SQLException {
         return StockMovement.reconstitute(
                 rs.getObject("id", UUID.class),

@@ -17,4 +17,11 @@ public interface StockLotRepository {
      * o lote travado, ou vazio se inexistente.
      */
     java.util.Optional<StockLot> lockForUpdate(UUID breweryId, UUID lotId);
+
+    /**
+     * Lotes candidatos à reserva de um ingrediente, em ordem FEFO (validade mais
+     * próxima primeiro), já travados (FOR UPDATE). Exclui lotes bloqueados e
+     * vencidos ({@code expiry_date < today}). Serializa a alocação concorrente.
+     */
+    List<StockLot> lockCandidateLots(UUID breweryId, UUID ingredientId, java.time.LocalDate today);
 }

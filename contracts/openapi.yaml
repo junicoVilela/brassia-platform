@@ -512,6 +512,45 @@ paths:
       responses:
         '200': {description: Started}
         '409': {$ref: '#/components/responses/Problem'}
+  /suppliers:
+    get:
+      operationId: listSuppliers
+      summary: Lista fornecedores
+      responses:
+        '200': {description: Fornecedores}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: registerSupplier
+      summary: Cadastra um fornecedor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterSupplier'}
+      responses:
+        '201': {description: Fornecedor criado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /inventory/lots:
+    get:
+      operationId: listStockLots
+      summary: Lista lotes de estoque
+      responses:
+        '200': {description: Lotes}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: receiveStockLot
+      summary: Recebe um lote de insumo (bloqueado não fica disponível)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReceiveStockLot'}
+      responses:
+        '201': {description: Lote recebido}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /batches/{batchId}/measurements:
     post:
       operationId: recordMeasurement
@@ -836,6 +875,24 @@ components:
       required: [reason]
       properties:
         reason: {type: string, maxLength: 500}
+    RegisterSupplier:
+      type: object
+      required: [name, code]
+      properties:
+        name: {type: string, maxLength: 160}
+        code: {type: string, maxLength: 40}
+    ReceiveStockLot:
+      type: object
+      required: [ingredientId, supplierId, quantity, unit, unitCost, inspection]
+      properties:
+        ingredientId: {type: string, format: uuid}
+        supplierId: {type: string, format: uuid}
+        supplierLotCode: {type: string}
+        quantity: {type: number, exclusiveMinimum: 0}
+        unit: {type: string, enum: [KG, G, MG, L, ML, UNIT]}
+        unitCost: {type: number, minimum: 0}
+        expiryDate: {type: string, format: date}
+        inspection: {type: string, enum: [APPROVED, BLOCKED]}
     ReleaseBlocked:
       type: object
       description: Problem Details com a lista de bloqueios da liberação

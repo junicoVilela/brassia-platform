@@ -1,0 +1,111 @@
+<app-page-header title="Estoque" subtitle="Recebimento de lotes de insumo (lote bloqueado não fica disponível)" />
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Receber lote</h2>
+    <form [formGroup]="form" (ngSubmit)="receive()" class="row g-3 align-items-end">
+      <div class="col-sm-6 col-lg-4">
+        <label class="form-label" for="ingredientId">Ingrediente</label>
+        <select id="ingredientId" class="form-select" formControlName="ingredientId">
+          <option value="">Selecione…</option>
+          @for (ing of store.ingredients(); track ing.id) { <option [value]="ing.id">{{ ing.name }}</option> }
+        </select>
+      </div>
+      <div class="col-sm-6 col-lg-4">
+        <label class="form-label" for="supplierId">Fornecedor</label>
+        <select id="supplierId" class="form-select" formControlName="supplierId">
+          <option value="">Selecione…</option>
+          @for (sup of store.suppliers(); track sup.id) { <option [value]="sup.id">{{ sup.name }}</option> }
+        </select>
+      </div>
+      <div class="col-sm-6 col-lg-4">
+        <label class="form-label" for="lotCode">Código do lote (fornecedor)</label>
+        <input id="lotCode" type="text" class="form-control" formControlName="supplierLotCode" placeholder="Opcional">
+      </div>
+      <div class="col-sm-4 col-lg-2">
+        <label class="form-label" for="quantity">Quantidade</label>
+        <input id="quantity" type="number" step="any" min="0" class="form-control" formControlName="quantity">
+      </div>
+      <div class="col-sm-4 col-lg-2">
+        <label class="form-label" for="unit">Unidade</label>
+        <select id="unit" class="form-select" formControlName="unit">
+          @for (u of units; track u) { <option [value]="u">{{ u }}</option> }
+        </select>
+      </div>
+      <div class="col-sm-4 col-lg-2">
+        <label class="form-label" for="unitCost">Custo unitário</label>
+        <input id="unitCost" type="number" step="any" min="0" class="form-control" formControlName="unitCost">
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <label class="form-label" for="expiryDate">Validade</label>
+        <input id="expiryDate" type="date" class="form-control" formControlName="expiryDate">
+      </div>
+      <div class="col-sm-6 col-lg-2">
+        <label class="form-label" for="inspection">Inspeção</label>
+        <select id="inspection" class="form-select" formControlName="inspection">
+          <option value="APPROVED">Aprovado</option>
+          <option value="BLOCKED">Bloqueado</option>
+        </select>
+      </div>
+      <div class="col-lg-2 d-grid">
+        <button type="submit" class="btn btn-primary" [disabled]="form.invalid || store.submitting()">
+          <i class="ri-inbox-archive-line me-1"></i> Receber
+        </button>
+      </div>
+    </form>
+    @if (store.actionError(); as actionError) {
+      <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+    }
+  </div>
+</div>
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Lotes em estoque</h2>
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-archive-2-line" message="Nenhum lote recebido ainda."
+                       hint="Receba o primeiro lote no formulário acima." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Ingrediente</th>
+              <th scope="col">Fornecedor</th>
+              <th scope="col">Lote</th>
+              <th scope="col">Quantidade</th>
+              <th scope="col">Validade</th>
+              <th scope="col">Inspeção</th>
+              <th scope="col">Disponível</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (lot of store.lots(); track lot.id) {
+              <tr>
+                <td class="fw-medium">{{ store.ingredientName(lot.ingredientId) }}</td>
+                <td>{{ store.supplierName(lot.supplierId) }}</td>
+                <td>{{ lot.supplierLotCode || '—' }}</td>
+                <td>{{ lot.receivedQuantity }} {{ lot.unit }}</td>
+                <td>{{ lot.expiryDate ? (lot.expiryDate | date:'dd/MM/yyyy') : '—' }}</td>
+                <td>
+                  <span class="badge"
+                        [class]="lot.inspection === 'BLOCKED' ? 'bg-danger-subtle text-danger-emphasis' : 'bg-success-subtle text-success-emphasis'">
+                    {{ lot.inspection }}
+                  </span>
+                </td>
+                <td>
+                  @if (lot.available) { <i class="ri-check-line text-success"></i> }
+                  @else { <i class="ri-close-line text-danger"></i> }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

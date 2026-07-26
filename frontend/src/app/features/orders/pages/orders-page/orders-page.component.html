@@ -1,0 +1,109 @@
+<app-page-header title="Ordens de produção"
+                 subtitle="Gere uma OP de receita publicada — com código único e snapshot congelado" />
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Criar ordem</h2>
+    <form [formGroup]="form" (ngSubmit)="create()" class="row g-3 align-items-end">
+      <div class="col-sm-6 col-lg-5">
+        <label class="form-label" for="recipeId">Receita (publicada)</label>
+        <select id="recipeId" class="form-select" formControlName="recipeId">
+          <option value="">Selecione…</option>
+          @for (recipe of store.publishedRecipes(); track recipe.id) {
+            <option [value]="recipe.id">{{ recipe.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="col-sm-4 col-lg-4">
+        <label class="form-label" for="volume">Volume (L)</label>
+        <input id="volume" type="number" step="any" min="0" class="form-control" formControlName="volumeLiters">
+      </div>
+      <div class="col-sm-2 col-lg-3 d-grid">
+        <button type="submit" class="btn btn-primary" [disabled]="form.invalid || store.submitting()">
+          <i class="ri-file-add-line me-1"></i> Criar OP
+        </button>
+      </div>
+    </form>
+    @if (store.actionError(); as actionError) {
+      <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+    }
+  </div>
+</div>
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Ordens</h2>
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-file-list-3-line" message="Nenhuma ordem de produção ainda."
+                       hint="Crie a primeira a partir de uma receita publicada." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Código</th>
+              <th scope="col">Receita</th>
+              <th scope="col">Volume</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (order of store.orders(); track order.id) {
+              <tr [class.table-active]="order.id === store.detail()?.id">
+                <td class="fw-semibold">{{ order.code }}</td>
+                <td>{{ order.recipeName }} <span class="text-muted small">v{{ order.recipeVersion }}</span></td>
+                <td>{{ order.volumeLiters }} L</td>
+                <td><span class="badge" [class]="badgeClass(order.status)">{{ order.status }}</span></td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="store.showDetail(order.id)">
+                    <i class="ri-camera-lens-line me-1"></i> Snapshot
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
+
+@if (store.detailLoading()) {
+  <div class="card border-0 rounded-10 mt-4"><div class="card-body p-4"><app-loading-indicator /></div></div>
+} @else if (store.detail(); as detail) {
+  <div class="card border-0 rounded-10 mt-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h2 class="h6 fw-semibold mb-0">Snapshot — {{ detail.code }}</h2>
+        <button type="button" class="btn-close" aria-label="Fechar" (click)="store.showDetail(detail.id)"></button>
+      </div>
+      <p class="text-muted small mb-3">Cópia congelada da receita e do equipamento no momento da criação da OP.</p>
+      <div class="row g-4">
+        <div class="col-md-6">
+          <h3 class="h6 fw-semibold mb-2">Receita: {{ detail.recipe.name }} <span class="text-muted small">v{{ detail.recipe.version }}</span></h3>
+          <ul class="list-unstyled small mb-0">
+            <li class="d-flex justify-content-between border-bottom py-1"><span class="text-muted">OG</span><span>{{ detail.recipe.ogSg }}</span></li>
+            <li class="d-flex justify-content-between border-bottom py-1"><span class="text-muted">FG</span><span>{{ detail.recipe.fgSg }}</span></li>
+            <li class="d-flex justify-content-between border-bottom py-1"><span class="text-muted">ABV</span><span>{{ detail.recipe.abv }}%</span></li>
+            <li class="d-flex justify-content-between border-bottom py-1"><span class="text-muted">IBU</span><span>{{ detail.recipe.ibu }}</span></li>
+            <li class="d-flex justify-content-between py-1"><span class="text-muted">Cor (EBC)</span><span>{{ detail.recipe.colorEbc }}</span></li>
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <h3 class="h6 fw-semibold mb-2">Equipamento</h3>
+          <ul class="list-unstyled small mb-0">
+            <li class="d-flex justify-content-between border-bottom py-1"><span class="text-muted">Capacidade</span><span>{{ detail.equipment.capacityLiters }} L</span></li>
+            <li class="d-flex justify-content-between border-bottom py-1"><span class="text-muted">Dead space</span><span>{{ detail.equipment.deadSpaceLiters }} L</span></li>
+            <li class="d-flex justify-content-between border-bottom py-1"><span class="text-muted">Eficiência</span><span>{{ detail.equipment.mashEfficiencyPercent }}%</span></li>
+            <li class="d-flex justify-content-between py-1"><span class="text-muted">Boil-off</span><span>{{ detail.equipment.boilOffLitersPerHour }} L/h</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+}

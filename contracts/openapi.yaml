@@ -431,6 +431,43 @@ paths:
         '200': {description: Resultado da mistura (balanço, entradas e método)}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /brew-orders:
+    get:
+      operationId: listBrewOrders
+      summary: Lista ordens de produção
+      parameters:
+        - {name: page, in: query, schema: {type: integer, default: 0}}
+        - {name: size, in: query, schema: {type: integer, default: 20}}
+      responses:
+        '200': {description: Página de ordens}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createBrewOrder
+      summary: Cria uma OP de receita publicada (código único + snapshot congelado)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateBrewOrder'}
+      responses:
+        '201': {description: OP criada (DRAFT)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /brew-orders/{id}:
+    get:
+      operationId: getBrewOrder
+      summary: Detalha uma OP com o snapshot congelado
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: OP detalhada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BrewOrderDetail'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /brew-orders/{orderId}/start:
     post:
       operationId: startBrewOrder
@@ -748,6 +785,40 @@ components:
         ingredientId: {type: string, format: uuid}
         requiredQuantity: {type: number}
         unit: {type: string, enum: [KG, L, UNIT]}
+    CreateBrewOrder:
+      type: object
+      required: [recipeId, volumeLiters]
+      properties:
+        recipeId: {type: string, format: uuid}
+        volumeLiters: {type: number, exclusiveMinimum: 0}
+    BrewOrderDetail:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        recipeId: {type: string, format: uuid}
+        recipeVersion: {type: integer}
+        volumeLiters: {type: number}
+        status: {type: string, enum: [DRAFT, RELEASED, IN_PRODUCTION, FERMENTING, CONDITIONING, PACKAGED, CLOSED, CANCELLED]}
+        recipe:
+          type: object
+          properties:
+            id: {type: string, format: uuid}
+            version: {type: integer}
+            name: {type: string}
+            ogSg: {type: number}
+            fgSg: {type: number}
+            abv: {type: number}
+            ibu: {type: number}
+            colorEbc: {type: number}
+        equipment:
+          type: object
+          properties:
+            id: {type: string, format: uuid}
+            capacityLiters: {type: number}
+            deadSpaceLiters: {type: number}
+            mashEfficiencyPercent: {type: number}
+            boilOffLitersPerHour: {type: number}
   responses:
     Problem:
       description: Problem Details

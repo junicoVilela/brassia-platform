@@ -2,13 +2,21 @@ package br.com.brew.brassia.planning.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
+import br.com.brew.brassia.equipment.EquipmentProfileLookup;
+import br.com.brew.brassia.planning.application.port.inbound.CreateBrewOrderUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.CreateScheduleEntryUseCase;
+import br.com.brew.brassia.planning.application.port.inbound.GetBrewOrderUseCase;
+import br.com.brew.brassia.planning.application.port.inbound.ListBrewOrdersUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.ListScheduleEntriesUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.MaterialRequirementUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.ScheduleMaterialsUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.SimulateScheduleUseCase;
+import br.com.brew.brassia.planning.application.port.outbound.BrewOrderRepository;
 import br.com.brew.brassia.planning.application.port.outbound.ScheduleEntryRepository;
+import br.com.brew.brassia.planning.application.service.CreateBrewOrderHandler;
 import br.com.brew.brassia.planning.application.service.CreateScheduleEntryHandler;
+import br.com.brew.brassia.planning.application.service.GetBrewOrderHandler;
+import br.com.brew.brassia.planning.application.service.ListBrewOrdersHandler;
 import br.com.brew.brassia.planning.application.service.ListScheduleEntriesHandler;
 import br.com.brew.brassia.planning.application.service.MaterialRequirementHandler;
 import br.com.brew.brassia.planning.application.service.ScheduleMaterialsHandler;
@@ -73,5 +81,27 @@ class PlanningConfiguration {
     ScheduleMaterialsUseCase scheduleMaterialsUseCase(
             ScheduleEntryRepository repository, MaterialRequirementUseCase requirement) {
         return new ScheduleMaterialsHandler(repository, requirement);
+    }
+
+    @Bean
+    CreateBrewOrderUseCase createBrewOrderUseCase(
+            BrewOrderRepository repository,
+            RecipeLookup recipes,
+            EquipmentProfileLookup equipment,
+            AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new CreateBrewOrderHandler(repository, recipes, equipment, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ListBrewOrdersUseCase listBrewOrdersUseCase(BrewOrderRepository repository) {
+        return new ListBrewOrdersHandler(repository);
+    }
+
+    @Bean
+    GetBrewOrderUseCase getBrewOrderUseCase(BrewOrderRepository repository) {
+        return new GetBrewOrderHandler(repository);
     }
 }

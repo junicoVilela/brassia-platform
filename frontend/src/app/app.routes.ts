@@ -53,6 +53,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/planning/planning.routes').then(m => m.PLANNING_ROUTES),
       },
       {
+        path: 'brew-orders',
+        canActivate: [permissionGuard],
+        data: { permission: 'planning.order.read' },
+        loadChildren: () => import('./features/orders/orders.routes').then(m => m.ORDERS_ROUTES),
+      },
+      {
         path: 'account',
         loadChildren: () => import('./features/account/account.routes').then(m => m.ACCOUNT_ROUTES),
       },

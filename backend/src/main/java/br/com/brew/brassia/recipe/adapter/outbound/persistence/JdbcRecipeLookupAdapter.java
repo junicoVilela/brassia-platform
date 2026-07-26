@@ -55,4 +55,31 @@ class JdbcRecipeLookupAdapter implements RecipeLookup {
         return Optional.of(new PublishedComposition(
                 (UUID) row[0], (int) (long) (Long) row[1], (BigDecimal) row[2], List.copyOf(items)));
     }
+
+    @Override
+    public Optional<PublishedForOrder> findPublishedForOrder(UUID breweryId, UUID recipeId) {
+        var header = jdbc.sql("""
+                SELECT id, version, name, equipment_id, batch_volume_liters FROM recipe
+                WHERE brewery_id = :brewery AND id = :id AND status = 'PUBLISHED'
+                """)
+                .param("brewery", breweryId).param("id", recipeId)
+                .query((rs, n) -> new PublishedForOrder(
+                        rs.getObject("id", UUID.class), (int) rs.getLong("version"), rs.getString("name"),
+                        rs.getObject("equipment_id", UUID.class), rs.getBigDecimal("batch_volume_liters"),
+                        Optional.empty()))
+                .optional();
+        if (header.isEmpty()) {
+            return Optional.empty();
+        }
+        var metrics = jdbc.sql("""
+                SELECT og_sg, fg_sg, abv, ibu, color_ebc FROM recipe_metrics WHERE recipe_id = :id
+                """)
+                .param("id", recipeId)
+                .query((rs, n) -> new Metrics(rs.getBigDecimal("og_sg"), rs.getBigDecimal("fg_sg"),
+                        rs.getBigDecimal("abv"), rs.getBigDecimal("ibu"), rs.getBigDecimal("color_ebc")))
+                .optional();
+        var h = header.get();
+        return Optional.of(new PublishedForOrder(
+                h.id(), h.version(), h.name(), h.equipmentId(), h.batchVolumeLiters(), metrics));
+    }
 }

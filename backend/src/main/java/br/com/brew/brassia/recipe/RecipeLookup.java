@@ -15,9 +15,21 @@ public interface RecipeLookup {
      */
     Optional<PublishedComposition> findPublishedComposition(UUID breweryId, UUID recipeId);
 
+    /**
+     * Dados da receita publicada para o snapshot de uma ordem de produção (BOP-001):
+     * cabeçalho + equipamento + volume + métricas calculadas (quando existirem).
+     * As métricas vêm vazias se ainda não foram calculadas ("snapshot incompleto").
+     */
+    Optional<PublishedForOrder> findPublishedForOrder(UUID breweryId, UUID recipeId);
+
     record PublishedRecipe(UUID id, int version, String name) {}
 
     record PublishedComposition(UUID id, int version, BigDecimal batchVolumeLiters, List<CompositionItem> items) {}
 
     record CompositionItem(UUID ingredientId, String stage, BigDecimal quantity, String unit) {}
+
+    record PublishedForOrder(UUID id, int version, String name, UUID equipmentId, BigDecimal batchVolumeLiters,
+            Optional<Metrics> metrics) {}
+
+    record Metrics(BigDecimal ogSg, BigDecimal fgSg, BigDecimal abv, BigDecimal ibu, BigDecimal colorEbc) {}
 }

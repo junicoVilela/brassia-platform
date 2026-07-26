@@ -8,7 +8,7 @@ Estado: EM ANDAMENTO
 |---|---|---|---|---|
 | PLN-001 | Concluída | IA | (local) | Fatia vertical completa: domínio, aplicação, persistência (V35), web (`/planning/schedule` + `/simulate` + `GET`), OpenAPI e frontend (agenda). Backend 18 testes verdes + ModularityTest; frontend 114 (Vitest). |
 | PLN-002 | Concluída | IA | (local) | Necessidade de materiais: explosão da receita publicada por volume + perda %, conversão de unidades (KG/L/UNIT), agregação por ingrediente. Endpoints `POST /planning/material-requirement` e `GET /planning/schedule/{id}/materials`; UI "Materiais" na agenda. Sem disponibilidade/faltas (Sprint 06). Backend +11 testes; frontend 116. |
-| BOP-001 | A fazer | — | — | — |
+| BOP-001 | Concluída | IA | (local) | Criar OP: só de receita publicada, com snapshot JSONB (cálculo + equipamento) e código único OP-<ano>-<n> (sequência atômica); nasce DRAFT; falha "snapshot incompleto" (409) sem métricas. `POST/GET /brew-orders` + `GET /{id}`; UI de ordens com snapshot. Backend +12 testes; frontend 122. |
 | BOP-002 | A fazer | — | — | — |
 | BOP-003 | A fazer | — | — | — |
 
@@ -34,6 +34,13 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Perda**: fórmula `necessario_i = qtd_i × (volumeAlvo/volumeReceita) × (1 + lossPercent/100)`. **Fonte definida**: `lossPercent` é entrada explícita (default 0), uniforme para todos os itens — margem de processo/segurança, sem inventar modelo de eficiência oculto. **DÉBITO PLN-002-A**: perdas por ingrediente ou derivadas de eficiência de brassagem são refinamento futuro.
 - **Conversão de unidades**: canônica por dimensão — massa→KG, volume→L, contagem→UNIT; agrega o mesmo ingrediente entre etapas/unidades.
 - **Composição publicada**: `recipe.RecipeLookup` ganhou `findPublishedComposition` (itens + volume da batelada, só PUBLISHED); nomes de ingrediente resolvidos no frontend via catálogo (sem novo acoplamento no backend). Cálculo é read-only (sem persistência, sem evento; auditoria não aplicável).
+
+### BOP-001 — decisões (confirmadas com o mantenedor)
+- **Snapshot JSONB** congelando receita (id, versão, nome, métricas og_sg/fg_sg/abv/ibu/color) + equipamento (capacidade, dead space, eficiência, boil-off). `recipe.RecipeLookup.findPublishedForOrder` expõe cabeçalho + equipmentId + volume + métricas (Optional). Snapshot completo é invariante do `OrderSnapshot` (métricas obrigatórias) → sem métricas calculadas, "snapshot incompleto" (409 via `SnapshotIncompleteException`).
+- **Código único** `OP-<ano>-<n>` (4 dígitos), sequencial por cervejaria/ano via tabela `brew_order_sequence` com upsert atômico `RETURNING` (seguro sob concorrência); unique `(brewery_id, code)`.
+- **Entrada**: receita publicada + volume (equipamento vem da receita). OP nasce `DRAFT`. Auditoria no create; **sem evento** (o evento é `BrewOrderReleased` na BOP-002).
+- **Módulo**: `BrewOrder` vive no módulo `planning` (o domínio o classifica como planejamento); permissões `planning.order.read/manage`. Endpoints `POST/GET /brew-orders` + `GET /brew-orders/{id}` (detalhe com snapshot).
+- Nota: `JdbcBrewOrderRepository` usa um `ObjectMapper` próprio p/ o JSONB (não há bean de `ObjectMapper` para injeção fora do web).
 
 ## Evidências de encerramento
 

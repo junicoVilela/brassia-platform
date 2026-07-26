@@ -59,6 +59,48 @@
   </div>
 </div>
 
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Reservar material (FEFO)</h2>
+    <form [formGroup]="reserveForm" (ngSubmit)="reserve()" class="row g-3 align-items-end">
+      <div class="col-sm-6 col-lg-4">
+        <label class="form-label" for="ringredient">Ingrediente</label>
+        <select id="ringredient" class="form-select" formControlName="ingredientId">
+          <option value="">Selecione…</option>
+          @for (ing of store.ingredients(); track ing.id) { <option [value]="ing.id">{{ ing.name }}</option> }
+        </select>
+      </div>
+      <div class="col-sm-3 col-lg-2">
+        <label class="form-label" for="rqty">Quantidade</label>
+        <input id="rqty" type="number" step="any" min="0" class="form-control" formControlName="quantity">
+      </div>
+      <div class="col-sm-3 col-lg-2">
+        <label class="form-label" for="runit">Unidade</label>
+        <select id="runit" class="form-select" formControlName="unit">
+          @for (u of units; track u) { <option [value]="u">{{ u }}</option> }
+        </select>
+      </div>
+      <div class="col-sm-4 col-lg-2">
+        <label class="form-label" for="rorder">Ordem (opcional)</label>
+        <input id="rorder" type="text" class="form-control" formControlName="orderId" placeholder="ID da OP">
+      </div>
+      <div class="col-sm-2 col-lg-2 d-grid">
+        <button type="submit" class="btn btn-primary" [disabled]="reserveForm.invalid || store.reserving()">
+          <i class="ri-lock-2-line me-1"></i> Reservar
+        </button>
+      </div>
+    </form>
+    @if (store.reservationError(); as reservationError) {
+      <div class="alert alert-danger mt-3 mb-0" role="alert">{{ reservationError }}</div>
+    } @else if (store.reservation(); as reservation) {
+      <div class="alert alert-success mt-3 mb-0" role="status">
+        Reservado {{ reservation.reservedQuantity }} {{ reservation.unit }} em
+        {{ reservation.allocations.length }} lote(s) (FEFO).
+      </div>
+    }
+  </div>
+</div>
+
 <div class="card border-0 rounded-10">
   <div class="card-body p-4">
     <h2 class="h6 fw-semibold mb-3">Lotes em estoque</h2>

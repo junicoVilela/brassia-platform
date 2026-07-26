@@ -8,7 +8,7 @@ Estado: EM ANDAMENTO
 |---|---|---|---|---|
 | STK-001 | Concluída | IA | (local) | Receber lote: módulos novos `purchasing` (Supplier + lookup) e `inventory` (StockLot). Qtd>0, custo≥0; inspeção APPROVED/BLOCKED (bloqueado → indisponível); valida ingrediente (catálogo) e fornecedor. `POST/GET /suppliers` e `/inventory/lots`; UI de Fornecedores e Estoque. Migrations V39/V40. Backend +12 testes; frontend 131. |
 | STK-002 | Concluída | IA | (local) | Ledger append-only `stock_movement`: entrada/consumo/devolução/perda/ajuste (reserva/liberação p/ STK-003). Saldo derivado (on_hand/reservado/disponível); recebimento lança ENTRY. Lock pessimista no lote nas saídas; saldo negativo → 409; ajuste exige motivo. `POST /inventory/lots/{id}/movements`, `GET .../balance` e `.../movements`; UI de movimentos. Migration V41. Backend +11 testes (inclui double-spend concorrente); frontend 136. |
-| STK-003 | A fazer | — | — | — |
+| STK-003 | Concluída | IA | (local) | Reserva FEFO por ingrediente: aloca sobre lotes disponíveis (validade mais próxima primeiro), pula vencido/BLOCKED, converte unidades; lock pessimista dos lotes candidatos (duas OPs não estouram o disponível); insuficiente → 409 sem parcial; emite StockReserved. Release por referência. `POST /inventory/reservations` e `/release`; UI de reserva. Backend +8 testes (FEFO, expirado/bloqueado, concorrência) ; frontend 139. |
 | STK-004 | A fazer | — | — | — |
 | PUR-001 | A fazer | — | — | — |
 | PUR-002 | A fazer | — | — | — |
@@ -31,6 +31,12 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Concorrência**: **lock pessimista** no lote (`SELECT ... FOR UPDATE`) antes de somar o ledger e inserir a saída — fecha double spend (testado com 2 threads).
 - **Saldo negativo**: saída que deixaria on_hand < 0 é **rejeitada (409)**. **DÉBITO STK-002-A**: exceção autorizada para negativo (regra 5) via permissão especial — futuro.
 - **Ajuste** exige motivo (regra 4). Endpoint manual aceita só consumo/devolução/perda/ajuste; reserva/liberação são do STK-003.
+
+### STK-003 — decisões (confirmadas com o mantenedor)
+- **Primitiva por ingrediente**: `POST /inventory/reservations` {ingredientId, quantity, unit, orderId?}; FEFO entre lotes. A orquestração da OP inteira (reservar todos os itens da OP atomicamente) fica como **DÉBITO STK-003-A** (extensão em planning).
+- **FEFO**: candidatos = mesmo ingrediente, `APPROVED`, não vencido (`expiry >= hoje` ou nulo), ordenados por validade asc; disponível = on_hand − reservado; converte unidade do pedido ↔ unidade do lote (mesma dimensão).
+- **Concorrência**: lock pessimista dos lotes candidatos (`SELECT ... ORDER BY expiry FOR UPDATE`) — testado com 2 threads (não dá double spend). Insuficiência → **409** sem reserva parcial (transação reverte).
+- **Release** por `orderId` (RELEASE compensatório do reservado líquido por lote) — base para o cancelamento de OP liberar reservas (integração BOP-003 = **DÉBITO STK-003-B**). Emite `StockReserved` na reserva; auditoria em reserva e liberação.
 
 ## Evidências de encerramento
 

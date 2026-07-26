@@ -1,0 +1,40 @@
+<app-page-header title="Necessidade de compra"
+                 subtitle="Demanda das ordens liberadas menos o saldo em estoque, por ingrediente" />
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-shopping-cart-2-line" message="Nenhuma compra necessária."
+                       hint="A demanda das ordens liberadas está coberta pelo estoque atual." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Ingrediente</th>
+              <th scope="col" class="text-end">Demanda</th>
+              <th scope="col" class="text-end">Em estoque</th>
+              <th scope="col" class="text-end">Comprar</th>
+              <th scope="col">Unidade</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (need of store.items(); track need.ingredientId) {
+              <tr>
+                <td class="fw-medium">{{ store.ingredientName(need.ingredientId) }}</td>
+                <td class="text-end">{{ need.demand | number: '1.0-3' }}</td>
+                <td class="text-end">{{ need.onHand | number: '1.0-3' }}</td>
+                <td class="text-end fw-semibold text-danger">{{ need.suggested | number: '1.0-3' }}</td>
+                <td>{{ need.unit }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

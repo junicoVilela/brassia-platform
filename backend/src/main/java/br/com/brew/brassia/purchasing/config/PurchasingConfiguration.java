@@ -1,10 +1,14 @@
 package br.com.brew.brassia.purchasing.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.planning.OrderDemandLookup;
+import br.com.brew.brassia.purchasing.StockOnHandLookup;
 import br.com.brew.brassia.purchasing.application.port.inbound.ListSuppliersUseCase;
+import br.com.brew.brassia.purchasing.application.port.inbound.PurchaseNeedUseCase;
 import br.com.brew.brassia.purchasing.application.port.inbound.RegisterSupplierUseCase;
 import br.com.brew.brassia.purchasing.application.port.outbound.SupplierRepository;
 import br.com.brew.brassia.purchasing.application.service.ListSuppliersHandler;
+import br.com.brew.brassia.purchasing.application.service.PurchaseNeedHandler;
 import br.com.brew.brassia.purchasing.application.service.RegisterSupplierHandler;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -26,5 +30,10 @@ class PurchasingConfiguration {
     @Bean
     ListSuppliersUseCase listSuppliersUseCase(SupplierRepository repository) {
         return new ListSuppliersHandler(repository);
+    }
+
+    @Bean
+    PurchaseNeedUseCase purchaseNeedUseCase(OrderDemandLookup demandLookup, StockOnHandLookup stockLookup) {
+        return new PurchaseNeedHandler(demandLookup, stockLookup);
     }
 }

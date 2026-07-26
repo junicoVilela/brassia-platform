@@ -80,6 +80,14 @@ class JdbcBrewOrderRepository implements BrewOrderRepository {
     }
 
     @Override
+    public List<BrewOrder> findReleased(UUID breweryId) {
+        return jdbc.sql(COLUMNS + " WHERE brewery_id = :brewery AND status = 'RELEASED' ORDER BY created_at")
+                .param("brewery", breweryId)
+                .query((rs, n) -> map(rs))
+                .list();
+    }
+
+    @Override
     public long count(UUID breweryId) {
         return jdbc.sql("SELECT COUNT(*) FROM brew_order WHERE brewery_id = :brewery")
                 .param("brewery", breweryId)

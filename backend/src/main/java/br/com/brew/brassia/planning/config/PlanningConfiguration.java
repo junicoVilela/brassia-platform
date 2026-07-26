@@ -26,6 +26,8 @@ import br.com.brew.brassia.planning.application.service.MaterialRequirementHandl
 import br.com.brew.brassia.planning.application.service.ReleaseBrewOrderHandler;
 import br.com.brew.brassia.planning.application.service.ScheduleMaterialsHandler;
 import br.com.brew.brassia.planning.application.service.SimulateScheduleHandler;
+import br.com.brew.brassia.planning.OrderDemandLookup;
+import br.com.brew.brassia.planning.application.service.OrderDemandService;
 import br.com.brew.brassia.planning.domain.ScheduleConflictException;
 import br.com.brew.brassia.recipe.RecipeLookup;
 import java.util.Objects;
@@ -108,6 +110,11 @@ class PlanningConfiguration {
     @Bean
     GetBrewOrderUseCase getBrewOrderUseCase(BrewOrderRepository repository) {
         return new GetBrewOrderHandler(repository);
+    }
+
+    @Bean
+    OrderDemandLookup orderDemandLookup(BrewOrderRepository orders, RecipeLookup recipes) {
+        return new OrderDemandService(orders, recipes);
     }
 
     @Bean

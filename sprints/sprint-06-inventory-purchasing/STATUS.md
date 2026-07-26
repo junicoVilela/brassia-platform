@@ -10,7 +10,7 @@ Estado: EM ANDAMENTO
 | STK-002 | Concluída | IA | (local) | Ledger append-only `stock_movement`: entrada/consumo/devolução/perda/ajuste (reserva/liberação p/ STK-003). Saldo derivado (on_hand/reservado/disponível); recebimento lança ENTRY. Lock pessimista no lote nas saídas; saldo negativo → 409; ajuste exige motivo. `POST /inventory/lots/{id}/movements`, `GET .../balance` e `.../movements`; UI de movimentos. Migration V41. Backend +11 testes (inclui double-spend concorrente); frontend 136. |
 | STK-003 | Concluída | IA | (local) | Reserva FEFO por ingrediente: aloca sobre lotes disponíveis (validade mais próxima primeiro), pula vencido/BLOCKED, converte unidades; lock pessimista dos lotes candidatos (duas OPs não estouram o disponível); insuficiente → 409 sem parcial; emite StockReserved. Release por referência. `POST /inventory/reservations` e `/release`; UI de reserva. Backend +8 testes (FEFO, expirado/bloqueado, concorrência) ; frontend 139. |
 | STK-004 | Concluída | IA | (local) | Inventário físico: contagem (OPEN) por lote captura o saldo do sistema; aprovar (permissão distinta) reconcilia — delta = contado − on_hand vivo → ADJUSTMENT_IN/OUT ref=contagem; saldo final = contado; contagem original permanece; re-aprovar → 409. `POST /inventory/counts`, `/{id}/approve`, `GET`; UI de contagens. Migration V42. Backend +8 testes; frontend 144. |
-| PUR-001 | A fazer | — | — | — |
+| PUR-001 | Concluída | IA | (local) | Necessidade de compra: por ingrediente, `sugerido = max(0, demanda − saldo)`; demanda = Σ das OPs **RELEASED** (explosão da receita publicada pelo volume da OP), saldo = on-hand do ledger; unidade canônica. Itens cobertos são omitidos. `GET /purchasing/needs` (`purchasing.purchase.read`, V43); UI "Necessidade de compra". Backend +3 testes; frontend +4. |
 | PUR-002 | A fazer | — | — | — |
 | STK-005 | A fazer | — | — | — |
 
@@ -42,6 +42,12 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Conciliação ajustando até o contado**: na aprovação, para cada linha, delta = contado − on_hand vivo (lote travado) → `ADJUSTMENT_IN/OUT` (ref = contagem, motivo "inventário físico"); saldo final = contado, mesmo com movimentos entre contar e aprovar. A **contagem original permanece** (linhas imutáveis; `system_quantity` guarda o snapshot para a diferença exibida).
 - **Fluxo com aprovação separada**: contagem nasce `OPEN` (`inventory.count.manage`); aprovar exige permissão distinta **`inventory.count.approve`** (segregação de funções, marcada crítica). Re-aprovar → 409 (guarda por estado).
 - Migration V42 (`physical_count`, `physical_count_line`). Ajustes usam o ledger do STK-002 (append-only).
+
+### PUR-001 — decisões (confirmadas com o mantenedor)
+- **Fonte da demanda**: apenas OPs **RELEASED** (não rascunhos/agendamento). Para cada OP, explode a **receita publicada** pelo volume da ordem (`MaterialExplosion`, sem perda extra) e agrega por ingrediente em unidade canônica. Publicado via `planning.OrderDemandLookup`.
+- **Necessidade** = `max(0, demanda − on_hand)`; itens totalmente cobertos são omitidos (só aparece o que falta). On-hand vem do ledger (todos os lotes, canônico).
+- **Inversão de dependência (evita ciclo)**: `inventory` já depende de `purchasing` (`SupplierLookup`). O saldo é exposto por uma porta `purchasing.StockOnHandLookup` **declarada em compras** e **implementada pelo adaptador de estoque** — mantém o sentido `inventory → purchasing` (Spring Modulith verde), sem `purchasing → inventory`.
+- **Leitura pura**: não cria pedido de compra nem reserva. Permissão `purchasing.purchase.read` (V43). **DÉBITO PUR-001-A**: lead time / ponto de pedido (antecedência do fornecedor) não considerado — futura consolidação (PUR-002).
 
 ## Evidências de encerramento
 

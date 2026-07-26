@@ -71,6 +71,14 @@ export const routes: Routes = [
         loadChildren: () => import('./features/purchasing/purchasing.routes').then(m => m.PURCHASING_ROUTES),
       },
       {
+        path: 'purchasing/needs',
+        canActivate: [permissionGuard],
+        data: { permission: 'purchasing.purchase.read' },
+        loadComponent: () =>
+          import('./features/purchasing/pages/purchase-needs-page/purchase-needs-page.component')
+            .then(m => m.PurchaseNeedsPageComponent),
+      },
+      {
         path: 'account',
         loadChildren: () => import('./features/account/account.routes').then(m => m.ACCOUNT_ROUTES),
       },

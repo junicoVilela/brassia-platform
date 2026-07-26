@@ -488,6 +488,22 @@ paths:
           content:
             application/problem+json:
               schema: {$ref: '#/components/schemas/ReleaseBlocked'}
+  /brew-orders/{id}/cancel:
+    post:
+      operationId: cancelBrewOrder
+      summary: Cancela a OP com motivo (idempotente; libera reservas na S06)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CancelBrewOrder'}
+      responses:
+        '200': {description: OP cancelada (ou já cancelada — idempotente)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /brew-orders/{orderId}/start:
     post:
       operationId: startBrewOrder
@@ -815,6 +831,11 @@ components:
       type: object
       properties:
         assignedUserId: {type: string, format: uuid, description: Responsável pela liberação}
+    CancelBrewOrder:
+      type: object
+      required: [reason]
+      properties:
+        reason: {type: string, maxLength: 500}
     ReleaseBlocked:
       type: object
       description: Problem Details com a lista de bloqueios da liberação

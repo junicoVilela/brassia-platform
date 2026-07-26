@@ -22,7 +22,7 @@ class JdbcBrewOrderRepository implements BrewOrderRepository {
 
     private static final String COLUMNS = """
             SELECT id, brewery_id, code, recipe_id, recipe_version, volume_liters, snapshot, status,
-                   assigned_user_id, released_at, version
+                   assigned_user_id, released_at, cancel_reason, cancelled_at, version
             FROM brew_order
             """;
 
@@ -109,8 +109,24 @@ class JdbcBrewOrderRepository implements BrewOrderRepository {
         return updated > 0;
     }
 
+    @Override
+    public boolean markCancelled(UUID breweryId, UUID id, String reason, Instant at) {
+        int updated = jdbc.sql("""
+                UPDATE brew_order
+                SET status = 'CANCELLED', cancel_reason = :reason, cancelled_at = :at, version = version + 1
+                WHERE brewery_id = :brewery AND id = :id AND status IN ('DRAFT', 'RELEASED')
+                """)
+                .param("brewery", breweryId)
+                .param("id", id)
+                .param("reason", reason)
+                .param("at", Timestamp.from(at))
+                .update();
+        return updated > 0;
+    }
+
     private BrewOrder map(ResultSet rs) throws SQLException {
         var releasedAt = rs.getTimestamp("released_at");
+        var cancelledAt = rs.getTimestamp("cancelled_at");
         return BrewOrder.reconstitute(
                 new BrewOrderId(rs.getObject("id", UUID.class)),
                 rs.getObject("brewery_id", UUID.class),
@@ -122,6 +138,8 @@ class JdbcBrewOrderRepository implements BrewOrderRepository {
                 BrewOrderStatus.valueOf(rs.getString("status")),
                 rs.getObject("assigned_user_id", UUID.class),
                 releasedAt == null ? null : releasedAt.toInstant(),
+                rs.getString("cancel_reason"),
+                cancelledAt == null ? null : cancelledAt.toInstant(),
                 rs.getLong("version"));
     }
 

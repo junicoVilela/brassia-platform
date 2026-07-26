@@ -1,6 +1,6 @@
 # Status — Sprint 05
 
-Estado: EM ANDAMENTO
+Estado: CONCLUÍDA (5/5)
 
 ## Controle das histórias
 
@@ -10,7 +10,7 @@ Estado: EM ANDAMENTO
 | PLN-002 | Concluída | IA | (local) | Necessidade de materiais: explosão da receita publicada por volume + perda %, conversão de unidades (KG/L/UNIT), agregação por ingrediente. Endpoints `POST /planning/material-requirement` e `GET /planning/schedule/{id}/materials`; UI "Materiais" na agenda. Sem disponibilidade/faltas (Sprint 06). Backend +11 testes; frontend 116. |
 | BOP-001 | Concluída | IA | (local) | Criar OP: só de receita publicada, com snapshot JSONB (cálculo + equipamento) e código único OP-<ano>-<n> (sequência atômica); nasce DRAFT; falha "snapshot incompleto" (409) sem métricas. `POST/GET /brew-orders` + `GET /{id}`; UI de ordens com snapshot. Backend +12 testes; frontend 122. |
 | BOP-002 | Concluída | IA | (local) | Liberar OP: DRAFT→RELEASED com responsável; bloqueios (estado, responsável, equipamento) listados em 409; estoque/sanitização = débito S06/S08. Emite `BrewOrderReleased` + auditoria; guarda de concorrência. `POST /brew-orders/{id}/release`; UI com seletor de responsável e bloqueios. Backend +7 testes; frontend 125. |
-| BOP-003 | A fazer | — | — | — |
+| BOP-003 | Concluída | IA | (local) | Cancelar OP: DRAFT/RELEASED→CANCELLED com motivo obrigatório; iniciada/encerrada → 409; **idempotente** (recancelar = 200 no-op); liberar reservas = no-op (débito S06). Auditoria; guarda de concorrência. `POST /brew-orders/{id}/cancel`; UI com motivo. Backend +9 testes; frontend 127. |
 
 ## Decisões e bloqueios
 
@@ -49,11 +49,18 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Sucesso**: DRAFT→RELEASED via update guardado por estado (fecha corrida de liberação concorrente) + emite `BrewOrderReleased` (porta `BrewOrderEventPublisher`, `ApplicationEventPublisher` como no recipe) + auditoria.
 - **DÉBITO BOP-002-A**: validar que o responsável é membro da cervejaria (mesma pendência do PLN-001-A); hoje só exige presença.
 
+### BOP-003 — decisões (confirmadas com o mantenedor)
+- **Estados canceláveis**: DRAFT e RELEASED → CANCELLED. Iniciada (IN_PRODUCTION+, inalcançável até S07) e CLOSED → 409 "ordem iniciada ou encerrada não pode ser cancelada".
+- **Idempotência**: recancelar uma OP já CANCELLED → 200 no-op (sem novo efeito/auditoria).
+- **Motivo** obrigatório (`@NotBlank`, ≤500) → 400 se ausente. Migration V38 (`cancel_reason`, `cancelled_at`).
+- **Liberar reservas** = no-op até o módulo de inventário (Sprint 06) — hook documentado no handler.
+- Sem evento canônico de cancelamento; auditoria `planning.order.cancel`. Guarda de concorrência via update por estado.
+
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- Build/commit: `main` verde após #78–#81 (PLN-001/002, BOP-001/002); BOP-003 em PR final. Backend e frontend build/lint limpos em cada PR.
+- Testes executados: pacote `planning` completo (domínio + ITs Testcontainers) + `ModularityTest`; frontend Vitest (127). Cobrem sucesso, limite, falha, outra cervejaria e repetição/idempotência por história.
+- Migration aplicada: V35 (agenda), V36 (OP + sequência), V37 (liberação), V38 (cancelamento) — aplicadas desde banco vazio nos ITs.
+- Contratos atualizados: `contracts/openapi.yaml` com `/planning/schedule*`, `/planning/material-requirement`, `/brew-orders*` (criar/listar/detalhe/release/cancel) + schemas.
+- Riscos remanescentes: estoque (reservas/faltas) e sanitização dependem das Sprints 06/08 — débitos registrados (PLN-002/BOP-002/BOP-003). Membership do responsável (PLN-001-A/BOP-002-A). Evento entregue via `ApplicationEventPublisher` (sem outbox físico).
+- Aceite: 5/5 histórias (PLN-001, PLN-002, BOP-001, BOP-002, BOP-003) entregues com testes de domínio, integração, autorização e tenant verdes; frontend com loading/vazio/erro/conflito/acesso negado.

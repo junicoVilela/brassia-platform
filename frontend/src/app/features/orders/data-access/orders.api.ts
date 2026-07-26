@@ -35,4 +35,8 @@ export class OrdersApi {
   release(orderId: string, assignedUserId: string) {
     return this.http.post<{ id: string; status: string }>(`${this.baseUrl}/${orderId}/release`, { assignedUserId });
   }
+
+  cancel(orderId: string, reason: string) {
+    return this.http.post<{ id: string; status: string }>(`${this.baseUrl}/${orderId}/cancel`, { reason });
+  }
 }

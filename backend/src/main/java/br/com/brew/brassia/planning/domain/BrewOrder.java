@@ -25,11 +25,13 @@ public final class BrewOrder {
     private final BrewOrderStatus status;
     private final UUID assignedUserId;
     private final Instant releasedAt;
+    private final String cancelReason;
+    private final Instant cancelledAt;
     private final long version;
 
     private BrewOrder(BrewOrderId id, UUID breweryId, String code, UUID recipeId, int recipeVersion,
             BigDecimal volumeLiters, OrderSnapshot snapshot, BrewOrderStatus status, UUID assignedUserId,
-            Instant releasedAt, long version) {
+            Instant releasedAt, String cancelReason, Instant cancelledAt, long version) {
         this.id = Objects.requireNonNull(id, "id");
         this.breweryId = Objects.requireNonNull(breweryId, "breweryId");
         this.code = requireCode(code);
@@ -40,20 +42,22 @@ public final class BrewOrder {
         this.status = Objects.requireNonNull(status, "status");
         this.assignedUserId = assignedUserId;
         this.releasedAt = releasedAt;
+        this.cancelReason = cancelReason;
+        this.cancelledAt = cancelledAt;
         this.version = version;
     }
 
     public static BrewOrder create(UUID breweryId, String code, UUID recipeId, int recipeVersion,
             BigDecimal volumeLiters, OrderSnapshot snapshot) {
         return new BrewOrder(BrewOrderId.newId(), breweryId, code, recipeId, recipeVersion, volumeLiters,
-                snapshot, BrewOrderStatus.DRAFT, null, null, 1);
+                snapshot, BrewOrderStatus.DRAFT, null, null, null, null, 1);
     }
 
     public static BrewOrder reconstitute(BrewOrderId id, UUID breweryId, String code, UUID recipeId,
             int recipeVersion, BigDecimal volumeLiters, OrderSnapshot snapshot, BrewOrderStatus status,
-            UUID assignedUserId, Instant releasedAt, long version) {
+            UUID assignedUserId, Instant releasedAt, String cancelReason, Instant cancelledAt, long version) {
         return new BrewOrder(id, breweryId, code, recipeId, recipeVersion, volumeLiters, snapshot, status,
-                assignedUserId, releasedAt, version);
+                assignedUserId, releasedAt, cancelReason, cancelledAt, version);
     }
 
     /** Só uma OP em rascunho pode ser liberada (BOP-002). */
@@ -73,7 +77,33 @@ public final class BrewOrder {
         Objects.requireNonNull(assignedUserId, "responsável é obrigatório para liberar");
         Objects.requireNonNull(at, "at");
         return new BrewOrder(id, breweryId, code, recipeId, recipeVersion, volumeLiters, snapshot,
-                BrewOrderStatus.RELEASED, assignedUserId, at, version + 1);
+                BrewOrderStatus.RELEASED, assignedUserId, at, null, null, version + 1);
+    }
+
+    /** Só ordens não iniciadas podem ser canceladas (BOP-003). */
+    public boolean cancellable() {
+        return status == BrewOrderStatus.DRAFT || status == BrewOrderStatus.RELEASED;
+    }
+
+    public boolean cancelled() {
+        return status == BrewOrderStatus.CANCELLED;
+    }
+
+    /**
+     * Cancela a OP com um motivo (BOP-003). Ordem iniciada/encerrada não pode ser
+     * cancelada. A liberação de reservas é responsabilidade do caso de uso (estoque
+     * entra na Sprint 06).
+     */
+    public BrewOrder cancel(String reason, Instant at) {
+        if (!cancellable()) {
+            throw new IllegalStateException("ordem iniciada ou encerrada não pode ser cancelada");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("motivo do cancelamento é obrigatório");
+        }
+        Objects.requireNonNull(at, "at");
+        return new BrewOrder(id, breweryId, code, recipeId, recipeVersion, volumeLiters, snapshot,
+                BrewOrderStatus.CANCELLED, assignedUserId, releasedAt, reason, at, version + 1);
     }
 
     private static String requireCode(String code) {
@@ -132,6 +162,14 @@ public final class BrewOrder {
 
     public Instant releasedAt() {
         return releasedAt;
+    }
+
+    public String cancelReason() {
+        return cancelReason;
+    }
+
+    public Instant cancelledAt() {
+        return cancelledAt;
     }
 
     public long version() {

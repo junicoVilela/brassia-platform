@@ -25,6 +25,10 @@ export class OrdersPageComponent implements OnInit {
     assignedUserId: ['', Validators.required],
   });
 
+  protected readonly cancelForm = this.fb.nonNullable.group({
+    reason: ['', [Validators.required, Validators.maxLength(500)]],
+  });
+
   ngOnInit(): void {
     this.store.load();
   }
@@ -39,6 +43,18 @@ export class OrdersPageComponent implements OnInit {
       return;
     }
     this.store.confirmRelease(orderId, this.releaseForm.getRawValue().assignedUserId);
+  }
+
+  protected startCancel(orderId: string): void {
+    this.cancelForm.reset({ reason: '' });
+    this.store.startCancel(orderId);
+  }
+
+  protected confirmCancel(orderId: string): void {
+    if (this.cancelForm.invalid) {
+      return;
+    }
+    this.store.confirmCancel(orderId, this.cancelForm.getRawValue().reason);
   }
 
   protected create(): void {

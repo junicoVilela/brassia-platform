@@ -3,6 +3,7 @@ package br.com.brew.brassia.planning.config;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
 import br.com.brew.brassia.equipment.EquipmentProfileLookup;
+import br.com.brew.brassia.planning.application.port.inbound.CancelBrewOrderUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.CreateBrewOrderUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.CreateScheduleEntryUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.GetBrewOrderUseCase;
@@ -15,6 +16,7 @@ import br.com.brew.brassia.planning.application.port.inbound.SimulateScheduleUse
 import br.com.brew.brassia.planning.application.port.outbound.BrewOrderEventPublisher;
 import br.com.brew.brassia.planning.application.port.outbound.BrewOrderRepository;
 import br.com.brew.brassia.planning.application.port.outbound.ScheduleEntryRepository;
+import br.com.brew.brassia.planning.application.service.CancelBrewOrderHandler;
 import br.com.brew.brassia.planning.application.service.CreateBrewOrderHandler;
 import br.com.brew.brassia.planning.application.service.CreateScheduleEntryHandler;
 import br.com.brew.brassia.planning.application.service.GetBrewOrderHandler;
@@ -116,6 +118,14 @@ class PlanningConfiguration {
             AuditTrail audit,
             PlatformTransactionManager transactionManager) {
         var handler = new ReleaseBrewOrderHandler(repository, equipment, events, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    CancelBrewOrderUseCase cancelBrewOrderUseCase(
+            BrewOrderRepository repository, AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new CancelBrewOrderHandler(repository, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }

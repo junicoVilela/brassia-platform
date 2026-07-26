@@ -3,8 +3,10 @@ package br.com.brew.brassia.planning.adapter.inbound.web;
 import br.com.brew.brassia.planning.adapter.inbound.web.dto.BrewOrderDetailView;
 import br.com.brew.brassia.planning.adapter.inbound.web.dto.BrewOrderResponse;
 import br.com.brew.brassia.planning.adapter.inbound.web.dto.BrewOrderSummaryView;
+import br.com.brew.brassia.planning.adapter.inbound.web.dto.CancelBrewOrderRequest;
 import br.com.brew.brassia.planning.adapter.inbound.web.dto.CreateBrewOrderRequest;
 import br.com.brew.brassia.planning.adapter.inbound.web.dto.ReleaseBrewOrderRequest;
+import br.com.brew.brassia.planning.application.port.inbound.CancelBrewOrderUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.CreateBrewOrderUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.GetBrewOrderUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.ListBrewOrdersUseCase;
@@ -32,13 +34,15 @@ final class BrewOrderController {
     private final ListBrewOrdersUseCase listOrders;
     private final GetBrewOrderUseCase getOrder;
     private final ReleaseBrewOrderUseCase releaseOrder;
+    private final CancelBrewOrderUseCase cancelOrder;
 
     BrewOrderController(CreateBrewOrderUseCase createOrder, ListBrewOrdersUseCase listOrders,
-            GetBrewOrderUseCase getOrder, ReleaseBrewOrderUseCase releaseOrder) {
+            GetBrewOrderUseCase getOrder, ReleaseBrewOrderUseCase releaseOrder, CancelBrewOrderUseCase cancelOrder) {
         this.createOrder = createOrder;
         this.listOrders = listOrders;
         this.getOrder = getOrder;
         this.releaseOrder = releaseOrder;
+        this.cancelOrder = cancelOrder;
     }
 
     @PostMapping
@@ -76,6 +80,15 @@ final class BrewOrderController {
         var assignedUserId = request == null ? null : request.assignedUserId();
         var result = releaseOrder.handle(new ReleaseBrewOrderUseCase.Command(
                 principal.userId(), principal.requireBrewery(), id, assignedUserId));
+        return new BrewOrderResponse(result.id(), null, result.status());
+    }
+
+    @PostMapping("/{id}/cancel")
+    BrewOrderResponse cancel(@PathVariable UUID id, @Valid @RequestBody CancelBrewOrderRequest request,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("planning.order.manage");
+        var result = cancelOrder.handle(new CancelBrewOrderUseCase.Command(
+                principal.userId(), principal.requireBrewery(), id, request.reason()));
         return new BrewOrderResponse(result.id(), null, result.status());
     }
 }

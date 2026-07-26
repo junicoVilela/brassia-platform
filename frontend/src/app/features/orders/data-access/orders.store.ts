@@ -31,6 +31,11 @@ export class OrdersStore {
   readonly releaseBlockers = signal<{ code: string; message: string }[]>([]);
   readonly releasing = signal(false);
 
+  /** OP em processo de cancelamento (mostra o campo de motivo). */
+  readonly cancellingId = signal<string | null>(null);
+  readonly cancelError = signal<string | null>(null);
+  readonly cancelling = signal(false);
+
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly empty = computed(() => !this.loading() && !this.error() && this.orders().length === 0);
@@ -99,6 +104,29 @@ export class OrdersStore {
           this.actionError.set(err?.status === 409
             ? 'Snapshot incompleto: calcule as métricas da receita antes de criar a OP.'
             : 'Não foi possível criar a OP (receita não publicada ou dados inválidos).'),
+      });
+  }
+
+  startCancel(orderId: string): void {
+    this.cancelError.set(null);
+    this.cancellingId.set(this.cancellingId() === orderId ? null : orderId);
+  }
+
+  confirmCancel(orderId: string, reason: string): void {
+    this.cancelling.set(true);
+    this.cancelError.set(null);
+    this.api.cancel(orderId, reason)
+      .pipe(finalize(() => this.cancelling.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.cancellingId.set(null);
+          this.toast.success('Ordem cancelada.');
+          this.load();
+        },
+        error: (err: { status?: number }) =>
+          this.cancelError.set(err?.status === 409
+            ? 'A ordem não pode ser cancelada neste estado.'
+            : 'Não foi possível cancelar a ordem.'),
       });
   }
 

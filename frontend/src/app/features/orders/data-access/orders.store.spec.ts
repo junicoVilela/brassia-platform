@@ -62,6 +62,15 @@ describe('OrdersStore', () => {
     expect(store.releaseBlockers()[0].code).toBe('missing_responsible');
   });
 
+  it('cancela uma OP e recarrega', () => {
+    const cancel = vi.fn(() => of({ id: 'o1', status: 'CANCELLED' }));
+    const list = vi.fn(emptyPage);
+    const store = setup({ cancel, list });
+    store.confirmCancel('o1', 'mudança de plano');
+    expect(cancel).toHaveBeenCalledWith('o1', 'mudança de plano');
+    expect(list).toHaveBeenCalled();
+  });
+
   it('carrega e alterna o detalhe (snapshot)', () => {
     const detail = { id: 'o1', code: 'OP-2026-0001' } as unknown as BrewOrderDetail;
     const get = vi.fn(() => of(detail));

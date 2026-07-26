@@ -22,6 +22,12 @@ public interface BrewOrderRepository {
      */
     boolean markReleased(UUID breweryId, UUID id, UUID assignedUserId, java.time.Instant at);
 
+    /**
+     * Marca a OP como cancelada, atômico e guardado pelo estado (só DRAFT/RELEASED).
+     * Retorna {@code false} se a OP não estava mais em um estado cancelável.
+     */
+    boolean markCancelled(UUID breweryId, UUID id, String reason, java.time.Instant at);
+
     List<BrewOrder> findPage(UUID breweryId, int page, int size);
 
     long count(UUID breweryId);

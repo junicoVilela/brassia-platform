@@ -52,4 +52,13 @@ describe('OrdersApi (contrato de ordens de produção)', () => {
     expect(req.request.body).toEqual({ assignedUserId: 'u1' });
     req.flush({ id: 'o1', status: 'RELEASED' });
   });
+
+  it('cancela uma OP (POST /{id}/cancel)', () => {
+    setup();
+    api.cancel('o1', 'motivo').subscribe();
+    const req = http.expectOne('/api/v1/brew-orders/o1/cancel');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ reason: 'motivo' });
+    req.flush({ id: 'o1', status: 'CANCELLED' });
+  });
 });

@@ -64,7 +64,8 @@ export class ShoppingListPageComponent implements OnInit {
 
   private download(rows: string[][]): void {
     const csv = rows.map(row => row.map(cell => `"${(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const bom = '\uFEFF'; // UTF-8 BOM p/ Excel abrir acentos corretamente
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

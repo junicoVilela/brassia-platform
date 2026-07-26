@@ -551,6 +551,48 @@ paths:
         '201': {description: Lote recebido}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /inventory/lots/{lotId}/movements:
+    get:
+      operationId: listStockMovements
+      summary: Ledger de movimentos do lote
+      parameters:
+        - {name: lotId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Movimentos}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: recordStockMovement
+      summary: Registra um movimento manual (consumo, devolução, perda, ajuste)
+      parameters:
+        - {name: lotId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RecordMovement'}
+      responses:
+        '200':
+          description: Movimento registrado; saldo derivado atualizado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StockBalance'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /inventory/lots/{lotId}/balance:
+    get:
+      operationId: getStockBalance
+      summary: Saldo derivado do lote (on-hand, reservado, disponível)
+      parameters:
+        - {name: lotId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Saldo
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StockBalance'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /batches/{batchId}/measurements:
     post:
       operationId: recordMeasurement
@@ -893,6 +935,20 @@ components:
         unitCost: {type: number, minimum: 0}
         expiryDate: {type: string, format: date}
         inspection: {type: string, enum: [APPROVED, BLOCKED]}
+    RecordMovement:
+      type: object
+      required: [type, quantity]
+      properties:
+        type: {type: string, enum: [CONSUMPTION, RETURN, LOSS, ADJUSTMENT_IN, ADJUSTMENT_OUT]}
+        quantity: {type: number, exclusiveMinimum: 0}
+        reason: {type: string, maxLength: 500}
+    StockBalance:
+      type: object
+      properties:
+        onHand: {type: number}
+        reserved: {type: number}
+        available: {type: number}
+        movementId: {type: string, format: uuid}
     ReleaseBlocked:
       type: object
       description: Problem Details com a lista de bloqueios da liberação

@@ -81,11 +81,12 @@
               <th scope="col">Validade</th>
               <th scope="col">Inspeção</th>
               <th scope="col">Disponível</th>
+              <th scope="col" class="text-end">Ações</th>
             </tr>
           </thead>
           <tbody>
             @for (lot of store.lots(); track lot.id) {
-              <tr>
+              <tr [class.table-active]="lot.id === store.movementsLotId()">
                 <td class="fw-medium">{{ store.ingredientName(lot.ingredientId) }}</td>
                 <td>{{ store.supplierName(lot.supplierId) }}</td>
                 <td>{{ lot.supplierLotCode || '—' }}</td>
@@ -101,6 +102,11 @@
                   @if (lot.available) { <i class="ri-check-line text-success"></i> }
                   @else { <i class="ri-close-line text-danger"></i> }
                 </td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="startMovements(lot.id)">
+                    <i class="ri-swap-line me-1"></i> Movimentos
+                  </button>
+                </td>
               </tr>
             }
           </tbody>
@@ -109,3 +115,85 @@
     }
   </div>
 </div>
+
+@if (store.movementsLotId(); as lotId) {
+  <div class="card border-0 rounded-10 mt-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h2 class="h6 fw-semibold mb-0">Movimentos do lote</h2>
+        <button type="button" class="btn-close" aria-label="Fechar" (click)="store.showMovements(lotId)"></button>
+      </div>
+
+      @if (store.balance(); as balance) {
+        <div class="row g-3 mb-3">
+          <div class="col-4"><div class="border rounded-10 p-3 text-center">
+            <div class="text-muted small">On-hand</div><div class="h5 mb-0 fw-semibold">{{ balance.onHand }}</div>
+          </div></div>
+          <div class="col-4"><div class="border rounded-10 p-3 text-center">
+            <div class="text-muted small">Reservado</div><div class="h5 mb-0 fw-semibold">{{ balance.reserved }}</div>
+          </div></div>
+          <div class="col-4"><div class="border rounded-10 p-3 text-center">
+            <div class="text-muted small">Disponível</div><div class="h5 mb-0 fw-semibold">{{ balance.available }}</div>
+          </div></div>
+        </div>
+      }
+
+      <form [formGroup]="movementForm" (ngSubmit)="record(lotId)" class="row g-3 align-items-end">
+        <div class="col-sm-4">
+          <label class="form-label" for="mtype">Tipo</label>
+          <select id="mtype" class="form-select" formControlName="type">
+            @for (t of movementTypes; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+          </select>
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label" for="mqty">Quantidade</label>
+          <input id="mqty" type="number" step="any" min="0" class="form-control" formControlName="quantity">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label" for="mreason">Motivo (ajuste)</label>
+          <input id="mreason" type="text" class="form-control" formControlName="reason" placeholder="Opcional">
+        </div>
+        <div class="col-sm-2 d-grid">
+          <button type="submit" class="btn btn-primary" [disabled]="movementForm.invalid || store.recording()">
+            <i class="ri-add-line me-1"></i> Registrar
+          </button>
+        </div>
+      </form>
+      @if (store.movementError(); as movementError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ movementError }}</div>
+      }
+
+      <h3 class="h6 fw-semibold mt-4 mb-2">Ledger</h3>
+      @if (store.movementsLoading()) {
+        <app-loading-indicator />
+      } @else if (store.movements().length === 0) {
+        <app-empty-state icon="ri-swap-line" message="Sem movimentos." />
+      } @else {
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Tipo</th>
+                <th scope="col" class="text-end">On-hand</th>
+                <th scope="col" class="text-end">Reservado</th>
+                <th scope="col">Motivo</th>
+                <th scope="col">Quando</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (m of store.movements(); track m.id) {
+                <tr>
+                  <td class="fw-medium">{{ m.type }}</td>
+                  <td class="text-end">{{ m.onHandDelta }}</td>
+                  <td class="text-end">{{ m.reservedDelta }}</td>
+                  <td>{{ m.reason || '—' }}</td>
+                  <td class="text-muted small">{{ m.occurredAt | date:'dd/MM/yyyy HH:mm' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </div>
+}

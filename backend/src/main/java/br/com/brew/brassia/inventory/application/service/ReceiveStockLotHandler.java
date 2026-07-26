@@ -4,9 +4,12 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.catalog.IngredientSpecLookup;
 import br.com.brew.brassia.inventory.application.port.inbound.ReceiveStockLotUseCase;
+import br.com.brew.brassia.inventory.application.port.outbound.StockLedgerRepository;
 import br.com.brew.brassia.inventory.application.port.outbound.StockLotRepository;
 import br.com.brew.brassia.inventory.domain.StockInspection;
 import br.com.brew.brassia.inventory.domain.StockLot;
+import br.com.brew.brassia.inventory.domain.StockMovement;
+import br.com.brew.brassia.inventory.domain.StockMovementType;
 import br.com.brew.brassia.inventory.domain.StockUnit;
 import br.com.brew.brassia.purchasing.SupplierLookup;
 import java.time.Instant;
@@ -20,13 +23,15 @@ import java.util.Objects;
 public final class ReceiveStockLotHandler implements ReceiveStockLotUseCase {
 
     private final StockLotRepository repository;
+    private final StockLedgerRepository ledger;
     private final IngredientSpecLookup ingredients;
     private final SupplierLookup suppliers;
     private final AuditTrail audit;
 
-    public ReceiveStockLotHandler(StockLotRepository repository, IngredientSpecLookup ingredients,
-            SupplierLookup suppliers, AuditTrail audit) {
+    public ReceiveStockLotHandler(StockLotRepository repository, StockLedgerRepository ledger,
+            IngredientSpecLookup ingredients, SupplierLookup suppliers, AuditTrail audit) {
         this.repository = Objects.requireNonNull(repository);
+        this.ledger = Objects.requireNonNull(ledger);
         this.ingredients = Objects.requireNonNull(ingredients);
         this.suppliers = Objects.requireNonNull(suppliers);
         this.audit = Objects.requireNonNull(audit);
@@ -45,6 +50,10 @@ public final class ReceiveStockLotHandler implements ReceiveStockLotUseCase {
                 command.supplierLotCode(), command.quantity(), StockUnit.of(command.unit()), command.unitCost(),
                 command.expiryDate(), Instant.now(), StockInspection.of(command.inspection()));
         repository.insert(lot);
+
+        // O saldo deriva do ledger: o recebimento lança a ENTRY inicial no mesmo commit.
+        ledger.append(StockMovement.record(lot.breweryId(), lot.id().value(), lot.ingredientId(),
+                StockMovementType.ENTRY, lot.receivedQuantity(), null, null, lot.receivedAt(), command.actorId()));
 
         audit.record(AuditEvent.success(command.breweryId(), command.actorId(), "inventory.lot.receive",
                 "inventory.lot", lot.id().value().toString(),

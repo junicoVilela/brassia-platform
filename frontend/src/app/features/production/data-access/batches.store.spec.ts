@@ -1,12 +1,19 @@
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
+import { AuthService } from '../../../core/auth/auth.service';
+import { ToastService } from '../../../core/notifications/toast.service';
 import { BatchesApi } from './batches.api';
 import { BatchesStore } from './batches.store';
 
 function setup(api: Partial<BatchesApi>) {
   TestBed.configureTestingModule({
-    providers: [BatchesStore, { provide: BatchesApi, useValue: api }],
+    providers: [
+      BatchesStore,
+      { provide: BatchesApi, useValue: api },
+      { provide: ToastService, useValue: { success: vi.fn(), error: vi.fn() } },
+      { provide: AuthService, useValue: { hasPermission: () => true } },
+    ],
   });
   return TestBed.inject(BatchesStore);
 }

@@ -39,11 +39,32 @@
               @if (store.expandedId() === batch.id) {
                 <tr>
                   <td colspan="6" class="bg-body-tertiary">
-                    <ol class="mb-0 ps-3">
-                      @for (step of batch.steps; track step.sequence) {
-                        <li>{{ step.label }} <span class="text-muted small">({{ step.type }})</span></li>
+                    <ul class="list-group list-group-flush">
+                      @for (step of batch.steps; track step.id) {
+                        <li class="list-group-item bg-transparent d-flex align-items-center justify-content-between px-0">
+                          <span>
+                            @if (step.status === 'DONE') { <i class="ri-check-line text-success me-1"></i> }
+                            @else if (step.status === 'ACTIVE') { <i class="ri-play-circle-line text-primary me-1"></i> }
+                            @else { <i class="ri-time-line text-muted me-1"></i> }
+                            <span class="fw-medium">{{ step.label }}</span>
+                            <span class="text-muted small">({{ step.type }})</span>
+                          </span>
+                          <span class="d-flex align-items-center gap-3">
+                            @if (step.status === 'ACTIVE') {
+                              <span class="badge text-bg-primary"><i class="ri-timer-line me-1"></i>{{ elapsed(step.startedAt) }}</span>
+                              @if (store.canManage) {
+                                <button type="button" class="btn btn-sm btn-outline-success"
+                                        [disabled]="store.completing()" (click)="store.completeStep(batch.id, step.id)">
+                                  <i class="ri-check-line me-1"></i> Concluir etapa
+                                </button>
+                              }
+                            } @else if (step.status === 'DONE') {
+                              <span class="text-muted small">{{ step.completedAt | date: 'HH:mm' }}</span>
+                            }
+                          </span>
+                        </li>
                       }
-                    </ol>
+                    </ul>
                   </td>
                 </tr>
               }

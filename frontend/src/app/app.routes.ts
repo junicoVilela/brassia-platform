@@ -77,6 +77,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/sanitation/sanitation.routes').then(m => m.SANITATION_ROUTES),
       },
       {
+        path: 'sanitation/matrix',
+        canActivate: [permissionGuard],
+        data: { permission: 'sanitation.matrix.read' },
+        loadChildren: () => import('./features/sanitation/sanitation.routes').then(m => m.SANITATION_MATRIX_ROUTES),
+      },
+      {
         path: 'suppliers',
         canActivate: [permissionGuard],
         data: { permission: 'purchasing.supplier.read' },

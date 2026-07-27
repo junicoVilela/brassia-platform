@@ -110,6 +110,16 @@ class JdbcProcedureRepository implements ProcedureRepository {
     }
 
     @Override
+    public boolean existsPublishedByCode(UUID breweryId, String code) {
+        return jdbc.sql("""
+                SELECT 1 FROM sanitation_procedure
+                WHERE brewery_id = :brewery AND code = :code AND status = 'PUBLISHED' LIMIT 1
+                """)
+                .param("brewery", breweryId).param("code", code)
+                .query(Integer.class).optional().isPresent();
+    }
+
+    @Override
     public boolean markPublished(UUID breweryId, UUID procedureId) {
         int updated = jdbc.sql("""
                 UPDATE sanitation_procedure SET status = 'PUBLISHED'

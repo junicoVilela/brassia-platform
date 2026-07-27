@@ -687,6 +687,62 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/procedures:
+    get:
+      operationId: listCleaningProcedures
+      summary: Lista POPs de limpeza/sanitização
+      responses:
+        '200': {description: POPs}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createCleaningProcedure
+      summary: "Cria um POP em rascunho (nova versão se o código já foi publicado)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateProcedure'}
+      responses:
+        '201': {description: POP criado (rascunho)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/procedures/{id}:
+    get:
+      operationId: getCleaningProcedure
+      summary: Detalhe do POP (etapas)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: POP}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateCleaningProcedure
+      summary: "Edita um POP em rascunho (publicado é imutável → 409)"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateProcedure'}
+      responses:
+        '200': {description: POP atualizado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/procedures/{id}/publish:
+    post:
+      operationId: publishCleaningProcedure
+      summary: "Publica o POP (DRAFT → PUBLISHED; congela a versão)"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: POP publicado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /suppliers:
     get:
       operationId: listSuppliers
@@ -1231,6 +1287,36 @@ components:
         quantity: {type: number, exclusiveMinimum: 0}
         reason: {type: string, maxLength: 500}
         allowNegative: {type: boolean, description: "Autoriza saldo negativo (exige inventory.stock.override); default false"}
+    ProcedureStep:
+      type: object
+      required: [sequence, method]
+      properties:
+        sequence: {type: integer, minimum: 1}
+        method: {type: string, maxLength: 120}
+        product: {type: string, maxLength: 120}
+        concentrationMinPct: {type: number}
+        concentrationMaxPct: {type: number}
+        tempMinC: {type: number}
+        tempMaxC: {type: number}
+        timeMinutes: {type: integer, minimum: 0}
+        flow: {type: string, maxLength: 120}
+        ppe: {type: string, maxLength: 200}
+        alternative: {type: string, maxLength: 200}
+        prohibition: {type: string, maxLength: 200}
+        evidenceRequired: {type: boolean}
+    CreateProcedure:
+      type: object
+      required: [code, name, steps]
+      properties:
+        code: {type: string, maxLength: 40}
+        name: {type: string, maxLength: 160}
+        steps: {type: array, minItems: 1, items: {$ref: '#/components/schemas/ProcedureStep'}}
+    UpdateProcedure:
+      type: object
+      required: [name, steps]
+      properties:
+        name: {type: string, maxLength: 160}
+        steps: {type: array, minItems: 1, items: {$ref: '#/components/schemas/ProcedureStep'}}
     CreateAlert:
       type: object
       required: [kind, message]

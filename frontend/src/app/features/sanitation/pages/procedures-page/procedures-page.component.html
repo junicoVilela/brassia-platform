@@ -1,0 +1,156 @@
+<app-page-header title="POPs de limpeza e sanitização"
+                 subtitle="Procedimentos operacionais padrão versionados" />
+
+@if (canManage) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-3">Novo POP</h2>
+      <form [formGroup]="form" class="row g-3 mb-3">
+        <div class="col-sm-4"><label class="form-label" for="pcode">Código</label>
+          <input id="pcode" type="text" class="form-control" formControlName="code" placeholder="CIP-TANK"></div>
+        <div class="col-sm-8"><label class="form-label" for="pname">Nome</label>
+          <input id="pname" type="text" class="form-control" formControlName="name" placeholder="CIP de tanque"></div>
+      </form>
+
+      <h3 class="h6 fw-semibold mb-2">Etapa</h3>
+      <form [formGroup]="stepForm" (ngSubmit)="addStep()" class="row g-2 align-items-end mb-2">
+        <div class="col-sm-3"><label class="form-label small" for="smethod">Método</label>
+          <input id="smethod" type="text" class="form-control form-control-sm" formControlName="method"
+                 placeholder="CIP / manual"></div>
+        <div class="col-sm-3"><label class="form-label small" for="sproduct">Produto</label>
+          <input id="sproduct" type="text" class="form-control form-control-sm" formControlName="product"
+                 placeholder="soda cáustica"></div>
+        <div class="col-sm-3"><label class="form-label small">Concentração % (mín/máx)</label>
+          <div class="input-group input-group-sm">
+            <input type="number" step="any" class="form-control" formControlName="concentrationMinPct" placeholder="mín">
+            <input type="number" step="any" class="form-control" formControlName="concentrationMaxPct" placeholder="máx">
+          </div></div>
+        <div class="col-sm-3"><label class="form-label small">Temperatura °C (mín/máx)</label>
+          <div class="input-group input-group-sm">
+            <input type="number" step="any" class="form-control" formControlName="tempMinC" placeholder="mín">
+            <input type="number" step="any" class="form-control" formControlName="tempMaxC" placeholder="máx">
+          </div></div>
+        <div class="col-sm-2"><label class="form-label small" for="stime">Tempo (min)</label>
+          <input id="stime" type="number" class="form-control form-control-sm" formControlName="timeMinutes"></div>
+        <div class="col-sm-3"><label class="form-label small" for="sflow">Vazão/ação</label>
+          <input id="sflow" type="text" class="form-control form-control-sm" formControlName="flow"></div>
+        <div class="col-sm-3"><label class="form-label small" for="sppe">EPIs</label>
+          <input id="sppe" type="text" class="form-control form-control-sm" formControlName="ppe"></div>
+        <div class="col-sm-2 d-flex align-items-center pt-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="sevidence" formControlName="evidenceRequired">
+            <label class="form-check-label small" for="sevidence">Evidência</label>
+          </div>
+        </div>
+        <div class="col-sm-2 d-grid">
+          <button type="submit" class="btn btn-outline-primary btn-sm" [disabled]="stepForm.invalid">
+            <i class="ri-add-line me-1"></i> Adicionar etapa
+          </button>
+        </div>
+        <div class="col-sm-6"><input type="text" class="form-control form-control-sm" formControlName="alternative"
+               placeholder="Alternativa (opcional)"></div>
+        <div class="col-sm-6"><input type="text" class="form-control form-control-sm" formControlName="prohibition"
+               placeholder="Proibição (ex.: não misturar com ácido)"></div>
+      </form>
+
+      @if (steps().length > 0) {
+        <ol class="mb-3 ps-3">
+          @for (s of steps(); track s.sequence) {
+            <li>
+              {{ s.method }}@if (s.product) { <span class="text-muted">— {{ s.product }}</span> }
+              <span class="text-muted small">
+                @if (s.concentrationMinPct !== null) { · {{ s.concentrationMinPct }}–{{ s.concentrationMaxPct }}% }
+                @if (s.tempMinC !== null) { · {{ s.tempMinC }}–{{ s.tempMaxC }}°C }
+                @if (s.timeMinutes !== null) { · {{ s.timeMinutes }} min }
+              </span>
+              <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-2"
+                      (click)="removeStep($index)">remover</button>
+            </li>
+          }
+        </ol>
+      }
+
+      <button type="button" class="btn btn-primary"
+              [disabled]="form.invalid || steps().length === 0 || store.submitting()" (click)="create()">
+        <i class="ri-save-line me-1"></i> Salvar POP (rascunho)
+      </button>
+      @if (store.actionError(); as actionError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+      }
+    </div>
+  </div>
+}
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">POPs</h2>
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-file-shield-2-line" message="Nenhum POP cadastrado." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Código</th>
+              <th scope="col">Nome</th>
+              <th scope="col" class="text-end">Versão</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of store.items(); track p.id) {
+              <tr>
+                <td class="fw-medium">{{ p.code }}</td>
+                <td>{{ p.name }}</td>
+                <td class="text-end">v{{ p.version }}</td>
+                <td>
+                  <span class="badge" [class]="p.status === 'PUBLISHED' ? 'text-bg-success' : 'text-bg-secondary'">
+                    {{ p.status }}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="store.toggle(p.id)">
+                    <i class="ri-list-check-2 me-1"></i> {{ p.steps.length }} etapas
+                  </button>
+                  @if (canManage && p.status === 'DRAFT') {
+                    <button type="button" class="btn btn-sm btn-outline-success" (click)="store.publish(p.id)">
+                      <i class="ri-checkbox-circle-line me-1"></i> Publicar
+                    </button>
+                  }
+                </td>
+              </tr>
+              @if (store.expandedId() === p.id) {
+                <tr>
+                  <td colspan="5" class="bg-body-tertiary">
+                    <ol class="mb-0 ps-3">
+                      @for (s of p.steps; track s.sequence) {
+                        <li>
+                          <span class="fw-medium">{{ s.method }}</span>
+                          @if (s.product) { <span class="text-muted">— {{ s.product }}</span> }
+                          <span class="text-muted small">
+                            @if (s.concentrationMinPct !== null) { · {{ s.concentrationMinPct }}–{{ s.concentrationMaxPct }}% }
+                            @if (s.tempMinC !== null) { · {{ s.tempMinC }}–{{ s.tempMaxC }}°C }
+                            @if (s.timeMinutes !== null) { · {{ s.timeMinutes }} min }
+                            @if (s.evidenceRequired) { · evidência }
+                          </span>
+                          @if (s.prohibition) {
+                            <div class="text-danger small"><i class="ri-forbid-line me-1"></i>{{ s.prohibition }}</div>
+                          }
+                        </li>
+                      }
+                    </ol>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

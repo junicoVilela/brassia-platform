@@ -28,6 +28,13 @@ export class BatchesPageComponent implements OnInit {
   /** Relógio que avança a cada segundo; o decorrido deriva de started_at (server-aware). */
   protected readonly now = signal(Date.now());
 
+  protected readonly transferForm = this.fb.nonNullable.group({
+    destinationEquipmentId: ['', Validators.required],
+    volumeLiters: [0, [Validators.required, Validators.min(0.01)]],
+    ogSg: [1.05, [Validators.required, Validators.min(0.01)]],
+    lossesLiters: [0, [Validators.min(0)]],
+  });
+
   protected readonly measurementForm = this.fb.nonNullable.group({
     kind: ['DENSITY', Validators.required],
     unit: ['SG', Validators.required],
@@ -90,6 +97,24 @@ export class BatchesPageComponent implements OnInit {
       return;
     }
     this.store.preview(batchId, { calculator: c.id, inputs: this.inputValues() });
+  }
+
+  protected startTransfer(batchId: string): void {
+    this.transferForm.reset({ destinationEquipmentId: '', volumeLiters: 0, ogSg: 1.05, lossesLiters: 0 });
+    this.store.showTransfer(batchId);
+  }
+
+  protected doTransfer(batchId: string): void {
+    if (this.transferForm.invalid) {
+      return;
+    }
+    const v = this.transferForm.getRawValue();
+    this.store.transfer(batchId, {
+      destinationEquipmentId: v.destinationEquipmentId,
+      volumeLiters: v.volumeLiters,
+      ogSg: v.ogSg,
+      lossesLiters: v.lossesLiters,
+    });
   }
 
   protected startMeasurements(batchId: string): void {

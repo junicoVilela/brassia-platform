@@ -20,4 +20,11 @@ public interface BatchRepository {
      * estado. Retorna {@code false} se a etapa não estava ativa (fora de ordem).
      */
     boolean completeStep(UUID breweryId, UUID batchId, UUID stepId, UUID nextStepId, Instant at);
+
+    /**
+     * Marca o lote como em fermentação (IN_PROGRESS → FERMENTING) na transferência
+     * (PRD-005), guardado pelo estado. Retorna {@code false} se já não estava em
+     * andamento (transferência única).
+     */
+    boolean markFermenting(UUID breweryId, UUID batchId, Instant at);
 }

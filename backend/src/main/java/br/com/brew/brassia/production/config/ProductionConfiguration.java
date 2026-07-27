@@ -2,9 +2,12 @@ package br.com.brew.brassia.production.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.calculator.CalculatorEngine;
+import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
 import br.com.brew.brassia.production.application.port.inbound.CompleteBatchStepUseCase;
+import br.com.brew.brassia.production.application.port.inbound.GetBatchTransferUseCase;
 import br.com.brew.brassia.production.application.port.inbound.ListBrewCorrectionsUseCase;
 import br.com.brew.brassia.production.application.port.inbound.PreviewCorrectionUseCase;
+import br.com.brew.brassia.production.application.port.inbound.TransferBatchUseCase;
 import br.com.brew.brassia.production.application.port.inbound.GetBatchUseCase;
 import br.com.brew.brassia.production.application.port.inbound.ListBatchesUseCase;
 import br.com.brew.brassia.production.application.port.inbound.ListMeasurementsUseCase;
@@ -12,7 +15,9 @@ import br.com.brew.brassia.production.application.port.inbound.OpenBatchUseCase;
 import br.com.brew.brassia.production.application.port.inbound.RecordMeasurementUseCase;
 import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
 import br.com.brew.brassia.production.application.port.outbound.MeasurementRepository;
+import br.com.brew.brassia.production.application.port.outbound.TransferRepository;
 import br.com.brew.brassia.production.application.service.CompleteBatchStepHandler;
+import br.com.brew.brassia.production.application.service.GetBatchTransferHandler;
 import br.com.brew.brassia.production.application.service.GetBatchHandler;
 import br.com.brew.brassia.production.application.service.ListBatchesHandler;
 import br.com.brew.brassia.production.application.service.ListBrewCorrectionsHandler;
@@ -20,6 +25,7 @@ import br.com.brew.brassia.production.application.service.ListMeasurementsHandle
 import br.com.brew.brassia.production.application.service.OpenBatchHandler;
 import br.com.brew.brassia.production.application.service.PreviewCorrectionHandler;
 import br.com.brew.brassia.production.application.service.RecordMeasurementHandler;
+import br.com.brew.brassia.production.application.service.TransferBatchHandler;
 import br.com.brew.brassia.recipe.RecipeLookup;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -76,5 +82,19 @@ class ProductionConfiguration {
     @Bean
     PreviewCorrectionUseCase previewCorrectionUseCase(BatchRepository batches, CalculatorEngine engine) {
         return new PreviewCorrectionHandler(batches, engine);
+    }
+
+    @Bean
+    TransferBatchUseCase transferBatchUseCase(
+            BatchRepository batches, TransferRepository transfers, EquipmentCapacityLookup equipment,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new TransferBatchHandler(batches, transfers, equipment, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    GetBatchTransferUseCase getBatchTransferUseCase(BatchRepository batches, TransferRepository transfers) {
+        return new GetBatchTransferHandler(batches, transfers);
     }
 }

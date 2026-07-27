@@ -590,6 +590,31 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /production/batches/{id}/transfer:
+    get:
+      operationId: getBatchTransfer
+      summary: Transferência do lote ao fermentador (204 se ainda não transferido)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Transferência}
+        '204': {description: Lote ainda não transferido}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: transferBatch
+      summary: "Transfere o lote ao fermentador (valida capacidade e balanço de massa; move para FERMENTING)"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TransferBatch'}
+      responses:
+        '201': {description: Lote transferido}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {description: "Capacidade do fermentador ou balanço de massa excedido; ou já transferido"}
   /production/batches/{id}/steps/{stepId}/complete:
     post:
       operationId: completeBatchStep
@@ -1146,6 +1171,14 @@ components:
         quantity: {type: number, exclusiveMinimum: 0}
         reason: {type: string, maxLength: 500}
         allowNegative: {type: boolean, description: "Autoriza saldo negativo (exige inventory.stock.override); default false"}
+    TransferBatch:
+      type: object
+      required: [destinationEquipmentId, volumeLiters, ogSg]
+      properties:
+        destinationEquipmentId: {type: string, format: uuid}
+        volumeLiters: {type: number, exclusiveMinimum: 0}
+        ogSg: {type: number, exclusiveMinimum: 0}
+        lossesLiters: {type: number, minimum: 0}
     PreviewCorrection:
       type: object
       required: [calculator]

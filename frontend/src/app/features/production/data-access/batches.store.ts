@@ -3,15 +3,19 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ToastService } from '../../../core/notifications/toast.service';
+import { EquipmentApi } from '../../equipment/data-access/equipment.api';
+import { Equipment } from '../../equipment/domain/equipment.model';
 import { Batch } from '../domain/batch.model';
 import { BrewCorrection, CorrectionResult, PreviewCorrectionRequest } from '../domain/correction.model';
 import { Measurement, RecordMeasurementRequest } from '../domain/measurement.model';
+import { TransferRequest } from '../domain/transfer.model';
 import { BatchesApi } from './batches.api';
 
 /** Estado dos lotes de produção (PRD-001/PRD-002). */
 @Injectable()
 export class BatchesStore {
   private readonly api = inject(BatchesApi);
+  private readonly equipmentApi = inject(EquipmentApi);
   private readonly toast = inject(ToastService);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
@@ -41,6 +45,12 @@ export class BatchesStore {
   readonly previewResult = signal<CorrectionResult | null>(null);
   readonly previewing = signal(false);
   readonly correctionError = signal<string | null>(null);
+
+  /** Lote com o painel de transferência aberto (PRD-005). */
+  readonly transferBatchId = signal<string | null>(null);
+  readonly equipment = signal<Equipment[]>([]);
+  readonly transferring = signal(false);
+  readonly transferError = signal<string | null>(null);
 
   load(): void {
     this.loading.set(true);
@@ -134,6 +144,40 @@ export class BatchesStore {
       .subscribe({
         next: r => this.previewResult.set(r),
         error: () => this.correctionError.set('Não foi possível calcular o impacto (dados inválidos).'),
+      });
+  }
+
+  /** Abre (ou fecha) o painel de transferência de um lote e carrega os equipamentos. */
+  showTransfer(batchId: string): void {
+    if (this.transferBatchId() === batchId) {
+      this.transferBatchId.set(null);
+      return;
+    }
+    this.transferBatchId.set(batchId);
+    this.transferError.set(null);
+    if (this.equipment().length === 0) {
+      this.equipmentApi.list(0, 100)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({ next: page => this.equipment.set(page.content), error: () => {} });
+    }
+  }
+
+  transfer(batchId: string, request: TransferRequest, onSuccess?: () => void): void {
+    this.transferring.set(true);
+    this.transferError.set(null);
+    this.api.transfer(batchId, request)
+      .pipe(finalize(() => this.transferring.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          onSuccess?.();
+          this.transferBatchId.set(null);
+          this.toast.success('Lote transferido ao fermentador.');
+          this.load();
+        },
+        error: (err: { status?: number }) =>
+          this.transferError.set(err?.status === 409
+            ? 'Capacidade do fermentador ou balanço de massa excedido.'
+            : 'Não foi possível transferir (dados inválidos).'),
       });
   }
 }

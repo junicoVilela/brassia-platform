@@ -136,6 +136,17 @@ class JdbcBatchRepository implements BatchRepository {
     }
 
     @Override
+    public boolean markFermenting(UUID breweryId, UUID batchId, java.time.Instant at) {
+        int updated = jdbc.sql("""
+                UPDATE production_batch SET status = 'FERMENTING'
+                WHERE brewery_id = :brewery AND id = :batch AND status = 'IN_PROGRESS'
+                """)
+                .param("brewery", breweryId).param("batch", batchId)
+                .update();
+        return updated > 0;
+    }
+
+    @Override
     public boolean completeStep(UUID breweryId, UUID batchId, UUID stepId, UUID nextStepId, java.time.Instant at) {
         // Guarda de sequência/concorrência: só conclui a etapa que está ATIVA.
         int done = jdbc.sql("""

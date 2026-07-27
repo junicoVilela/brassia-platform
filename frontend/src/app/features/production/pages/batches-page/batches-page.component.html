@@ -37,9 +37,14 @@
                   <button type="button" class="btn btn-sm btn-outline-secondary me-1" (click)="startMeasurements(batch.id)">
                     <i class="ri-test-tube-line me-1"></i> Medições
                   </button>
-                  <button type="button" class="btn btn-sm btn-outline-secondary" (click)="startCorrections(batch.id)">
+                  <button type="button" class="btn btn-sm btn-outline-secondary me-1" (click)="startCorrections(batch.id)">
                     <i class="ri-drop-line me-1"></i> Correções
                   </button>
+                  @if (store.canManage && batch.status === 'IN_PROGRESS') {
+                    <button type="button" class="btn btn-sm btn-outline-success" (click)="startTransfer(batch.id)">
+                      <i class="ri-git-merge-line me-1"></i> Transferir
+                    </button>
+                  }
                 </td>
               </tr>
               @if (store.expandedId() === batch.id) {
@@ -228,6 +233,51 @@
             <div class="text-danger small mt-1"><i class="ri-error-warning-line me-1"></i>{{ a }}</div>
           }
         </div>
+      }
+    </div>
+  </div>
+}
+
+@if (store.transferBatchId(); as batchId) {
+  <div class="card border-0 rounded-10 mt-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h2 class="h6 fw-semibold mb-0">Transferir ao fermentador</h2>
+        <button type="button" class="btn-close" aria-label="Fechar" (click)="store.showTransfer(batchId)"></button>
+      </div>
+      <p class="text-muted small mb-3">
+        Verifica a capacidade do fermentador e o balanço de massa (transferido + perdas ≤ volume do lote).
+      </p>
+      <form [formGroup]="transferForm" (ngSubmit)="doTransfer(batchId)" class="row g-3 align-items-end">
+        <div class="col-sm-4">
+          <label class="form-label" for="tdest">Fermentador destino</label>
+          <select id="tdest" class="form-select" formControlName="destinationEquipmentId">
+            <option value="">Selecione…</option>
+            @for (e of store.equipment(); track e.id) {
+              <option [value]="e.id">{{ e.name }} ({{ e.capacityLiters }} L)</option>
+            }
+          </select>
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label" for="tvol">Volume (L)</label>
+          <input id="tvol" type="number" step="any" min="0" class="form-control" formControlName="volumeLiters">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label" for="tog">OG (SG)</label>
+          <input id="tog" type="number" step="any" min="0" class="form-control" formControlName="ogSg">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label" for="tloss">Perdas (L)</label>
+          <input id="tloss" type="number" step="any" min="0" class="form-control" formControlName="lossesLiters">
+        </div>
+        <div class="col-sm-2 d-grid">
+          <button type="submit" class="btn btn-primary" [disabled]="transferForm.invalid || store.transferring()">
+            <i class="ri-git-merge-line me-1"></i> Transferir
+          </button>
+        </div>
+      </form>
+      @if (store.transferError(); as transferError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ transferError }}</div>
       }
     </div>
   </div>

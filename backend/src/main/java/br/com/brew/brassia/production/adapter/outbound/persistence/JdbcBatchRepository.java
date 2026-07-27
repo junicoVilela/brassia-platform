@@ -5,6 +5,7 @@ import br.com.brew.brassia.production.domain.Batch;
 import br.com.brew.brassia.production.domain.BatchId;
 import br.com.brew.brassia.production.domain.BatchStatus;
 import br.com.brew.brassia.production.domain.BatchStep;
+import br.com.brew.brassia.production.domain.BatchStepStatus;
 import br.com.brew.brassia.production.domain.BatchStepType;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -54,8 +55,9 @@ class JdbcBatchRepository implements BatchRepository {
 
         for (var step : b.steps()) {
             jdbc.sql("""
-                    INSERT INTO production_batch_step (id, batch_id, brewery_id, step_order, type, label)
-                    VALUES (:id, :batch, :brewery, :stepOrder, :type, :label)
+                    INSERT INTO production_batch_step (
+                        id, batch_id, brewery_id, step_order, type, label, step_status, started_at, completed_at)
+                    VALUES (:id, :batch, :brewery, :stepOrder, :type, :label, :status, :startedAt, :completedAt)
                     """)
                     .param("id", step.id())
                     .param("batch", b.id().value())
@@ -63,6 +65,9 @@ class JdbcBatchRepository implements BatchRepository {
                     .param("stepOrder", step.sequence())
                     .param("type", step.type().name())
                     .param("label", step.label())
+                    .param("status", step.status().name())
+                    .param("startedAt", step.startedAt() == null ? null : Timestamp.from(step.startedAt()))
+                    .param("completedAt", step.completedAt() == null ? null : Timestamp.from(step.completedAt()))
                     .update();
         }
     }
@@ -110,15 +115,50 @@ class JdbcBatchRepository implements BatchRepository {
 
     private List<BatchStep> steps(UUID breweryId, UUID batchId) {
         return jdbc.sql("""
-                SELECT id, step_order, type, label FROM production_batch_step
+                SELECT id, step_order, type, label, step_status, started_at, completed_at
+                FROM production_batch_step
                 WHERE brewery_id = :brewery AND batch_id = :batch ORDER BY step_order
                 """)
                 .param("brewery", breweryId).param("batch", batchId)
-                .query((rs, n) -> new BatchStep(
-                        rs.getObject("id", UUID.class),
-                        rs.getInt("step_order"),
-                        BatchStepType.valueOf(rs.getString("type")),
-                        rs.getString("label")))
+                .query((rs, n) -> {
+                    var startedAt = rs.getTimestamp("started_at");
+                    var completedAt = rs.getTimestamp("completed_at");
+                    return new BatchStep(
+                            rs.getObject("id", UUID.class),
+                            rs.getInt("step_order"),
+                            BatchStepType.valueOf(rs.getString("type")),
+                            rs.getString("label"),
+                            BatchStepStatus.valueOf(rs.getString("step_status")),
+                            startedAt == null ? null : startedAt.toInstant(),
+                            completedAt == null ? null : completedAt.toInstant());
+                })
                 .list();
+    }
+
+    @Override
+    public boolean completeStep(UUID breweryId, UUID batchId, UUID stepId, UUID nextStepId, java.time.Instant at) {
+        // Guarda de sequência/concorrência: só conclui a etapa que está ATIVA.
+        int done = jdbc.sql("""
+                UPDATE production_batch_step
+                SET step_status = 'DONE', completed_at = :at
+                WHERE brewery_id = :brewery AND batch_id = :batch AND id = :step AND step_status = 'ACTIVE'
+                """)
+                .param("brewery", breweryId).param("batch", batchId).param("step", stepId)
+                .param("at", Timestamp.from(at))
+                .update();
+        if (done == 0) {
+            return false;
+        }
+        if (nextStepId != null) {
+            jdbc.sql("""
+                    UPDATE production_batch_step
+                    SET step_status = 'ACTIVE', started_at = :at
+                    WHERE brewery_id = :brewery AND batch_id = :batch AND id = :step AND step_status = 'PENDING'
+                    """)
+                    .param("brewery", breweryId).param("batch", batchId).param("step", nextStepId)
+                    .param("at", Timestamp.from(at))
+                    .update();
+        }
+        return true;
     }
 }

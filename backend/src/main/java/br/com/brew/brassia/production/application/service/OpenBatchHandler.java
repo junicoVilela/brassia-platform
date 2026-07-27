@@ -39,6 +39,10 @@ public final class OpenBatchHandler implements OpenBatchUseCase {
         }
 
         var steps = deriveRoute(command.breweryId(), command.recipeId());
+        if (!steps.isEmpty()) {
+            // A primeira etapa nasce ativa (PRD-002): o cronômetro começa no início do lote.
+            steps.set(0, steps.get(0).activate(Instant.now()));
+        }
         var batch = Batch.open(command.breweryId(), command.orderId(), command.code(), command.recipeId(),
                 command.recipeVersion(), command.recipeName(), command.volumeLiters(), Instant.now(),
                 command.actorId(), steps);

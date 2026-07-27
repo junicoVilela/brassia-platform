@@ -16,9 +16,11 @@ public record BatchView(
                 b.steps().stream().map(BatchStepView::from).toList());
     }
 
-    public record BatchStepView(int sequence, String type, String label) {
+    public record BatchStepView(UUID id, int sequence, String type, String label, String status, Instant startedAt,
+            Instant completedAt) {
         static BatchStepView from(br.com.brew.brassia.production.domain.BatchStep s) {
-            return new BatchStepView(s.sequence(), s.type().name(), s.label());
+            return new BatchStepView(s.id(), s.sequence(), s.type().name(), s.label(), s.status().name(),
+                    s.startedAt(), s.completedAt());
         }
     }
 }

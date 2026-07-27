@@ -1,16 +1,21 @@
 package br.com.brew.brassia.production.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.production.application.port.inbound.CompleteBatchStepUseCase;
 import br.com.brew.brassia.production.application.port.inbound.GetBatchUseCase;
 import br.com.brew.brassia.production.application.port.inbound.ListBatchesUseCase;
 import br.com.brew.brassia.production.application.port.inbound.OpenBatchUseCase;
 import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
+import br.com.brew.brassia.production.application.service.CompleteBatchStepHandler;
 import br.com.brew.brassia.production.application.service.GetBatchHandler;
 import br.com.brew.brassia.production.application.service.ListBatchesHandler;
 import br.com.brew.brassia.production.application.service.OpenBatchHandler;
 import br.com.brew.brassia.recipe.RecipeLookup;
+import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration(proxyBeanMethods = false)
 class ProductionConfiguration {
@@ -29,5 +34,13 @@ class ProductionConfiguration {
     @Bean
     GetBatchUseCase getBatchUseCase(BatchRepository repository) {
         return new GetBatchHandler(repository);
+    }
+
+    @Bean
+    CompleteBatchStepUseCase completeBatchStepUseCase(
+            BatchRepository repository, AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new CompleteBatchStepHandler(repository, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }
 }

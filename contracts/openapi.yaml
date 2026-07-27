@@ -536,13 +536,25 @@ paths:
   /production/batches/{id}:
     get:
       operationId: getProductionBatch
-      summary: Detalhe do lote (snapshot + roteiro)
+      summary: Detalhe do lote (snapshot + roteiro com status/marcos)
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
         '200': {description: Lote}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /production/batches/{id}/steps/{stepId}/complete:
+    post:
+      operationId: completeBatchStep
+      summary: "Conclui a etapa ativa e ativa a próxima (sequencial; fora de ordem → 409)"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: stepId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Etapa concluída; lote atualizado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /suppliers:
     get:
       operationId: listSuppliers

@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Batch } from '../domain/batch.model';
 import { BrewCorrection, CorrectionResult, PreviewCorrectionRequest } from '../domain/correction.model';
 import { Measurement, RecordMeasurementRequest } from '../domain/measurement.model';
+import { Transfer, TransferRequest } from '../domain/transfer.model';
 
 @Injectable({ providedIn: 'root' })
 export class BatchesApi {
@@ -35,5 +36,9 @@ export class BatchesApi {
 
   previewCorrection(batchId: string, request: PreviewCorrectionRequest) {
     return this.http.post<CorrectionResult>(`${this.baseUrl}/${batchId}/corrections/preview`, request);
+  }
+
+  transfer(batchId: string, request: TransferRequest) {
+    return this.http.post<Transfer>(`${this.baseUrl}/${batchId}/transfer`, request);
   }
 }

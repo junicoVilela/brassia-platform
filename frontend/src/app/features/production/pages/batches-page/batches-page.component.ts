@@ -106,6 +106,31 @@ export class BatchesPageComponent implements OnInit {
     this.store.preview(batchId, { calculator: c.id, inputs: this.inputValues() });
   }
 
+  protected readonly realizedValue = signal<number | null>(null);
+  protected readonly note = signal('');
+
+  protected setRealized(event: Event): void {
+    const v = (event.target as HTMLInputElement).valueAsNumber;
+    this.realizedValue.set(Number.isNaN(v) ? null : v);
+  }
+
+  protected setNote(event: Event): void {
+    this.note.set((event.target as HTMLInputElement).value);
+  }
+
+  protected applyCurrent(batchId: string): void {
+    const c = this.selectedCorrection();
+    if (!c) {
+      return;
+    }
+    this.store.applyCorrection(batchId, {
+      calculator: c.id,
+      inputs: this.inputValues(),
+      realizedValue: this.realizedValue(),
+      note: this.note() || null,
+    });
+  }
+
   protected startTransfer(batchId: string): void {
     this.transferForm.reset({ destinationEquipmentId: '', volumeLiters: 0, ogSg: 1.05, lossesLiters: 0 });
     this.store.showTransfer(batchId);

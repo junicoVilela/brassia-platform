@@ -1,6 +1,6 @@
 # Status — Sprint 07
 
-Estado: EM ANDAMENTO
+Estado: CONCLUÍDA
 
 ## Controle das histórias
 
@@ -12,7 +12,7 @@ Estado: EM ANDAMENTO
 | PRD-004 | Concluída | IA | (local) | Correções determinísticas (pré-visualização): reusa o motor versionado (Sprint 04). Engine ganhou concentração por evaporação, correção de densidade por temperatura e ajuste de volume (diluição já existia); publicado `calculator.CalculatorEngine` p/ reúso. `GET /production/corrections` + `POST /production/batches/{id}/corrections/preview` (só lote em andamento; restrito às 4 correções; read-only — nada aplicado). UI: painel de Correções com inputs dinâmicos + impacto/alertas. Backend +8 testes. |
 | PRD-005 | Concluída | IA | (local) | Transferência ao fermentador: registra volume, OG, perdas e destino (equipamento); valida capacidade do destino (via `EquipmentCapacityLookup`) e balanço de massa (volume+perdas ≤ volume do lote) → 409. Transferência única (unique batch); move o lote IN_PROGRESS → FERMENTING. `POST /production/batches/{id}/transfer` (`production.batch.manage`) + `GET`. Migration V53 (+FERMENTING no ciclo). UI: painel de transferência com fermentador destino. Backend +8 testes. |
 | PRD-006 | Concluída | IA | (local) | Central de alertas/ações: `BatchAlert` persistido (sobrevive a recarga) — tipo ADDITION/STEP/MEASUREMENT/DECISION, planejado, realizado, mensagem, status PENDING/CONFIRMED. `POST/GET /production/batches/{id}/alerts` + `POST .../{alertId}/confirm` (idempotente e auditado; não avança etapa). Multi-tenant (outra cervejaria não enxerga o lote). Migration V54. UI: painel "Central" com timeline + confirmar. Backend +6 testes. Débito PRD-006-A (gatilhos derivados). |
-| CAL-002 | A fazer | — | — | — |
+| CAL-002 | Concluída | IA | (local) | Aplicar correção (reusa o motor versionado): registra a decisão (`AppliedCorrection`) preservando medição de origem, hipótese (inputs), efeito estimado (**planejado**) e **realizado** opcional; gera evento `CorrectionApplied`; nenhuma ação física. `POST /production/batches/{id}/corrections/apply` (`production.batch.manage`) + `GET .../applied`. Migration V55. UI: botão "Aplicar" após o preview + lista de aplicadas (planejado × realizado). Backend +6 testes. |
 
 ## Decisões e bloqueios
 
@@ -48,6 +48,20 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Alerta persistido** (`production_batch_alert`, V54): sobrevive a recarga/reconexão. Guarda planejado e realizado (atraso/impacto) e **não avança etapa**. Multi-tenant — outra cervejaria não enxerga sequer o lote (400).
 - **Confirmação idempotente e auditada**: guarda de estado (`status='PENDING'`); reconfirmar é no-op (segue CONFIRMED). Criar/confirmar exige `production.batch.manage`; ler reusa `production.batch.read`.
 - **Sem geradores automáticos** nesta história: itens são criados por API. **DÉBITO PRD-006-A**: gatilhos derivados (etapa atrasada por meta de duração — depende de PRD-001-A; adição por agenda) quando existirem metas/agenda.
+
+### CAL-002 — decisões (confirmadas com o mantenedor)
+- **Reúso do motor**: a correção aplicada calcula o efeito estimado (planejado) pelo `calculator.CalculatorEngine` (mesma fórmula/versão do preview PRD-004); restringe às correções de brassa. **Nenhuma ação física** — só registra a decisão e publica `production.CorrectionApplied`.
+- **Medição de origem opcional**: se informada, deve pertencer ao lote (senão 400). **Planejado agora + realizado opcional** ao aplicar (o operador registra o valor efetivo se já souber). **DÉBITO CAL-002-A**: registrar/atualizar o realizado depois (endpoint dedicado).
+- Persistência `production_applied_correction` (V55). Aplicar exige `production.batch.manage`; ler reusa `production.batch.read`.
+
+## Evidências de encerramento
+
+- Build/commit: backend `mvn compile/test` verdes; frontend `ng build`/`ng lint`/specs verdes. PRs #96–#101 + CAL-002.
+- Testes: domínio (Batch, BatchStep, Measurement, BatchTransfer, BatchAlert) + ITs (StartBatchIT, StepProgressIT, MeasurementIT, CorrectionPreviewIT, TransferIT, AlertCenterIT, ApplyCorrectionIT) + CalculatorsTest + ModularityTest — verdes.
+- Migration aplicada: V50–V55 (batch, roteiro/etapas, medição, transferência, alertas, correção aplicada).
+- Contratos atualizados: `contracts/openapi.yaml` cobre start, batches/steps, measurements, corrections (preview/apply/applied), transfer e alerts.
+- Riscos remanescentes / débitos: PRD-001-A (roteiro rico/metas de duração), PRD-004-A (sais), PRD-006-A (gatilhos derivados), CAL-002-A (registrar realizado depois).
+- Aceite: 7/7 histórias concluídas (PRD-001..006, CAL-002); módulo `production` novo, sem ciclos (production → planning/recipe/equipment/calculator).
 
 ## Evidências de encerramento
 

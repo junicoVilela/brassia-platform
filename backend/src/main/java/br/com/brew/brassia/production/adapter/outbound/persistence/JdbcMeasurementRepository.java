@@ -46,6 +46,16 @@ class JdbcMeasurementRepository implements MeasurementRepository {
     }
 
     @Override
+    public boolean existsInBatch(UUID breweryId, UUID batchId, UUID measurementId) {
+        return jdbc.sql("""
+                SELECT 1 FROM production_measurement
+                WHERE brewery_id = :brewery AND batch_id = :batch AND id = :id
+                """)
+                .param("brewery", breweryId).param("batch", batchId).param("id", measurementId)
+                .query(Integer.class).optional().isPresent();
+    }
+
+    @Override
     public List<Measurement> findByBatch(UUID breweryId, UUID batchId) {
         return jdbc.sql("""
                 SELECT id, brewery_id, batch_id, step_id, kind, measured_value, unit, temperature_c, method,

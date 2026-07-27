@@ -8,4 +8,6 @@ public interface MeasurementRepository {
     void insert(Measurement measurement);
 
     List<Measurement> findByBatch(UUID breweryId, UUID batchId);
+
+    boolean existsInBatch(UUID breweryId, UUID batchId, UUID measurementId);
 }

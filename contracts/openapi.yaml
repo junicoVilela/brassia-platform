@@ -543,6 +543,30 @@ paths:
         '200': {description: Lote}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /production/batches/{id}/measurements:
+    get:
+      operationId: listBatchMeasurements
+      summary: Medições registradas no lote (imutáveis)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Medições do lote}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: recordBatchMeasurement
+      summary: "Registra uma medição (unidade validada contra a grandeza; imutável)"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RecordMeasurement'}
+      responses:
+        '201': {description: Medição registrada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /production/batches/{id}/steps/{stepId}/complete:
     post:
       operationId: completeBatchStep
@@ -1099,6 +1123,17 @@ components:
         quantity: {type: number, exclusiveMinimum: 0}
         reason: {type: string, maxLength: 500}
         allowNegative: {type: boolean, description: "Autoriza saldo negativo (exige inventory.stock.override); default false"}
+    RecordMeasurement:
+      type: object
+      required: [kind, value, unit, source]
+      properties:
+        stepId: {type: string, format: uuid, description: "Etapa do roteiro (opcional; se informada, deve ser do lote)"}
+        kind: {type: string, enum: [DENSITY, TEMPERATURE, VOLUME, PH, COLOR, IBU]}
+        value: {type: number}
+        unit: {type: string, description: "Unidade compatível com a grandeza (ex.: SG/PLATO, C/F, L/ML, PH, EBC/SRM, IBU)"}
+        temperatureC: {type: number}
+        method: {type: string, maxLength: 120}
+        source: {type: string, enum: [MANUAL, DEVICE, IMPORTED]}
     StockBalance:
       type: object
       properties:

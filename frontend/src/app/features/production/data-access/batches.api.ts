@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Batch } from '../domain/batch.model';
+import { Measurement, RecordMeasurementRequest } from '../domain/measurement.model';
 
 @Injectable({ providedIn: 'root' })
 export class BatchesApi {
@@ -17,5 +18,13 @@ export class BatchesApi {
 
   completeStep(batchId: string, stepId: string) {
     return this.http.post<Batch>(`${this.baseUrl}/${batchId}/steps/${stepId}/complete`, {});
+  }
+
+  measurements(batchId: string) {
+    return this.http.get<Measurement[]>(`${this.baseUrl}/${batchId}/measurements`);
+  }
+
+  recordMeasurement(batchId: string, request: RecordMeasurementRequest) {
+    return this.http.post<{ id: string }>(`${this.baseUrl}/${batchId}/measurements`, request);
   }
 }

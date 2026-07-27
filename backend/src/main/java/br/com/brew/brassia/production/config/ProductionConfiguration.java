@@ -4,12 +4,17 @@ import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.production.application.port.inbound.CompleteBatchStepUseCase;
 import br.com.brew.brassia.production.application.port.inbound.GetBatchUseCase;
 import br.com.brew.brassia.production.application.port.inbound.ListBatchesUseCase;
+import br.com.brew.brassia.production.application.port.inbound.ListMeasurementsUseCase;
 import br.com.brew.brassia.production.application.port.inbound.OpenBatchUseCase;
+import br.com.brew.brassia.production.application.port.inbound.RecordMeasurementUseCase;
 import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
+import br.com.brew.brassia.production.application.port.outbound.MeasurementRepository;
 import br.com.brew.brassia.production.application.service.CompleteBatchStepHandler;
 import br.com.brew.brassia.production.application.service.GetBatchHandler;
 import br.com.brew.brassia.production.application.service.ListBatchesHandler;
+import br.com.brew.brassia.production.application.service.ListMeasurementsHandler;
 import br.com.brew.brassia.production.application.service.OpenBatchHandler;
+import br.com.brew.brassia.production.application.service.RecordMeasurementHandler;
 import br.com.brew.brassia.recipe.RecipeLookup;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -42,5 +47,19 @@ class ProductionConfiguration {
         var handler = new CompleteBatchStepHandler(repository, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    RecordMeasurementUseCase recordMeasurementUseCase(
+            BatchRepository batches, MeasurementRepository measurements, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new RecordMeasurementHandler(batches, measurements, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ListMeasurementsUseCase listMeasurementsUseCase(BatchRepository batches, MeasurementRepository measurements) {
+        return new ListMeasurementsHandler(batches, measurements);
     }
 }

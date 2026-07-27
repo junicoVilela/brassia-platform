@@ -593,6 +593,25 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /inventory/lots/{lotId}/properties:
+    get:
+      operationId: listLotProperties
+      summary: Valores medidos vinculados ao lote (COA/safra)
+      parameters:
+        - {name: lotId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Valores do lote}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: recordLotProperties
+      summary: "Vincula valores medidos ao lote (write-once por propriedade; manual/importado/sugerido)"
+      parameters:
+        - {name: lotId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '201': {description: Valores vinculados}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /inventory/counts:
     get:
       operationId: listPhysicalCounts

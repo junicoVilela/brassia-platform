@@ -1,6 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import {
+  LotProperty,
+  RecordLotPropertyRequest,
   RecordMovementRequest,
   ReceiveStockLotRequest,
   ReserveStockRequest,
@@ -42,5 +44,13 @@ export class InventoryApi {
   releaseReservation(orderId: string) {
     return this.http.post<{ reference: string; releasedLots: number }>(
       '/api/v1/inventory/reservations/release', { orderId });
+  }
+
+  properties(lotId: string) {
+    return this.http.get<LotProperty[]>(`${this.baseUrl}/${lotId}/properties`);
+  }
+
+  recordProperty(lotId: string, request: RecordLotPropertyRequest) {
+    return this.http.post<string[]>(`${this.baseUrl}/${lotId}/properties`, { properties: [request] });
   }
 }

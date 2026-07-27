@@ -7,6 +7,8 @@ import { SuppliersApi } from '../../purchasing/data-access/suppliers.api';
 import { Supplier } from '../../purchasing/domain/supplier.model';
 import { ToastService } from '../../../core/notifications/toast.service';
 import {
+  LotProperty,
+  RecordLotPropertyRequest,
   RecordMovementRequest,
   ReceiveStockLotRequest,
   ReserveStockRequest,
@@ -130,6 +132,46 @@ export class InventoryStore {
     this.api.movements(lotId)
       .pipe(finalize(() => this.movementsLoading.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: m => this.movements.set(m), error: () => this.movementError.set('Não foi possível carregar os movimentos.') });
+  }
+
+  /** Lote selecionado para ver/registrar valores medidos (COA) — STK-005. */
+  readonly propertiesLotId = signal<string | null>(null);
+  readonly properties = signal<LotProperty[]>([]);
+  readonly propertiesLoading = signal(false);
+  readonly propertyError = signal<string | null>(null);
+  readonly recordingProperty = signal(false);
+
+  /** Abre (ou fecha) o painel de valores de um lote. */
+  showProperties(lotId: string): void {
+    if (this.propertiesLotId() === lotId) {
+      this.propertiesLotId.set(null);
+      return;
+    }
+    this.propertiesLotId.set(lotId);
+    this.propertyError.set(null);
+    this.refreshProperties(lotId);
+  }
+
+  recordProperty(lotId: string, request: RecordLotPropertyRequest, onSuccess?: () => void): void {
+    this.recordingProperty.set(true);
+    this.propertyError.set(null);
+    this.api.recordProperty(lotId, request)
+      .pipe(finalize(() => this.recordingProperty.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => { onSuccess?.(); this.toast.success('Valor vinculado ao lote.'); this.refreshProperties(lotId); },
+        error: (err: { status?: number }) =>
+          this.propertyError.set(err?.status === 409
+            ? 'Essa propriedade já foi registrada para o lote (imutável).'
+            : 'Não foi possível vincular o valor.'),
+      });
+  }
+
+  private refreshProperties(lotId: string): void {
+    this.propertiesLoading.set(true);
+    this.properties.set([]);
+    this.api.properties(lotId)
+      .pipe(finalize(() => this.propertiesLoading.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: p => this.properties.set(p), error: () => this.propertyError.set('Não foi possível carregar os valores.') });
   }
 
   ingredientName(id: string): string {

@@ -145,8 +145,11 @@
                   @else { <i class="ri-close-line text-danger"></i> }
                 </td>
                 <td class="text-end">
-                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="startMovements(lot.id)">
+                  <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="startMovements(lot.id)">
                     <i class="ri-swap-line me-1"></i> Movimentos
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" (click)="startProperties(lot.id)">
+                    <i class="ri-flask-line me-1"></i> Valores
                   </button>
                 </td>
               </tr>
@@ -230,6 +233,90 @@
                   <td class="text-end">{{ m.reservedDelta }}</td>
                   <td>{{ m.reason || '—' }}</td>
                   <td class="text-muted small">{{ m.occurredAt | date:'dd/MM/yyyy HH:mm' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+@if (store.propertiesLotId(); as lotId) {
+  <div class="card border-0 rounded-10 mt-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h2 class="h6 fw-semibold mb-0">Valores do lote (COA / safra)</h2>
+        <button type="button" class="btn-close" aria-label="Fechar" (click)="store.showProperties(lotId)"></button>
+      </div>
+      <p class="text-muted small mb-3">
+        Valores medidos deste lote (alfa-ácido, extrato, umidade, células…). Pertencem ao lote e são imutáveis
+        depois de gravados.
+      </p>
+
+      <form [formGroup]="propertyForm" (ngSubmit)="recordProperty(lotId)" class="row g-3 align-items-end">
+        <div class="col-sm-3">
+          <label class="form-label" for="pprop">Propriedade</label>
+          <input id="pprop" type="text" class="form-control" formControlName="property" placeholder="alfaAcido">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label" for="pval">Valor</label>
+          <input id="pval" type="number" step="any" class="form-control" formControlName="value">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label" for="punit">Unidade</label>
+          <input id="punit" type="text" class="form-control" formControlName="unit" placeholder="%">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label" for="psrc">Fonte</label>
+          <select id="psrc" class="form-select" formControlName="source">
+            @for (s of propertySources; track s.value) { <option [value]="s.value">{{ s.label }}</option> }
+          </select>
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label" for="pconf">Confiança</label>
+          <select id="pconf" class="form-select" formControlName="confidence">
+            @for (c of propertyConfidences; track c.value) { <option [value]="c.value">{{ c.label }}</option> }
+          </select>
+        </div>
+        <div class="col-sm-1 d-grid">
+          <button type="submit" class="btn btn-primary" [disabled]="propertyForm.invalid || store.recordingProperty()">
+            <i class="ri-add-line"></i>
+          </button>
+        </div>
+      </form>
+      @if (store.propertyError(); as propertyError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ propertyError }}</div>
+      }
+
+      <h3 class="h6 fw-semibold mt-4 mb-2">Valores registrados</h3>
+      @if (store.propertiesLoading()) {
+        <app-loading-indicator />
+      } @else if (store.properties().length === 0) {
+        <app-empty-state icon="ri-flask-line" message="Nenhum valor vinculado a este lote." />
+      } @else {
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Propriedade</th>
+                <th scope="col" class="text-end">Valor</th>
+                <th scope="col">Unidade</th>
+                <th scope="col">Fonte</th>
+                <th scope="col">Confiança</th>
+                <th scope="col">Registrado</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of store.properties(); track p.id) {
+                <tr>
+                  <td class="fw-medium">{{ p.property }}</td>
+                  <td class="text-end">{{ p.value }}</td>
+                  <td>{{ p.unit || '—' }}</td>
+                  <td>{{ p.source }}</td>
+                  <td>{{ p.confidence }}</td>
+                  <td class="text-muted small">{{ p.recordedAt | date:'dd/MM/yyyy HH:mm' }}</td>
                 </tr>
               }
             </tbody>

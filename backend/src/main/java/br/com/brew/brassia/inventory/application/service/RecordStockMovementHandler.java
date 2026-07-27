@@ -9,14 +9,14 @@ import br.com.brew.brassia.inventory.domain.StockLot;
 import br.com.brew.brassia.inventory.domain.StockMovement;
 import br.com.brew.brassia.inventory.domain.StockMovementType;
 import java.time.Instant;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 /**
  * Registra um movimento manual no ledger (STK-002). Só tipos manuais (consumo,
  * devolução, perda, ajuste) — reserva/liberação são do fluxo FEFO (STK-003).
- * Nas saídas, trava o lote (lock pessimista) e rejeita saldo negativo (409).
+ * Nas saídas, trava o lote (lock pessimista) e rejeita saldo negativo (409),
+ * salvo exceção autorizada ({@code allowNegative}, STK-002-A), que é auditada.
  */
 public final class RecordStockMovementHandler implements RecordStockMovementUseCase {
 
@@ -43,7 +43,8 @@ public final class RecordStockMovementHandler implements RecordStockMovementUseC
                 .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
 
         var balance = ledger.balance(command.breweryId(), command.lotId());
-        if (type.isOutflow() && balance.onHand().subtract(command.quantity()).signum() < 0) {
+        var wouldGoNegative = type.isOutflow() && balance.onHand().subtract(command.quantity()).signum() < 0;
+        if (wouldGoNegative && !command.allowNegative()) {
             throw new IllegalStateException("saldo insuficiente para a saída");
         }
 
@@ -52,9 +53,15 @@ public final class RecordStockMovementHandler implements RecordStockMovementUseC
         ledger.append(movement);
 
         var updated = ledger.balance(command.breweryId(), command.lotId());
+        var metadata = new java.util.LinkedHashMap<String, String>();
+        metadata.put("type", type.name());
+        metadata.put("quantity", command.quantity().toPlainString());
+        if (wouldGoNegative) {
+            // Exceção autorizada (STK-002-A): registra o override para rastreio.
+            metadata.put("negativeOverride", "true");
+        }
         audit.record(AuditEvent.success(command.breweryId(), command.actorId(), "inventory.movement.record",
-                "inventory.lot", lot.id().value().toString(),
-                Map.of("type", type.name(), "quantity", command.quantity().toPlainString())));
+                "inventory.lot", lot.id().value().toString(), metadata));
 
         return new Result(movement.id(), updated.onHand(), updated.available());
     }

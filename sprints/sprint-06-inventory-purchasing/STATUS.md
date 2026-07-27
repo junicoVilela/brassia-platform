@@ -29,7 +29,7 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Saldo derivado do ledger** (sem coluna mutável): dimensões **on_hand** e **reservado**; disponível = on_hand − reservado. `RESERVATION/RELEASE` afetam só o reservado (alocação FEFO fica no STK-003).
 - **Recebimento** passou a lançar a **ENTRY** no ledger no mesmo commit (saldo 100% derivado).
 - **Concorrência**: **lock pessimista** no lote (`SELECT ... FOR UPDATE`) antes de somar o ledger e inserir a saída — fecha double spend (testado com 2 threads).
-- **Saldo negativo**: saída que deixaria on_hand < 0 é **rejeitada (409)**. **DÉBITO STK-002-A**: exceção autorizada para negativo (regra 5) via permissão especial — futuro.
+- **Saldo negativo**: saída que deixaria on_hand < 0 é **rejeitada (409)**. **DÉBITO STK-002-A RESOLVIDO**: exceção autorizada via `allowNegative` (opt-in por requisição) + permissão crítica `inventory.stock.override` (V46); override é auditado (`negativeOverride`). Sem a permissão, pedir `allowNegative` → 403; sem opt-in, negativo segue 409.
 - **Ajuste** exige motivo (regra 4). Endpoint manual aceita só consumo/devolução/perda/ajuste; reserva/liberação são do STK-003.
 
 ### STK-003 — decisões (confirmadas com o mantenedor)

@@ -19,9 +19,11 @@ public final class ListLotPropertiesHandler implements ListLotPropertiesUseCase 
     }
 
     @Override
-    public List<StockLotProperty> handle(UUID breweryId, UUID lotId) {
+    public List<StockLotProperty> handle(UUID breweryId, UUID lotId, boolean history) {
         lots.findById(breweryId, lotId)
                 .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
-        return properties.findByLot(breweryId, lotId);
+        return history
+                ? properties.findHistoryByLot(breweryId, lotId)
+                : properties.findCurrentByLot(breweryId, lotId);
     }
 }

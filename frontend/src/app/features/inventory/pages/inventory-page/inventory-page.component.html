@@ -261,8 +261,8 @@
         <button type="button" class="btn-close" aria-label="Fechar" (click)="store.showProperties(lotId)"></button>
       </div>
       <p class="text-muted small mb-3">
-        Valores medidos deste lote (alfa-ácido, extrato, umidade, células…). Pertencem ao lote e são imutáveis
-        depois de gravados.
+        Valores medidos deste lote (alfa-ácido, extrato, umidade, células…). Pertencem ao lote; ao regravar uma
+        propriedade a última revisão vale e as anteriores ficam no histórico.
       </p>
 
       <form [formGroup]="propertyForm" (ngSubmit)="recordProperty(lotId)" class="row g-3 align-items-end">

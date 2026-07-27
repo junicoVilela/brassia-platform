@@ -68,19 +68,36 @@ class StockLotPropertyIT {
     }
 
     @Test
-    void writeOnceRejectsSameProperty() throws Exception {
+    void reRecordAppendsRevisionAndLatestWins() throws Exception {
         var session = login();
         var lot = receiveLot(session, "prop-b");
-        var body = "{\"properties\":[{\"property\":\"extrato\",\"value\":80,\"unit\":\"%\","
-                + "\"source\":\"IMPORTED\",\"confidence\":\"MEDIUM\"}]}";
 
         mockMvc.perform(post("/api/v1/inventory/lots/" + lot + "/properties").session(session).with(csrf())
-                        .contentType("application/json").content(body))
+                        .contentType("application/json")
+                        .content("{\"properties\":[{\"property\":\"extrato\",\"value\":80,\"unit\":\"%\","
+                                + "\"source\":\"IMPORTED\",\"confidence\":\"MEDIUM\"}]}"))
                 .andExpect(status().isCreated());
-        // Regravar a mesma propriedade → conflito (write-once).
+        // Correção: regravar a mesma propriedade agora adiciona uma revisão (não 409).
         mockMvc.perform(post("/api/v1/inventory/lots/" + lot + "/properties").session(session).with(csrf())
-                        .contentType("application/json").content(body))
-                .andExpect(status().isConflict());
+                        .contentType("application/json")
+                        .content("{\"properties\":[{\"property\":\"extrato\",\"value\":81.5,\"unit\":\"%\","
+                                + "\"source\":\"MANUAL\",\"confidence\":\"HIGH\"}]}"))
+                .andExpect(status().isCreated());
+
+        // Atual = última revisão (81.5); só uma linha para a propriedade.
+        mockMvc.perform(get("/api/v1/inventory/lots/" + lot + "/properties").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()", is(1)))
+                .andExpect(jsonPath("$[0].property", is("extrato")))
+                .andExpect(jsonPath("$[0].value", is(81.5)))
+                .andExpect(jsonPath("$[0].confidence", is("HIGH")));
+
+        // Histórico preserva as duas revisões.
+        mockMvc.perform(get("/api/v1/inventory/lots/" + lot + "/properties?history=true").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()", is(2)))
+                .andExpect(jsonPath("$[*].value", hasItem(80.0)))
+                .andExpect(jsonPath("$[*].value", hasItem(81.5)));
     }
 
     @Test

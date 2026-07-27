@@ -43,23 +43,28 @@ class JdbcStockLotPropertyRepository implements StockLotPropertyRepository {
     }
 
     @Override
-    public boolean existsByProperty(UUID breweryId, UUID lotId, String property) {
+    public List<StockLotProperty> findCurrentByLot(UUID breweryId, UUID lotId) {
+        // Uma linha por propriedade: a revisão mais recente (última vale).
         return jdbc.sql("""
-                SELECT COUNT(*) FROM stock_lot_property
-                WHERE brewery_id = :brewery AND lot_id = :lot AND property = :property
+                SELECT DISTINCT ON (property) id, lot_id, brewery_id, property, measured_value, unit, source,
+                       confidence, recorded_at, recorded_by
+                FROM stock_lot_property
+                WHERE brewery_id = :brewery AND lot_id = :lot
+                ORDER BY property, recorded_at DESC
                 """)
-                .param("brewery", breweryId).param("lot", lotId).param("property", property)
-                .query(Long.class).single() > 0;
+                .param("brewery", breweryId).param("lot", lotId)
+                .query((rs, n) -> map(rs))
+                .list();
     }
 
     @Override
-    public List<StockLotProperty> findByLot(UUID breweryId, UUID lotId) {
+    public List<StockLotProperty> findHistoryByLot(UUID breweryId, UUID lotId) {
         return jdbc.sql("""
                 SELECT id, lot_id, brewery_id, property, measured_value, unit, source, confidence,
                        recorded_at, recorded_by
                 FROM stock_lot_property
                 WHERE brewery_id = :brewery AND lot_id = :lot
-                ORDER BY property
+                ORDER BY property, recorded_at DESC
                 """)
                 .param("brewery", breweryId).param("lot", lotId)
                 .query((rs, n) -> map(rs))

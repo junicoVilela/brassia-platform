@@ -16,9 +16,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Vincula valores medidos a um lote (STK-005). Valida o lote (tenant), impede
- * regravação da mesma propriedade (write-once → 409) e audita. Não escreve no
- * catálogo — o valor é privado do lote/tenant.
+ * Vincula valores medidos a um lote (STK-005). Valida o lote (tenant) e audita.
+ * É append-only (STK-005-A): regravar uma propriedade adiciona uma revisão nova e
+ * a mais recente passa a valer; as anteriores permanecem como histórico. Não
+ * escreve no catálogo — o valor é privado do lote/tenant.
  */
 public final class RecordLotPropertiesHandler implements RecordLotPropertiesUseCase {
 
@@ -51,9 +52,7 @@ public final class RecordLotPropertiesHandler implements RecordLotPropertiesUseC
             if (!seen.add(domain.property())) {
                 throw new IllegalArgumentException("propriedade duplicada na requisição: " + domain.property());
             }
-            if (properties.existsByProperty(command.breweryId(), lot.id().value(), domain.property())) {
-                throw new IllegalStateException("propriedade já registrada para o lote: " + domain.property());
-            }
+            // Append-only: cada gravação é uma revisão; a mais recente vale (STK-005-A).
             properties.insert(domain);
             ids.add(domain.id());
         }

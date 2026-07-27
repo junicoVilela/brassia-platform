@@ -158,11 +158,8 @@ export class InventoryStore {
     this.api.recordProperty(lotId, request)
       .pipe(finalize(() => this.recordingProperty.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => { onSuccess?.(); this.toast.success('Valor vinculado ao lote.'); this.refreshProperties(lotId); },
-        error: (err: { status?: number }) =>
-          this.propertyError.set(err?.status === 409
-            ? 'Essa propriedade já foi registrada para o lote (imutável).'
-            : 'Não foi possível vincular o valor.'),
+        next: () => { onSuccess?.(); this.toast.success('Valor registrado (última revisão vale).'); this.refreshProperties(lotId); },
+        error: () => this.propertyError.set('Não foi possível vincular o valor.'),
       });
   }
 

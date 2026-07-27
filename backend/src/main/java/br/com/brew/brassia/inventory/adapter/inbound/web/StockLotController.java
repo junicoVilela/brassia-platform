@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -120,8 +121,12 @@ final class StockLotController {
     }
 
     @GetMapping("/{lotId}/properties")
-    List<LotPropertyView> properties(@PathVariable UUID lotId, @AuthenticationPrincipal SecurityPrincipal principal) {
+    List<LotPropertyView> properties(
+            @PathVariable UUID lotId,
+            @RequestParam(defaultValue = "false") boolean history,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("inventory.lot.read");
-        return listProperties.handle(principal.requireBrewery(), lotId).stream().map(LotPropertyView::from).toList();
+        return listProperties.handle(principal.requireBrewery(), lotId, history).stream()
+                .map(LotPropertyView::from).toList();
     }
 }

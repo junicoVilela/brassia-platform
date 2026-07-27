@@ -8,4 +8,5 @@ import java.math.BigDecimal;
 public record RecordMovementRequest(
         @NotBlank String type,
         @NotNull @Positive BigDecimal quantity,
-        String reason) {}
+        String reason,
+        Boolean allowNegative) {}

@@ -1049,6 +1049,7 @@ components:
         type: {type: string, enum: [CONSUMPTION, RETURN, LOSS, ADJUSTMENT_IN, ADJUSTMENT_OUT]}
         quantity: {type: number, exclusiveMinimum: 0}
         reason: {type: string, maxLength: 500}
+        allowNegative: {type: boolean, description: "Autoriza saldo negativo (exige inventory.stock.override); default false"}
     StockBalance:
       type: object
       properties:

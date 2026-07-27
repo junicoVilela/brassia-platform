@@ -84,9 +84,14 @@ final class StockLotController {
             @Valid @RequestBody RecordMovementRequest request,
             @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("inventory.lot.manage");
+        var allowNegative = Boolean.TRUE.equals(request.allowNegative());
+        if (allowNegative) {
+            // Exceção autorizada de saldo negativo (STK-002-A) exige permissão específica.
+            principal.requirePermission("inventory.stock.override");
+        }
         var result = recordMovement.handle(new RecordStockMovementUseCase.Command(
                 principal.userId(), principal.requireBrewery(), lotId, request.type(), request.quantity(),
-                request.reason()));
+                request.reason(), allowNegative));
         return new RecordMovementResponse(result.movementId(), result.onHand(), result.available());
     }
 

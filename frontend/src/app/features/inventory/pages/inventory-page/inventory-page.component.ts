@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AuthService } from '../../../../core/auth/auth.service';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
 import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator.component';
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
@@ -27,6 +28,8 @@ import { InventoryStore } from '../../data-access/inventory.store';
 export class InventoryPageComponent implements OnInit {
   protected readonly store = inject(InventoryStore);
   private readonly fb = inject(FormBuilder);
+  private readonly auth = inject(AuthService);
+  protected readonly canOverrideStock = this.auth.hasPermission('inventory.stock.override');
   protected readonly units = STOCK_UNITS;
   protected readonly movementTypes = MOVEMENT_TYPES;
   protected readonly propertySources = LOT_PROPERTY_SOURCES;
@@ -47,6 +50,7 @@ export class InventoryPageComponent implements OnInit {
     type: this.fb.nonNullable.control<MovementType>('CONSUMPTION', Validators.required),
     quantity: [0, [Validators.required, Validators.min(0.0001)]],
     reason: [''],
+    allowNegative: [false],
   });
 
   protected readonly reserveForm = this.fb.nonNullable.group({
@@ -69,7 +73,7 @@ export class InventoryPageComponent implements OnInit {
   }
 
   protected startMovements(lotId: string): void {
-    this.movementForm.reset({ type: 'CONSUMPTION', quantity: 0, reason: '' });
+    this.movementForm.reset({ type: 'CONSUMPTION', quantity: 0, reason: '', allowNegative: false });
     this.store.showMovements(lotId);
   }
 
@@ -93,8 +97,9 @@ export class InventoryPageComponent implements OnInit {
       return;
     }
     const v = this.movementForm.getRawValue();
-    this.store.recordMovement(lotId, { type: v.type, quantity: v.quantity, reason: v.reason || null },
-      () => this.movementForm.reset({ type: 'CONSUMPTION', quantity: 0, reason: '' }));
+    this.store.recordMovement(lotId,
+      { type: v.type, quantity: v.quantity, reason: v.reason || null, allowNegative: v.allowNegative },
+      () => this.movementForm.reset({ type: 'CONSUMPTION', quantity: 0, reason: '', allowNegative: false }));
   }
 
   protected reserve(): void {

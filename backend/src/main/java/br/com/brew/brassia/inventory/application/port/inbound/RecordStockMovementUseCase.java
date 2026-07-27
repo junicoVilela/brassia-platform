@@ -7,7 +7,8 @@ import java.util.UUID;
 public interface RecordStockMovementUseCase {
     Result handle(Command command);
 
-    record Command(UUID actorId, UUID breweryId, UUID lotId, String type, BigDecimal quantity, String reason) {}
+    record Command(UUID actorId, UUID breweryId, UUID lotId, String type, BigDecimal quantity, String reason,
+            boolean allowNegative) {}
 
     record Result(UUID movementId, BigDecimal onHand, BigDecimal available) {}
 }

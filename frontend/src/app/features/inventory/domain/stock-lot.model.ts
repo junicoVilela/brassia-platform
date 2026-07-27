@@ -56,6 +56,7 @@ export interface RecordMovementRequest {
   type: MovementType;
   quantity: number;
   reason?: string | null;
+  allowNegative?: boolean;
 }
 
 export interface ReserveStockRequest {

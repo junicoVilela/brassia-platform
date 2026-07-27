@@ -1,7 +1,10 @@
 package br.com.brew.brassia.production.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.calculator.CalculatorEngine;
 import br.com.brew.brassia.production.application.port.inbound.CompleteBatchStepUseCase;
+import br.com.brew.brassia.production.application.port.inbound.ListBrewCorrectionsUseCase;
+import br.com.brew.brassia.production.application.port.inbound.PreviewCorrectionUseCase;
 import br.com.brew.brassia.production.application.port.inbound.GetBatchUseCase;
 import br.com.brew.brassia.production.application.port.inbound.ListBatchesUseCase;
 import br.com.brew.brassia.production.application.port.inbound.ListMeasurementsUseCase;
@@ -12,8 +15,10 @@ import br.com.brew.brassia.production.application.port.outbound.MeasurementRepos
 import br.com.brew.brassia.production.application.service.CompleteBatchStepHandler;
 import br.com.brew.brassia.production.application.service.GetBatchHandler;
 import br.com.brew.brassia.production.application.service.ListBatchesHandler;
+import br.com.brew.brassia.production.application.service.ListBrewCorrectionsHandler;
 import br.com.brew.brassia.production.application.service.ListMeasurementsHandler;
 import br.com.brew.brassia.production.application.service.OpenBatchHandler;
+import br.com.brew.brassia.production.application.service.PreviewCorrectionHandler;
 import br.com.brew.brassia.production.application.service.RecordMeasurementHandler;
 import br.com.brew.brassia.recipe.RecipeLookup;
 import java.util.Objects;
@@ -61,5 +66,15 @@ class ProductionConfiguration {
     @Bean
     ListMeasurementsUseCase listMeasurementsUseCase(BatchRepository batches, MeasurementRepository measurements) {
         return new ListMeasurementsHandler(batches, measurements);
+    }
+
+    @Bean
+    ListBrewCorrectionsUseCase listBrewCorrectionsUseCase(CalculatorEngine engine) {
+        return new ListBrewCorrectionsHandler(engine);
+    }
+
+    @Bean
+    PreviewCorrectionUseCase previewCorrectionUseCase(BatchRepository batches, CalculatorEngine engine) {
+        return new PreviewCorrectionHandler(batches, engine);
     }
 }

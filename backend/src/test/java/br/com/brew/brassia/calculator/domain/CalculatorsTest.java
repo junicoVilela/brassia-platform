@@ -23,7 +23,41 @@ class CalculatorsTest {
     void catalogListsAllCalculators() {
         assertThat(calculators.catalog()).extracting(CalculatorSpec::id)
                 .contains("abv", "apparent-attenuation", "sg-to-plato", "srm-to-ebc", "celsius-to-fahrenheit",
-                        "dilution-water", "ibu-tinseth");
+                        "dilution-water", "concentration-boiloff", "hydrometer-temp-correction", "volume-topup",
+                        "ibu-tinseth");
+    }
+
+    @Test
+    void concentrationBoilOffGolden() {
+        // OG 1.040 (40 pts) em 20 L → 1.050 (50 pts): volume final 16 L, evaporar 4 L.
+        var r = calculators.compute("concentration-boiloff",
+                in("currentOg", "1.040", "currentVolume", "20", "targetOg", "1.050"));
+        assertThat(r.value()).isEqualByComparingTo("4.000");
+        assertThat(r.unit()).isEqualTo("L");
+    }
+
+    @Test
+    void concentrationAlertsWhenTargetNotHigher() {
+        var r = calculators.compute("concentration-boiloff",
+                in("currentOg", "1.050", "currentVolume", "20", "targetOg", "1.040"));
+        assertThat(r.value()).isEqualByComparingTo("0");
+        assertThat(r.alerts()).isNotEmpty();
+    }
+
+    @Test
+    void hydrometerTempCorrectionRaisesReadingWhenSampleHotter() {
+        // Amostra quente lida abaixo do real → correção sobe a densidade.
+        var r = calculators.compute("hydrometer-temp-correction",
+                in("measuredSg", "1.050", "sampleTempC", "30", "calibrationTempC", "20"));
+        assertThat(r.unit()).isEqualTo("SG");
+        assertThat(r.value()).isGreaterThan(new BigDecimal("1.050"));
+    }
+
+    @Test
+    void volumeTopUpGolden() {
+        var r = calculators.compute("volume-topup", in("currentVolume", "18", "targetVolume", "20"));
+        assertThat(r.value()).isEqualByComparingTo("2.000");
+        assertThat(r.unit()).isEqualTo("L");
     }
 
     @Test

@@ -9,7 +9,7 @@ Estado: EM ANDAMENTO
 | PRD-001 | Concluída | IA | (local) | Iniciar lote: `POST /brew-orders/{id}/start` (RELEASED→IN_PRODUCTION, transição única) publica `BrewOrderStarted`; novo módulo `production` escuta (síncrono, mesmo commit) e cria o `Batch` (1:1 com a OP, snapshot receita nome+versão, roteiro derivado dos estágios da receita). `GET /production/batches` e `/{id}`. Migration V50; permissão `production.batch.read`. UI: "Iniciar produção" nas OPs + página "Lotes de produção". Backend +8 testes; frontend +3. |
 | PRD-002 | Concluída | IA | (local) | Modo passo a passo: etapa com estado sequencial (PENDING/ACTIVE/DONE) + marcos server-aware (started_at/completed_at); 1ª etapa nasce ativa. `POST /production/batches/{id}/steps/{stepId}/complete` (`production.batch.manage`, V51) conclui a ativa e ativa a próxima; fora de ordem/já concluída → 409; retomar mantém estado. UI: roteiro com status, cronômetro (tick por segundo derivado de started_at) e "Concluir etapa". Backend +2 testes. |
 | PRD-003 | Concluída | IA | (local) | Registrar medição: `Measurement` imutável (append-only) com valor, unidade, temperatura, método, origem e operador; vocabulário fechado de grandezas (DENSITY/TEMPERATURE/VOLUME/PH/COLOR/IBU) com unidades válidas — incompatível → 400. Etapa opcional (se informada, deve ser do lote). Só lote em andamento. `POST /production/batches/{id}/measurements` (`production.measurement.record`, V52) + `GET`. UI: painel de medições (form dependente da grandeza + histórico). Backend +7 testes. |
-| PRD-004 | A fazer | — | — | — |
+| PRD-004 | Concluída | IA | (local) | Correções determinísticas (pré-visualização): reusa o motor versionado (Sprint 04). Engine ganhou concentração por evaporação, correção de densidade por temperatura e ajuste de volume (diluição já existia); publicado `calculator.CalculatorEngine` p/ reúso. `GET /production/corrections` + `POST /production/batches/{id}/corrections/preview` (só lote em andamento; restrito às 4 correções; read-only — nada aplicado). UI: painel de Correções com inputs dinâmicos + impacto/alertas. Backend +8 testes. |
 | PRD-005 | A fazer | — | — | — |
 | PRD-006 | A fazer | — | — | — |
 | CAL-002 | A fazer | — | — | — |
@@ -33,6 +33,11 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Vocabulário fechado de grandezas** (`MeasurementKind`) com unidades válidas: DENSITY(SG/PLATO), TEMPERATURE(C/F), VOLUME(L/ML), PH(PH), COLOR(EBC/SRM), IBU(IBU). Unidade fora da grandeza → **400** (validação no domínio). Origem `MANUAL/DEVICE/IMPORTED`.
 - **Etapa opcional**: a medição é do lote; se `stepId` informado, deve pertencer ao lote (senão 400). Não exige etapa ativa. Só lote **IN_PROGRESS** (medição fora de contexto → 409).
 - **Imutável**: append-only (`production_measurement`, V52), sem edição/exclusão. Registrar exige `production.measurement.record`; leitura reusa `production.batch.read`.
+
+### PRD-004 — decisões (confirmadas com o mantenedor)
+- **Fronteira com CAL-002**: PRD-004 = **pré-visualização** (impactos), read-only, nada persiste. Aplicar com evento + planejado vs realizado fica no **CAL-002**.
+- **Tipos**: diluição, concentração (evaporação), correção de densidade por temperatura e ajuste de volume. **DÉBITO PRD-004-A**: correção de **sais** (química de água/ppm por perfil de íon) fica de fora por exigir perfil de água alvo.
+- **Reúso do motor**: as correções são calculadoras determinísticas versionadas no `calculator` (mesma fórmula/versão), expostas por `calculator.CalculatorEngine` (API publicada) — sem replicar. A produção valida o lote (IN_PROGRESS) e restringe aos ids de correção; `production → calculator` (Modulith verde).
 
 ## Evidências de encerramento
 

@@ -27,6 +27,15 @@ public final class Calculators {
                         "Converte temperatura."),
                 new CalculatorSpec("dilution-water", "Diluição de OG", List.of("currentOg", "currentVolume",
                         "targetOg"), "L", "Água a adicionar para atingir a OG alvo."),
+                new CalculatorSpec("concentration-boiloff", "Concentração por evaporação",
+                        List.of("currentOg", "currentVolume", "targetOg"), "L",
+                        "Volume a evaporar para elevar a OG à alvo."),
+                new CalculatorSpec("hydrometer-temp-correction", "Correção de densidade por temperatura",
+                        List.of("measuredSg", "sampleTempC", "calibrationTempC"), "SG",
+                        "Corrige a leitura do densímetro pela temperatura da amostra."),
+                new CalculatorSpec("volume-topup", "Ajuste de volume (completar)",
+                        List.of("currentVolume", "targetVolume"), "L",
+                        "Água a adicionar para atingir o volume alvo."),
                 new CalculatorSpec("ibu-tinseth", "IBU (Tinseth)", List.of("alphaAcid", "weightGrams", "timeMinutes",
                         "volumeLiters", "boilGravity"), "IBU", "Amargor de uma adição de lúpulo (Tinseth)."));
     }
@@ -39,6 +48,9 @@ public final class Calculators {
             case "srm-to-ebc" -> srmToEbc(inputs);
             case "celsius-to-fahrenheit" -> celsiusToFahrenheit(inputs);
             case "dilution-water" -> dilution(inputs);
+            case "concentration-boiloff" -> concentration(inputs);
+            case "hydrometer-temp-correction" -> hydrometerTempCorrection(inputs);
+            case "volume-topup" -> volumeTopUp(inputs);
             case "ibu-tinseth" -> ibuTinseth(inputs);
             default -> throw new IllegalArgumentException("calculadora desconhecida: " + id);
         };
@@ -109,6 +121,54 @@ public final class Calculators {
         }
         return result("dilution-water", in, water, "L",
                 "Água = V × (OGpts_atual / OGpts_alvo − 1)", List.of("mistura ideal, sem contração"), alerts);
+    }
+
+    private CalculationResult concentration(Map<String, BigDecimal> in) {
+        var currentOg = require(in, "currentOg");
+        var currentVolume = require(in, "currentVolume");
+        var targetOg = require(in, "targetOg");
+        BigDecimal currentPoints = points(currentOg);
+        BigDecimal targetPoints = points(targetOg);
+        var alerts = new ArrayList<String>();
+        BigDecimal evaporate;
+        if (currentPoints.signum() <= 0 || targetPoints.compareTo(currentPoints) <= 0) {
+            evaporate = BigDecimal.ZERO;
+            alerts.add("OG alvo deve ser maior que a atual (concentração só aumenta a gravidade).");
+        } else {
+            var finalVolume = currentVolume.multiply(currentPoints.divide(targetPoints, 6, RoundingMode.HALF_UP));
+            evaporate = currentVolume.subtract(finalVolume).setScale(3, RoundingMode.HALF_UP);
+        }
+        return result("concentration-boiloff", in, evaporate, "L",
+                "Evaporar = V × (1 − OGpts_atual / OGpts_alvo)", List.of("extrato conservado, sem perdas"), alerts);
+    }
+
+    private CalculationResult hydrometerTempCorrection(Map<String, BigDecimal> in) {
+        double measured = require(in, "measuredSg").doubleValue();
+        double sampleF = require(in, "sampleTempC").doubleValue() * 9.0 / 5.0 + 32.0;
+        double calibF = require(in, "calibrationTempC").doubleValue() * 9.0 / 5.0 + 32.0;
+        double corrected = measured * densityFactor(sampleF) / densityFactor(calibF);
+        return result("hydrometer-temp-correction", in, round(corrected, 4), "SG",
+                "SG_corr = SG × f(T_amostra) / f(T_calib), f polinomial (°F)",
+                List.of("fórmula padrão de correção por temperatura"), List.of());
+    }
+
+    private static double densityFactor(double tempF) {
+        return 1.00130346 - 1.34722124e-4 * tempF + 2.04052596e-6 * tempF * tempF
+                - 2.32820948e-9 * tempF * tempF * tempF;
+    }
+
+    private CalculationResult volumeTopUp(Map<String, BigDecimal> in) {
+        var currentVolume = require(in, "currentVolume");
+        var targetVolume = require(in, "targetVolume");
+        var alerts = new ArrayList<String>();
+        BigDecimal water;
+        if (targetVolume.compareTo(currentVolume) <= 0) {
+            water = BigDecimal.ZERO;
+            alerts.add("volume alvo deve ser maior que o atual (completar só adiciona).");
+        } else {
+            water = targetVolume.subtract(currentVolume).setScale(3, RoundingMode.HALF_UP);
+        }
+        return result("volume-topup", in, water, "L", "Água = V_alvo − V_atual", List.of(), alerts);
     }
 
     private CalculationResult ibuTinseth(Map<String, BigDecimal> in) {

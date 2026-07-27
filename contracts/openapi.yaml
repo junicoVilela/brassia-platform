@@ -543,6 +543,29 @@ paths:
         '200': {description: Lote}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /production/corrections:
+    get:
+      operationId: listBrewCorrections
+      summary: "Correções determinísticas do dia de brassa (diluição, concentração, temperatura, volume)"
+      responses:
+        '200': {description: Correções disponíveis}
+        '403': {$ref: '#/components/responses/Problem'}
+  /production/batches/{id}/corrections/preview:
+    post:
+      operationId: previewBatchCorrection
+      summary: "Pré-visualiza o impacto de uma correção (não persiste; nada aplicado sem confirmação)"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PreviewCorrection'}
+      responses:
+        '200': {description: Impacto calculado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /production/batches/{id}/measurements:
     get:
       operationId: listBatchMeasurements
@@ -1123,6 +1146,12 @@ components:
         quantity: {type: number, exclusiveMinimum: 0}
         reason: {type: string, maxLength: 500}
         allowNegative: {type: boolean, description: "Autoriza saldo negativo (exige inventory.stock.override); default false"}
+    PreviewCorrection:
+      type: object
+      required: [calculator]
+      properties:
+        calculator: {type: string, enum: [dilution-water, concentration-boiloff, hydrometer-temp-correction, volume-topup]}
+        inputs: {type: object, additionalProperties: {type: number}}
     RecordMeasurement:
       type: object
       required: [kind, value, unit, source]

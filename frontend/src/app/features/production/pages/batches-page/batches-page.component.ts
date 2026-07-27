@@ -55,6 +55,43 @@ export class BatchesPageComponent implements OnInit {
       });
   }
 
+  // --- Correções (PRD-004) ---
+  protected readonly selectedCorrectionId = signal<string>('');
+  private readonly inputValues = signal<Record<string, number>>({});
+
+  protected readonly selectedCorrection = computed(() =>
+    this.store.corrections().find(c => c.id === this.selectedCorrectionId()) ?? null);
+
+  protected startCorrections(batchId: string): void {
+    this.selectedCorrectionId.set('');
+    this.inputValues.set({});
+    this.store.showCorrections(batchId);
+  }
+
+  protected selectCorrection(id: string): void {
+    this.selectedCorrectionId.set(id);
+    this.inputValues.set({});
+    this.store.previewResult.set(null);
+  }
+
+  protected setInput(name: string, event: Event): void {
+    const value = (event.target as HTMLInputElement).valueAsNumber;
+    this.inputValues.update(v => ({ ...v, [name]: Number.isNaN(value) ? 0 : value }));
+  }
+
+  protected canPreview(): boolean {
+    const c = this.selectedCorrection();
+    return !!c && c.inputs.every(i => this.inputValues()[i] !== undefined);
+  }
+
+  protected runPreview(batchId: string): void {
+    const c = this.selectedCorrection();
+    if (!c) {
+      return;
+    }
+    this.store.preview(batchId, { calculator: c.id, inputs: this.inputValues() });
+  }
+
   protected startMeasurements(batchId: string): void {
     this.measurementForm.reset({ kind: 'DENSITY', unit: 'SG', value: 0, temperatureC: null, method: '', source: 'MANUAL' });
     this.kindSignal.set('DENSITY');

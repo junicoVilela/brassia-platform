@@ -2,6 +2,7 @@ package br.com.brew.brassia.planning.adapter.outbound.event;
 
 import br.com.brew.brassia.planning.BrewOrderCancelled;
 import br.com.brew.brassia.planning.BrewOrderReleased;
+import br.com.brew.brassia.planning.BrewOrderStarted;
 import br.com.brew.brassia.planning.application.port.outbound.BrewOrderEventPublisher;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -21,6 +22,11 @@ class SpringBrewOrderEventPublisher implements BrewOrderEventPublisher {
 
     @Override
     public void publish(BrewOrderCancelled event) {
+        publisher.publishEvent(event);
+    }
+
+    @Override
+    public void publish(BrewOrderStarted event) {
         publisher.publishEvent(event);
     }
 }

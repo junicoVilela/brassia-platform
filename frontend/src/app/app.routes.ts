@@ -65,6 +65,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/inventory/inventory.routes').then(m => m.INVENTORY_ROUTES),
       },
       {
+        path: 'production/batches',
+        canActivate: [permissionGuard],
+        data: { permission: 'production.batch.read' },
+        loadChildren: () => import('./features/production/production.routes').then(m => m.PRODUCTION_ROUTES),
+      },
+      {
         path: 'suppliers',
         canActivate: [permissionGuard],
         data: { permission: 'purchasing.supplier.read' },

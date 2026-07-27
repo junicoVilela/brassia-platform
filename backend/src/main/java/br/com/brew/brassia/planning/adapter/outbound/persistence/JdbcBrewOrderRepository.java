@@ -118,6 +118,19 @@ class JdbcBrewOrderRepository implements BrewOrderRepository {
     }
 
     @Override
+    public boolean markStarted(UUID breweryId, UUID id, Instant at) {
+        int updated = jdbc.sql("""
+                UPDATE brew_order
+                SET status = 'IN_PRODUCTION', version = version + 1
+                WHERE brewery_id = :brewery AND id = :id AND status = 'RELEASED'
+                """)
+                .param("brewery", breweryId)
+                .param("id", id)
+                .update();
+        return updated > 0;
+    }
+
+    @Override
     public boolean markCancelled(UUID breweryId, UUID id, String reason, Instant at) {
         int updated = jdbc.sql("""
                 UPDATE brew_order

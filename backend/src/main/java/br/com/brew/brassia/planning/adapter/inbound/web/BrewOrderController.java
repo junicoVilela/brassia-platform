@@ -12,6 +12,7 @@ import br.com.brew.brassia.planning.application.port.inbound.GetBrewOrderUseCase
 import br.com.brew.brassia.planning.application.port.inbound.ListBrewOrdersUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.ReleaseBrewOrderUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.ReserveOrderMaterialsUseCase;
+import br.com.brew.brassia.planning.application.port.inbound.StartBrewOrderUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import br.com.brew.brassia.shared.web.PageResponse;
 import jakarta.validation.Valid;
@@ -37,16 +38,18 @@ final class BrewOrderController {
     private final ReleaseBrewOrderUseCase releaseOrder;
     private final CancelBrewOrderUseCase cancelOrder;
     private final ReserveOrderMaterialsUseCase reserveOrderMaterials;
+    private final StartBrewOrderUseCase startOrder;
 
     BrewOrderController(CreateBrewOrderUseCase createOrder, ListBrewOrdersUseCase listOrders,
             GetBrewOrderUseCase getOrder, ReleaseBrewOrderUseCase releaseOrder, CancelBrewOrderUseCase cancelOrder,
-            ReserveOrderMaterialsUseCase reserveOrderMaterials) {
+            ReserveOrderMaterialsUseCase reserveOrderMaterials, StartBrewOrderUseCase startOrder) {
         this.createOrder = createOrder;
         this.listOrders = listOrders;
         this.getOrder = getOrder;
         this.releaseOrder = releaseOrder;
         this.cancelOrder = cancelOrder;
         this.reserveOrderMaterials = reserveOrderMaterials;
+        this.startOrder = startOrder;
     }
 
     @PostMapping
@@ -106,4 +109,12 @@ final class BrewOrderController {
     }
 
     record ReserveOrderStockResponse(UUID orderId, boolean reserved, int reservedItems) {}
+
+    @PostMapping("/{id}/start")
+    BrewOrderResponse start(@PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("planning.order.manage");
+        var result = startOrder.handle(new StartBrewOrderUseCase.Command(
+                principal.userId(), principal.requireBrewery(), id));
+        return new BrewOrderResponse(result.orderId(), null, result.status());
+    }
 }

@@ -13,6 +13,7 @@ import br.com.brew.brassia.planning.application.port.inbound.MaterialRequirement
 import br.com.brew.brassia.planning.application.port.inbound.ReleaseBrewOrderUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.ScheduleMaterialsUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.SimulateScheduleUseCase;
+import br.com.brew.brassia.planning.application.port.inbound.StartBrewOrderUseCase;
 import br.com.brew.brassia.planning.application.port.outbound.BrewOrderEventPublisher;
 import br.com.brew.brassia.planning.application.port.outbound.BrewOrderRepository;
 import br.com.brew.brassia.planning.application.port.outbound.ScheduleEntryRepository;
@@ -26,6 +27,7 @@ import br.com.brew.brassia.planning.application.service.MaterialRequirementHandl
 import br.com.brew.brassia.planning.application.service.ReleaseBrewOrderHandler;
 import br.com.brew.brassia.planning.application.service.ScheduleMaterialsHandler;
 import br.com.brew.brassia.planning.application.service.SimulateScheduleHandler;
+import br.com.brew.brassia.planning.application.service.StartBrewOrderHandler;
 import br.com.brew.brassia.planning.OrderDemandLookup;
 import br.com.brew.brassia.planning.StockReservationGateway;
 import br.com.brew.brassia.planning.application.port.inbound.ReserveOrderMaterialsUseCase;
@@ -134,6 +136,15 @@ class PlanningConfiguration {
             AuditTrail audit,
             PlatformTransactionManager transactionManager) {
         var handler = new ReleaseBrewOrderHandler(repository, equipment, events, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    StartBrewOrderUseCase startBrewOrderUseCase(
+            BrewOrderRepository repository, BrewOrderEventPublisher events, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new StartBrewOrderHandler(repository, events, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }

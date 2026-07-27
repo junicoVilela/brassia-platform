@@ -28,6 +28,13 @@ public interface BrewOrderRepository {
      */
     boolean markCancelled(UUID breweryId, UUID id, String reason, java.time.Instant at);
 
+    /**
+     * Marca a OP como em produção (RELEASED → IN_PRODUCTION), atômico e guardado
+     * pelo estado (transição única — PRD-001). Retorna {@code false} se a OP não
+     * estava mais liberada.
+     */
+    boolean markStarted(UUID breweryId, UUID id, java.time.Instant at);
+
     List<BrewOrder> findPage(UUID breweryId, int page, int size);
 
     /** Ordens liberadas (base da demanda de compra). */

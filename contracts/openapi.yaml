@@ -504,6 +504,17 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /brew-orders/{id}/reserve-stock:
+    post:
+      operationId: reserveBrewOrderStock
+      summary: "Reserva o estoque de todos os materiais da OP liberada (all-or-nothing; re-sincroniza)"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: "Estoque reservado (reserved=true, reservedItems=n)"}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {description: "OP não liberada ou estoque insuficiente (extensão shortfalls); nada reservado"}
   /brew-orders/{orderId}/start:
     post:
       operationId: startBrewOrder

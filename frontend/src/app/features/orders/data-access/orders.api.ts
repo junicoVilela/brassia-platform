@@ -39,4 +39,9 @@ export class OrdersApi {
   cancel(orderId: string, reason: string) {
     return this.http.post<{ id: string; status: string }>(`${this.baseUrl}/${orderId}/cancel`, { reason });
   }
+
+  reserveStock(orderId: string) {
+    return this.http.post<{ orderId: string; reserved: boolean; reservedItems: number }>(
+      `${this.baseUrl}/${orderId}/reserve-stock`, {});
+  }
 }

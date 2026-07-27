@@ -65,6 +65,12 @@
                       <i class="ri-play-circle-line me-1"></i> Liberar
                     </button>
                   }
+                  @if (order.status === 'RELEASED') {
+                    <button type="button" class="btn btn-sm btn-outline-primary me-1"
+                            [disabled]="store.reserving()" (click)="store.reserveStock(order.id)">
+                      <i class="ri-archive-line me-1"></i> Reservar estoque
+                    </button>
+                  }
                   @if (order.status === 'DRAFT' || order.status === 'RELEASED') {
                     <button type="button" class="btn btn-sm btn-outline-danger me-1" (click)="startCancel(order.id)">
                       <i class="ri-close-circle-line me-1"></i> Cancelar
@@ -82,6 +88,38 @@
     }
   </div>
 </div>
+
+@if (store.reserveShortfalls().length > 0) {
+  <div class="card border-0 rounded-10 mt-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h2 class="h6 fw-semibold mb-0 text-danger">Estoque insuficiente — nada foi reservado</h2>
+        <button type="button" class="btn-close" aria-label="Fechar" (click)="store.dismissReserve()"></button>
+      </div>
+      <p class="text-muted small mb-3">A reserva é all-or-nothing: reponha os itens abaixo e tente de novo.</p>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr>
+            <th scope="col">Ingrediente</th>
+            <th scope="col" class="text-end">Necessário</th>
+            <th scope="col" class="text-end">Disponível</th>
+            <th scope="col">Unidade</th>
+          </tr></thead>
+          <tbody>
+            @for (s of store.reserveShortfalls(); track s.ingredientId) {
+              <tr>
+                <td class="fw-medium">{{ s.ingredientId }}</td>
+                <td class="text-end">{{ s.requested | number: '1.0-3' }}</td>
+                <td class="text-end text-danger">{{ s.available | number: '1.0-3' }}</td>
+                <td>{{ s.unit }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+}
 
 @if (store.releasingId(); as releasingId) {
   <div class="card border-0 rounded-10 mt-4">

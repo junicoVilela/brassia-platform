@@ -11,6 +11,7 @@ import br.com.brew.brassia.planning.application.port.inbound.CreateBrewOrderUseC
 import br.com.brew.brassia.planning.application.port.inbound.GetBrewOrderUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.ListBrewOrdersUseCase;
 import br.com.brew.brassia.planning.application.port.inbound.ReleaseBrewOrderUseCase;
+import br.com.brew.brassia.planning.application.port.inbound.ReserveOrderMaterialsUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import br.com.brew.brassia.shared.web.PageResponse;
 import jakarta.validation.Valid;
@@ -35,14 +36,17 @@ final class BrewOrderController {
     private final GetBrewOrderUseCase getOrder;
     private final ReleaseBrewOrderUseCase releaseOrder;
     private final CancelBrewOrderUseCase cancelOrder;
+    private final ReserveOrderMaterialsUseCase reserveOrderMaterials;
 
     BrewOrderController(CreateBrewOrderUseCase createOrder, ListBrewOrdersUseCase listOrders,
-            GetBrewOrderUseCase getOrder, ReleaseBrewOrderUseCase releaseOrder, CancelBrewOrderUseCase cancelOrder) {
+            GetBrewOrderUseCase getOrder, ReleaseBrewOrderUseCase releaseOrder, CancelBrewOrderUseCase cancelOrder,
+            ReserveOrderMaterialsUseCase reserveOrderMaterials) {
         this.createOrder = createOrder;
         this.listOrders = listOrders;
         this.getOrder = getOrder;
         this.releaseOrder = releaseOrder;
         this.cancelOrder = cancelOrder;
+        this.reserveOrderMaterials = reserveOrderMaterials;
     }
 
     @PostMapping
@@ -91,4 +95,15 @@ final class BrewOrderController {
                 principal.userId(), principal.requireBrewery(), id, request.reason()));
         return new BrewOrderResponse(result.id(), null, result.status());
     }
+
+    @PostMapping("/{id}/reserve-stock")
+    ReserveOrderStockResponse reserveStock(
+            @PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("planning.order.manage");
+        var result = reserveOrderMaterials.handle(new ReserveOrderMaterialsUseCase.Command(
+                principal.userId(), principal.requireBrewery(), id));
+        return new ReserveOrderStockResponse(result.orderId(), true, result.reservedItems());
+    }
+
+    record ReserveOrderStockResponse(UUID orderId, boolean reserved, int reservedItems) {}
 }

@@ -36,6 +36,11 @@ export class OrdersStore {
   readonly cancelError = signal<string | null>(null);
   readonly cancelling = signal(false);
 
+  /** Reserva de estoque da OP: faltas retornadas (all-or-nothing) e progresso. */
+  readonly reservingId = signal<string | null>(null);
+  readonly reserveShortfalls = signal<{ ingredientId: string; requested: number; available: number; unit: string }[]>([]);
+  readonly reserving = signal(false);
+
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly empty = computed(() => !this.loading() && !this.error() && this.orders().length === 0);
@@ -128,6 +133,37 @@ export class OrdersStore {
             ? 'A ordem não pode ser cancelada neste estado.'
             : 'Não foi possível cancelar a ordem.'),
       });
+  }
+
+  reserveStock(orderId: string): void {
+    this.reserving.set(true);
+    this.reservingId.set(orderId);
+    this.reserveShortfalls.set([]);
+    this.api.reserveStock(orderId)
+      .pipe(finalize(() => this.reserving.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.reservingId.set(null);
+          this.toast.success('Estoque reservado para a ordem.');
+          this.load();
+        },
+        error: (err: {
+          status?: number;
+          error?: { shortfalls?: { ingredientId: string; requested: number; available: number; unit: string }[] };
+        }) => {
+          if (err?.status === 409 && err.error?.shortfalls) {
+            this.reserveShortfalls.set(err.error.shortfalls);
+          } else {
+            this.toast.error('Não foi possível reservar o estoque da ordem.');
+            this.reservingId.set(null);
+          }
+        },
+      });
+  }
+
+  dismissReserve(): void {
+    this.reservingId.set(null);
+    this.reserveShortfalls.set([]);
   }
 
   showDetail(orderId: string): void {

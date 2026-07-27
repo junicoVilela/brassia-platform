@@ -590,6 +590,41 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /production/batches/{id}/alerts:
+    get:
+      operationId: listBatchAlerts
+      summary: Central de alertas/ações do lote (timeline persistida)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Alertas do lote}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createBatchAlert
+      summary: Cria um item na central (adição/etapa/medição/decisão)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateAlert'}
+      responses:
+        '201': {description: Alerta criado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /production/batches/{id}/alerts/{alertId}/confirm:
+    post:
+      operationId: confirmBatchAlert
+      summary: "Confirma um alerta/ação (idempotente; não avança etapa)"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: alertId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Alerta confirmado (idempotente)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /production/batches/{id}/transfer:
     get:
       operationId: getBatchTransfer
@@ -1171,6 +1206,14 @@ components:
         quantity: {type: number, exclusiveMinimum: 0}
         reason: {type: string, maxLength: 500}
         allowNegative: {type: boolean, description: "Autoriza saldo negativo (exige inventory.stock.override); default false"}
+    CreateAlert:
+      type: object
+      required: [kind, message]
+      properties:
+        kind: {type: string, enum: [ADDITION, STEP, MEASUREMENT, DECISION]}
+        message: {type: string, maxLength: 300}
+        plannedAt: {type: string, format: date-time}
+        occurredAt: {type: string, format: date-time}
     TransferBatch:
       type: object
       required: [destinationEquipmentId, volumeLiters, ogSg]

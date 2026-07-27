@@ -40,6 +40,9 @@
                   <button type="button" class="btn btn-sm btn-outline-secondary me-1" (click)="startCorrections(batch.id)">
                     <i class="ri-drop-line me-1"></i> Correções
                   </button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary me-1" (click)="startAlerts(batch.id)">
+                    <i class="ri-notification-3-line me-1"></i> Central
+                  </button>
                   @if (store.canManage && batch.status === 'IN_PROGRESS') {
                     <button type="button" class="btn btn-sm btn-outline-success" (click)="startTransfer(batch.id)">
                       <i class="ri-git-merge-line me-1"></i> Transferir
@@ -278,6 +281,73 @@
       </form>
       @if (store.transferError(); as transferError) {
         <div class="alert alert-danger mt-3 mb-0" role="alert">{{ transferError }}</div>
+      }
+    </div>
+  </div>
+}
+
+@if (store.alertsBatchId(); as batchId) {
+  <div class="card border-0 rounded-10 mt-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h2 class="h6 fw-semibold mb-0">Central de alertas e ações</h2>
+        <button type="button" class="btn-close" aria-label="Fechar" (click)="store.showAlerts(batchId)"></button>
+      </div>
+
+      @if (store.canManage) {
+        <form [formGroup]="alertForm" (ngSubmit)="createAlert(batchId)" class="row g-3 align-items-end">
+          <div class="col-sm-3">
+            <label class="form-label" for="akind">Tipo</label>
+            <select id="akind" class="form-select" formControlName="kind">
+              @for (k of alertKinds; track k.value) { <option [value]="k.value">{{ k.label }}</option> }
+            </select>
+          </div>
+          <div class="col-sm-7">
+            <label class="form-label" for="amsg">Mensagem</label>
+            <input id="amsg" type="text" class="form-control" formControlName="message"
+                   placeholder="Ex.: decidir sobre correção de OG">
+          </div>
+          <div class="col-sm-2 d-grid">
+            <button type="submit" class="btn btn-primary" [disabled]="alertForm.invalid || store.savingAlert()">
+              <i class="ri-add-line me-1"></i> Adicionar
+            </button>
+          </div>
+        </form>
+        @if (store.alertError(); as alertError) {
+          <div class="alert alert-danger mt-3 mb-0" role="alert">{{ alertError }}</div>
+        }
+      }
+
+      <h3 class="h6 fw-semibold mt-4 mb-2">Linha do tempo</h3>
+      @if (store.alertsLoading()) {
+        <app-loading-indicator />
+      } @else if (store.alerts().length === 0) {
+        <app-empty-state icon="ri-notification-3-line" message="Nenhum alerta ou ação pendente." />
+      } @else {
+        <ul class="list-group list-group-flush">
+          @for (a of store.alerts(); track a.id) {
+            <li class="list-group-item bg-transparent d-flex align-items-center justify-content-between px-0">
+              <span>
+                <span class="badge text-bg-light me-2">{{ a.kind }}</span>
+                <span class="fw-medium">{{ a.message }}</span>
+                @if (a.plannedAt) {
+                  <span class="text-muted small ms-2">planejado {{ a.plannedAt | date: 'dd/MM HH:mm' }}</span>
+                }
+              </span>
+              <span class="d-flex align-items-center gap-2">
+                @if (a.status === 'CONFIRMED') {
+                  <span class="badge text-bg-success"><i class="ri-check-line me-1"></i>Confirmado</span>
+                } @else {
+                  <span class="badge text-bg-warning">Pendente</span>
+                  @if (store.canManage) {
+                    <button type="button" class="btn btn-sm btn-outline-success"
+                            (click)="store.confirmAlert(batchId, a.id)">Confirmar</button>
+                  }
+                }
+              </span>
+            </li>
+          }
+        </ul>
       }
     </div>
   </div>

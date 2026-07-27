@@ -7,7 +7,13 @@ import { EquipmentApi } from '../../equipment/data-access/equipment.api';
 import { Equipment } from '../../equipment/domain/equipment.model';
 import { BatchAlert, CreateAlertRequest } from '../domain/alert.model';
 import { Batch } from '../domain/batch.model';
-import { BrewCorrection, CorrectionResult, PreviewCorrectionRequest } from '../domain/correction.model';
+import {
+  ApplyCorrectionRequest,
+  AppliedCorrection,
+  BrewCorrection,
+  CorrectionResult,
+  PreviewCorrectionRequest,
+} from '../domain/correction.model';
 import { Measurement, RecordMeasurementRequest } from '../domain/measurement.model';
 import { TransferRequest } from '../domain/transfer.model';
 import { BatchesApi } from './batches.api';
@@ -46,6 +52,8 @@ export class BatchesStore {
   readonly previewResult = signal<CorrectionResult | null>(null);
   readonly previewing = signal(false);
   readonly correctionError = signal<string | null>(null);
+  readonly applied = signal<AppliedCorrection[]>([]);
+  readonly applying = signal(false);
 
   /** Lote com o painel de transferência aberto (PRD-005). */
   readonly transferBatchId = signal<string | null>(null);
@@ -141,6 +149,24 @@ export class BatchesStore {
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({ next: c => this.corrections.set(c), error: () => {} });
     }
+    this.refreshApplied(batchId);
+  }
+
+  applyCorrection(batchId: string, request: ApplyCorrectionRequest): void {
+    this.applying.set(true);
+    this.correctionError.set(null);
+    this.api.applyCorrection(batchId, request)
+      .pipe(finalize(() => this.applying.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => { this.toast.success('Correção aplicada (registrada).'); this.refreshApplied(batchId); },
+        error: () => this.correctionError.set('Não foi possível aplicar a correção (dados inválidos).'),
+      });
+  }
+
+  private refreshApplied(batchId: string): void {
+    this.api.appliedCorrections(batchId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: a => this.applied.set(a), error: () => {} });
   }
 
   preview(batchId: string, request: PreviewCorrectionRequest): void {

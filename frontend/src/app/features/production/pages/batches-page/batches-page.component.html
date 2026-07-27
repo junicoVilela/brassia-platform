@@ -236,6 +236,56 @@
             <div class="text-danger small mt-1"><i class="ri-error-warning-line me-1"></i>{{ a }}</div>
           }
         </div>
+
+        @if (store.canManage) {
+          <div class="row g-2 align-items-end mt-2">
+            <div class="col-sm-3">
+              <label class="form-label small" for="crealized">Realizado (opcional)</label>
+              <input id="crealized" type="number" step="any" class="form-control form-control-sm"
+                     (input)="setRealized($event)">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small" for="cnote">Observação</label>
+              <input id="cnote" type="text" class="form-control form-control-sm" (input)="setNote($event)"
+                     placeholder="hipótese / motivo">
+            </div>
+            <div class="col-sm-3 d-grid">
+              <button type="button" class="btn btn-success btn-sm" [disabled]="store.applying()"
+                      (click)="applyCurrent(batchId)">
+                <i class="ri-check-double-line me-1"></i> Aplicar
+              </button>
+            </div>
+          </div>
+          <p class="text-muted small mt-1 mb-0">Aplicar registra a decisão (planejado × realizado) — nenhuma ação física.</p>
+        }
+      }
+
+      @if (store.applied().length > 0) {
+        <h3 class="h6 fw-semibold mt-4 mb-2">Correções aplicadas</h3>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Correção</th>
+                <th scope="col" class="text-end">Planejado</th>
+                <th scope="col" class="text-end">Realizado</th>
+                <th scope="col">Observação</th>
+                <th scope="col">Quando</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (a of store.applied(); track a.id) {
+                <tr>
+                  <td class="fw-medium">{{ a.calculator }}</td>
+                  <td class="text-end">{{ a.plannedValue | number: '1.0-4' }} {{ a.plannedUnit }}</td>
+                  <td class="text-end">{{ a.realizedValue !== null ? (a.realizedValue | number: '1.0-4') : '—' }}</td>
+                  <td>{{ a.note || '—' }}</td>
+                  <td class="text-muted small">{{ a.appliedAt | date: 'dd/MM HH:mm' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       }
     </div>
   </div>

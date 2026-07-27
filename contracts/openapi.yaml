@@ -566,6 +566,31 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /production/batches/{id}/corrections/apply:
+    post:
+      operationId: applyBatchCorrection
+      summary: "Aplica (registra a decisão de) uma correção (CAL-002): evento + planejado vs realizado"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ApplyCorrection'}
+      responses:
+        '201': {description: Correção aplicada (registrada)}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /production/batches/{id}/corrections/applied:
+    get:
+      operationId: listAppliedCorrections
+      summary: Correções aplicadas no lote (planejado vs realizado)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Correções aplicadas}
+        '403': {$ref: '#/components/responses/Problem'}
   /production/batches/{id}/measurements:
     get:
       operationId: listBatchMeasurements
@@ -1228,6 +1253,15 @@ components:
       properties:
         calculator: {type: string, enum: [dilution-water, concentration-boiloff, hydrometer-temp-correction, volume-topup]}
         inputs: {type: object, additionalProperties: {type: number}}
+    ApplyCorrection:
+      type: object
+      required: [calculator]
+      properties:
+        calculator: {type: string, enum: [dilution-water, concentration-boiloff, hydrometer-temp-correction, volume-topup]}
+        inputs: {type: object, additionalProperties: {type: number}}
+        sourceMeasurementId: {type: string, format: uuid, description: "Medição de origem (opcional; se informada, deve ser do lote)"}
+        note: {type: string, maxLength: 300}
+        realizedValue: {type: number, description: "Valor realizado (opcional); planejado = efeito estimado do motor"}
     RecordMeasurement:
       type: object
       required: [kind, value, unit, source]

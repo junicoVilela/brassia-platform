@@ -2,7 +2,13 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { BatchAlert, CreateAlertRequest } from '../domain/alert.model';
 import { Batch } from '../domain/batch.model';
-import { BrewCorrection, CorrectionResult, PreviewCorrectionRequest } from '../domain/correction.model';
+import {
+  ApplyCorrectionRequest,
+  AppliedCorrection,
+  BrewCorrection,
+  CorrectionResult,
+  PreviewCorrectionRequest,
+} from '../domain/correction.model';
 import { Measurement, RecordMeasurementRequest } from '../domain/measurement.model';
 import { Transfer, TransferRequest } from '../domain/transfer.model';
 
@@ -37,6 +43,14 @@ export class BatchesApi {
 
   previewCorrection(batchId: string, request: PreviewCorrectionRequest) {
     return this.http.post<CorrectionResult>(`${this.baseUrl}/${batchId}/corrections/preview`, request);
+  }
+
+  appliedCorrections(batchId: string) {
+    return this.http.get<AppliedCorrection[]>(`${this.baseUrl}/${batchId}/corrections/applied`);
+  }
+
+  applyCorrection(batchId: string, request: ApplyCorrectionRequest) {
+    return this.http.post<AppliedCorrection>(`${this.baseUrl}/${batchId}/corrections/apply`, request);
   }
 
   transfer(batchId: string, request: TransferRequest) {

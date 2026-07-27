@@ -35,6 +35,6 @@ public interface ShoppingListUseCase {
      */
     record Item(UUID ingredientId, String ingredientCode, String ingredientName,
             BigDecimal demand, BigDecimal onHand, BigDecimal reserved, BigDecimal suggested, String unit,
-            BigDecimal purchaseQuantity, String purchaseUnit,
+            BigDecimal purchaseQuantity, String purchaseUnit, Integer packages,
             BigDecimal unitCost, BigDecimal estimatedCost) {}
 }

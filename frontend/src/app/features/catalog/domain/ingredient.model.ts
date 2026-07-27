@@ -13,6 +13,7 @@ export interface Ingredient {
   name: string;
   useUnit: MeasurementUnit;
   purchaseUnit: MeasurementUnit;
+  purchasePackageSize: number | null;
   attributes: Record<string, string>;
   active: boolean;
   version: number;
@@ -24,6 +25,7 @@ export interface RegisterIngredientRequest {
   name: string;
   useUnit: MeasurementUnit;
   purchaseUnit: MeasurementUnit;
+  purchasePackageSize?: number | null;
   attributes?: Record<string, string>;
 }
 

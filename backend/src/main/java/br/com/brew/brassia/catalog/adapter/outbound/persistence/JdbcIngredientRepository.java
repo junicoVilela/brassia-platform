@@ -46,10 +46,10 @@ class JdbcIngredientRepository implements IngredientRepository {
     public void insert(Ingredient ingredient) {
         jdbc.sql("""
                 INSERT INTO catalog_ingredient (
-                    id, brewery_id, type, code, name, use_unit, purchase_unit, attributes, active, version,
-                    created_at, updated_at)
-                VALUES (:id, :brewery, :type, :code, :name, :use, :purchase, CAST(:attributes AS jsonb),
-                        :active, :version, :at, :at)
+                    id, brewery_id, type, code, name, use_unit, purchase_unit, purchase_package_size,
+                    attributes, active, version, created_at, updated_at)
+                VALUES (:id, :brewery, :type, :code, :name, :use, :purchase, :packageSize,
+                        CAST(:attributes AS jsonb), :active, :version, :at, :at)
                 """)
                 .param("id", ingredient.id().value())
                 .param("brewery", ingredient.breweryId())
@@ -58,6 +58,7 @@ class JdbcIngredientRepository implements IngredientRepository {
                 .param("name", ingredient.name().value())
                 .param("use", ingredient.useUnit().name())
                 .param("purchase", ingredient.purchaseUnit().name())
+                .param("packageSize", ingredient.purchasePackageSize())
                 .param("attributes", toJson(ingredient.attributes()))
                 .param("active", ingredient.active())
                 .param("version", ingredient.version())
@@ -70,12 +71,14 @@ class JdbcIngredientRepository implements IngredientRepository {
         int updated = jdbc.sql("""
                 UPDATE catalog_ingredient
                 SET name = :name, use_unit = :use, purchase_unit = :purchase,
+                    purchase_package_size = :packageSize,
                     attributes = CAST(:attributes AS jsonb), version = :newVersion, updated_at = :at
                 WHERE id = :id AND brewery_id = :brewery AND version = :expected
                 """)
                 .param("name", ingredient.name().value())
                 .param("use", ingredient.useUnit().name())
                 .param("purchase", ingredient.purchaseUnit().name())
+                .param("packageSize", ingredient.purchasePackageSize())
                 .param("attributes", toJson(ingredient.attributes()))
                 .param("newVersion", expectedVersion + 1)
                 .param("at", Timestamp.from(Instant.now()))
@@ -89,7 +92,7 @@ class JdbcIngredientRepository implements IngredientRepository {
     @Override
     public Optional<Ingredient> findById(UUID breweryId, UUID id) {
         return jdbc.sql("""
-                SELECT id, brewery_id, type, code, name, use_unit, purchase_unit, attributes, active, version
+                SELECT id, brewery_id, type, code, name, use_unit, purchase_unit, purchase_package_size, attributes, active, version
                 FROM catalog_ingredient WHERE brewery_id = :brewery AND id = :id
                 """)
                 .param("brewery", breweryId)
@@ -101,7 +104,7 @@ class JdbcIngredientRepository implements IngredientRepository {
     @Override
     public List<Ingredient> findPage(UUID breweryId, IngredientType type, int page, int size) {
         var sql = new StringBuilder("""
-                SELECT id, brewery_id, type, code, name, use_unit, purchase_unit, attributes, active, version
+                SELECT id, brewery_id, type, code, name, use_unit, purchase_unit, purchase_package_size, attributes, active, version
                 FROM catalog_ingredient WHERE brewery_id = :brewery
                 """);
         if (type != null) {
@@ -140,6 +143,7 @@ class JdbcIngredientRepository implements IngredientRepository {
                 new IngredientName(rs.getString("name")),
                 MeasurementUnit.valueOf(rs.getString("use_unit")),
                 MeasurementUnit.valueOf(rs.getString("purchase_unit")),
+                rs.getBigDecimal("purchase_package_size"),
                 fromJson(rs.getString("attributes")),
                 rs.getBoolean("active"),
                 rs.getLong("version"));

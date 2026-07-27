@@ -37,6 +37,7 @@
                 <th scope="col">Ingrediente</th>
                 <th scope="col" class="text-end">A comprar</th>
                 <th scope="col">Un. compra</th>
+                <th scope="col" class="text-end">Pacotes</th>
                 <th scope="col" class="text-end">Necessidade</th>
                 <th scope="col" class="text-end">Em estoque</th>
                 <th scope="col" class="text-end">Reservado</th>
@@ -56,6 +57,7 @@
                   </td>
                   <td class="text-end fw-semibold text-danger">{{ item.purchaseQuantity | number: '1.0-3' }}</td>
                   <td>{{ item.purchaseUnit }}</td>
+                  <td class="text-end">{{ item.packages !== null ? item.packages : '—' }}</td>
                   <td class="text-end">{{ item.suggested | number: '1.0-3' }}</td>
                   <td class="text-end">{{ item.onHand | number: '1.0-3' }}</td>
                   <td class="text-end">{{ item.reserved | number: '1.0-3' }}</td>

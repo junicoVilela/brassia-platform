@@ -18,14 +18,14 @@ public record ShoppingListView(
     public record ItemView(
             UUID ingredientId, String ingredientCode, String ingredientName,
             BigDecimal demand, BigDecimal onHand, BigDecimal reserved, BigDecimal suggested, String unit,
-            BigDecimal purchaseQuantity, String purchaseUnit,
+            BigDecimal purchaseQuantity, String purchaseUnit, Integer packages,
             BigDecimal unitCost, BigDecimal estimatedCost) {
 
         static ItemView from(ShoppingListUseCase.Item item) {
             return new ItemView(
                     item.ingredientId(), item.ingredientCode(), item.ingredientName(),
                     item.demand(), item.onHand(), item.reserved(), item.suggested(), item.unit(),
-                    item.purchaseQuantity(), item.purchaseUnit(),
+                    item.purchaseQuantity(), item.purchaseUnit(), item.packages(),
                     item.unitCost(), item.estimatedCost());
         }
     }

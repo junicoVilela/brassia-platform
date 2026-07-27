@@ -89,6 +89,23 @@ class ShoppingListIT {
     }
 
     @Test
+    void roundsPurchaseUpToClosedPackages() throws Exception {
+        var session = login();
+        var sfx = shortId();
+        // Embalagem de 25 KG; demanda 20, sem estoque → sugerido 20 → 1 pacote (25 KG).
+        var maltId = releaseOrderReturningMalt(session, sfx, 400, "KG", "25");
+        var supplierId = createSupplier(session, sfx);
+        receiveLot(session, maltId, supplierId, 0 + 1, "KG", "4.5"); // 1 KG em estoque → sugerido 19
+
+        var item = itemByIngredient(groupBySupplier(fetchList(session), "Sup " + sfx), maltId);
+        assertThat(new BigDecimal(item.get("suggested").asText())).isEqualByComparingTo("19");
+        assertThat(item.get("packages").asInt()).isEqualTo(1);
+        assertThat(new BigDecimal(item.get("purchaseQuantity").asText())).isEqualByComparingTo("25");
+        // Custo reflete o pacote fechado comprado (25 × 4.5), não a necessidade (19).
+        assertThat(new BigDecimal(item.get("estimatedCost").asText())).isEqualByComparingTo("112.5");
+    }
+
+    @Test
     void omitsCostsWithoutCostPermission() throws Exception {
         var session = login();
         var sfx = shortId();
@@ -156,16 +173,22 @@ class ShoppingListIT {
 
     private String releaseOrderReturningMalt(MockHttpSession session, String sfx, int volume, String purchaseUnit)
             throws Exception {
+        return releaseOrderReturningMalt(session, sfx, volume, purchaseUnit, null);
+    }
+
+    private String releaseOrderReturningMalt(MockHttpSession session, String sfx, int volume, String purchaseUnit,
+            String packageSize) throws Exception {
         var equipmentId = idOf(mockMvc.perform(post("/api/v1/equipment").session(session).with(csrf())
                         .contentType("application/json")
                         .content("{\"code\":\"bh-" + sfx + "\",\"name\":\"BH\",\"capacityLiters\":500,"
                                 + "\"deadSpaceLiters\":20,\"mashEfficiencyPercent\":72,\"boilOffLitersPerHour\":8}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        var packageField = packageSize == null ? "" : ",\"purchasePackageSize\":" + packageSize;
         var maltId = idOf(mockMvc.perform(post("/api/v1/catalog/ingredients").session(session).with(csrf())
                         .contentType("application/json")
                         .content("{\"type\":\"MALT\",\"code\":\"m-" + sfx + "\",\"name\":\"m-" + sfx
-                                + "\",\"useUnit\":\"KG\",\"purchaseUnit\":\"" + purchaseUnit
-                                + "\",\"attributes\":{\"potentialSg\":\"1.037\",\"colorEbc\":\"4\"}}"))
+                                + "\",\"useUnit\":\"KG\",\"purchaseUnit\":\"" + purchaseUnit + "\"" + packageField
+                                + ",\"attributes\":{\"potentialSg\":\"1.037\",\"colorEbc\":\"4\"}}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
         var hopId = createIngredient(session, "HOP", "h-" + sfx, "{\"alphaAcid\":\"12\"}");
         var yeastId = createIngredient(session, "YEAST", "y-" + sfx, "{\"attenuation\":\"78\"}");

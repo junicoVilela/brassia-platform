@@ -77,3 +77,35 @@ export interface ReserveStockResult {
   unit: string;
   allocations: StockAllocation[];
 }
+
+export type LotPropertySource = 'MANUAL' | 'IMPORTED' | 'SUGGESTED';
+export const LOT_PROPERTY_SOURCES: { value: LotPropertySource; label: string }[] = [
+  { value: 'MANUAL', label: 'Manual' },
+  { value: 'IMPORTED', label: 'Importado' },
+  { value: 'SUGGESTED', label: 'Sugerido' },
+];
+
+export type LotPropertyConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
+export const LOT_PROPERTY_CONFIDENCES: { value: LotPropertyConfidence; label: string }[] = [
+  { value: 'HIGH', label: 'Alta' },
+  { value: 'MEDIUM', label: 'Média' },
+  { value: 'LOW', label: 'Baixa' },
+];
+
+export interface LotProperty {
+  id: string;
+  property: string;
+  value: number;
+  unit: string | null;
+  source: LotPropertySource;
+  confidence: LotPropertyConfidence;
+  recordedAt: string;
+}
+
+export interface RecordLotPropertyRequest {
+  property: string;
+  value: number;
+  unit?: string | null;
+  source: LotPropertySource;
+  confidence: LotPropertyConfidence;
+}

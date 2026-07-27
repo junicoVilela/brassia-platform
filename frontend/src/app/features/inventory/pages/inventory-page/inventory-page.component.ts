@@ -4,7 +4,17 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
 import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator.component';
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
-import { MOVEMENT_TYPES, MovementType, STOCK_UNITS, StockInspection, StockUnit } from '../../domain/stock-lot.model';
+import {
+  LOT_PROPERTY_CONFIDENCES,
+  LOT_PROPERTY_SOURCES,
+  LotPropertyConfidence,
+  LotPropertySource,
+  MOVEMENT_TYPES,
+  MovementType,
+  STOCK_UNITS,
+  StockInspection,
+  StockUnit,
+} from '../../domain/stock-lot.model';
 import { InventoryStore } from '../../data-access/inventory.store';
 
 @Component({
@@ -19,6 +29,8 @@ export class InventoryPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   protected readonly units = STOCK_UNITS;
   protected readonly movementTypes = MOVEMENT_TYPES;
+  protected readonly propertySources = LOT_PROPERTY_SOURCES;
+  protected readonly propertyConfidences = LOT_PROPERTY_CONFIDENCES;
 
   protected readonly form = this.fb.nonNullable.group({
     ingredientId: ['', Validators.required],
@@ -44,6 +56,14 @@ export class InventoryPageComponent implements OnInit {
     orderId: [''],
   });
 
+  protected readonly propertyForm = this.fb.nonNullable.group({
+    property: ['', [Validators.required, Validators.maxLength(60)]],
+    value: [0, [Validators.required]],
+    unit: [''],
+    source: this.fb.nonNullable.control<LotPropertySource>('MANUAL', Validators.required),
+    confidence: this.fb.nonNullable.control<LotPropertyConfidence>('HIGH', Validators.required),
+  });
+
   ngOnInit(): void {
     this.store.load();
   }
@@ -51,6 +71,21 @@ export class InventoryPageComponent implements OnInit {
   protected startMovements(lotId: string): void {
     this.movementForm.reset({ type: 'CONSUMPTION', quantity: 0, reason: '' });
     this.store.showMovements(lotId);
+  }
+
+  protected startProperties(lotId: string): void {
+    this.propertyForm.reset({ property: '', value: 0, unit: '', source: 'MANUAL', confidence: 'HIGH' });
+    this.store.showProperties(lotId);
+  }
+
+  protected recordProperty(lotId: string): void {
+    if (this.propertyForm.invalid) {
+      return;
+    }
+    const v = this.propertyForm.getRawValue();
+    this.store.recordProperty(lotId,
+      { property: v.property, value: v.value, unit: v.unit || null, source: v.source, confidence: v.confidence },
+      () => this.propertyForm.reset({ property: '', value: 0, unit: '', source: 'MANUAL', confidence: 'HIGH' }));
   }
 
   protected record(lotId: string): void {

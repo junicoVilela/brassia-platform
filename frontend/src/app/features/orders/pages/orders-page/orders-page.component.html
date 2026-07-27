@@ -70,6 +70,10 @@
                             [disabled]="store.reserving()" (click)="store.reserveStock(order.id)">
                       <i class="ri-archive-line me-1"></i> Reservar estoque
                     </button>
+                    <button type="button" class="btn btn-sm btn-outline-success me-1"
+                            [disabled]="store.starting()" (click)="store.startProduction(order.id)">
+                      <i class="ri-flask-line me-1"></i> Iniciar produção
+                    </button>
                   }
                   @if (order.status === 'DRAFT' || order.status === 'RELEASED') {
                     <button type="button" class="btn btn-sm btn-outline-danger me-1" (click)="startCancel(order.id)">

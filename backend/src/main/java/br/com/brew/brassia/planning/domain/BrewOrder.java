@@ -80,6 +80,21 @@ public final class BrewOrder {
                 BrewOrderStatus.RELEASED, assignedUserId, at, null, null, version + 1);
     }
 
+    /** Só uma OP liberada pode iniciar a produção (PRD-001). */
+    public boolean startable() {
+        return status == BrewOrderStatus.RELEASED;
+    }
+
+    /** Inicia a produção (RELEASED → IN_PRODUCTION). Transição única (PRD-001). */
+    public BrewOrder start(Instant at) {
+        if (!startable()) {
+            throw new IllegalStateException("ordem não está liberada");
+        }
+        Objects.requireNonNull(at, "at");
+        return new BrewOrder(id, breweryId, code, recipeId, recipeVersion, volumeLiters, snapshot,
+                BrewOrderStatus.IN_PRODUCTION, assignedUserId, releasedAt, cancelReason, cancelledAt, version + 1);
+    }
+
     /** Só ordens não iniciadas podem ser canceladas (BOP-003). */
     public boolean cancellable() {
         return status == BrewOrderStatus.DRAFT || status == BrewOrderStatus.RELEASED;

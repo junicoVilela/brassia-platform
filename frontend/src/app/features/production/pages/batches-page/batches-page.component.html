@@ -1,0 +1,56 @@
+<app-page-header title="Lotes de produção" subtitle="Lotes iniciados a partir das ordens liberadas" />
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-flask-line" message="Nenhum lote em produção."
+                       hint="Inicie a produção de uma ordem liberada em Ordens de produção." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Código</th>
+              <th scope="col">Receita</th>
+              <th scope="col" class="text-end">Volume (L)</th>
+              <th scope="col">Status</th>
+              <th scope="col">Início</th>
+              <th scope="col" class="text-end">Roteiro</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (batch of store.items(); track batch.id) {
+              <tr>
+                <td class="fw-medium">{{ batch.code }}</td>
+                <td>{{ batch.recipeName }} <span class="text-muted small">v{{ batch.recipeVersion }}</span></td>
+                <td class="text-end">{{ batch.volumeLiters | number: '1.0-1' }}</td>
+                <td><span class="badge text-bg-secondary">{{ batch.status }}</span></td>
+                <td class="text-muted small">{{ batch.startedAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="store.toggle(batch.id)">
+                    <i class="ri-list-check-2 me-1"></i> {{ batch.steps.length }} etapas
+                  </button>
+                </td>
+              </tr>
+              @if (store.expandedId() === batch.id) {
+                <tr>
+                  <td colspan="6" class="bg-body-tertiary">
+                    <ol class="mb-0 ps-3">
+                      @for (step of batch.steps; track step.sequence) {
+                        <li>{{ step.label }} <span class="text-muted small">({{ step.type }})</span></li>
+                      }
+                    </ol>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

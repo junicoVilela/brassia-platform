@@ -515,14 +515,34 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {description: "OP não liberada ou estoque insuficiente (extensão shortfalls); nada reservado"}
-  /brew-orders/{orderId}/start:
+  /brew-orders/{id}/start:
     post:
       operationId: startBrewOrder
+      summary: "Inicia a produção da OP liberada (RELEASED → IN_PRODUCTION; cria o lote via evento)"
       parameters:
-        - {name: orderId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
-        '200': {description: Started}
+        '200': {description: "OP em produção (status IN_PRODUCTION)"}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /production/batches:
+    get:
+      operationId: listProductionBatches
+      summary: Lista os lotes de produção
+      responses:
+        '200': {description: Lotes de produção}
+        '403': {$ref: '#/components/responses/Problem'}
+  /production/batches/{id}:
+    get:
+      operationId: getProductionBatch
+      summary: Detalhe do lote (snapshot + roteiro)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Lote}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /suppliers:
     get:
       operationId: listSuppliers

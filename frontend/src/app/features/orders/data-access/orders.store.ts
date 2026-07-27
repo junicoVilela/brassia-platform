@@ -166,6 +166,22 @@ export class OrdersStore {
     this.reserveShortfalls.set([]);
   }
 
+  /** Inicia a produção (RELEASED → IN_PRODUCTION); a produção cria o lote. */
+  readonly starting = signal(false);
+
+  startProduction(orderId: string): void {
+    this.starting.set(true);
+    this.api.start(orderId)
+      .pipe(finalize(() => this.starting.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => { this.toast.success('Produção iniciada; lote criado.'); this.load(); },
+        error: (err: { status?: number }) =>
+          this.toast.error(err?.status === 409
+            ? 'A ordem precisa estar liberada para iniciar.'
+            : 'Não foi possível iniciar a produção.'),
+      });
+  }
+
   showDetail(orderId: string): void {
     if (this.detail()?.id === orderId) {
       this.detail.set(null);

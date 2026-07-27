@@ -89,6 +89,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('production.batch.read')) {
+            <li class="menu-item">
+              <a routerLink="/production/batches" routerLinkActive="active" class="menu-link">
+                <i class="ri-flask-line menu-icon"></i>
+                <span class="title">Lotes de produção</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('inventory.lot.read')) {
             <li class="menu-item">
               <a routerLink="/inventory" routerLinkActive="active" class="menu-link" [routerLinkActiveOptions]="{ exact: true }">

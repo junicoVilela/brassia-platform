@@ -4,6 +4,7 @@ import { finalize } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ToastService } from '../../../core/notifications/toast.service';
 import { Batch } from '../domain/batch.model';
+import { BrewCorrection, CorrectionResult, PreviewCorrectionRequest } from '../domain/correction.model';
 import { Measurement, RecordMeasurementRequest } from '../domain/measurement.model';
 import { BatchesApi } from './batches.api';
 
@@ -33,6 +34,13 @@ export class BatchesStore {
   readonly measurementsLoading = signal(false);
   readonly measurementError = signal<string | null>(null);
   readonly recording = signal(false);
+
+  /** Lote com o painel de correções aberto (PRD-004). */
+  readonly correctionsBatchId = signal<string | null>(null);
+  readonly corrections = signal<BrewCorrection[]>([]);
+  readonly previewResult = signal<CorrectionResult | null>(null);
+  readonly previewing = signal(false);
+  readonly correctionError = signal<string | null>(null);
 
   load(): void {
     this.loading.set(true);
@@ -98,6 +106,34 @@ export class BatchesStore {
       .subscribe({
         next: m => this.measurements.set(m),
         error: () => this.measurementError.set('Não foi possível carregar as medições.'),
+      });
+  }
+
+  /** Abre (ou fecha) o painel de correções de um lote e carrega o catálogo. */
+  showCorrections(batchId: string): void {
+    if (this.correctionsBatchId() === batchId) {
+      this.correctionsBatchId.set(null);
+      return;
+    }
+    this.correctionsBatchId.set(batchId);
+    this.previewResult.set(null);
+    this.correctionError.set(null);
+    if (this.corrections().length === 0) {
+      this.api.corrections()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({ next: c => this.corrections.set(c), error: () => {} });
+    }
+  }
+
+  preview(batchId: string, request: PreviewCorrectionRequest): void {
+    this.previewing.set(true);
+    this.correctionError.set(null);
+    this.previewResult.set(null);
+    this.api.previewCorrection(batchId, request)
+      .pipe(finalize(() => this.previewing.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: r => this.previewResult.set(r),
+        error: () => this.correctionError.set('Não foi possível calcular o impacto (dados inválidos).'),
       });
   }
 }

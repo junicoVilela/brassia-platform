@@ -34,8 +34,11 @@
                   <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="store.toggle(batch.id)">
                     <i class="ri-list-check-2 me-1"></i> {{ batch.steps.length }} etapas
                   </button>
-                  <button type="button" class="btn btn-sm btn-outline-secondary" (click)="startMeasurements(batch.id)">
+                  <button type="button" class="btn btn-sm btn-outline-secondary me-1" (click)="startMeasurements(batch.id)">
                     <i class="ri-test-tube-line me-1"></i> Medições
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" (click)="startCorrections(batch.id)">
+                    <i class="ri-drop-line me-1"></i> Correções
                   </button>
                 </td>
               </tr>
@@ -163,6 +166,67 @@
               }
             </tbody>
           </table>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+@if (store.correctionsBatchId(); as batchId) {
+  <div class="card border-0 rounded-10 mt-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h2 class="h6 fw-semibold mb-0">Correções determinísticas</h2>
+        <button type="button" class="btn-close" aria-label="Fechar" (click)="store.showCorrections(batchId)"></button>
+      </div>
+      <p class="text-muted small mb-3">Pré-visualização do impacto — nada é aplicado sem confirmação.</p>
+
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label" for="corrsel">Correção</label>
+          <select id="corrsel" class="form-select" [value]="selectedCorrectionId()"
+                  (change)="selectCorrection($any($event.target).value)">
+            <option value="">Selecione…</option>
+            @for (c of store.corrections(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+          </select>
+          @if (selectedCorrection(); as c) {
+            <p class="text-muted small mt-2 mb-0">{{ c.description }}</p>
+          }
+        </div>
+
+        @if (selectedCorrection(); as c) {
+          <div class="col-md-8">
+            <div class="row g-2 align-items-end">
+              @for (input of c.inputs; track input) {
+                <div class="col-sm-4">
+                  <label class="form-label small" [for]="'ci-' + input">{{ input }}</label>
+                  <input [id]="'ci-' + input" type="number" step="any" class="form-control form-control-sm"
+                         (input)="setInput(input, $event)">
+                </div>
+              }
+              <div class="col-sm-4 d-grid">
+                <button type="button" class="btn btn-primary btn-sm"
+                        [disabled]="!canPreview() || store.previewing()" (click)="runPreview(batchId)">
+                  <i class="ri-calculator-line me-1"></i> Calcular impacto
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+
+      @if (store.correctionError(); as correctionError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ correctionError }}</div>
+      }
+      @if (store.previewResult(); as r) {
+        <div class="alert alert-info mt-3 mb-0">
+          <div class="d-flex align-items-baseline gap-2">
+            <span class="h5 mb-0 fw-semibold">{{ r.value | number: '1.0-4' }} {{ r.unit }}</span>
+            <span class="text-muted small">{{ r.method }} · v{{ r.version }}</span>
+          </div>
+          @for (a of r.alerts; track a) {
+            <div class="text-danger small mt-1"><i class="ri-error-warning-line me-1"></i>{{ a }}</div>
+          }
         </div>
       }
     </div>

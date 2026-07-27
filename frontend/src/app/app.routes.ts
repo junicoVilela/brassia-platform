@@ -71,6 +71,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/production/production.routes').then(m => m.PRODUCTION_ROUTES),
       },
       {
+        path: 'sanitation/procedures',
+        canActivate: [permissionGuard],
+        data: { permission: 'sanitation.procedure.read' },
+        loadChildren: () => import('./features/sanitation/sanitation.routes').then(m => m.SANITATION_ROUTES),
+      },
+      {
         path: 'suppliers',
         canActivate: [permissionGuard],
         data: { permission: 'purchasing.supplier.read' },

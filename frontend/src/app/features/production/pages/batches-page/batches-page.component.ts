@@ -6,6 +6,7 @@ import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component
 import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator.component';
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
 import { BatchesStore } from '../../data-access/batches.store';
+import { ALERT_KINDS } from '../../domain/alert.model';
 import { MEASUREMENT_KINDS, MEASUREMENT_SOURCES } from '../../domain/measurement.model';
 
 @Component({
@@ -24,6 +25,12 @@ export class BatchesPageComponent implements OnInit {
 
   protected readonly kinds = MEASUREMENT_KINDS;
   protected readonly sources = MEASUREMENT_SOURCES;
+  protected readonly alertKinds = ALERT_KINDS;
+
+  protected readonly alertForm = this.fb.nonNullable.group({
+    kind: ['DECISION', Validators.required],
+    message: ['', [Validators.required, Validators.maxLength(300)]],
+  });
 
   /** Relógio que avança a cada segundo; o decorrido deriva de started_at (server-aware). */
   protected readonly now = signal(Date.now());
@@ -115,6 +122,20 @@ export class BatchesPageComponent implements OnInit {
       ogSg: v.ogSg,
       lossesLiters: v.lossesLiters,
     });
+  }
+
+  protected startAlerts(batchId: string): void {
+    this.alertForm.reset({ kind: 'DECISION', message: '' });
+    this.store.showAlerts(batchId);
+  }
+
+  protected createAlert(batchId: string): void {
+    if (this.alertForm.invalid) {
+      return;
+    }
+    const v = this.alertForm.getRawValue();
+    this.store.createAlert(batchId, { kind: v.kind, message: v.message },
+      () => this.alertForm.reset({ kind: v.kind, message: '' }));
   }
 
   protected startMeasurements(batchId: string): void {

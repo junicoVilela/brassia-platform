@@ -11,7 +11,7 @@ Estado: EM ANDAMENTO
 | PRD-003 | Concluída | IA | (local) | Registrar medição: `Measurement` imutável (append-only) com valor, unidade, temperatura, método, origem e operador; vocabulário fechado de grandezas (DENSITY/TEMPERATURE/VOLUME/PH/COLOR/IBU) com unidades válidas — incompatível → 400. Etapa opcional (se informada, deve ser do lote). Só lote em andamento. `POST /production/batches/{id}/measurements` (`production.measurement.record`, V52) + `GET`. UI: painel de medições (form dependente da grandeza + histórico). Backend +7 testes. |
 | PRD-004 | Concluída | IA | (local) | Correções determinísticas (pré-visualização): reusa o motor versionado (Sprint 04). Engine ganhou concentração por evaporação, correção de densidade por temperatura e ajuste de volume (diluição já existia); publicado `calculator.CalculatorEngine` p/ reúso. `GET /production/corrections` + `POST /production/batches/{id}/corrections/preview` (só lote em andamento; restrito às 4 correções; read-only — nada aplicado). UI: painel de Correções com inputs dinâmicos + impacto/alertas. Backend +8 testes. |
 | PRD-005 | Concluída | IA | (local) | Transferência ao fermentador: registra volume, OG, perdas e destino (equipamento); valida capacidade do destino (via `EquipmentCapacityLookup`) e balanço de massa (volume+perdas ≤ volume do lote) → 409. Transferência única (unique batch); move o lote IN_PROGRESS → FERMENTING. `POST /production/batches/{id}/transfer` (`production.batch.manage`) + `GET`. Migration V53 (+FERMENTING no ciclo). UI: painel de transferência com fermentador destino. Backend +8 testes. |
-| PRD-006 | A fazer | — | — | — |
+| PRD-006 | Concluída | IA | (local) | Central de alertas/ações: `BatchAlert` persistido (sobrevive a recarga) — tipo ADDITION/STEP/MEASUREMENT/DECISION, planejado, realizado, mensagem, status PENDING/CONFIRMED. `POST/GET /production/batches/{id}/alerts` + `POST .../{alertId}/confirm` (idempotente e auditado; não avança etapa). Multi-tenant (outra cervejaria não enxerga o lote). Migration V54. UI: painel "Central" com timeline + confirmar. Backend +6 testes. Débito PRD-006-A (gatilhos derivados). |
 | CAL-002 | A fazer | — | — | — |
 
 ## Decisões e bloqueios
@@ -43,6 +43,11 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Destino = equipamento existente**: o fermentador é um `Equipment`; a capacidade é validada por `equipment.EquipmentCapacityLookup` (API publicada) — `production → equipment`, sem ciclo. Fermentador inexistente → 400; volume > capacidade → 409.
 - **Balanço de massa**: `volume transferido + perdas ≤ volume do lote`; excedente → **409**.
 - **Transferência única** por lote (`uq_production_transfer_batch`); guarda de estado move `IN_PROGRESS → FERMENTING` (V53 adiciona FERMENTING ao ciclo). Registra volume, OG e perdas; `production.batch.manage`.
+
+### PRD-006 — decisões (confirmadas com o mantenedor)
+- **Alerta persistido** (`production_batch_alert`, V54): sobrevive a recarga/reconexão. Guarda planejado e realizado (atraso/impacto) e **não avança etapa**. Multi-tenant — outra cervejaria não enxerga sequer o lote (400).
+- **Confirmação idempotente e auditada**: guarda de estado (`status='PENDING'`); reconfirmar é no-op (segue CONFIRMED). Criar/confirmar exige `production.batch.manage`; ler reusa `production.batch.read`.
+- **Sem geradores automáticos** nesta história: itens são criados por API. **DÉBITO PRD-006-A**: gatilhos derivados (etapa atrasada por meta de duração — depende de PRD-001-A; adição por agenda) quando existirem metas/agenda.
 
 ## Evidências de encerramento
 

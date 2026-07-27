@@ -5,6 +5,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { ToastService } from '../../../core/notifications/toast.service';
 import { EquipmentApi } from '../../equipment/data-access/equipment.api';
 import { Equipment } from '../../equipment/domain/equipment.model';
+import { BatchAlert, CreateAlertRequest } from '../domain/alert.model';
 import { Batch } from '../domain/batch.model';
 import { BrewCorrection, CorrectionResult, PreviewCorrectionRequest } from '../domain/correction.model';
 import { Measurement, RecordMeasurementRequest } from '../domain/measurement.model';
@@ -51,6 +52,13 @@ export class BatchesStore {
   readonly equipment = signal<Equipment[]>([]);
   readonly transferring = signal(false);
   readonly transferError = signal<string | null>(null);
+
+  /** Lote com a central de alertas aberta (PRD-006). */
+  readonly alertsBatchId = signal<string | null>(null);
+  readonly alerts = signal<BatchAlert[]>([]);
+  readonly alertsLoading = signal(false);
+  readonly alertError = signal<string | null>(null);
+  readonly savingAlert = signal(false);
 
   load(): void {
     this.loading.set(true);
@@ -178,6 +186,51 @@ export class BatchesStore {
           this.transferError.set(err?.status === 409
             ? 'Capacidade do fermentador ou balanço de massa excedido.'
             : 'Não foi possível transferir (dados inválidos).'),
+      });
+  }
+
+  /** Abre (ou fecha) a central de alertas de um lote e carrega a timeline. */
+  showAlerts(batchId: string): void {
+    if (this.alertsBatchId() === batchId) {
+      this.alertsBatchId.set(null);
+      return;
+    }
+    this.alertsBatchId.set(batchId);
+    this.alertError.set(null);
+    this.refreshAlerts(batchId);
+  }
+
+  createAlert(batchId: string, request: CreateAlertRequest, onSuccess?: () => void): void {
+    this.savingAlert.set(true);
+    this.alertError.set(null);
+    this.api.createAlert(batchId, request)
+      .pipe(finalize(() => this.savingAlert.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => { onSuccess?.(); this.toast.success('Alerta criado.'); this.refreshAlerts(batchId); },
+        error: () => this.alertError.set('Não foi possível criar o alerta (dados inválidos).'),
+      });
+  }
+
+  confirmAlert(batchId: string, alertId: string): void {
+    this.api.confirmAlert(batchId, alertId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: updated => {
+          this.alerts.update(list => list.map(a => (a.id === updated.id ? updated : a)));
+          this.toast.success('Alerta confirmado.');
+        },
+        error: () => this.toast.error('Não foi possível confirmar o alerta.'),
+      });
+  }
+
+  private refreshAlerts(batchId: string): void {
+    this.alertsLoading.set(true);
+    this.alerts.set([]);
+    this.api.alerts(batchId)
+      .pipe(finalize(() => this.alertsLoading.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: a => this.alerts.set(a),
+        error: () => this.alertError.set('Não foi possível carregar os alertas.'),
       });
   }
 }

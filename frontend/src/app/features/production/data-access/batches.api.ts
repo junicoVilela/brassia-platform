@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
+import { BatchAlert, CreateAlertRequest } from '../domain/alert.model';
 import { Batch } from '../domain/batch.model';
 import { BrewCorrection, CorrectionResult, PreviewCorrectionRequest } from '../domain/correction.model';
 import { Measurement, RecordMeasurementRequest } from '../domain/measurement.model';
@@ -40,5 +41,17 @@ export class BatchesApi {
 
   transfer(batchId: string, request: TransferRequest) {
     return this.http.post<Transfer>(`${this.baseUrl}/${batchId}/transfer`, request);
+  }
+
+  alerts(batchId: string) {
+    return this.http.get<BatchAlert[]>(`${this.baseUrl}/${batchId}/alerts`);
+  }
+
+  createAlert(batchId: string, request: CreateAlertRequest) {
+    return this.http.post<{ id: string }>(`${this.baseUrl}/${batchId}/alerts`, request);
+  }
+
+  confirmAlert(batchId: string, alertId: string) {
+    return this.http.post<BatchAlert>(`${this.baseUrl}/${batchId}/alerts/${alertId}/confirm`, {});
   }
 }

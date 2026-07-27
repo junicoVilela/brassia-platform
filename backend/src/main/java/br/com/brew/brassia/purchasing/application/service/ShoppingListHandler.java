@@ -6,6 +6,7 @@ import br.com.brew.brassia.purchasing.application.port.inbound.PurchaseNeedUseCa
 import br.com.brew.brassia.purchasing.application.port.inbound.ShoppingListUseCase;
 import br.com.brew.brassia.purchasing.application.port.outbound.SupplierRepository;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -59,11 +60,25 @@ public final class ShoppingListHandler implements ShoppingListUseCase {
             var purchaseUnit = spec == null ? need.unit() : spec.purchaseUnit();
             var converted = PurchaseUnitConversion.convert(need.suggested(), need.unit(), purchaseUnit);
 
+            // Arredonda para pacotes fechados quando há tamanho de embalagem (PUR-002-A) e a conversão
+            // para a unidade de compra foi aplicada (PACK/desconhecida cai no fallback, sem arredondar).
+            var packageSize = spec == null ? null : spec.packageSize();
+            var purchaseQuantity = converted.quantity();
+            Integer packages = null;
+            if (packageSize != null && packageSize.signum() > 0
+                    && converted.unit().equalsIgnoreCase(purchaseUnit)) {
+                var count = converted.quantity().divide(packageSize, 0, RoundingMode.CEILING);
+                packages = count.intValueExact();
+                purchaseQuantity = packageSize.multiply(count);
+            }
+
             BigDecimal unitCost = null;
             BigDecimal estimatedCost = null;
             if (includeCosts && source != null && source.unitCostPerCanonical() != null) {
                 unitCost = source.unitCostPerCanonical();
-                estimatedCost = need.suggested().multiply(unitCost);
+                // Custo do que será efetivamente comprado (após arredondamento), em unidade canônica.
+                var purchasedCanonical = PurchaseUnitConversion.toCanonical(purchaseQuantity, converted.unit());
+                estimatedCost = purchasedCanonical.multiply(unitCost);
             }
 
             groups.computeIfAbsent(supplierId, k -> new ArrayList<>()).add(new Item(
@@ -71,7 +86,7 @@ public final class ShoppingListHandler implements ShoppingListUseCase {
                     spec == null ? null : spec.code(),
                     spec == null ? null : spec.name(),
                     need.demand(), need.onHand(), need.reserved(), need.suggested(), need.unit(),
-                    converted.quantity(), converted.unit(),
+                    purchaseQuantity, converted.unit(), packages,
                     unitCost, estimatedCost));
         }
 

@@ -24,7 +24,7 @@ public final class UpdateIngredientHandler implements UpdateIngredientUseCase {
                 .orElseThrow(() -> new IllegalArgumentException("ingrediente inexistente"));
 
         ingredient.update(new IngredientName(command.name()), MeasurementUnit.of(command.useUnit()),
-                MeasurementUnit.of(command.purchaseUnit()), command.attributes());
+                MeasurementUnit.of(command.purchaseUnit()), command.purchasePackageSize(), command.attributes());
 
         if (!repository.update(ingredient, command.version())) {
             throw new IllegalStateException("versão do ingrediente divergiu");
@@ -37,6 +37,6 @@ public final class UpdateIngredientHandler implements UpdateIngredientUseCase {
 
         return new Result(refreshed.id().value(), refreshed.type().name(), refreshed.code().value(),
                 refreshed.name().value(), refreshed.useUnit().name(), refreshed.purchaseUnit().name(),
-                refreshed.attributes(), refreshed.active(), refreshed.version());
+                refreshed.purchasePackageSize(), refreshed.attributes(), refreshed.active(), refreshed.version());
     }
 }

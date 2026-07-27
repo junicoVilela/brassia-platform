@@ -13,7 +13,7 @@ class IngredientTest {
 
     private Ingredient malt(Map<String, String> attributes) {
         return Ingredient.register(BREWERY, IngredientType.MALT, new IngredientCode("pilsen"),
-                new IngredientName("Malte Pilsen"), MeasurementUnit.KG, MeasurementUnit.KG, attributes);
+                new IngredientName("Malte Pilsen"), MeasurementUnit.KG, MeasurementUnit.KG, null, attributes);
     }
 
     @Test
@@ -58,13 +58,26 @@ class IngredientTest {
         var ingredient = malt(Map.of("colorEbc", "3.5"));
 
         ingredient.update(new IngredientName("Malte Pilsen DE"), MeasurementUnit.G, MeasurementUnit.KG,
-                Map.of("potentialSg", "1.038"));
+                null, Map.of("potentialSg", "1.038"));
         assertThat(ingredient.name().value()).isEqualTo("Malte Pilsen DE");
         assertThat(ingredient.useUnit()).isEqualTo(MeasurementUnit.G);
         assertThat(ingredient.attributes()).containsOnlyKeys("potentialSg");
 
         assertThatThrownBy(() -> ingredient.update(new IngredientName("X"), MeasurementUnit.KG,
-                MeasurementUnit.KG, Map.of("alphaAcid", "1")))
+                MeasurementUnit.KG, null, Map.of("alphaAcid", "1")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void acceptsPackageSizeAndRejectsNonPositive() {
+        var ingredient = Ingredient.register(BREWERY, IngredientType.MALT, new IngredientCode("sack"),
+                new IngredientName("Malte em saco"), MeasurementUnit.KG, MeasurementUnit.KG,
+                new java.math.BigDecimal("25"), Map.of());
+        assertThat(ingredient.purchasePackageSize()).isEqualByComparingTo("25");
+
+        assertThatThrownBy(() -> Ingredient.register(BREWERY, IngredientType.MALT, new IngredientCode("bad"),
+                new IngredientName("x"), MeasurementUnit.KG, MeasurementUnit.KG,
+                java.math.BigDecimal.ZERO, Map.of()))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

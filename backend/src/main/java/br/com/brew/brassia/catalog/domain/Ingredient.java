@@ -1,5 +1,6 @@
 package br.com.brew.brassia.catalog.domain;
 
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -18,13 +19,14 @@ public final class Ingredient {
     private IngredientName name;
     private MeasurementUnit useUnit;
     private MeasurementUnit purchaseUnit;
+    private BigDecimal purchasePackageSize;
     private Map<String, String> attributes;
     private final boolean active;
     private final long version;
 
     private Ingredient(IngredientId id, UUID breweryId, IngredientType type, IngredientCode code,
             IngredientName name, MeasurementUnit useUnit, MeasurementUnit purchaseUnit,
-            Map<String, String> attributes, boolean active, long version) {
+            BigDecimal purchasePackageSize, Map<String, String> attributes, boolean active, long version) {
         this.id = Objects.requireNonNull(id);
         this.breweryId = Objects.requireNonNull(breweryId);
         this.type = Objects.requireNonNull(type);
@@ -32,6 +34,7 @@ public final class Ingredient {
         this.name = Objects.requireNonNull(name);
         this.useUnit = Objects.requireNonNull(useUnit);
         this.purchaseUnit = Objects.requireNonNull(purchaseUnit);
+        this.purchasePackageSize = requirePositiveOrNull(purchasePackageSize);
         this.attributes = validateAttributes(type, attributes);
         this.active = active;
         this.version = version;
@@ -39,24 +42,33 @@ public final class Ingredient {
 
     public static Ingredient register(UUID breweryId, IngredientType type, IngredientCode code,
             IngredientName name, MeasurementUnit useUnit, MeasurementUnit purchaseUnit,
-            Map<String, String> attributes) {
+            BigDecimal purchasePackageSize, Map<String, String> attributes) {
         return new Ingredient(IngredientId.newId(), breweryId, type, code, name, useUnit, purchaseUnit,
-                attributes, true, 0);
+                purchasePackageSize, attributes, true, 0);
     }
 
     public static Ingredient reconstitute(IngredientId id, UUID breweryId, IngredientType type,
             IngredientCode code, IngredientName name, MeasurementUnit useUnit, MeasurementUnit purchaseUnit,
-            Map<String, String> attributes, boolean active, long version) {
-        return new Ingredient(id, breweryId, type, code, name, useUnit, purchaseUnit, attributes, active, version);
+            BigDecimal purchasePackageSize, Map<String, String> attributes, boolean active, long version) {
+        return new Ingredient(id, breweryId, type, code, name, useUnit, purchaseUnit, purchasePackageSize,
+                attributes, active, version);
     }
 
     /** Atualiza os campos mutáveis; tipo e código são imutáveis após o cadastro. */
     public void update(IngredientName name, MeasurementUnit useUnit, MeasurementUnit purchaseUnit,
-            Map<String, String> attributes) {
+            BigDecimal purchasePackageSize, Map<String, String> attributes) {
         this.name = Objects.requireNonNull(name);
         this.useUnit = Objects.requireNonNull(useUnit);
         this.purchaseUnit = Objects.requireNonNull(purchaseUnit);
+        this.purchasePackageSize = requirePositiveOrNull(purchasePackageSize);
         this.attributes = validateAttributes(this.type, attributes);
+    }
+
+    private static BigDecimal requirePositiveOrNull(BigDecimal value) {
+        if (value != null && value.signum() <= 0) {
+            throw new IllegalArgumentException("tamanho de embalagem deve ser positivo");
+        }
+        return value;
     }
 
     private static Map<String, String> validateAttributes(IngredientType type, Map<String, String> attributes) {
@@ -85,6 +97,7 @@ public final class Ingredient {
     public IngredientName name() { return name; }
     public MeasurementUnit useUnit() { return useUnit; }
     public MeasurementUnit purchaseUnit() { return purchaseUnit; }
+    public BigDecimal purchasePackageSize() { return purchasePackageSize; }
     public Map<String, String> attributes() { return Map.copyOf(attributes); }
     public boolean active() { return active; }
     public long version() { return version; }

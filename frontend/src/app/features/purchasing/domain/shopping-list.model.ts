@@ -9,6 +9,7 @@ export interface ShoppingListItem {
   unit: string;
   purchaseQuantity: number;
   purchaseUnit: string;
+  packages: number | null;
   unitCost: number | null;
   estimatedCost: number | null;
 }

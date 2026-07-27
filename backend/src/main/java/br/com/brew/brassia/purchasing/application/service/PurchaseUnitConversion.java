@@ -37,4 +37,10 @@ final class PurchaseUnitConversion {
         var quantity = canonicalQuantity.divide(target.toCanonical(), 4, RoundingMode.HALF_UP);
         return new Result(quantity, purchaseUnit.toUpperCase(Locale.ROOT));
     }
+
+    /** Converte uma quantidade na {@code unit} para a canônica; sem conversão conhecida, mantém. */
+    static BigDecimal toCanonical(BigDecimal quantity, String unit) {
+        var conversion = unit == null ? null : UNITS.get(unit.toUpperCase(Locale.ROOT));
+        return conversion == null ? quantity : quantity.multiply(conversion.toCanonical());
+    }
 }

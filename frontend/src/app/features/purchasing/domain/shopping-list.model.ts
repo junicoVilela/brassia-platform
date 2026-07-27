@@ -5,6 +5,7 @@ export interface ShoppingListItem {
   demand: number;
   onHand: number;
   reserved: number;
+  reorderPoint: number;
   suggested: number;
   unit: string;
   purchaseQuantity: number;
@@ -17,6 +18,7 @@ export interface ShoppingListItem {
 export interface ShoppingListGroup {
   supplierId: string | null;
   supplierName: string;
+  leadTimeDays: number | null;
   items: ShoppingListItem[];
   estimatedTotal: number | null;
 }

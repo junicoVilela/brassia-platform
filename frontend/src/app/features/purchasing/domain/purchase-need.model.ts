@@ -3,6 +3,7 @@ export interface PurchaseNeed {
   demand: number;
   onHand: number;
   reserved: number;
+  reorderPoint: number;
   suggested: number;
   unit: string;
 }

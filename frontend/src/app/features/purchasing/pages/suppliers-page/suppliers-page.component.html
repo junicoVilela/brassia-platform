@@ -6,9 +6,12 @@
     <form [formGroup]="form" (ngSubmit)="register()" class="row g-3 align-items-end">
       <div class="col-sm-6"><label class="form-label" for="name">Nome</label>
         <input id="name" type="text" class="form-control" formControlName="name" placeholder="Maltaria Sul"></div>
-      <div class="col-sm-4"><label class="form-label" for="code">Código</label>
+      <div class="col-sm-3"><label class="form-label" for="code">Código</label>
         <input id="code" type="text" class="form-control" formControlName="code" placeholder="MSUL"></div>
-      <div class="col-sm-2 d-grid">
+      <div class="col-sm-2"><label class="form-label" for="leadTimeDays">Lead time (dias)</label>
+        <input id="leadTimeDays" type="number" min="0" class="form-control" formControlName="leadTimeDays"
+               placeholder="ex.: 7"></div>
+      <div class="col-sm-1 d-grid">
         <button type="submit" class="btn btn-primary" [disabled]="form.invalid || store.submitting()">
           <i class="ri-add-line me-1"></i> Cadastrar
         </button>
@@ -33,10 +36,17 @@
     } @else {
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-          <thead><tr><th scope="col">Nome</th><th scope="col">Código</th></tr></thead>
+          <thead><tr>
+            <th scope="col">Nome</th><th scope="col">Código</th>
+            <th scope="col" class="text-end">Lead time (dias)</th>
+          </tr></thead>
           <tbody>
             @for (supplier of store.items(); track supplier.id) {
-              <tr><td class="fw-medium">{{ supplier.name }}</td><td>{{ supplier.code }}</td></tr>
+              <tr>
+                <td class="fw-medium">{{ supplier.name }}</td>
+                <td>{{ supplier.code }}</td>
+                <td class="text-end">{{ supplier.leadTimeDays !== null ? supplier.leadTimeDays : '—' }}</td>
+              </tr>
             }
           </tbody>
         </table>

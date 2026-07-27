@@ -13,5 +13,5 @@ public interface IngredientPurchaseLookup {
     List<PurchaseSpec> findAll(UUID breweryId);
 
     record PurchaseSpec(UUID ingredientId, String code, String name, String useUnit, String purchaseUnit,
-            BigDecimal packageSize) {}
+            BigDecimal packageSize, BigDecimal reorderPoint) {}
 }

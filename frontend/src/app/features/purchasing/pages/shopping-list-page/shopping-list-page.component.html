@@ -25,6 +25,9 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h2 class="h6 fw-semibold mb-0">
             <i class="ri-truck-line me-1"></i> {{ group.supplierName }}
+            @if (group.leadTimeDays !== null) {
+              <span class="badge text-bg-secondary ms-2">Lead time: {{ group.leadTimeDays }} d</span>
+            }
           </h2>
           @if (canSeeCosts && group.estimatedTotal !== null) {
             <span class="badge text-bg-light">Estimado: {{ group.estimatedTotal | number: '1.2-2' }}</span>
@@ -41,6 +44,7 @@
                 <th scope="col" class="text-end">Necessidade</th>
                 <th scope="col" class="text-end">Em estoque</th>
                 <th scope="col" class="text-end">Reservado</th>
+                <th scope="col" class="text-end">Ponto ped.</th>
                 <th scope="col">Un. téc.</th>
                 @if (canSeeCosts) {
                   <th scope="col" class="text-end">Custo unit.</th>
@@ -61,6 +65,7 @@
                   <td class="text-end">{{ item.suggested | number: '1.0-3' }}</td>
                   <td class="text-end">{{ item.onHand | number: '1.0-3' }}</td>
                   <td class="text-end">{{ item.reserved | number: '1.0-3' }}</td>
+                  <td class="text-end">{{ item.reorderPoint | number: '1.0-3' }}</td>
                   <td>{{ item.unit }}</td>
                   @if (canSeeCosts) {
                     <td class="text-end">{{ item.unitCost !== null ? (item.unitCost | number: '1.2-4') : '—' }}</td>

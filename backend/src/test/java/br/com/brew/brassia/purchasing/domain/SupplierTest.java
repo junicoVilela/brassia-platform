@@ -12,18 +12,21 @@ class SupplierTest {
 
     @Test
     void registersWithNameAndCode() {
-        var s = Supplier.register(BREWERY, "  Maltaria Sul  ", "MSUL");
+        var s = Supplier.register(BREWERY, "  Maltaria Sul  ", "MSUL", 7);
         assertThat(s.id()).isNotNull();
         assertThat(s.name()).isEqualTo("Maltaria Sul");
         assertThat(s.code()).isEqualTo("MSUL");
+        assertThat(s.leadTimeDays()).isEqualTo(7);
         assertThat(s.version()).isEqualTo(1);
     }
 
     @Test
-    void rejectsBlankNameOrCode() {
-        assertThatThrownBy(() -> Supplier.register(BREWERY, "  ", "C"))
+    void rejectsBlankNameOrCodeOrNegativeLeadTime() {
+        assertThatThrownBy(() -> Supplier.register(BREWERY, "  ", "C", null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> Supplier.register(BREWERY, "Nome", " "))
+        assertThatThrownBy(() -> Supplier.register(BREWERY, "Nome", " ", null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Supplier.register(BREWERY, "Nome", "C", -1))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

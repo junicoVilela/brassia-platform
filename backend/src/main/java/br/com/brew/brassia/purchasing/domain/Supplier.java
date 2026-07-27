@@ -14,22 +14,32 @@ public final class Supplier {
     private final UUID breweryId;
     private final String name;
     private final String code;
+    private final Integer leadTimeDays;
     private final long version;
 
-    private Supplier(SupplierId id, UUID breweryId, String name, String code, long version) {
+    private Supplier(SupplierId id, UUID breweryId, String name, String code, Integer leadTimeDays, long version) {
         this.id = Objects.requireNonNull(id, "id");
         this.breweryId = Objects.requireNonNull(breweryId, "breweryId");
         this.name = requireText(name, "nome", 160);
         this.code = requireText(code, "código", 40);
+        this.leadTimeDays = requireNonNegativeOrNull(leadTimeDays);
         this.version = version;
     }
 
-    public static Supplier register(UUID breweryId, String name, String code) {
-        return new Supplier(SupplierId.newId(), breweryId, name, code, 1);
+    public static Supplier register(UUID breweryId, String name, String code, Integer leadTimeDays) {
+        return new Supplier(SupplierId.newId(), breweryId, name, code, leadTimeDays, 1);
     }
 
-    public static Supplier reconstitute(SupplierId id, UUID breweryId, String name, String code, long version) {
-        return new Supplier(id, breweryId, name, code, version);
+    public static Supplier reconstitute(SupplierId id, UUID breweryId, String name, String code,
+            Integer leadTimeDays, long version) {
+        return new Supplier(id, breweryId, name, code, leadTimeDays, version);
+    }
+
+    private static Integer requireNonNegativeOrNull(Integer value) {
+        if (value != null && value < 0) {
+            throw new IllegalArgumentException("lead time não pode ser negativo");
+        }
+        return value;
     }
 
     private static String requireText(String value, String field, int max) {
@@ -56,6 +66,10 @@ public final class Supplier {
 
     public String code() {
         return code;
+    }
+
+    public Integer leadTimeDays() {
+        return leadTimeDays;
     }
 
     public long version() {

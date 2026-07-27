@@ -20,7 +20,8 @@ public interface ShoppingListUseCase {
      * @param items         itens a comprar deste fornecedor
      * @param estimatedTotal soma dos custos estimados (nulo quando custos omitidos)
      */
-    record SupplierGroup(UUID supplierId, String supplierName, List<Item> items, BigDecimal estimatedTotal) {}
+    record SupplierGroup(UUID supplierId, String supplierName, Integer leadTimeDays, List<Item> items,
+            BigDecimal estimatedTotal) {}
 
     /**
      * @param demand         necessidade bruta (unidade técnica canônica)
@@ -34,7 +35,8 @@ public interface ShoppingListUseCase {
      * @param estimatedCost  suggested × unitCost (nulo se omitido/sem histórico)
      */
     record Item(UUID ingredientId, String ingredientCode, String ingredientName,
-            BigDecimal demand, BigDecimal onHand, BigDecimal reserved, BigDecimal suggested, String unit,
+            BigDecimal demand, BigDecimal onHand, BigDecimal reserved, BigDecimal reorderPoint,
+            BigDecimal suggested, String unit,
             BigDecimal purchaseQuantity, String purchaseUnit, Integer packages,
             BigDecimal unitCost, BigDecimal estimatedCost) {}
 }

@@ -15,22 +15,23 @@ public record IngredientResponse(
         String useUnit,
         String purchaseUnit,
         BigDecimal purchasePackageSize,
+        BigDecimal reorderPoint,
         Map<String, String> attributes,
         boolean active,
         long version) {
 
     public static IngredientResponse from(RegisterIngredientUseCase.Result r) {
         return new IngredientResponse(r.id(), r.type(), r.code(), r.name(), r.useUnit(), r.purchaseUnit(),
-                r.purchasePackageSize(), r.attributes(), r.active(), r.version());
+                r.purchasePackageSize(), r.reorderPoint(), r.attributes(), r.active(), r.version());
     }
 
     public static IngredientResponse from(UpdateIngredientUseCase.Result r) {
         return new IngredientResponse(r.id(), r.type(), r.code(), r.name(), r.useUnit(), r.purchaseUnit(),
-                r.purchasePackageSize(), r.attributes(), r.active(), r.version());
+                r.purchasePackageSize(), r.reorderPoint(), r.attributes(), r.active(), r.version());
     }
 
     public static IngredientResponse from(ListIngredientsUseCase.Summary s) {
         return new IngredientResponse(s.id(), s.type(), s.code(), s.name(), s.useUnit(), s.purchaseUnit(),
-                s.purchasePackageSize(), s.attributes(), s.active(), s.version());
+                s.purchasePackageSize(), s.reorderPoint(), s.attributes(), s.active(), s.version());
     }
 }

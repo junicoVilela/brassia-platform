@@ -29,21 +29,22 @@ class JdbcSupplierRepository implements SupplierRepository, SupplierLookup {
     @Override
     public void insert(Supplier s) {
         jdbc.sql("""
-                INSERT INTO supplier (id, brewery_id, name, code, normalized_code, version)
-                VALUES (:id, :brewery, :name, :code, :normalized, :version)
+                INSERT INTO supplier (id, brewery_id, name, code, normalized_code, lead_time_days, version)
+                VALUES (:id, :brewery, :name, :code, :normalized, :leadTime, :version)
                 """)
                 .param("id", s.id().value())
                 .param("brewery", s.breweryId())
                 .param("name", s.name())
                 .param("code", s.code())
                 .param("normalized", s.code().toLowerCase(Locale.ROOT))
+                .param("leadTime", s.leadTimeDays())
                 .param("version", s.version())
                 .update();
     }
 
     @Override
     public List<Supplier> findAll(UUID breweryId) {
-        return jdbc.sql("SELECT id, brewery_id, name, code, version FROM supplier "
+        return jdbc.sql("SELECT id, brewery_id, name, code, lead_time_days, version FROM supplier "
                         + "WHERE brewery_id = :brewery ORDER BY name")
                 .param("brewery", breweryId)
                 .query((rs, n) -> Supplier.reconstitute(
@@ -51,6 +52,7 @@ class JdbcSupplierRepository implements SupplierRepository, SupplierLookup {
                         rs.getObject("brewery_id", UUID.class),
                         rs.getString("name"),
                         rs.getString("code"),
+                        rs.getObject("lead_time_days", Integer.class),
                         rs.getLong("version")))
                 .list();
     }

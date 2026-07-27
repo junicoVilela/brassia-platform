@@ -15,7 +15,8 @@ public interface ListIngredientsUseCase {
     record Query(UUID breweryId, String type, int page, int size) {}
 
     record Summary(UUID id, String type, String code, String name, String useUnit, String purchaseUnit,
-            BigDecimal purchasePackageSize, Map<String, String> attributes, boolean active, long version) {}
+            BigDecimal purchasePackageSize, BigDecimal reorderPoint, Map<String, String> attributes,
+            boolean active, long version) {}
 
     record Result(List<Summary> content, int page, int size, long totalElements, int totalPages) {}
 }

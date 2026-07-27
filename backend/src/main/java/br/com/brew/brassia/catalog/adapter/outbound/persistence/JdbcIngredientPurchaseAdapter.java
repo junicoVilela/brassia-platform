@@ -19,7 +19,7 @@ class JdbcIngredientPurchaseAdapter implements IngredientPurchaseLookup {
     @Override
     public List<PurchaseSpec> findAll(UUID breweryId) {
         return jdbc.sql("""
-                SELECT id, code, name, use_unit, purchase_unit, purchase_package_size
+                SELECT id, code, name, use_unit, purchase_unit, purchase_package_size, reorder_point
                 FROM catalog_ingredient
                 WHERE brewery_id = :brewery AND active = true
                 """)
@@ -30,7 +30,8 @@ class JdbcIngredientPurchaseAdapter implements IngredientPurchaseLookup {
                         rs.getString("name"),
                         rs.getString("use_unit"),
                         rs.getString("purchase_unit"),
-                        rs.getBigDecimal("purchase_package_size")))
+                        rs.getBigDecimal("purchase_package_size"),
+                        rs.getBigDecimal("reorder_point")))
                 .list();
     }
 }

@@ -75,6 +75,25 @@ class PurchaseNeedIT {
     }
 
     @Test
+    void reorderPointCreatesNeedWithoutDemand() throws Exception {
+        var session = login();
+        var sfx = shortId();
+        // Ingrediente com ponto de pedido 8 KG, sem OP liberada e sem estoque → necessidade 8.
+        var maltId = idOf(mockMvc.perform(post("/api/v1/catalog/ingredients").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"type\":\"MALT\",\"code\":\"rp-" + sfx + "\",\"name\":\"rp-" + sfx
+                                + "\",\"useUnit\":\"KG\",\"purchaseUnit\":\"KG\",\"reorderPoint\":8,"
+                                + "\"attributes\":{\"potentialSg\":\"1.037\"}}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        var need = needFor(session, maltId);
+        assertThat(need).isNotNull();
+        assertThat(new BigDecimal(need.get("demand").asText())).isEqualByComparingTo("0");
+        assertThat(new BigDecimal(need.get("reorderPoint").asText())).isEqualByComparingTo("8");
+        assertThat(new BigDecimal(need.get("suggested").asText())).isEqualByComparingTo("8");
+    }
+
+    @Test
     void deniesWithoutPermission() throws Exception {
         mockMvc.perform(get("/api/v1/purchasing/needs")
                         .with(authentication(principal(UUID.randomUUID(), Set.of("purchasing.supplier.read")))))

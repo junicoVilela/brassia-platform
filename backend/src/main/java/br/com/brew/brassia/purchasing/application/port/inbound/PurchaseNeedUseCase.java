@@ -9,5 +9,5 @@ public interface PurchaseNeedUseCase {
     List<Need> handle(UUID breweryId);
 
     record Need(UUID ingredientId, BigDecimal demand, BigDecimal onHand, BigDecimal reserved,
-            BigDecimal suggested, String unit) {}
+            BigDecimal reorderPoint, BigDecimal suggested, String unit) {}
 }

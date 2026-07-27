@@ -37,8 +37,9 @@ class PurchasingConfiguration {
     }
 
     @Bean
-    PurchaseNeedUseCase purchaseNeedUseCase(OrderDemandLookup demandLookup, StockOnHandLookup stockLookup) {
-        return new PurchaseNeedHandler(demandLookup, stockLookup);
+    PurchaseNeedUseCase purchaseNeedUseCase(OrderDemandLookup demandLookup, StockOnHandLookup stockLookup,
+            IngredientPurchaseLookup catalog) {
+        return new PurchaseNeedHandler(demandLookup, stockLookup, catalog);
     }
 
     @Bean

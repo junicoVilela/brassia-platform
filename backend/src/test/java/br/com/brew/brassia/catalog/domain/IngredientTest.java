@@ -13,7 +13,7 @@ class IngredientTest {
 
     private Ingredient malt(Map<String, String> attributes) {
         return Ingredient.register(BREWERY, IngredientType.MALT, new IngredientCode("pilsen"),
-                new IngredientName("Malte Pilsen"), MeasurementUnit.KG, MeasurementUnit.KG, null, attributes);
+                new IngredientName("Malte Pilsen"), MeasurementUnit.KG, MeasurementUnit.KG, null, null, attributes);
     }
 
     @Test
@@ -58,26 +58,33 @@ class IngredientTest {
         var ingredient = malt(Map.of("colorEbc", "3.5"));
 
         ingredient.update(new IngredientName("Malte Pilsen DE"), MeasurementUnit.G, MeasurementUnit.KG,
-                null, Map.of("potentialSg", "1.038"));
+                null, null, Map.of("potentialSg", "1.038"));
         assertThat(ingredient.name().value()).isEqualTo("Malte Pilsen DE");
         assertThat(ingredient.useUnit()).isEqualTo(MeasurementUnit.G);
         assertThat(ingredient.attributes()).containsOnlyKeys("potentialSg");
 
         assertThatThrownBy(() -> ingredient.update(new IngredientName("X"), MeasurementUnit.KG,
-                MeasurementUnit.KG, null, Map.of("alphaAcid", "1")))
+                MeasurementUnit.KG, null, null, Map.of("alphaAcid", "1")))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    void acceptsPackageSizeAndRejectsNonPositive() {
+    void acceptsPackageSizeAndReorderPointAndRejectsInvalid() {
         var ingredient = Ingredient.register(BREWERY, IngredientType.MALT, new IngredientCode("sack"),
                 new IngredientName("Malte em saco"), MeasurementUnit.KG, MeasurementUnit.KG,
-                new java.math.BigDecimal("25"), Map.of());
+                new java.math.BigDecimal("25"), new java.math.BigDecimal("10"), Map.of());
         assertThat(ingredient.purchasePackageSize()).isEqualByComparingTo("25");
+        assertThat(ingredient.reorderPoint()).isEqualByComparingTo("10");
 
+        // Embalagem deve ser positiva.
         assertThatThrownBy(() -> Ingredient.register(BREWERY, IngredientType.MALT, new IngredientCode("bad"),
                 new IngredientName("x"), MeasurementUnit.KG, MeasurementUnit.KG,
-                java.math.BigDecimal.ZERO, Map.of()))
+                java.math.BigDecimal.ZERO, null, Map.of()))
+                .isInstanceOf(IllegalArgumentException.class);
+        // Ponto de pedido não pode ser negativo.
+        assertThatThrownBy(() -> Ingredient.register(BREWERY, IngredientType.MALT, new IngredientCode("bad2"),
+                new IngredientName("x"), MeasurementUnit.KG, MeasurementUnit.KG,
+                null, new java.math.BigDecimal("-1"), Map.of()))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

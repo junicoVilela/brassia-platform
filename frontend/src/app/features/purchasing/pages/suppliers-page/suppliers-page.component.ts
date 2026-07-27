@@ -19,6 +19,7 @@ export class SuppliersPageComponent implements OnInit {
   protected readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(160)]],
     code: ['', [Validators.required, Validators.maxLength(40)]],
+    leadTimeDays: this.fb.control<number | null>(null, [Validators.min(0)]),
   });
 
   ngOnInit(): void {
@@ -29,6 +30,7 @@ export class SuppliersPageComponent implements OnInit {
     if (this.form.invalid) {
       return;
     }
-    this.store.create(this.form.getRawValue(), () => this.form.reset({ name: '', code: '' }));
+    this.store.create(this.form.getRawValue(),
+      () => this.form.reset({ name: '', code: '', leadTimeDays: null }));
   }
 }

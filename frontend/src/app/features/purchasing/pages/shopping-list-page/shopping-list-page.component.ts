@@ -26,8 +26,8 @@ export class ShoppingListPageComponent implements OnInit {
 
   /** Exporta a lista em CSV; custos só entram quando o usuário tem permissão. */
   protected exportCsv(): void {
-    const header = ['Fornecedor', 'Ingrediente', 'Codigo', 'A comprar', 'Unidade compra', 'Pacotes',
-      'Necessidade', 'Em estoque', 'Reservado', 'Unidade tecnica'];
+    const header = ['Fornecedor', 'Lead time (dias)', 'Ingrediente', 'Codigo', 'A comprar', 'Unidade compra',
+      'Pacotes', 'Necessidade', 'Em estoque', 'Reservado', 'Ponto pedido', 'Unidade tecnica'];
     if (this.canSeeCosts) {
       header.push('Custo unitario', 'Custo estimado');
     }
@@ -36,6 +36,7 @@ export class ShoppingListPageComponent implements OnInit {
       for (const item of group.items) {
         const row = [
           group.supplierName,
+          this.num(group.leadTimeDays),
           item.ingredientName ?? item.ingredientId,
           item.ingredientCode ?? '',
           this.num(item.purchaseQuantity),
@@ -44,6 +45,7 @@ export class ShoppingListPageComponent implements OnInit {
           this.num(item.suggested),
           this.num(item.onHand),
           this.num(item.reserved),
+          this.num(item.reorderPoint),
           item.unit,
         ];
         if (this.canSeeCosts) {

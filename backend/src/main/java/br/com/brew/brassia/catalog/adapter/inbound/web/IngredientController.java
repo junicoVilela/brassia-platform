@@ -55,7 +55,8 @@ final class IngredientController {
         principal.requirePermission("catalog.ingredient.manage");
         var result = register.handle(new RegisterIngredientUseCase.Command(
                 principal.userId(), principal.requireBrewery(), request.type(), request.code(), request.name(),
-                request.useUnit(), request.purchaseUnit(), request.purchasePackageSize(), request.attributes()));
+                request.useUnit(), request.purchaseUnit(), request.purchasePackageSize(), request.reorderPoint(),
+                request.attributes()));
         return ResponseEntity.created(URI.create("/api/v1/catalog/ingredients/" + result.id()))
                 .body(IngredientResponse.from(result));
     }
@@ -68,7 +69,8 @@ final class IngredientController {
         principal.requirePermission("catalog.ingredient.manage");
         var result = update.handle(new UpdateIngredientUseCase.Command(
                 principal.userId(), principal.requireBrewery(), id, request.name(), request.useUnit(),
-                request.purchaseUnit(), request.purchasePackageSize(), request.attributes(), request.version()));
+                request.purchaseUnit(), request.purchasePackageSize(), request.reorderPoint(),
+                request.attributes(), request.version()));
         return IngredientResponse.from(result);
     }
 }

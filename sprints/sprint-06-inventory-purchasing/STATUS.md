@@ -33,7 +33,7 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Ajuste** exige motivo (regra 4). Endpoint manual aceita só consumo/devolução/perda/ajuste; reserva/liberação são do STK-003.
 
 ### STK-003 — decisões (confirmadas com o mantenedor)
-- **Primitiva por ingrediente**: `POST /inventory/reservations` {ingredientId, quantity, unit, orderId?}; FEFO entre lotes. A orquestração da OP inteira (reservar todos os itens da OP atomicamente) fica como **DÉBITO STK-003-A** (extensão em planning).
+- **Primitiva por ingrediente**: `POST /inventory/reservations` {ingredientId, quantity, unit, orderId?}; FEFO entre lotes. **DÉBITO STK-003-A RESOLVIDO**: `POST /brew-orders/{id}/reserve-stock` reserva a OP inteira atomicamente (all-or-nothing) — planning explode a receita e delega ao estoque via `StockReservationGateway` (porta publicada em planning, implementada no inventory; sem ciclo). Só OPs RELEASED; re-sincroniza (libera e reserva de novo); falta em qualquer item → 409 com extensão `shortfalls`, nada reservado.
 - **FEFO**: candidatos = mesmo ingrediente, `APPROVED`, não vencido (`expiry >= hoje` ou nulo), ordenados por validade asc; disponível = on_hand − reservado; converte unidade do pedido ↔ unidade do lote (mesma dimensão).
 - **Concorrência**: lock pessimista dos lotes candidatos (`SELECT ... ORDER BY expiry FOR UPDATE`) — testado com 2 threads (não dá double spend). Insuficiência → **409** sem reserva parcial (transação reverte).
 - **Release** por `orderId` (RELEASE compensatório do reservado líquido por lote) — base para o cancelamento de OP liberar reservas. Emite `StockReserved` na reserva; auditoria em reserva e liberação. **DÉBITO STK-003-B RESOLVIDO**: o cancelamento de OP publica `BrewOrderCancelled` e o estoque libera as reservas no mesmo commit (listener síncrono).
@@ -70,5 +70,5 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - Testes executados: domínio (StockUnit, StockMovement, StockLot, PhysicalCount, StockLotProperty) + ITs (StockLotIT, StockLedgerIT, StockReservationIT, PhysicalCountIT, PurchaseNeedIT, ShoppingListIT, StockLotPropertyIT) + ModularityTest — todos verdes; frontend specs verdes.
 - Migration aplicada: V39–V45 (fornecedor, lote, ledger, reserva, contagem, necessidade/compra, custo, valores por lote).
 - Contratos atualizados: `contracts/openapi.yaml` cobre suppliers, inventory (lotes/movimentos/reservas/contagens/propriedades) e purchasing (needs, shopping-list).
-- Riscos remanescentes / débitos: STK-002-A (negativo autorizado), STK-003-A (reserva atômica da OP), STK-003-B (liberar reservas no cancelamento — BOP-003), STK-005-A (correção/histórico de valor do lote), PUR-001-A (lead time), PUR-002-A (arredondamento por embalagem).
+- Riscos remanescentes / débitos: todos os débitos registrados foram resolvidos em PRs de acompanhamento — STK-002-A (#91), STK-003-A (reserva atômica da OP), STK-003-B (#90), STK-005-A (#94), PUR-001-A (#93), PUR-002-A (#92).
 - Aceite: 7/7 histórias concluídas (STK-001..005, PUR-001, PUR-002); uma história por vez, sem implementação parcial de posteriores.

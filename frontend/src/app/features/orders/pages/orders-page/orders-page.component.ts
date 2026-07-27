@@ -1,3 +1,4 @@
+import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
@@ -8,7 +9,7 @@ import { OrdersStore } from '../../data-access/orders.store';
 @Component({
   selector: 'app-orders-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, PageHeaderComponent, EmptyStateComponent, LoadingIndicatorComponent],
+  imports: [DecimalPipe, ReactiveFormsModule, PageHeaderComponent, EmptyStateComponent, LoadingIndicatorComponent],
   providers: [OrdersStore],
   templateUrl: './orders-page.component.html',
 })

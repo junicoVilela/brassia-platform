@@ -131,8 +131,9 @@ class PlanningConfiguration {
 
     @Bean
     CancelBrewOrderUseCase cancelBrewOrderUseCase(
-            BrewOrderRepository repository, AuditTrail audit, PlatformTransactionManager transactionManager) {
-        var handler = new CancelBrewOrderHandler(repository, audit);
+            BrewOrderRepository repository, BrewOrderEventPublisher events, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new CancelBrewOrderHandler(repository, events, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }

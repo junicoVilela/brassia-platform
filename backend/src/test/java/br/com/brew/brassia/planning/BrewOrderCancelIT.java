@@ -76,6 +76,44 @@ class BrewOrderCancelIT {
     }
 
     @Test
+    void cancellingOrderReleasesItsStockReservations() throws Exception {
+        var session = login();
+        var sfx = UUID.randomUUID().toString().substring(0, 8);
+        var ingredientId = createIngredient(session, "MALT", "rm-" + sfx, "{\"potentialSg\":\"1.037\"}");
+        var supplierId = idOf(mockMvc.perform(post("/api/v1/suppliers").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"name\":\"Sup " + sfx + "\",\"code\":\"S-" + sfx + "\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        var lot = idOf(mockMvc.perform(post("/api/v1/inventory/lots").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"ingredientId\":\"" + ingredientId + "\",\"supplierId\":\"" + supplierId
+                                + "\",\"quantity\":10,\"unit\":\"KG\",\"unitCost\":4.5,\"expiryDate\":\"2027-10-01\","
+                                + "\"inspection\":\"APPROVED\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        var orderId = draftOrder(session);
+        // Reserva vinculada à OP (reference = orderId).
+        mockMvc.perform(post("/api/v1/inventory/reservations").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"ingredientId\":\"" + ingredientId + "\",\"quantity\":10,\"unit\":\"KG\",\"orderId\":\""
+                                + orderId + "\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/inventory/lots/" + lot + "/balance").session(session))
+                .andExpect(jsonPath("$.reserved", is(10.0)))
+                .andExpect(jsonPath("$.available", is(0.0)));
+
+        // Cancelar a OP libera as reservas (STK-003-B) no mesmo fluxo.
+        mockMvc.perform(post("/api/v1/brew-orders/" + orderId + "/cancel").session(session).with(csrf())
+                        .contentType("application/json").content("{\"reason\":\"desistência\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("CANCELLED")));
+
+        mockMvc.perform(get("/api/v1/inventory/lots/" + lot + "/balance").session(session))
+                .andExpect(jsonPath("$.reserved", is(0.0)))
+                .andExpect(jsonPath("$.available", is(10.0)));
+    }
+
+    @Test
     void recancelIsIdempotent() throws Exception {
         var session = login();
         var orderId = draftOrder(session);

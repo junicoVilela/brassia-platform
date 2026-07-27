@@ -14,8 +14,10 @@ public interface RegisterIngredientUseCase {
      * @param attributes           atributos específicos do tipo; pode ser nulo
      */
     record Command(UUID actorId, UUID breweryId, String type, String code, String name,
-            String useUnit, String purchaseUnit, BigDecimal purchasePackageSize, Map<String, String> attributes) {}
+            String useUnit, String purchaseUnit, BigDecimal purchasePackageSize, BigDecimal reorderPoint,
+            Map<String, String> attributes) {}
 
     record Result(UUID id, String type, String code, String name, String useUnit, String purchaseUnit,
-            BigDecimal purchasePackageSize, Map<String, String> attributes, boolean active, long version) {}
+            BigDecimal purchasePackageSize, BigDecimal reorderPoint, Map<String, String> attributes,
+            boolean active, long version) {}
 }

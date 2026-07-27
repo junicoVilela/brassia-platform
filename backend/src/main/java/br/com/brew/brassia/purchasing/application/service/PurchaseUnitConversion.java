@@ -43,4 +43,10 @@ final class PurchaseUnitConversion {
         var conversion = unit == null ? null : UNITS.get(unit.toUpperCase(Locale.ROOT));
         return conversion == null ? quantity : quantity.multiply(conversion.toCanonical());
     }
+
+    /** Unidade canônica da dimensão de {@code unit}; devolve a própria unidade quando desconhecida. */
+    static String canonicalUnitOf(String unit) {
+        var conversion = unit == null ? null : UNITS.get(unit.toUpperCase(Locale.ROOT));
+        return conversion == null ? unit : conversion.canonical();
+    }
 }

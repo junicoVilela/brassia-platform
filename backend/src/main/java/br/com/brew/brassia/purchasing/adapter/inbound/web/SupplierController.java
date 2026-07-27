@@ -34,9 +34,10 @@ final class SupplierController {
             @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("purchasing.supplier.manage");
         var result = registerSupplier.handle(new RegisterSupplierUseCase.Command(
-                principal.userId(), principal.requireBrewery(), request.name(), request.code()));
+                principal.userId(), principal.requireBrewery(), request.name(), request.code(),
+                request.leadTimeDays()));
         return ResponseEntity.created(URI.create("/api/v1/suppliers/" + result.id()))
-                .body(new SupplierView(result.id(), result.name(), result.code()));
+                .body(new SupplierView(result.id(), result.name(), result.code(), result.leadTimeDays()));
     }
 
     @GetMapping

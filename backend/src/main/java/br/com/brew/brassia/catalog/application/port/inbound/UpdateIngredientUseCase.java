@@ -11,8 +11,10 @@ public interface UpdateIngredientUseCase {
      * @param version versão esperada para o lock otimista; divergência é conflito
      */
     record Command(UUID actorId, UUID breweryId, UUID ingredientId, String name, String useUnit,
-            String purchaseUnit, BigDecimal purchasePackageSize, Map<String, String> attributes, long version) {}
+            String purchaseUnit, BigDecimal purchasePackageSize, BigDecimal reorderPoint,
+            Map<String, String> attributes, long version) {}
 
     record Result(UUID id, String type, String code, String name, String useUnit, String purchaseUnit,
-            BigDecimal purchasePackageSize, Map<String, String> attributes, boolean active, long version) {}
+            BigDecimal purchasePackageSize, BigDecimal reorderPoint, Map<String, String> attributes,
+            boolean active, long version) {}
 }

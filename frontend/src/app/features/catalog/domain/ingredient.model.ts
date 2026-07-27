@@ -14,6 +14,7 @@ export interface Ingredient {
   useUnit: MeasurementUnit;
   purchaseUnit: MeasurementUnit;
   purchasePackageSize: number | null;
+  reorderPoint: number | null;
   attributes: Record<string, string>;
   active: boolean;
   version: number;
@@ -26,6 +27,7 @@ export interface RegisterIngredientRequest {
   useUnit: MeasurementUnit;
   purchaseUnit: MeasurementUnit;
   purchasePackageSize?: number | null;
+  reorderPoint?: number | null;
   attributes?: Record<string, string>;
 }
 

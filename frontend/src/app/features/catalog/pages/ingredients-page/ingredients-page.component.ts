@@ -44,6 +44,7 @@ export class IngredientsPageComponent implements OnInit {
     useUnit: this.fb.nonNullable.control<MeasurementUnit>('KG', Validators.required),
     purchaseUnit: this.fb.nonNullable.control<MeasurementUnit>('KG', Validators.required),
     purchasePackageSize: this.fb.control<number | null>(null),
+    reorderPoint: this.fb.control<number | null>(null),
   });
 
   protected readonly profileForm = this.fb.nonNullable.group({
@@ -75,7 +76,7 @@ export class IngredientsPageComponent implements OnInit {
     }
     this.store.create(this.form.getRawValue(), () =>
       this.form.reset({ type: 'MALT', code: '', name: '', useUnit: 'KG', purchaseUnit: 'KG',
-        purchasePackageSize: null }),
+        purchasePackageSize: null, reorderPoint: null }),
     );
   }
 

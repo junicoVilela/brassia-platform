@@ -25,7 +25,7 @@ public final class ListIngredientsHandler implements ListIngredientsUseCase {
 
     private static Summary toSummary(Ingredient i) {
         return new Summary(i.id().value(), i.type().name(), i.code().value(), i.name().value(),
-                i.useUnit().name(), i.purchaseUnit().name(), i.purchasePackageSize(), i.attributes(),
-                i.active(), i.version());
+                i.useUnit().name(), i.purchaseUnit().name(), i.purchasePackageSize(), i.reorderPoint(),
+                i.attributes(), i.active(), i.version());
     }
 }

@@ -34,7 +34,7 @@ public final class RegisterIngredientHandler implements RegisterIngredientUseCas
         }
 
         var ingredient = Ingredient.register(command.breweryId(), type, code, name, useUnit, purchaseUnit,
-                command.purchasePackageSize(), command.attributes());
+                command.purchasePackageSize(), command.reorderPoint(), command.attributes());
         repository.insert(ingredient);
 
         audit.record(AuditEvent.success(command.breweryId(), command.actorId(), "catalog.ingredient.create",
@@ -42,7 +42,7 @@ public final class RegisterIngredientHandler implements RegisterIngredientUseCas
                 Map.of("type", type.name(), "code", code.value())));
 
         return new Result(ingredient.id().value(), type.name(), code.value(), name.value(),
-                useUnit.name(), purchaseUnit.name(), ingredient.purchasePackageSize(), ingredient.attributes(),
-                ingredient.active(), ingredient.version());
+                useUnit.name(), purchaseUnit.name(), ingredient.purchasePackageSize(), ingredient.reorderPoint(),
+                ingredient.attributes(), ingredient.active(), ingredient.version());
     }
 }

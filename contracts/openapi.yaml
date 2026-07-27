@@ -820,6 +820,7 @@ components:
         useUnit: {type: string, enum: [KG, G, MG, L, ML, UNIT, PACK]}
         purchaseUnit: {type: string, enum: [KG, G, MG, L, ML, UNIT, PACK]}
         purchasePackageSize: {type: number, exclusiveMinimum: 0, description: "Tamanho da embalagem de compra (na unidade de compra); opcional"}
+        reorderPoint: {type: number, minimum: 0, description: "Ponto de pedido/estoque de segurança (na unidade de uso); opcional (PUR-001-A)"}
         attributes: {type: object, additionalProperties: {type: string}}
     UpdateIngredient:
       type: object
@@ -829,6 +830,7 @@ components:
         useUnit: {type: string, enum: [KG, G, MG, L, ML, UNIT, PACK]}
         purchaseUnit: {type: string, enum: [KG, G, MG, L, ML, UNIT, PACK]}
         purchasePackageSize: {type: number, exclusiveMinimum: 0, description: "Tamanho da embalagem de compra; opcional"}
+        reorderPoint: {type: number, minimum: 0, description: "Ponto de pedido/estoque de segurança; opcional (PUR-001-A)"}
         attributes: {type: object, additionalProperties: {type: string}}
         version: {type: integer, format: int64}
     RegisterEquipment:
@@ -1032,6 +1034,7 @@ components:
       properties:
         name: {type: string, maxLength: 160}
         code: {type: string, maxLength: 40}
+        leadTimeDays: {type: integer, minimum: 0, description: "Lead time do fornecedor em dias; opcional (PUR-001-A)"}
     ReceiveStockLot:
       type: object
       required: [ingredientId, supplierId, quantity, unit, unitCost, inspection]

@@ -26,7 +26,7 @@ describe('SuppliersStore', () => {
   });
 
   it('cadastra e recarrega', () => {
-    const create = vi.fn(() => of({ id: 's1', name: 'Maltaria', code: 'MS' }));
+    const create = vi.fn(() => of({ id: 's1', name: 'Maltaria', code: 'MS', leadTimeDays: null }));
     const list = vi.fn(() => of([]));
     const onSuccess = vi.fn();
     const store = setup({ create, list });

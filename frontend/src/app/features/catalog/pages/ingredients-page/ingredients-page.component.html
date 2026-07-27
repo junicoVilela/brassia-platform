@@ -42,6 +42,11 @@
             <input id="packageSize" type="number" step="any" min="0" class="form-control"
                    formControlName="purchasePackageSize" placeholder="ex.: 25">
           </div>
+          <div class="col-sm-2">
+            <label class="form-label" for="reorderPoint">Ponto de pedido</label>
+            <input id="reorderPoint" type="number" step="any" min="0" class="form-control"
+                   formControlName="reorderPoint" placeholder="estoque mín.">
+          </div>
           <div class="col-sm-1 d-grid">
             <button type="submit" class="btn btn-primary" [disabled]="form.invalid || store.submitting()">
               <i class="ri-add-line"></i>

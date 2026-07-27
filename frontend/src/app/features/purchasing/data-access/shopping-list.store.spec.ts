@@ -22,7 +22,7 @@ describe('ShoppingListStore', () => {
 
   it('expõe os grupos por fornecedor', () => {
     const list = vi.fn(() => of([
-      { supplierId: 's1', supplierName: 'Maltaria', items: [], estimatedTotal: 67.5 },
+      { supplierId: 's1', supplierName: 'Maltaria', leadTimeDays: 7, items: [], estimatedTotal: 67.5 },
     ]));
     const store = setup({ list });
     store.load();

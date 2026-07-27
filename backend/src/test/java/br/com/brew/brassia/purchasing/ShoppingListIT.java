@@ -106,6 +106,19 @@ class ShoppingListIT {
     }
 
     @Test
+    void exposesSupplierLeadTime() throws Exception {
+        var session = login();
+        var sfx = shortId();
+        var maltId = releaseOrderReturningMalt(session, sfx, 400, "KG");
+        var supplierId = createSupplier(session, sfx, 5); // lead time 5 dias
+        receiveLot(session, maltId, supplierId, 5, "KG", "4.5");
+
+        var group = groupBySupplier(fetchList(session), "Sup " + sfx);
+        assertThat(group).isNotNull();
+        assertThat(group.get("leadTimeDays").asInt()).isEqualTo(5);
+    }
+
+    @Test
     void omitsCostsWithoutCostPermission() throws Exception {
         var session = login();
         var sfx = shortId();
@@ -227,9 +240,14 @@ class ShoppingListIT {
     }
 
     private String createSupplier(MockHttpSession session, String sfx) throws Exception {
+        return createSupplier(session, sfx, null);
+    }
+
+    private String createSupplier(MockHttpSession session, String sfx, Integer leadTimeDays) throws Exception {
+        var leadField = leadTimeDays == null ? "" : ",\"leadTimeDays\":" + leadTimeDays;
         return idOf(mockMvc.perform(post("/api/v1/suppliers").session(session).with(csrf())
                         .contentType("application/json")
-                        .content("{\"name\":\"Sup " + sfx + "\",\"code\":\"S-" + sfx + "\"}"))
+                        .content("{\"name\":\"Sup " + sfx + "\",\"code\":\"S-" + sfx + "\"" + leadField + "}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
     }
 

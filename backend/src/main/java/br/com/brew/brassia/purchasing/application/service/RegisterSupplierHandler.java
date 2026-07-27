@@ -21,7 +21,8 @@ public final class RegisterSupplierHandler implements RegisterSupplierUseCase {
 
     @Override
     public Result handle(Command command) {
-        var supplier = Supplier.register(command.breweryId(), command.name(), command.code());
+        var supplier = Supplier.register(command.breweryId(), command.name(), command.code(),
+                command.leadTimeDays());
         if (repository.existsByCode(command.breweryId(), supplier.code().toLowerCase(Locale.ROOT))) {
             throw new IllegalStateException("já existe fornecedor com esse código nesta cervejaria");
         }
@@ -29,6 +30,6 @@ public final class RegisterSupplierHandler implements RegisterSupplierUseCase {
         audit.record(AuditEvent.success(command.breweryId(), command.actorId(), "purchasing.supplier.create",
                 "purchasing.supplier", supplier.id().value().toString(),
                 Map.of("code", supplier.code(), "name", supplier.name())));
-        return new Result(supplier.id().value(), supplier.name(), supplier.code());
+        return new Result(supplier.id().value(), supplier.name(), supplier.code(), supplier.leadTimeDays());
     }
 }

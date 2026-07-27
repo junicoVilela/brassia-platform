@@ -47,8 +47,15 @@ public final class ShoppingListHandler implements ShoppingListUseCase {
                 .collect(Collectors.toMap(IngredientSourcingLookup.Sourcing::ingredientId, s -> s, (a, b) -> a));
         var specByIngredient = catalog.findAll(breweryId).stream()
                 .collect(Collectors.toMap(IngredientPurchaseLookup.PurchaseSpec::ingredientId, s -> s, (a, b) -> a));
-        var supplierName = suppliers.findAll(breweryId).stream()
+        var supplierList = suppliers.findAll(breweryId);
+        var supplierName = supplierList.stream()
                 .collect(Collectors.toMap(s -> s.id().value(), s -> s.name(), (a, b) -> a));
+        var supplierLeadTime = new LinkedHashMap<UUID, Integer>();
+        for (var s : supplierList) {
+            if (s.leadTimeDays() != null) {
+                supplierLeadTime.put(s.id().value(), s.leadTimeDays());
+            }
+        }
 
         // Preserva a ordem de aparição dos fornecedores; grupo sem fornecedor usa chave nula.
         var groups = new LinkedHashMap<UUID, List<Item>>();
@@ -85,8 +92,8 @@ public final class ShoppingListHandler implements ShoppingListUseCase {
                     need.ingredientId(),
                     spec == null ? null : spec.code(),
                     spec == null ? null : spec.name(),
-                    need.demand(), need.onHand(), need.reserved(), need.suggested(), need.unit(),
-                    purchaseQuantity, converted.unit(), packages,
+                    need.demand(), need.onHand(), need.reserved(), need.reorderPoint(), need.suggested(),
+                    need.unit(), purchaseQuantity, converted.unit(), packages,
                     unitCost, estimatedCost));
         }
 
@@ -97,7 +104,8 @@ public final class ShoppingListHandler implements ShoppingListUseCase {
             var total = includeCosts ? entry.getValue().stream()
                     .map(Item::estimatedCost).filter(Objects::nonNull)
                     .reduce(BigDecimal.ZERO, BigDecimal::add) : null;
-            result.add(new SupplierGroup(entry.getKey(), name, List.copyOf(entry.getValue()), total));
+            var leadTime = entry.getKey() == null ? null : supplierLeadTime.get(entry.getKey());
+            result.add(new SupplierGroup(entry.getKey(), name, leadTime, List.copyOf(entry.getValue()), total));
         }
         return result;
     }

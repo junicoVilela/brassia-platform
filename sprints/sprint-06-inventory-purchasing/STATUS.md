@@ -60,7 +60,7 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 ### STK-005 — decisões (confirmadas com o mantenedor)
 - **Valores pertencem ao lote**: tabela `stock_lot_property` (V45) com valor medido + unidade, ligada ao lote; o catálogo (faixas de referência) não é alterado. Fecha o **DÉBITO STK-001-A**.
 - **Captura**: no recebimento (campo opcional `properties` no `POST /inventory/lots`, mesmo commit) e/ou depois via `POST /inventory/lots/{id}/properties` — cobre manual, importado e sugerido em qualquer momento.
-- **Imutabilidade write-once**: única por (lote, propriedade); regravar → **409** (preserva a evidência). **DÉBITO STK-005-A**: correção/histórico versionado de um valor já gravado fica para depois.
+- **Imutabilidade write-once**: única por (lote, propriedade); regravar → **409** (preserva a evidência). **DÉBITO STK-005-A RESOLVIDO**: passou a ser **append-only** (V49 remove o unique) — regravar cria uma revisão e a mais recente vale; as anteriores ficam no histórico. `GET .../properties` devolve a revisão atual; `?history=true` devolve todas.
 - **Fonte e confiança**: `source` ∈ {MANUAL, IMPORTED, SUGGESTED}; `confidence` ∈ {HIGH, MEDIUM, LOW}. Auditoria `inventory.lot.property.record`.
 - **COA privado**: os valores são do tenant (brewery_id) e nunca republicados como dado global/catálogo — não há caminho de escrita para o catálogo. Permissões reutilizadas: `inventory.lot.manage` (gravar) e `inventory.lot.read` (ler).
 

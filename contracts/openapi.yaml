@@ -596,15 +596,16 @@ paths:
   /inventory/lots/{lotId}/properties:
     get:
       operationId: listLotProperties
-      summary: Valores medidos vinculados ao lote (COA/safra)
+      summary: "Valores medidos do lote (COA/safra); history=true retorna todas as revisões"
       parameters:
         - {name: lotId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: history, in: query, required: false, schema: {type: boolean, default: false}}
       responses:
-        '200': {description: Valores do lote}
+        '200': {description: Valores do lote (atuais ou histórico)}
         '403': {$ref: '#/components/responses/Problem'}
     post:
       operationId: recordLotProperties
-      summary: "Vincula valores medidos ao lote (write-once por propriedade; manual/importado/sugerido)"
+      summary: "Vincula valores medidos ao lote (append-only; regravar cria revisão, última vale)"
       parameters:
         - {name: lotId, in: path, required: true, schema: {type: string, format: uuid}}
       responses:

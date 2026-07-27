@@ -1,0 +1,139 @@
+<app-page-header title="Matriz de compatibilidade"
+                 subtitle="Recomendação de limpeza por material, sujidade e risco" />
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Recomendar limpeza</h2>
+    <form [formGroup]="recommendForm" (ngSubmit)="recommend()" class="row g-2 align-items-end">
+      <div class="col-sm-3"><label class="form-label small" for="rmaterial">Material</label>
+        <select id="rmaterial" class="form-select form-select-sm" formControlName="material">
+          @for (m of materials; track m) { <option [value]="m">{{ m }}</option> }
+        </select></div>
+      <div class="col-sm-3"><label class="form-label small" for="rsoiling">Sujidade</label>
+        <select id="rsoiling" class="form-select form-select-sm" formControlName="soiling">
+          @for (s of soilingLevels; track s) { <option [value]="s">{{ s }}</option> }
+        </select></div>
+      <div class="col-sm-2"><label class="form-label small" for="rrisk">Risco</label>
+        <select id="rrisk" class="form-select form-select-sm" formControlName="risk">
+          @for (r of riskLevels; track r) { <option [value]="r">{{ r }}</option> }
+        </select></div>
+      <div class="col-sm-2"><label class="form-label small" for="rprev">Produto anterior</label>
+        <input id="rprev" type="text" class="form-control form-control-sm" formControlName="previousProduct"
+               placeholder="opcional"></div>
+      <div class="col-sm-2 d-grid">
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i class="ri-search-line me-1"></i> Recomendar
+        </button>
+      </div>
+    </form>
+
+    @if (store.recommendation(); as rec) {
+      <div class="alert alert-success mt-3 mb-0" role="alert">
+        <div class="fw-semibold">{{ rec.method }}</div>
+        <div class="small">
+          {{ rec.material }} · {{ rec.soiling }} · {{ rec.risk }}
+          @if (rec.previousProduct) { · após {{ rec.previousProduct }} }
+          @else { · genérica }
+          @if (rec.procedureCode) { · POP {{ rec.procedureCode }} }
+        </div>
+        @if (rec.alternative) { <div class="small">Alternativa: {{ rec.alternative }}</div> }
+        @if (rec.restriction) {
+          <div class="small text-danger"><i class="ri-forbid-line me-1"></i>{{ rec.restriction }}</div>
+        }
+      </div>
+    }
+    @if (store.recommendError(); as recErr) {
+      <div class="alert alert-warning mt-3 mb-0" role="alert">{{ recErr }}</div>
+    }
+  </div>
+</div>
+
+@if (store.canManage) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-3">Nova regra</h2>
+      <form [formGroup]="form" class="row g-2 align-items-end">
+        <div class="col-sm-3"><label class="form-label small" for="material">Material</label>
+          <select id="material" class="form-select form-select-sm" formControlName="material">
+            @for (m of materials; track m) { <option [value]="m">{{ m }}</option> }
+          </select></div>
+        <div class="col-sm-3"><label class="form-label small" for="soiling">Sujidade</label>
+          <select id="soiling" class="form-select form-select-sm" formControlName="soiling">
+            @for (s of soilingLevels; track s) { <option [value]="s">{{ s }}</option> }
+          </select></div>
+        <div class="col-sm-2"><label class="form-label small" for="risk">Risco</label>
+          <select id="risk" class="form-select form-select-sm" formControlName="risk">
+            @for (r of riskLevels; track r) { <option [value]="r">{{ r }}</option> }
+          </select></div>
+        <div class="col-sm-4"><label class="form-label small" for="prev">Produto anterior</label>
+          <input id="prev" type="text" class="form-control form-control-sm" formControlName="previousProduct"
+                 placeholder="opcional — vazio = genérica"></div>
+        <div class="col-sm-4"><label class="form-label small" for="method">Método</label>
+          <input id="method" type="text" class="form-control form-control-sm" formControlName="method"
+                 placeholder="CIP cáustico 2%"></div>
+        <div class="col-sm-3"><label class="form-label small" for="pop">POP publicado</label>
+          <input id="pop" type="text" class="form-control form-control-sm" formControlName="procedureCode"
+                 placeholder="opcional (código)"></div>
+        <div class="col-sm-5"><label class="form-label small" for="alt">Alternativa</label>
+          <input id="alt" type="text" class="form-control form-control-sm" formControlName="alternative"></div>
+        <div class="col-sm-8"><label class="form-label small" for="restr">Restrição</label>
+          <input id="restr" type="text" class="form-control form-control-sm" formControlName="restriction"
+                 placeholder="ex.: não misturar com ácido"></div>
+        <div class="col-sm-4 d-grid">
+          <button type="button" class="btn btn-primary btn-sm" [disabled]="form.invalid || store.submitting()"
+                  (click)="create()">
+            <i class="ri-save-line me-1"></i> Salvar regra
+          </button>
+        </div>
+      </form>
+      @if (store.actionError(); as actionError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+      }
+    </div>
+  </div>
+}
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Regras cadastradas</h2>
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-grid-line" message="Nenhuma regra cadastrada." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Material</th>
+              <th scope="col">Sujidade</th>
+              <th scope="col">Risco</th>
+              <th scope="col">Produto anterior</th>
+              <th scope="col">Método</th>
+              <th scope="col">POP</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of store.items(); track r.id) {
+              <tr>
+                <td class="fw-medium">{{ r.material }}</td>
+                <td>{{ r.soiling }}</td>
+                <td>{{ r.risk }}</td>
+                <td>{{ r.previousProduct ?? '—' }}</td>
+                <td>
+                  {{ r.method }}
+                  @if (r.restriction) {
+                    <div class="text-danger small"><i class="ri-forbid-line me-1"></i>{{ r.restriction }}</div>
+                  }
+                </td>
+                <td>{{ r.procedureCode ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

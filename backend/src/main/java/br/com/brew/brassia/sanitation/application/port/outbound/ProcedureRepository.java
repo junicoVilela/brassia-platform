@@ -20,4 +20,7 @@ public interface ProcedureRepository {
 
     /** DRAFT → PUBLISHED, guardado pelo estado. {@code false} se já não estava em rascunho. */
     boolean markPublished(UUID breweryId, UUID procedureId);
+
+    /** Há alguma versão PUBLICADA para este código na cervejaria? (CLN-002) */
+    boolean existsPublishedByCode(UUID breweryId, String code);
 }

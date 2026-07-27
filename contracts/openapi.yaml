@@ -743,6 +743,47 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/matrix:
+    get:
+      operationId: listCompatibilityRules
+      summary: "Matriz de compatibilidade (regras material × sujidade × risco × produto anterior)"
+      responses:
+        '200':
+          description: Regras cadastradas
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/CompatibilityRule'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createCompatibilityRule
+      summary: "Cadastra regra da matriz (POP referenciado, se houver, deve estar PUBLISHED)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateCompatibilityRule'}
+      responses:
+        '201': {description: Regra criada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/matrix/recommend:
+    post:
+      operationId: recommendCleaning
+      summary: "Recomenda limpeza pelo contexto exato do material (sem herança entre materiais)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RecommendCleaning'}
+      responses:
+        '200':
+          description: Recomendação
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CompatibilityRule'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /suppliers:
     get:
       operationId: listSuppliers
@@ -1317,6 +1358,39 @@ components:
       properties:
         name: {type: string, maxLength: 160}
         steps: {type: array, minItems: 1, items: {$ref: '#/components/schemas/ProcedureStep'}}
+    CompatibilityRule:
+      type: object
+      required: [id, material, soiling, risk, method]
+      properties:
+        id: {type: string, format: uuid}
+        material: {type: string, enum: [INOX, ALUMINIO, PLASTICO, MADEIRA, VIDRO, BORRACHA]}
+        soiling: {type: string, enum: [LEVE, MODERADA, PESADA]}
+        risk: {type: string, enum: [BAIXO, MEDIO, ALTO]}
+        previousProduct: {type: string, nullable: true, description: "Produto anterior normalizado; nulo = regra genérica"}
+        procedureCode: {type: string, nullable: true, description: "Código de POP publicado referenciado"}
+        method: {type: string}
+        alternative: {type: string, nullable: true}
+        restriction: {type: string, nullable: true}
+    CreateCompatibilityRule:
+      type: object
+      required: [material, soiling, risk, method]
+      properties:
+        material: {type: string, enum: [INOX, ALUMINIO, PLASTICO, MADEIRA, VIDRO, BORRACHA]}
+        soiling: {type: string, enum: [LEVE, MODERADA, PESADA]}
+        risk: {type: string, enum: [BAIXO, MEDIO, ALTO]}
+        previousProduct: {type: string, maxLength: 120, description: "Opcional; vazio = regra genérica"}
+        procedureCode: {type: string, maxLength: 40, description: "Opcional; se informado, o POP deve estar PUBLISHED"}
+        method: {type: string, maxLength: 200}
+        alternative: {type: string, maxLength: 200}
+        restriction: {type: string, maxLength: 200}
+    RecommendCleaning:
+      type: object
+      required: [material, soiling, risk]
+      properties:
+        material: {type: string, enum: [INOX, ALUMINIO, PLASTICO, MADEIRA, VIDRO, BORRACHA]}
+        soiling: {type: string, enum: [LEVE, MODERADA, PESADA]}
+        risk: {type: string, enum: [BAIXO, MEDIO, ALTO]}
+        previousProduct: {type: string, maxLength: 120}
     CreateAlert:
       type: object
       required: [kind, message]

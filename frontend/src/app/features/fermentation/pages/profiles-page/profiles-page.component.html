@@ -1,0 +1,150 @@
+<app-page-header title="Perfis de fermentação"
+                 subtitle="Estágios, rampas, pressão e critérios de avanço versionados" />
+
+@if (canManage) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-3">Novo perfil</h2>
+      <form [formGroup]="form" class="row g-3 mb-3">
+        <div class="col-sm-4"><label class="form-label" for="pcode">Código</label>
+          <input id="pcode" type="text" class="form-control" formControlName="code" placeholder="ALE-STD"></div>
+        <div class="col-sm-8"><label class="form-label" for="pname">Nome</label>
+          <input id="pname" type="text" class="form-control" formControlName="name" placeholder="Ale padrão"></div>
+      </form>
+
+      <h3 class="h6 fw-semibold mb-2">Estágio</h3>
+      <form [formGroup]="stageForm" (ngSubmit)="addStage()" class="row g-2 align-items-end mb-2">
+        <div class="col-sm-3"><label class="form-label small" for="sname">Nome</label>
+          <input id="sname" type="text" class="form-control form-control-sm" formControlName="name"
+                 placeholder="Primária"></div>
+        <div class="col-sm-2"><label class="form-label small" for="stemp">Temp. alvo (°C)</label>
+          <input id="stemp" type="number" step="any" class="form-control form-control-sm" formControlName="targetTempC"></div>
+        <div class="col-sm-2"><label class="form-label small" for="sramp">Rampa (h)</label>
+          <input id="sramp" type="number" class="form-control form-control-sm" formControlName="rampHours"></div>
+        <div class="col-sm-2"><label class="form-label small" for="spres">Pressão (psi)</label>
+          <input id="spres" type="number" step="any" class="form-control form-control-sm" formControlName="pressurePsi"></div>
+        <div class="col-sm-3"><label class="form-label small" for="scond">Avanço</label>
+          <select id="scond" class="form-select form-select-sm" formControlName="condition">
+            @for (c of conditions; track c) { <option [value]="c">{{ c }}</option> }
+          </select></div>
+        @if (stageForm.controls.condition.value === 'TIME') {
+          <div class="col-sm-3"><label class="form-label small" for="sdays">Dias</label>
+            <input id="sdays" type="number" class="form-control form-control-sm" formControlName="conditionDays"></div>
+        }
+        @if (stageForm.controls.condition.value === 'GRAVITY') {
+          <div class="col-sm-3"><label class="form-label small" for="sgrav">FG-alvo</label>
+            <input id="sgrav" type="number" step="any" class="form-control form-control-sm" formControlName="targetGravity"></div>
+        }
+        <div class="col-sm-3 d-flex align-items-center pt-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="sconfirm" formControlName="requiresConfirmation">
+            <label class="form-check-label small" for="sconfirm">Exige confirmação</label>
+          </div>
+        </div>
+        <div class="col-sm-3 d-grid">
+          <button type="submit" class="btn btn-outline-primary btn-sm" [disabled]="stageForm.invalid">
+            <i class="ri-add-line me-1"></i> Adicionar estágio
+          </button>
+        </div>
+      </form>
+
+      @if (stages().length > 0) {
+        <ol class="mb-3 ps-3">
+          @for (s of stages(); track s.sequence) {
+            <li>
+              <span class="fw-medium">{{ s.name }}</span>
+              <span class="text-muted small">
+                · {{ s.targetTempC }}°C
+                @if (s.rampHours !== null) { · rampa {{ s.rampHours }}h }
+                @if (s.pressurePsi !== null) { · {{ s.pressurePsi }} psi }
+                · {{ s.condition }}@if (s.condition === 'TIME') { {{ s.conditionDays }}d }@if (s.condition === 'GRAVITY') { FG {{ s.targetGravity }} }
+                @if (s.requiresConfirmation) { · confirma }
+              </span>
+              <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-2"
+                      (click)="removeStage($index)">remover</button>
+            </li>
+          }
+        </ol>
+      }
+
+      <button type="button" class="btn btn-primary"
+              [disabled]="form.invalid || stages().length === 0 || store.submitting()" (click)="create()">
+        <i class="ri-save-line me-1"></i> Salvar perfil (rascunho)
+      </button>
+      @if (store.actionError(); as actionError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+      }
+    </div>
+  </div>
+}
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Perfis</h2>
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-temp-cold-line" message="Nenhum perfil cadastrado." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Código</th>
+              <th scope="col">Nome</th>
+              <th scope="col" class="text-end">Versão</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of store.items(); track p.id) {
+              <tr>
+                <td class="fw-medium">{{ p.code }}</td>
+                <td>{{ p.name }}</td>
+                <td class="text-end">v{{ p.version }}</td>
+                <td>
+                  <span class="badge" [class]="p.status === 'PUBLISHED' ? 'text-bg-success' : 'text-bg-secondary'">
+                    {{ p.status }}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="store.toggle(p.id)">
+                    <i class="ri-list-check-2 me-1"></i> {{ p.stages.length }} estágios
+                  </button>
+                  @if (canManage && p.status === 'DRAFT') {
+                    <button type="button" class="btn btn-sm btn-outline-success" (click)="store.publish(p.id)">
+                      <i class="ri-checkbox-circle-line me-1"></i> Publicar
+                    </button>
+                  }
+                </td>
+              </tr>
+              @if (store.expandedId() === p.id) {
+                <tr>
+                  <td colspan="5" class="bg-body-tertiary">
+                    <ol class="mb-0 ps-3">
+                      @for (s of p.stages; track s.sequence) {
+                        <li>
+                          <span class="fw-medium">{{ s.name }}</span>
+                          <span class="text-muted small">
+                            · {{ s.targetTempC }}°C
+                            @if (s.rampHours !== null) { · rampa {{ s.rampHours }}h }
+                            @if (s.pressurePsi !== null) { · {{ s.pressurePsi }} psi }
+                            · avanço {{ s.condition }}@if (s.condition === 'TIME') { ({{ s.conditionDays }}d) }@if (s.condition === 'GRAVITY') { (FG {{ s.targetGravity }}) }
+                            @if (s.requiresConfirmation) { · exige confirmação }
+                          </span>
+                        </li>
+                      }
+                    </ol>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

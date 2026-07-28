@@ -77,6 +77,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/sanitation/sanitation.routes').then(m => m.SANITATION_ROUTES),
       },
       {
+        path: 'fermentation/profiles',
+        canActivate: [permissionGuard],
+        data: { permission: 'fermentation.profile.read' },
+        loadChildren: () => import('./features/fermentation/fermentation.routes').then(m => m.FERMENTATION_ROUTES),
+      },
+      {
         path: 'sanitation/matrix',
         canActivate: [permissionGuard],
         data: { permission: 'sanitation.matrix.read' },

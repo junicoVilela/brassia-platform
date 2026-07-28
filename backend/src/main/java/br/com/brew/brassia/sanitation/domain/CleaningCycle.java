@@ -1,5 +1,6 @@
 package br.com.brew.brassia.sanitation.domain;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -27,10 +28,12 @@ public final class CleaningCycle {
     private CleaningCycleStatus status;
     private String interruptReason;
     private Instant endedAt;
+    private Verification verification;
+    private Instant decidedAt;
 
     private CleaningCycle(UUID id, UUID breweryId, UUID procedureId, String procedureCode, int procedureVersion,
             UUID equipmentId, List<CycleStep> steps, CleaningCycleStatus status, String interruptReason,
-            Instant startedAt, Instant endedAt) {
+            Instant startedAt, Instant endedAt, Verification verification, Instant decidedAt) {
         this.id = Objects.requireNonNull(id, "id");
         this.breweryId = Objects.requireNonNull(breweryId, "breweryId");
         this.procedureId = Objects.requireNonNull(procedureId, "procedureId");
@@ -45,6 +48,8 @@ public final class CleaningCycle {
         this.interruptReason = interruptReason;
         this.startedAt = Objects.requireNonNull(startedAt, "startedAt");
         this.endedAt = endedAt;
+        this.verification = verification;
+        this.decidedAt = decidedAt;
     }
 
     /** Inicia um ciclo IN_PROGRESS congelando as etapas da versão publicada do POP. */
@@ -55,14 +60,14 @@ public final class CleaningCycle {
         var snapshot = procedure.steps().stream().map(CycleStep::snapshot).toList();
         return new CleaningCycle(UUID.randomUUID(), breweryId, procedure.id().value(), procedure.code(),
                 procedure.version(), Objects.requireNonNull(equipmentId, "equipmentId"), snapshot,
-                CleaningCycleStatus.IN_PROGRESS, null, Instant.now(), null);
+                CleaningCycleStatus.IN_PROGRESS, null, Instant.now(), null, null, null);
     }
 
     public static CleaningCycle reconstitute(UUID id, UUID breweryId, UUID procedureId, String procedureCode,
             int procedureVersion, UUID equipmentId, List<CycleStep> steps, CleaningCycleStatus status,
-            String interruptReason, Instant startedAt, Instant endedAt) {
+            String interruptReason, Instant startedAt, Instant endedAt, Verification verification, Instant decidedAt) {
         return new CleaningCycle(id, breweryId, procedureId, procedureCode, procedureVersion, equipmentId, steps,
-                status, interruptReason, startedAt, endedAt);
+                status, interruptReason, startedAt, endedAt, verification, decidedAt);
     }
 
     /** Registra a execução de uma etapa; fora de ordem exige motivo. */
@@ -106,9 +111,45 @@ public final class CleaningCycle {
         this.endedAt = Instant.now();
     }
 
+    /** Registra a verificação (enxágue/visual/ATP/micro) de um ciclo concluído (CLN-004). */
+    public void recordVerification(boolean rinseOk, boolean visualOk, BigDecimal atpRlu, BigDecimal atpThreshold,
+            boolean microOk) {
+        requireCompleted("registrar verificação");
+        this.verification = Verification.of(rinseOk, visualOk, atpRlu, atpThreshold, microOk);
+    }
+
+    /** Libera o equipamento; exige verificação aprovada — não passa com limpeza reprovada. */
+    public void release() {
+        requireCompleted("liberar");
+        if (verification == null) {
+            throw new IllegalStateException("registre a verificação antes de liberar");
+        }
+        if (!verification.passed()) {
+            throw new IllegalStateException("não é possível liberar com limpeza reprovada");
+        }
+        this.status = CleaningCycleStatus.RELEASED;
+        this.decidedAt = Instant.now();
+    }
+
+    /** Reprova o ciclo (retrabalho/novo ciclo); exige verificação registrada. */
+    public void reject() {
+        requireCompleted("reprovar");
+        if (verification == null) {
+            throw new IllegalStateException("registre a verificação antes de reprovar");
+        }
+        this.status = CleaningCycleStatus.REJECTED;
+        this.decidedAt = Instant.now();
+    }
+
     private void requireInProgress() {
         if (status != CleaningCycleStatus.IN_PROGRESS) {
             throw new IllegalStateException("ciclo não está em andamento (estado: " + status + ")");
+        }
+    }
+
+    private void requireCompleted(String action) {
+        if (status != CleaningCycleStatus.COMPLETED) {
+            throw new IllegalStateException("só é possível " + action + " um ciclo concluído (estado: " + status + ")");
         }
     }
 
@@ -127,4 +168,6 @@ public final class CleaningCycle {
     public String interruptReason() { return interruptReason; }
     public Instant startedAt() { return startedAt; }
     public Instant endedAt() { return endedAt; }
+    public Verification verification() { return verification; }
+    public Instant decidedAt() { return decidedAt; }
 }

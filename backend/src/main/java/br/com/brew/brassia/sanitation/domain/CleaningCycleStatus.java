@@ -8,5 +8,7 @@ package br.com.brew.brassia.sanitation.domain;
 public enum CleaningCycleStatus {
     IN_PROGRESS,
     INTERRUPTED,
-    COMPLETED
+    COMPLETED,
+    RELEASED,
+    REJECTED
 }

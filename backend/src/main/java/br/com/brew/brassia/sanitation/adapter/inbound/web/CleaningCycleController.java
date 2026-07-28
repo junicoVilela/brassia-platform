@@ -4,11 +4,15 @@ import br.com.brew.brassia.sanitation.adapter.inbound.web.dto.CycleView;
 import br.com.brew.brassia.sanitation.adapter.inbound.web.dto.InterruptCycleRequest;
 import br.com.brew.brassia.sanitation.adapter.inbound.web.dto.RecordStepRequest;
 import br.com.brew.brassia.sanitation.adapter.inbound.web.dto.StartCycleRequest;
+import br.com.brew.brassia.sanitation.adapter.inbound.web.dto.VerificationRequest;
 import br.com.brew.brassia.sanitation.application.port.inbound.CompleteCycleUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.GetCycleUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.InterruptCycleUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.ListCyclesUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.RecordStepUseCase;
+import br.com.brew.brassia.sanitation.application.port.inbound.RecordVerificationUseCase;
+import br.com.brew.brassia.sanitation.application.port.inbound.RejectCycleUseCase;
+import br.com.brew.brassia.sanitation.application.port.inbound.ReleaseCycleUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.ResumeCycleUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.StartCycleUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
@@ -36,16 +40,23 @@ final class CleaningCycleController {
     private final InterruptCycleUseCase interrupt;
     private final ResumeCycleUseCase resume;
     private final CompleteCycleUseCase complete;
+    private final RecordVerificationUseCase verify;
+    private final ReleaseCycleUseCase release;
+    private final RejectCycleUseCase reject;
     private final GetCycleUseCase get;
     private final ListCyclesUseCase list;
 
     CleaningCycleController(StartCycleUseCase start, RecordStepUseCase recordStep, InterruptCycleUseCase interrupt,
-            ResumeCycleUseCase resume, CompleteCycleUseCase complete, GetCycleUseCase get, ListCyclesUseCase list) {
+            ResumeCycleUseCase resume, CompleteCycleUseCase complete, RecordVerificationUseCase verify,
+            ReleaseCycleUseCase release, RejectCycleUseCase reject, GetCycleUseCase get, ListCyclesUseCase list) {
         this.start = start;
         this.recordStep = recordStep;
         this.interrupt = interrupt;
         this.resume = resume;
         this.complete = complete;
+        this.verify = verify;
+        this.release = release;
+        this.reject = reject;
         this.get = get;
         this.list = list;
     }
@@ -107,6 +118,30 @@ final class CleaningCycleController {
     ResponseEntity<Void> complete(@PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("sanitation.cycle.execute");
         complete.handle(new CompleteCycleUseCase.Command(principal.userId(), principal.requireBrewery(), id));
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/verification")
+    ResponseEntity<Void> verify(@PathVariable UUID id, @Valid @RequestBody VerificationRequest request,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("sanitation.cycle.execute");
+        verify.handle(new RecordVerificationUseCase.Command(
+                principal.userId(), principal.requireBrewery(), id, request.rinsePassed(), request.visualPassed(),
+                request.atpRlu(), request.atpThreshold(), request.microPassed()));
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/release")
+    ResponseEntity<Void> release(@PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("sanitation.cycle.release");
+        release.handle(new ReleaseCycleUseCase.Command(principal.userId(), principal.requireBrewery(), id));
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/reject")
+    ResponseEntity<Void> reject(@PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("sanitation.cycle.release");
+        reject.handle(new RejectCycleUseCase.Command(principal.userId(), principal.requireBrewery(), id));
         return ResponseEntity.noContent().build();
     }
 }

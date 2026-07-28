@@ -36,6 +36,14 @@ export class CycleDetailPageComponent implements OnInit {
     reason: ['', Validators.required],
   });
 
+  protected readonly verifyForm = this.fb.nonNullable.group({
+    rinseOk: [false],
+    visualOk: [false],
+    atpRlu: this.fb.control<number | null>(null, Validators.required),
+    atpThreshold: this.fb.control<number | null>(null, Validators.required),
+    microOk: [false],
+  });
+
   ngOnInit(): void {
     this.store.load(this.route.snapshot.paramMap.get('id')!);
   }
@@ -71,5 +79,19 @@ export class CycleDetailPageComponent implements OnInit {
     }
     this.store.interrupt(this.interruptForm.getRawValue().reason);
     this.interruptForm.reset({ reason: '' });
+  }
+
+  protected verify(): void {
+    if (this.verifyForm.invalid) {
+      return;
+    }
+    const v = this.verifyForm.getRawValue();
+    this.store.verify({
+      rinseOk: v.rinseOk,
+      visualOk: v.visualOk,
+      atpRlu: v.atpRlu!,
+      atpThreshold: v.atpThreshold!,
+      microOk: v.microOk,
+    });
   }
 }

@@ -5,6 +5,7 @@ import br.com.brew.brassia.sanitation.domain.CleaningCycle;
 import br.com.brew.brassia.sanitation.domain.CleaningCycleStatus;
 import br.com.brew.brassia.sanitation.domain.CycleStep;
 import br.com.brew.brassia.sanitation.domain.CycleStepStatus;
+import br.com.brew.brassia.sanitation.domain.Verification;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -20,7 +21,8 @@ class JdbcCleaningCycleRepository implements CleaningCycleRepository {
 
     private static final String COLUMNS = """
             SELECT id, brewery_id, procedure_id, procedure_code, procedure_version, equipment_id, status,
-                   interrupt_reason, started_at, ended_at
+                   interrupt_reason, started_at, ended_at, rinse_ok, visual_ok, atp_rlu, atp_threshold, micro_ok,
+                   verified_at, decided_at
             FROM sanitation_cleaning_cycle
             """;
 
@@ -32,10 +34,13 @@ class JdbcCleaningCycleRepository implements CleaningCycleRepository {
 
     @Override
     public void insert(CleaningCycle c) {
+        var v = c.verification();
         jdbc.sql("""
                 INSERT INTO sanitation_cleaning_cycle (id, brewery_id, procedure_id, procedure_code,
-                    procedure_version, equipment_id, status, interrupt_reason, started_at, ended_at)
-                VALUES (:id, :brewery, :proc, :code, :version, :equipment, :status, :interrupt, :started, :ended)
+                    procedure_version, equipment_id, status, interrupt_reason, started_at, ended_at, rinse_ok,
+                    visual_ok, atp_rlu, atp_threshold, micro_ok, verified_at, decided_at)
+                VALUES (:id, :brewery, :proc, :code, :version, :equipment, :status, :interrupt, :started, :ended,
+                    :rinse, :visual, :atp, :atpLimit, :micro, :verified, :decided)
                 """)
                 .param("id", c.id())
                 .param("brewery", c.breweryId())
@@ -47,6 +52,13 @@ class JdbcCleaningCycleRepository implements CleaningCycleRepository {
                 .param("interrupt", c.interruptReason())
                 .param("started", Timestamp.from(c.startedAt()))
                 .param("ended", c.endedAt() == null ? null : Timestamp.from(c.endedAt()))
+                .param("rinse", v == null ? null : v.rinseOk())
+                .param("visual", v == null ? null : v.visualOk())
+                .param("atp", v == null ? null : v.atpRlu())
+                .param("atpLimit", v == null ? null : v.atpThreshold())
+                .param("micro", v == null ? null : v.microOk())
+                .param("verified", v == null ? null : Timestamp.from(v.verifiedAt()))
+                .param("decided", c.decidedAt() == null ? null : Timestamp.from(c.decidedAt()))
                 .update();
         insertSteps(c);
     }
@@ -109,14 +121,24 @@ class JdbcCleaningCycleRepository implements CleaningCycleRepository {
 
     @Override
     public void update(CleaningCycle c) {
+        var v = c.verification();
         jdbc.sql("""
                 UPDATE sanitation_cleaning_cycle
-                SET status = :status, interrupt_reason = :interrupt, ended_at = :ended
+                SET status = :status, interrupt_reason = :interrupt, ended_at = :ended, rinse_ok = :rinse,
+                    visual_ok = :visual, atp_rlu = :atp, atp_threshold = :atpLimit, micro_ok = :micro,
+                    verified_at = :verified, decided_at = :decided
                 WHERE brewery_id = :brewery AND id = :id
                 """)
                 .param("status", c.status().name())
                 .param("interrupt", c.interruptReason())
                 .param("ended", c.endedAt() == null ? null : Timestamp.from(c.endedAt()))
+                .param("rinse", v == null ? null : v.rinseOk())
+                .param("visual", v == null ? null : v.visualOk())
+                .param("atp", v == null ? null : v.atpRlu())
+                .param("atpLimit", v == null ? null : v.atpThreshold())
+                .param("micro", v == null ? null : v.microOk())
+                .param("verified", v == null ? null : Timestamp.from(v.verifiedAt()))
+                .param("decided", c.decidedAt() == null ? null : Timestamp.from(c.decidedAt()))
                 .param("brewery", c.breweryId())
                 .param("id", c.id())
                 .update();
@@ -136,6 +158,7 @@ class JdbcCleaningCycleRepository implements CleaningCycleRepository {
         var id = rs.getObject("id", UUID.class);
         var breweryId = rs.getObject("brewery_id", UUID.class);
         var ended = rs.getTimestamp("ended_at");
+        var decided = rs.getTimestamp("decided_at");
         return CleaningCycle.reconstitute(
                 id,
                 breweryId,
@@ -147,7 +170,23 @@ class JdbcCleaningCycleRepository implements CleaningCycleRepository {
                 CleaningCycleStatus.valueOf(rs.getString("status")),
                 rs.getString("interrupt_reason"),
                 rs.getTimestamp("started_at").toInstant(),
-                ended == null ? null : ended.toInstant());
+                ended == null ? null : ended.toInstant(),
+                verification(rs),
+                decided == null ? null : decided.toInstant());
+    }
+
+    private Verification verification(ResultSet rs) throws SQLException {
+        var verifiedAt = rs.getTimestamp("verified_at");
+        if (verifiedAt == null) {
+            return null;
+        }
+        return new Verification(
+                rs.getBoolean("rinse_ok"),
+                rs.getBoolean("visual_ok"),
+                rs.getBigDecimal("atp_rlu"),
+                rs.getBigDecimal("atp_threshold"),
+                rs.getBoolean("micro_ok"),
+                verifiedAt.toInstant());
     }
 
     private List<CycleStep> steps(UUID breweryId, UUID cycleId) {

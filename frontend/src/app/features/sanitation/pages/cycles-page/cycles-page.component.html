@@ -56,7 +56,9 @@
                 <td class="fw-medium">{{ c.procedureCode }}</td>
                 <td class="text-end">v{{ c.procedureVersion }}</td>
                 <td>
-                  <span class="badge" [class]="c.status === 'COMPLETED' ? 'text-bg-success'
+                  <span class="badge" [class]="c.status === 'RELEASED' ? 'text-bg-success'
+                        : c.status === 'REJECTED' ? 'text-bg-danger'
+                        : c.status === 'COMPLETED' ? 'text-bg-info'
                         : c.status === 'INTERRUPTED' ? 'text-bg-warning' : 'text-bg-primary'">
                     {{ c.status }}
                   </span>

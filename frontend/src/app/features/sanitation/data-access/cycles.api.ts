@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { CleaningCycle, RecordStepRequest, StartCycleRequest } from '../domain/cycle.model';
+import { CleaningCycle, RecordStepRequest, StartCycleRequest, VerificationRequest } from '../domain/cycle.model';
 
 @Injectable({ providedIn: 'root' })
 export class CyclesApi {
@@ -33,5 +33,17 @@ export class CyclesApi {
 
   complete(id: string) {
     return this.http.post<void>(`${this.baseUrl}/${id}/complete`, {});
+  }
+
+  verify(id: string, request: VerificationRequest) {
+    return this.http.post<void>(`${this.baseUrl}/${id}/verification`, request);
+  }
+
+  release(id: string) {
+    return this.http.post<void>(`${this.baseUrl}/${id}/release`, {});
+  }
+
+  reject(id: string) {
+    return this.http.post<void>(`${this.baseUrl}/${id}/reject`, {});
   }
 }

@@ -1,0 +1,77 @@
+<app-page-header title="Ciclos de limpeza"
+                 subtitle="Execução de POP publicado por equipamento" />
+
+@if (store.canExecute) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-3">Iniciar ciclo</h2>
+      <form [formGroup]="form" (ngSubmit)="start()" class="row g-2 align-items-end">
+        <div class="col-sm-4"><label class="form-label small" for="pcode">POP publicado</label>
+          <select id="pcode" class="form-select form-select-sm" formControlName="procedureCode">
+            <option value="" disabled>Selecione…</option>
+            @for (c of store.publishedCodes(); track c) { <option [value]="c">{{ c }}</option> }
+          </select></div>
+        <div class="col-sm-5"><label class="form-label small" for="equip">Equipamento</label>
+          <select id="equip" class="form-select form-select-sm" formControlName="equipmentId">
+            <option value="" disabled>Selecione…</option>
+            @for (e of store.equipment(); track e.id) { <option [value]="e.id">{{ e.code }} — {{ e.name }}</option> }
+          </select></div>
+        <div class="col-sm-3 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm" [disabled]="form.invalid || store.submitting()">
+            <i class="ri-play-line me-1"></i> Iniciar
+          </button>
+        </div>
+      </form>
+      @if (store.actionError(); as actionError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+      }
+    </div>
+  </div>
+}
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Ciclos</h2>
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-drop-line" message="Nenhum ciclo registrado." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">POP</th>
+              <th scope="col" class="text-end">Versão</th>
+              <th scope="col">Status</th>
+              <th scope="col">Início</th>
+              <th scope="col" class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of store.items(); track c.id) {
+              <tr>
+                <td class="fw-medium">{{ c.procedureCode }}</td>
+                <td class="text-end">v{{ c.procedureVersion }}</td>
+                <td>
+                  <span class="badge" [class]="c.status === 'COMPLETED' ? 'text-bg-success'
+                        : c.status === 'INTERRUPTED' ? 'text-bg-warning' : 'text-bg-primary'">
+                    {{ c.status }}
+                  </span>
+                </td>
+                <td class="text-muted small">{{ c.startedAt | date:'short' }}</td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="open(c.id)">
+                    <i class="ri-arrow-right-line me-1"></i> Abrir
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

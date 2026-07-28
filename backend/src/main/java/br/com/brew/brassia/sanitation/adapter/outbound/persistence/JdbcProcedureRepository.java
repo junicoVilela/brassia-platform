@@ -102,6 +102,17 @@ class JdbcProcedureRepository implements ProcedureRepository {
     }
 
     @Override
+    public Optional<CleaningProcedure> findLatestPublishedByCode(UUID breweryId, String code) {
+        return jdbc.sql(COLUMNS + """
+                 WHERE brewery_id = :brewery AND code = :code AND status = 'PUBLISHED'
+                 ORDER BY version DESC LIMIT 1
+                """)
+                .param("brewery", breweryId).param("code", code)
+                .query((rs, n) -> map(rs))
+                .optional();
+    }
+
+    @Override
     public List<CleaningProcedure> findAll(UUID breweryId) {
         return jdbc.sql(COLUMNS + " WHERE brewery_id = :brewery ORDER BY code, version")
                 .param("brewery", breweryId)

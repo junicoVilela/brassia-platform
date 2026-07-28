@@ -1,0 +1,134 @@
+<app-page-header title="Execução do ciclo" subtitle="Registro contra a versão publicada do POP">
+  <a routerLink="/sanitation/cycles" class="btn btn-sm btn-outline-secondary">
+    <i class="ri-arrow-left-line me-1"></i> Voltar
+  </a>
+</app-page-header>
+
+@if (store.loading()) {
+  <app-loading-indicator />
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+} @else if (store.cycle(); as cycle) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4 d-flex flex-wrap gap-3 align-items-center justify-content-between">
+      <div>
+        <div class="fw-semibold">{{ cycle.procedureCode }} <span class="text-muted">v{{ cycle.procedureVersion }}</span></div>
+        <span class="badge" [class]="cycle.status === 'COMPLETED' ? 'text-bg-success'
+              : cycle.status === 'INTERRUPTED' ? 'text-bg-warning' : 'text-bg-primary'">{{ cycle.status }}</span>
+        @if (cycle.interruptReason) { <span class="text-muted small ms-2">{{ cycle.interruptReason }}</span> }
+      </div>
+      @if (store.canExecute) {
+        <div class="d-flex gap-2">
+          @if (store.interrupted()) {
+            <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="store.submitting()"
+                    (click)="store.resume()"><i class="ri-play-line me-1"></i> Retomar</button>
+          }
+          @if (store.inProgress()) {
+            <button type="button" class="btn btn-sm btn-outline-success" [disabled]="store.submitting()"
+                    (click)="store.complete()"><i class="ri-check-double-line me-1"></i> Concluir</button>
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (store.canExecute && store.inProgress()) {
+    <div class="card border-0 rounded-10 mb-4">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-3">Interromper</h2>
+        <form [formGroup]="interruptForm" (ngSubmit)="interrupt()" class="row g-2 align-items-end">
+          <div class="col-sm-9"><input type="text" class="form-control form-control-sm" formControlName="reason"
+                 placeholder="Motivo da interrupção"></div>
+          <div class="col-sm-3 d-grid">
+            <button type="submit" class="btn btn-outline-warning btn-sm" [disabled]="interruptForm.invalid">
+              <i class="ri-pause-line me-1"></i> Interromper
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+
+  <div class="card border-0 rounded-10">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-3">Etapas</h2>
+      <ol class="ps-3 mb-0">
+        @for (s of cycle.steps; track s.sequence) {
+          <li class="mb-3">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <span class="fw-medium">{{ s.method }}</span>
+                @if (s.product) { <span class="text-muted">— {{ s.product }}</span> }
+                <span class="badge ms-2" [class]="s.status === 'DONE' ? 'text-bg-success' : 'text-bg-secondary'">
+                  {{ s.status }}
+                </span>
+                @if (s.overridden) { <span class="badge text-bg-danger ms-1">override</span> }
+                <div class="text-muted small">
+                  Faixa:
+                  @if (s.concentrationMinPct !== null) { · {{ s.concentrationMinPct }}–{{ s.concentrationMaxPct }}% }
+                  @if (s.tempMinC !== null) { · {{ s.tempMinC }}–{{ s.tempMaxC }}°C }
+                  @if (s.timeMinutes !== null) { · mín {{ s.timeMinutes }} min }
+                  @if (s.evidenceRequired) { · evidência }
+                </div>
+                @if (s.status === 'DONE') {
+                  <div class="small">
+                    Medido:
+                    @if (s.measuredConcentrationPct !== null) { {{ s.measuredConcentrationPct }}% }
+                    @if (s.measuredTempC !== null) { · {{ s.measuredTempC }}°C }
+                    @if (s.measuredTimeMinutes !== null) { · {{ s.measuredTimeMinutes }} min }
+                    @if (s.overrideReason) { <span class="text-danger">· desvio: {{ s.overrideReason }}</span> }
+                    @if (s.outOfOrderReason) { <span class="text-muted">· fora de ordem: {{ s.outOfOrderReason }}</span> }
+                  </div>
+                }
+                @if (s.prohibition) {
+                  <div class="text-danger small"><i class="ri-forbid-line me-1"></i>{{ s.prohibition }}</div>
+                }
+              </div>
+              @if (store.canExecute && store.inProgress() && s.status === 'PENDING' && recording() !== s.sequence) {
+                <button type="button" class="btn btn-sm btn-outline-primary" (click)="startRecording(s)">
+                  <i class="ri-edit-line me-1"></i> Registrar
+                </button>
+              }
+            </div>
+
+            @if (recording() === s.sequence) {
+              <form [formGroup]="form" (ngSubmit)="submitStep()" class="row g-2 align-items-end mt-2 p-3 bg-body-tertiary rounded">
+                <div class="col-sm-3"><label class="form-label small">Concentração %</label>
+                  <input type="number" step="any" class="form-control form-control-sm" formControlName="measuredConcentrationPct"></div>
+                <div class="col-sm-3"><label class="form-label small">Temperatura °C</label>
+                  <input type="number" step="any" class="form-control form-control-sm" formControlName="measuredTempC"></div>
+                <div class="col-sm-2"><label class="form-label small">Tempo (min)</label>
+                  <input type="number" class="form-control form-control-sm" formControlName="measuredTimeMinutes"></div>
+                <div class="col-sm-4"><label class="form-label small">Vazão/ação</label>
+                  <input type="text" class="form-control form-control-sm" formControlName="flow"></div>
+                <div class="col-sm-6"><label class="form-label small">Evidência @if (s.evidenceRequired) { <span class="text-danger">*</span> }</label>
+                  <input type="text" class="form-control form-control-sm" formControlName="evidence"></div>
+                <div class="col-sm-6"><label class="form-label small">Motivo (se fora de ordem)</label>
+                  <input type="text" class="form-control form-control-sm" formControlName="outOfOrderReason"></div>
+                @if (store.canOverride) {
+                  <div class="col-sm-4 d-flex align-items-center pt-3">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="override" formControlName="override">
+                      <label class="form-check-label small" for="override">Forçar (fora da ficha)</label>
+                    </div>
+                  </div>
+                  <div class="col-sm-8"><input type="text" class="form-control form-control-sm" formControlName="overrideReason"
+                         placeholder="Justificativa do desvio (obrigatória se forçar)"></div>
+                }
+                <div class="col-12 d-flex gap-2">
+                  <button type="submit" class="btn btn-primary btn-sm" [disabled]="store.submitting()">
+                    <i class="ri-save-line me-1"></i> Salvar etapa
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" (click)="recording.set(null)">Cancelar</button>
+                </div>
+              </form>
+            }
+          </li>
+        }
+      </ol>
+      @if (store.actionError(); as actionError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+      }
+    </div>
+  </div>
+}

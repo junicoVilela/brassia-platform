@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { CleaningCycle, RecordStepRequest } from '../domain/cycle.model';
+import { CleaningCycle, RecordStepRequest, VerificationRequest } from '../domain/cycle.model';
 import { CyclesApi } from './cycles.api';
 
 /** Estado da execução de um ciclo (CLN-003): registrar etapa, interromper, retomar, concluir. */
@@ -21,8 +21,11 @@ export class CycleDetailStore {
   readonly submitting = signal(false);
   readonly canExecute = this.auth.hasPermission('sanitation.cycle.execute');
   readonly canOverride = this.auth.hasPermission('sanitation.cycle.override');
+  readonly canRelease = this.auth.hasPermission('sanitation.cycle.release');
   readonly inProgress = computed(() => this.cycle()?.status === 'IN_PROGRESS');
   readonly interrupted = computed(() => this.cycle()?.status === 'INTERRUPTED');
+  readonly completed = computed(() => this.cycle()?.status === 'COMPLETED');
+  readonly verificationPassed = computed(() => this.cycle()?.verification?.passed === true);
 
   load(id: string): void {
     this.loading.set(true);
@@ -61,6 +64,18 @@ export class CycleDetailStore {
 
   complete(): void {
     this.mutate(id => this.api.complete(id), 'Ciclo concluído.');
+  }
+
+  verify(request: VerificationRequest): void {
+    this.mutate(id => this.api.verify(id, request), 'Verificação registrada.');
+  }
+
+  release(): void {
+    this.mutate(id => this.api.release(id), 'Ciclo liberado.');
+  }
+
+  reject(): void {
+    this.mutate(id => this.api.reject(id), 'Ciclo reprovado.');
   }
 
   private mutate(call: (id: string) => import('rxjs').Observable<void>, ok: string): void {

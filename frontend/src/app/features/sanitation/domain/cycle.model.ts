@@ -1,5 +1,24 @@
-export type CycleStatus = 'IN_PROGRESS' | 'INTERRUPTED' | 'COMPLETED';
+export type CycleStatus = 'IN_PROGRESS' | 'INTERRUPTED' | 'COMPLETED' | 'RELEASED' | 'REJECTED';
 export type CycleStepStatus = 'PENDING' | 'DONE';
+
+export interface Verification {
+  rinseOk: boolean;
+  visualOk: boolean;
+  atpRlu: number;
+  atpThreshold: number;
+  atpOk: boolean;
+  microOk: boolean;
+  passed: boolean;
+  verifiedAt: string;
+}
+
+export interface VerificationRequest {
+  rinseOk: boolean;
+  visualOk: boolean;
+  atpRlu: number;
+  atpThreshold: number;
+  microOk: boolean;
+}
 
 export interface CycleStep {
   sequence: number;
@@ -34,6 +53,8 @@ export interface CleaningCycle {
   interruptReason: string | null;
   startedAt: string;
   endedAt: string | null;
+  decidedAt: string | null;
+  verification: Verification | null;
   steps: CycleStep[];
 }
 

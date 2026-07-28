@@ -132,4 +132,49 @@ class CleaningCycleTest {
         assertThat(cycle.status()).isEqualTo(CleaningCycleStatus.COMPLETED);
         assertThat(cycle.endedAt()).isNotNull();
     }
+
+    private static CleaningCycle completed() {
+        var cycle = CleaningCycle.start(BREWERY, published(List.of(step(1, false))), EQUIPMENT);
+        cycle.recordStep(1, ok());
+        cycle.complete();
+        return cycle;
+    }
+
+    @Test
+    void verificationRequiresCompletedCycle() {
+        var inProgress = CleaningCycle.start(BREWERY, published(List.of(step(1, false))), EQUIPMENT);
+        assertThatThrownBy(() -> inProgress.recordVerification(true, true, new BigDecimal("50"),
+                new BigDecimal("100"), true)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void releasesWhenAllChecksPass() {
+        var cycle = completed();
+        cycle.recordVerification(true, true, new BigDecimal("40"), new BigDecimal("100"), true);
+        assertThat(cycle.verification().passed()).isTrue();
+        cycle.release();
+        assertThat(cycle.status()).isEqualTo(CleaningCycleStatus.RELEASED);
+        assertThat(cycle.decidedAt()).isNotNull();
+    }
+
+    @Test
+    void doesNotReleaseWithFailedCheckOrHighAtp() {
+        var cycle = completed();
+        // ATP acima do limite reprova.
+        cycle.recordVerification(true, true, new BigDecimal("150"), new BigDecimal("100"), true);
+        assertThat(cycle.verification().atpOk()).isFalse();
+        assertThat(cycle.verification().passed()).isFalse();
+        assertThatThrownBy(cycle::release).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("reprovada");
+        // Reprovar leva a REJECTED.
+        cycle.reject();
+        assertThat(cycle.status()).isEqualTo(CleaningCycleStatus.REJECTED);
+    }
+
+    @Test
+    void releaseRequiresVerificationFirst() {
+        var cycle = completed();
+        assertThatThrownBy(cycle::release).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(cycle::reject).isInstanceOf(IllegalStateException.class);
+    }
 }

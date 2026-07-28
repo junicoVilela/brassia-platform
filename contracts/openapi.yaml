@@ -875,6 +875,44 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/cycles/{id}/verification:
+    post:
+      operationId: verifyCleaningCycle
+      summary: "Registra a verificação (enxágue/visual/ATP/micro) de um ciclo concluído"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CleaningVerification'}
+      responses:
+        '204': {description: Verificação registrada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/cycles/{id}/release:
+    post:
+      operationId: releaseCleaningCycle
+      summary: "Libera o equipamento; exige verificação aprovada (não passa com limpeza reprovada)"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204': {description: Ciclo liberado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/cycles/{id}/reject:
+    post:
+      operationId: rejectCleaningCycle
+      summary: "Reprova o ciclo (retrabalho); exige verificação registrada"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204': {description: Ciclo reprovado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /suppliers:
     get:
       operationId: listSuppliers
@@ -1506,6 +1544,15 @@ components:
       required: [reason]
       properties:
         reason: {type: string, maxLength: 500}
+    CleaningVerification:
+      type: object
+      required: [atpRlu, atpThreshold]
+      properties:
+        rinseOk: {type: boolean, description: "Ausente conta como reprovado (fail-closed)"}
+        visualOk: {type: boolean}
+        atpRlu: {type: number, minimum: 0, description: "Leitura de ATP (RLU); aprovada se ≤ limite"}
+        atpThreshold: {type: number, minimum: 0}
+        microOk: {type: boolean}
     CleaningCycle:
       type: object
       required: [id, procedureId, procedureCode, procedureVersion, equipmentId, status, startedAt, steps]
@@ -1515,11 +1562,27 @@ components:
         procedureCode: {type: string}
         procedureVersion: {type: integer}
         equipmentId: {type: string, format: uuid}
-        status: {type: string, enum: [IN_PROGRESS, INTERRUPTED, COMPLETED]}
+        status: {type: string, enum: [IN_PROGRESS, INTERRUPTED, COMPLETED, RELEASED, REJECTED]}
         interruptReason: {type: string, nullable: true}
         startedAt: {type: string, format: date-time}
         endedAt: {type: string, format: date-time, nullable: true}
+        decidedAt: {type: string, format: date-time, nullable: true}
+        verification:
+          nullable: true
+          allOf: [{$ref: '#/components/schemas/CycleVerificationView'}]
         steps: {type: array, items: {$ref: '#/components/schemas/CycleStep'}}
+    CycleVerificationView:
+      type: object
+      required: [rinseOk, visualOk, atpRlu, atpThreshold, atpOk, microOk, passed, verifiedAt]
+      properties:
+        rinseOk: {type: boolean}
+        visualOk: {type: boolean}
+        atpRlu: {type: number}
+        atpThreshold: {type: number}
+        atpOk: {type: boolean}
+        microOk: {type: boolean}
+        passed: {type: boolean}
+        verifiedAt: {type: string, format: date-time}
     CycleStep:
       type: object
       required: [sequence, method, evidenceRequired, status]

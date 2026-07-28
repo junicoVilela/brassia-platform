@@ -16,6 +16,9 @@ public interface ProcedureRepository {
     /** Versão mais recente de um código (para versionar). */
     Optional<CleaningProcedure> findLatestByCode(UUID breweryId, String code);
 
+    /** Versão PUBLICADA mais recente de um código (para iniciar um ciclo — CLN-003). */
+    Optional<CleaningProcedure> findLatestPublishedByCode(UUID breweryId, String code);
+
     List<CleaningProcedure> findAll(UUID breweryId);
 
     /** DRAFT → PUBLISHED, guardado pelo estado. {@code false} se já não estava em rascunho. */

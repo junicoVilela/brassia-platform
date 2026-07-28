@@ -784,6 +784,97 @@ paths:
               schema: {$ref: '#/components/schemas/CompatibilityRule'}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /sanitation/cycles:
+    get:
+      operationId: listCleaningCycles
+      summary: Lista ciclos de limpeza da cervejaria
+      responses:
+        '200':
+          description: Ciclos
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/CleaningCycle'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: startCleaningCycle
+      summary: "Inicia um ciclo (exige POP publicado e equipamento; congela o snapshot das faixas)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StartCleaningCycle'}
+      responses:
+        '201': {description: Ciclo iniciado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /sanitation/cycles/{id}:
+    get:
+      operationId: getCleaningCycle
+      summary: Detalha um ciclo e suas etapas
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Ciclo
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CleaningCycle'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /sanitation/cycles/{id}/steps:
+    post:
+      operationId: recordCycleStep
+      summary: "Registra a execução de uma etapa; parâmetro fora da ficha é bloqueado (override exige alçada)"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RecordCycleStep'}
+      responses:
+        '204': {description: Etapa registrada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/cycles/{id}/interrupt:
+    post:
+      operationId: interruptCleaningCycle
+      summary: Interrompe o ciclo preservando o estado (retomável)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/InterruptCleaningCycle'}
+      responses:
+        '204': {description: Ciclo interrompido}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/cycles/{id}/resume:
+    post:
+      operationId: resumeCleaningCycle
+      summary: Retoma um ciclo interrompido
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204': {description: Ciclo retomado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/cycles/{id}/complete:
+    post:
+      operationId: completeCleaningCycle
+      summary: "Encerra a execução (exige todas as etapas concluídas)"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204': {description: Ciclo concluído}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /suppliers:
     get:
       operationId: listSuppliers
@@ -1391,6 +1482,68 @@ components:
         soiling: {type: string, enum: [LEVE, MODERADA, PESADA]}
         risk: {type: string, enum: [BAIXO, MEDIO, ALTO]}
         previousProduct: {type: string, maxLength: 120}
+    StartCleaningCycle:
+      type: object
+      required: [procedureCode, equipmentId]
+      properties:
+        procedureCode: {type: string, maxLength: 40, description: "Código de um POP com versão publicada"}
+        equipmentId: {type: string, format: uuid, description: "Equipamento existente da cervejaria"}
+    RecordCycleStep:
+      type: object
+      required: [sequence]
+      properties:
+        sequence: {type: integer, minimum: 1}
+        measuredConcentrationPct: {type: number}
+        measuredTempC: {type: number}
+        measuredTimeMinutes: {type: integer, minimum: 0}
+        flow: {type: string, maxLength: 200}
+        evidence: {type: string, maxLength: 500}
+        outOfOrderReason: {type: string, maxLength: 500, description: "Obrigatório se a etapa não for a próxima pendente"}
+        override: {type: boolean, description: "Força o registro de parâmetro fora da ficha; exige sanitation.cycle.override"}
+        overrideReason: {type: string, maxLength: 500, description: "Justificativa obrigatória quando override=true"}
+    InterruptCleaningCycle:
+      type: object
+      required: [reason]
+      properties:
+        reason: {type: string, maxLength: 500}
+    CleaningCycle:
+      type: object
+      required: [id, procedureId, procedureCode, procedureVersion, equipmentId, status, startedAt, steps]
+      properties:
+        id: {type: string, format: uuid}
+        procedureId: {type: string, format: uuid}
+        procedureCode: {type: string}
+        procedureVersion: {type: integer}
+        equipmentId: {type: string, format: uuid}
+        status: {type: string, enum: [IN_PROGRESS, INTERRUPTED, COMPLETED]}
+        interruptReason: {type: string, nullable: true}
+        startedAt: {type: string, format: date-time}
+        endedAt: {type: string, format: date-time, nullable: true}
+        steps: {type: array, items: {$ref: '#/components/schemas/CycleStep'}}
+    CycleStep:
+      type: object
+      required: [sequence, method, evidenceRequired, status]
+      properties:
+        sequence: {type: integer}
+        method: {type: string}
+        product: {type: string, nullable: true}
+        concentrationMinPct: {type: number, nullable: true}
+        concentrationMaxPct: {type: number, nullable: true}
+        tempMinC: {type: number, nullable: true}
+        tempMaxC: {type: number, nullable: true}
+        timeMinutes: {type: integer, nullable: true}
+        prohibition: {type: string, nullable: true}
+        evidenceRequired: {type: boolean}
+        status: {type: string, enum: [PENDING, DONE]}
+        measuredConcentrationPct: {type: number, nullable: true}
+        measuredTempC: {type: number, nullable: true}
+        measuredTimeMinutes: {type: integer, nullable: true}
+        flowActual: {type: string, nullable: true}
+        evidence: {type: string, nullable: true}
+        outOfOrderReason: {type: string, nullable: true}
+        overridden: {type: boolean}
+        overrideReason: {type: string, nullable: true}
+        executedAt: {type: string, format: date-time, nullable: true}
     CreateAlert:
       type: object
       required: [kind, message]

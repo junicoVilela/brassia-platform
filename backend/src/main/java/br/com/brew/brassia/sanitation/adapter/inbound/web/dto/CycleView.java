@@ -1,6 +1,7 @@
 package br.com.brew.brassia.sanitation.adapter.inbound.web.dto;
 
 import br.com.brew.brassia.sanitation.domain.CleaningCycle;
+import br.com.brew.brassia.sanitation.domain.Consumption;
 import br.com.brew.brassia.sanitation.domain.CycleStep;
 import br.com.brew.brassia.sanitation.domain.Verification;
 import java.math.BigDecimal;
@@ -11,13 +12,22 @@ import java.util.UUID;
 public record CycleView(
         UUID id, UUID procedureId, String procedureCode, int procedureVersion, UUID equipmentId, String status,
         String interruptReason, Instant startedAt, Instant endedAt, Instant decidedAt,
-        VerificationView verification, List<StepView> steps) {
+        VerificationView verification, ConsumptionView consumption, List<StepView> steps) {
 
     public static CycleView from(CleaningCycle c) {
         return new CycleView(c.id(), c.procedureId(), c.procedureCode(), c.procedureVersion(), c.equipmentId(),
                 c.status().name(), c.interruptReason(), c.startedAt(), c.endedAt(), c.decidedAt(),
-                VerificationView.from(c.verification()),
+                VerificationView.from(c.verification()), ConsumptionView.from(c.consumption()),
                 c.steps().stream().map(StepView::from).toList());
+    }
+
+    public record ConsumptionView(BigDecimal waterLiters, BigDecimal energyKwh, BigDecimal productKg,
+            Instant recordedAt) {
+
+        static ConsumptionView from(Consumption c) {
+            return c == null ? null
+                    : new ConsumptionView(c.waterLiters(), c.energyKwh(), c.productKg(), c.recordedAt());
+        }
     }
 
     public record VerificationView(

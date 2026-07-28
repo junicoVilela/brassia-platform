@@ -3,6 +3,7 @@ package br.com.brew.brassia.sanitation.config;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.equipment.EquipmentProfileLookup;
 import br.com.brew.brassia.sanitation.application.port.inbound.CompleteCycleUseCase;
+import br.com.brew.brassia.sanitation.application.port.inbound.ConsumptionSummaryUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.CreateProcedureUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.CreateRuleUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.GetCycleUseCase;
@@ -13,6 +14,7 @@ import br.com.brew.brassia.sanitation.application.port.inbound.ListProceduresUse
 import br.com.brew.brassia.sanitation.application.port.inbound.ListRulesUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.PublishProcedureUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.RecommendUseCase;
+import br.com.brew.brassia.sanitation.application.port.inbound.RecordConsumptionUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.RecordStepUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.RecordVerificationUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.RejectCycleUseCase;
@@ -25,6 +27,7 @@ import br.com.brew.brassia.sanitation.application.port.outbound.CleaningCycleRep
 import br.com.brew.brassia.sanitation.application.port.outbound.CompatibilityRuleRepository;
 import br.com.brew.brassia.sanitation.application.port.outbound.ProcedureRepository;
 import br.com.brew.brassia.sanitation.application.service.CompleteCycleHandler;
+import br.com.brew.brassia.sanitation.application.service.ConsumptionSummaryHandler;
 import br.com.brew.brassia.sanitation.application.service.CreateProcedureHandler;
 import br.com.brew.brassia.sanitation.application.service.CreateRuleHandler;
 import br.com.brew.brassia.sanitation.application.service.GetCycleHandler;
@@ -35,6 +38,7 @@ import br.com.brew.brassia.sanitation.application.service.ListProceduresHandler;
 import br.com.brew.brassia.sanitation.application.service.ListRulesHandler;
 import br.com.brew.brassia.sanitation.application.service.PublishProcedureHandler;
 import br.com.brew.brassia.sanitation.application.service.RecommendHandler;
+import br.com.brew.brassia.sanitation.application.service.RecordConsumptionHandler;
 import br.com.brew.brassia.sanitation.application.service.RecordStepHandler;
 import br.com.brew.brassia.sanitation.application.service.RecordVerificationHandler;
 import br.com.brew.brassia.sanitation.application.service.RejectCycleHandler;
@@ -165,6 +169,19 @@ class SanitationConfiguration {
         var handler = new RejectCycleHandler(cycles, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    RecordConsumptionUseCase recordConsumptionUseCase(
+            CleaningCycleRepository cycles, AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new RecordConsumptionHandler(cycles, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    ConsumptionSummaryUseCase consumptionSummaryUseCase(CleaningCycleRepository cycles) {
+        return new ConsumptionSummaryHandler(cycles);
     }
 
     @Bean

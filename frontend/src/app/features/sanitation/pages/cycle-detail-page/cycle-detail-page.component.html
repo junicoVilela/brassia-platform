@@ -107,6 +107,65 @@
     </div>
   }
 
+  @if (store.executionEnded()) {
+    <div class="card border-0 rounded-10 mb-4">
+      <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h6 fw-semibold mb-0">Consumo e comparação</h2>
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="compare(cycle.procedureCode)">
+            <i class="ri-bar-chart-line me-1"></i> Comparar POP
+          </button>
+        </div>
+        @if (cycle.consumption; as cons) {
+          <div class="small mb-3">
+            Água <span class="fw-medium">{{ cons.waterLiters }} L</span> ·
+            Energia <span class="fw-medium">{{ cons.energyKwh }} kWh</span> ·
+            Produto <span class="fw-medium">{{ cons.productKg }} kg</span>
+          </div>
+        }
+        @if (store.canConsumption) {
+          <form [formGroup]="consumptionForm" (ngSubmit)="recordConsumption()" class="row g-2 align-items-end mb-2">
+            <div class="col-sm-3"><label class="form-label small" for="water">Água (L)</label>
+              <input id="water" type="number" step="any" class="form-control form-control-sm" formControlName="waterLiters"></div>
+            <div class="col-sm-3"><label class="form-label small" for="energy">Energia (kWh)</label>
+              <input id="energy" type="number" step="any" class="form-control form-control-sm" formControlName="energyKwh"></div>
+            <div class="col-sm-3"><label class="form-label small" for="product">Produto (kg)</label>
+              <input id="product" type="number" step="any" class="form-control form-control-sm" formControlName="productKg"></div>
+            <div class="col-sm-3 d-grid">
+              <button type="submit" class="btn btn-outline-primary btn-sm"
+                      [disabled]="consumptionForm.invalid || store.submitting()">
+                <i class="ri-save-line me-1"></i> Registrar consumo
+              </button>
+            </div>
+          </form>
+        }
+        @if (store.summary(); as s) {
+          @if (s.cycleCount > 0) {
+            <div class="table-responsive mt-2">
+              <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Métrica ({{ s.cycleCount }} ciclos)</th><th class="text-end">Média</th>
+                  <th class="text-end">Mín</th><th class="text-end">Máx</th></tr></thead>
+                <tbody>
+                  <tr><td>Água (L)</td><td class="text-end">{{ s.avgWaterLiters }}</td>
+                    <td class="text-end">{{ s.minWaterLiters }}</td><td class="text-end">{{ s.maxWaterLiters }}</td></tr>
+                  <tr><td>Energia (kWh)</td><td class="text-end">{{ s.avgEnergyKwh }}</td>
+                    <td class="text-end">{{ s.minEnergyKwh }}</td><td class="text-end">{{ s.maxEnergyKwh }}</td></tr>
+                  <tr><td>Produto (kg)</td><td class="text-end">{{ s.avgProductKg }}</td>
+                    <td class="text-end">{{ s.minProductKg }}</td><td class="text-end">{{ s.maxProductKg }}</td></tr>
+                </tbody>
+              </table>
+              <div class="text-muted small mt-2">
+                Comparação consultiva — reduzir um parâmetro do POP exige publicar uma nova versão.
+              </div>
+            </div>
+          } @else {
+            <div class="text-muted small mt-2">Sem consumo registrado para este POP ainda.</div>
+          }
+        }
+      </div>
+    </div>
+  }
+
   <div class="card border-0 rounded-10">
     <div class="card-body p-4">
       <h2 class="h6 fw-semibold mb-3">Etapas</h2>

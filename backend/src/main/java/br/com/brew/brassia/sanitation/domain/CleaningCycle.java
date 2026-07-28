@@ -30,10 +30,12 @@ public final class CleaningCycle {
     private Instant endedAt;
     private Verification verification;
     private Instant decidedAt;
+    private Consumption consumption;
 
     private CleaningCycle(UUID id, UUID breweryId, UUID procedureId, String procedureCode, int procedureVersion,
             UUID equipmentId, List<CycleStep> steps, CleaningCycleStatus status, String interruptReason,
-            Instant startedAt, Instant endedAt, Verification verification, Instant decidedAt) {
+            Instant startedAt, Instant endedAt, Verification verification, Instant decidedAt,
+            Consumption consumption) {
         this.id = Objects.requireNonNull(id, "id");
         this.breweryId = Objects.requireNonNull(breweryId, "breweryId");
         this.procedureId = Objects.requireNonNull(procedureId, "procedureId");
@@ -50,6 +52,7 @@ public final class CleaningCycle {
         this.endedAt = endedAt;
         this.verification = verification;
         this.decidedAt = decidedAt;
+        this.consumption = consumption;
     }
 
     /** Inicia um ciclo IN_PROGRESS congelando as etapas da versão publicada do POP. */
@@ -60,14 +63,15 @@ public final class CleaningCycle {
         var snapshot = procedure.steps().stream().map(CycleStep::snapshot).toList();
         return new CleaningCycle(UUID.randomUUID(), breweryId, procedure.id().value(), procedure.code(),
                 procedure.version(), Objects.requireNonNull(equipmentId, "equipmentId"), snapshot,
-                CleaningCycleStatus.IN_PROGRESS, null, Instant.now(), null, null, null);
+                CleaningCycleStatus.IN_PROGRESS, null, Instant.now(), null, null, null, null);
     }
 
     public static CleaningCycle reconstitute(UUID id, UUID breweryId, UUID procedureId, String procedureCode,
             int procedureVersion, UUID equipmentId, List<CycleStep> steps, CleaningCycleStatus status,
-            String interruptReason, Instant startedAt, Instant endedAt, Verification verification, Instant decidedAt) {
+            String interruptReason, Instant startedAt, Instant endedAt, Verification verification, Instant decidedAt,
+            Consumption consumption) {
         return new CleaningCycle(id, breweryId, procedureId, procedureCode, procedureVersion, equipmentId, steps,
-                status, interruptReason, startedAt, endedAt, verification, decidedAt);
+                status, interruptReason, startedAt, endedAt, verification, decidedAt, consumption);
     }
 
     /** Registra a execução de uma etapa; fora de ordem exige motivo. */
@@ -141,6 +145,15 @@ public final class CleaningCycle {
         this.decidedAt = Instant.now();
     }
 
+    /** Registra/atualiza o consumo (água/energia/produto) de um ciclo com execução encerrada (CLN-005). */
+    public void recordConsumption(BigDecimal waterLiters, BigDecimal energyKwh, BigDecimal productKg) {
+        if (status == CleaningCycleStatus.IN_PROGRESS || status == CleaningCycleStatus.INTERRUPTED) {
+            throw new IllegalStateException("consumo só pode ser medido com a execução encerrada (estado: "
+                    + status + ")");
+        }
+        this.consumption = Consumption.of(waterLiters, energyKwh, productKg);
+    }
+
     private void requireInProgress() {
         if (status != CleaningCycleStatus.IN_PROGRESS) {
             throw new IllegalStateException("ciclo não está em andamento (estado: " + status + ")");
@@ -170,4 +183,5 @@ public final class CleaningCycle {
     public Instant endedAt() { return endedAt; }
     public Verification verification() { return verification; }
     public Instant decidedAt() { return decidedAt; }
+    public Consumption consumption() { return consumption; }
 }

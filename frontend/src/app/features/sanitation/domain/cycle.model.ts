@@ -20,6 +20,33 @@ export interface VerificationRequest {
   microOk: boolean;
 }
 
+export interface Consumption {
+  waterLiters: number;
+  energyKwh: number;
+  productKg: number;
+  recordedAt: string;
+}
+
+export interface ConsumptionRequest {
+  waterLiters: number;
+  energyKwh: number;
+  productKg: number;
+}
+
+export interface ConsumptionSummary {
+  procedureCode: string;
+  cycleCount: number;
+  avgWaterLiters: number | null;
+  minWaterLiters: number | null;
+  maxWaterLiters: number | null;
+  avgEnergyKwh: number | null;
+  minEnergyKwh: number | null;
+  maxEnergyKwh: number | null;
+  avgProductKg: number | null;
+  minProductKg: number | null;
+  maxProductKg: number | null;
+}
+
 export interface CycleStep {
   sequence: number;
   method: string;
@@ -55,6 +82,7 @@ export interface CleaningCycle {
   endedAt: string | null;
   decidedAt: string | null;
   verification: Verification | null;
+  consumption: Consumption | null;
   steps: CycleStep[];
 }
 

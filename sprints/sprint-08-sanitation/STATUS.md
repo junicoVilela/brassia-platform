@@ -1,6 +1,6 @@
 # Status — Sprint 08
 
-Estado: EM ANDAMENTO
+Estado: CONCLUÍDA
 
 ## Controle das histórias
 
@@ -10,7 +10,7 @@ Estado: EM ANDAMENTO
 | CLN-002 | Concluída | IA | (local) | Matriz de compatibilidade: regra por **material × sujidade × risco × produto anterior** (vocabulário fechado nos três primeiros; produto anterior texto opcional, normalizado minúsculo ou nulo=genérica). Regra referencia opcionalmente um **POP publicado** + método/alternativa/restrição em texto. Recomendação por **material exato (sem herança entre materiais)**: prefere a regra com produto anterior específico, senão a genérica; sem regra → 400. `GET/POST /sanitation/matrix` + `POST /sanitation/matrix/recommend`. Migration V57 (chave única + CHECK de vocabulário); permissões `sanitation.matrix.read/manage`. UI: recomendação + cadastro de regras + lista. Backend +4 (IT) +3 (domínio). |
 | CLN-003 | Concluída | IA | (local) | Execução de ciclo: referencia **POP publicado** + **equipamento existente** (validado via `EquipmentProfileLookup`) e **congela um snapshot** das etapas/faixas ao iniciar. State machine IN_PROGRESS→INTERRUPTED→IN_PROGRESS→COMPLETED. **Parâmetro fora da ficha é bloqueado** (invariante adiado da CLN-001): concentração/temperatura fora do intervalo e tempo abaixo do dwell mínimo → 400; **override com alçada** (`sanitation.cycle.override`) + justificativa registra o desvio (auditado). Etapa **fora de ordem exige motivo**; **interrupção preservada** e retomável; conclusão exige todas as etapas. `POST /cycles` `/steps` `/interrupt` `/resume` `/complete` + `GET`. Migration V58; permissões `sanitation.cycle.read/execute/override`. UI: lista + início + tela de execução (registrar etapa/override/interromper/retomar/concluir). Backend +11 (domínio) +5 (IT). |
 | CLN-004 | Concluída | IA | (local) | Verificar e liberar: um ciclo **COMPLETED** recebe checagens tipadas (enxágue/visual/**ATP** RLU≤limite/micro); **liberação exige verificação aprovada** — não passa com limpeza reprovada (409); reprovado vai a **REJECTED**. Dois passos: `POST /verification` (calcula aprovado/reprovado) → `POST /release` (→RELEASED) ou `POST /reject` (→REJECTED). Liberação publica evento **`CleaningCycleReleased`** (listener no equipment = débito **CLN-004-A**). Migration V59 (colunas + CHECK ampliado); permissão crítica `sanitation.cycle.release`. UI: bloco verificação/liberação na tela de execução. Backend +4 (domínio, total 15) +4 (IT). |
-| CLN-005 | A fazer | — | — | — |
+| CLN-005 | Concluída | IA | (local) | Consumo e otimização: mede **água (L)/energia (kWh)/produto (kg)** por ciclo com **execução encerrada** (COMPLETED/RELEASED/REJECTED); IN_PROGRESS/INTERRUPTED → 409; um registro por ciclo, **upsert**. **Comparação read-only** por POP (`GET /consumption/summary` — média/mín/máx) — **não reduz parâmetro do POP** (reduzir limite exige nova versão publicada, CLN-001). `POST /cycles/{id}/consumption`. Migration V60 (colunas agregadas); permissões `sanitation.consumption.read/manage`. UI: bloco consumo/comparação na tela de execução. Backend +3 (domínio, total 18) +4 (IT). |
 
 ## Decisões e bloqueios
 
@@ -38,8 +38,14 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Dois passos**: `POST /verification` registra as checagens e calcula aprovado/reprovado (re-registrável enquanto COMPLETED); `POST /release` só com verificação **aprovada** (senão 409 — não passa com limpeza reprovada); `POST /reject` (verificação registrada) → REJECTED. Estado exigido: **COMPLETED**.
 - **Evento agora, integração como débito**: a liberação publica `CleaningCycleReleased` (auditada). Permissão crítica `sanitation.cycle.release` (release + reject); verificação sob `sanitation.cycle.execute`.
 
+### CLN-005 — decisões (confirmadas com o mantenedor)
+- **Consumo agregado**: água (L), energia (kWh) e produto/químico (kg) — três números por ciclo. Consumo detalhado por item de produto fica como débito **CLN-005-A**.
+- **Comparação read-only**: `GET /sanitation/consumption/summary?procedureCode=` agrega média/mín/máx por POP. **Nenhum endpoint altera limites do POP** — reduzir parâmetro exige criar+publicar nova versão (CLN-001), satisfazendo "comparação não reduz parâmetro sem nova versão aprovada" estruturalmente.
+- **Registro**: permitido em ciclo com execução encerrada (COMPLETED/RELEASED/REJECTED), **upsert** (re-registrável para correção); IN_PROGRESS/INTERRUPTED → 409. Permissões `sanitation.consumption.read/manage`.
+
 ### Débitos técnicos
 - **CLN-004-A** — Reação do módulo `equipment` ao evento `CleaningCycleReleased` (desbloquear/marcar equipamento como limpo). Critério de remoção: quando existir estado de bloqueio de equipamento, um listener em `equipment` consome o evento e atualiza o equipamento; hoje o evento é publicado sem consumidor.
+- **CLN-005-A** — Consumo detalhado por item de produto/químico (produto+quantidade+unidade) em tabela filha, além do agregado `product_kg`. Critério de remoção: quando o relatório de otimização precisar discriminar por químico.
 
 ## Evidências de encerramento
 

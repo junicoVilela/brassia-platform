@@ -3,7 +3,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { CleaningCycle, RecordStepRequest, VerificationRequest } from '../domain/cycle.model';
+import { CleaningCycle, ConsumptionRequest, ConsumptionSummary, RecordStepRequest, VerificationRequest }
+  from '../domain/cycle.model';
 import { CyclesApi } from './cycles.api';
 
 /** Estado da execução de um ciclo (CLN-003): registrar etapa, interromper, retomar, concluir. */
@@ -26,6 +27,12 @@ export class CycleDetailStore {
   readonly interrupted = computed(() => this.cycle()?.status === 'INTERRUPTED');
   readonly completed = computed(() => this.cycle()?.status === 'COMPLETED');
   readonly verificationPassed = computed(() => this.cycle()?.verification?.passed === true);
+  readonly canConsumption = this.auth.hasPermission('sanitation.consumption.manage');
+  readonly executionEnded = computed(() => {
+    const s = this.cycle()?.status;
+    return s === 'COMPLETED' || s === 'RELEASED' || s === 'REJECTED';
+  });
+  readonly summary = signal<ConsumptionSummary | null>(null);
 
   load(id: string): void {
     this.loading.set(true);
@@ -76,6 +83,29 @@ export class CycleDetailStore {
 
   reject(): void {
     this.mutate(id => this.api.reject(id), 'Ciclo reprovado.');
+  }
+
+  recordConsumption(request: ConsumptionRequest): void {
+    const id = this.cycle()?.id;
+    const code = this.cycle()?.procedureCode;
+    if (!id) {
+      return;
+    }
+    this.submitting.set(true);
+    this.actionError.set(null);
+    this.api.recordConsumption(id, request)
+      .pipe(finalize(() => this.submitting.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => { this.toast.success('Consumo registrado.'); this.load(id); if (code) { this.loadSummary(code); } },
+        error: (err: { status?: number; error?: { detail?: string } }) =>
+          this.actionError.set(err?.error?.detail ?? this.message(err?.status)),
+      });
+  }
+
+  loadSummary(procedureCode: string): void {
+    this.api.consumptionSummary(procedureCode)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: s => this.summary.set(s), error: () => this.summary.set(null) });
   }
 
   private mutate(call: (id: string) => import('rxjs').Observable<void>, ok: string): void {

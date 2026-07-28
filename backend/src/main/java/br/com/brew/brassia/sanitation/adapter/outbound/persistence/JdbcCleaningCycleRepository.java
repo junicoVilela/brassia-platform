@@ -3,6 +3,8 @@ package br.com.brew.brassia.sanitation.adapter.outbound.persistence;
 import br.com.brew.brassia.sanitation.application.port.outbound.CleaningCycleRepository;
 import br.com.brew.brassia.sanitation.domain.CleaningCycle;
 import br.com.brew.brassia.sanitation.domain.CleaningCycleStatus;
+import br.com.brew.brassia.sanitation.domain.Consumption;
+import br.com.brew.brassia.sanitation.domain.ConsumptionSummary;
 import br.com.brew.brassia.sanitation.domain.CycleStep;
 import br.com.brew.brassia.sanitation.domain.CycleStepStatus;
 import br.com.brew.brassia.sanitation.domain.Verification;
@@ -22,7 +24,7 @@ class JdbcCleaningCycleRepository implements CleaningCycleRepository {
     private static final String COLUMNS = """
             SELECT id, brewery_id, procedure_id, procedure_code, procedure_version, equipment_id, status,
                    interrupt_reason, started_at, ended_at, rinse_ok, visual_ok, atp_rlu, atp_threshold, micro_ok,
-                   verified_at, decided_at
+                   verified_at, decided_at, water_liters, energy_kwh, product_kg, consumption_at
             FROM sanitation_cleaning_cycle
             """;
 
@@ -35,12 +37,15 @@ class JdbcCleaningCycleRepository implements CleaningCycleRepository {
     @Override
     public void insert(CleaningCycle c) {
         var v = c.verification();
+        var cons = c.consumption();
         jdbc.sql("""
                 INSERT INTO sanitation_cleaning_cycle (id, brewery_id, procedure_id, procedure_code,
                     procedure_version, equipment_id, status, interrupt_reason, started_at, ended_at, rinse_ok,
-                    visual_ok, atp_rlu, atp_threshold, micro_ok, verified_at, decided_at)
+                    visual_ok, atp_rlu, atp_threshold, micro_ok, verified_at, decided_at, water_liters, energy_kwh,
+                    product_kg, consumption_at)
                 VALUES (:id, :brewery, :proc, :code, :version, :equipment, :status, :interrupt, :started, :ended,
-                    :rinse, :visual, :atp, :atpLimit, :micro, :verified, :decided)
+                    :rinse, :visual, :atp, :atpLimit, :micro, :verified, :decided, :water, :energy, :product,
+                    :consumedAt)
                 """)
                 .param("id", c.id())
                 .param("brewery", c.breweryId())
@@ -59,6 +64,10 @@ class JdbcCleaningCycleRepository implements CleaningCycleRepository {
                 .param("micro", v == null ? null : v.microOk())
                 .param("verified", v == null ? null : Timestamp.from(v.verifiedAt()))
                 .param("decided", c.decidedAt() == null ? null : Timestamp.from(c.decidedAt()))
+                .param("water", cons == null ? null : cons.waterLiters())
+                .param("energy", cons == null ? null : cons.energyKwh())
+                .param("product", cons == null ? null : cons.productKg())
+                .param("consumedAt", cons == null ? null : Timestamp.from(cons.recordedAt()))
                 .update();
         insertSteps(c);
     }
@@ -122,11 +131,13 @@ class JdbcCleaningCycleRepository implements CleaningCycleRepository {
     @Override
     public void update(CleaningCycle c) {
         var v = c.verification();
+        var cons = c.consumption();
         jdbc.sql("""
                 UPDATE sanitation_cleaning_cycle
                 SET status = :status, interrupt_reason = :interrupt, ended_at = :ended, rinse_ok = :rinse,
                     visual_ok = :visual, atp_rlu = :atp, atp_threshold = :atpLimit, micro_ok = :micro,
-                    verified_at = :verified, decided_at = :decided
+                    verified_at = :verified, decided_at = :decided, water_liters = :water, energy_kwh = :energy,
+                    product_kg = :product, consumption_at = :consumedAt
                 WHERE brewery_id = :brewery AND id = :id
                 """)
                 .param("status", c.status().name())
@@ -139,6 +150,10 @@ class JdbcCleaningCycleRepository implements CleaningCycleRepository {
                 .param("micro", v == null ? null : v.microOk())
                 .param("verified", v == null ? null : Timestamp.from(v.verifiedAt()))
                 .param("decided", c.decidedAt() == null ? null : Timestamp.from(c.decidedAt()))
+                .param("water", cons == null ? null : cons.waterLiters())
+                .param("energy", cons == null ? null : cons.energyKwh())
+                .param("product", cons == null ? null : cons.productKg())
+                .param("consumedAt", cons == null ? null : Timestamp.from(cons.recordedAt()))
                 .param("brewery", c.breweryId())
                 .param("id", c.id())
                 .update();
@@ -172,7 +187,44 @@ class JdbcCleaningCycleRepository implements CleaningCycleRepository {
                 rs.getTimestamp("started_at").toInstant(),
                 ended == null ? null : ended.toInstant(),
                 verification(rs),
-                decided == null ? null : decided.toInstant());
+                decided == null ? null : decided.toInstant(),
+                consumption(rs));
+    }
+
+    private Consumption consumption(ResultSet rs) throws SQLException {
+        var consumedAt = rs.getTimestamp("consumption_at");
+        if (consumedAt == null) {
+            return null;
+        }
+        return new Consumption(
+                rs.getBigDecimal("water_liters"),
+                rs.getBigDecimal("energy_kwh"),
+                rs.getBigDecimal("product_kg"),
+                consumedAt.toInstant());
+    }
+
+    @Override
+    public ConsumptionSummary summarizeConsumption(UUID breweryId, String procedureCode) {
+        return jdbc.sql("""
+                SELECT COUNT(*) AS n,
+                       AVG(water_liters) AS avg_water, MIN(water_liters) AS min_water, MAX(water_liters) AS max_water,
+                       AVG(energy_kwh) AS avg_energy, MIN(energy_kwh) AS min_energy, MAX(energy_kwh) AS max_energy,
+                       AVG(product_kg) AS avg_product, MIN(product_kg) AS min_product, MAX(product_kg) AS max_product
+                FROM sanitation_cleaning_cycle
+                WHERE brewery_id = :brewery AND procedure_code = :code AND consumption_at IS NOT NULL
+                """)
+                .param("brewery", breweryId).param("code", procedureCode)
+                .query((rs, n) -> {
+                    int count = rs.getInt("n");
+                    if (count == 0) {
+                        return ConsumptionSummary.empty(procedureCode);
+                    }
+                    return new ConsumptionSummary(procedureCode, count,
+                            rs.getBigDecimal("avg_water"), rs.getBigDecimal("min_water"), rs.getBigDecimal("max_water"),
+                            rs.getBigDecimal("avg_energy"), rs.getBigDecimal("min_energy"), rs.getBigDecimal("max_energy"),
+                            rs.getBigDecimal("avg_product"), rs.getBigDecimal("min_product"), rs.getBigDecimal("max_product"));
+                })
+                .single();
     }
 
     private Verification verification(ResultSet rs) throws SQLException {

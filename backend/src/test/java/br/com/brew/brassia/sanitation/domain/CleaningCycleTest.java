@@ -177,4 +177,29 @@ class CleaningCycleTest {
         assertThatThrownBy(cycle::release).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(cycle::reject).isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void consumptionRequiresEndedExecution() {
+        var inProgress = CleaningCycle.start(BREWERY, published(List.of(step(1, false))), EQUIPMENT);
+        assertThatThrownBy(() -> inProgress.recordConsumption(new BigDecimal("100"), new BigDecimal("5"),
+                new BigDecimal("2"))).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void recordsAndUpsertsConsumptionOnEndedCycle() {
+        var cycle = completed();
+        cycle.recordConsumption(new BigDecimal("120"), new BigDecimal("6"), new BigDecimal("2.5"));
+        assertThat(cycle.consumption().waterLiters()).isEqualByComparingTo("120");
+        // Re-registro sobrescreve.
+        cycle.recordConsumption(new BigDecimal("110"), new BigDecimal("5.5"), new BigDecimal("2.0"));
+        assertThat(cycle.consumption().waterLiters()).isEqualByComparingTo("110");
+        assertThat(cycle.consumption().energyKwh()).isEqualByComparingTo("5.5");
+    }
+
+    @Test
+    void rejectsNegativeConsumption() {
+        var cycle = completed();
+        assertThatThrownBy(() -> cycle.recordConsumption(new BigDecimal("-1"), new BigDecimal("5"),
+                new BigDecimal("2"))).isInstanceOf(IllegalArgumentException.class);
+    }
 }

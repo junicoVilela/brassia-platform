@@ -44,6 +44,12 @@ export class CycleDetailPageComponent implements OnInit {
     microOk: [false],
   });
 
+  protected readonly consumptionForm = this.fb.nonNullable.group({
+    waterLiters: this.fb.control<number | null>(null, [Validators.required, Validators.min(0)]),
+    energyKwh: this.fb.control<number | null>(null, [Validators.required, Validators.min(0)]),
+    productKg: this.fb.control<number | null>(null, [Validators.required, Validators.min(0)]),
+  });
+
   ngOnInit(): void {
     this.store.load(this.route.snapshot.paramMap.get('id')!);
   }
@@ -93,5 +99,17 @@ export class CycleDetailPageComponent implements OnInit {
       atpThreshold: v.atpThreshold!,
       microOk: v.microOk,
     });
+  }
+
+  protected recordConsumption(): void {
+    if (this.consumptionForm.invalid) {
+      return;
+    }
+    const v = this.consumptionForm.getRawValue();
+    this.store.recordConsumption({ waterLiters: v.waterLiters!, energyKwh: v.energyKwh!, productKg: v.productKg! });
+  }
+
+  protected compare(procedureCode: string): void {
+    this.store.loadSummary(procedureCode);
   }
 }

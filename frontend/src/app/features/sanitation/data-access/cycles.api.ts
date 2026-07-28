@@ -1,6 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { CleaningCycle, RecordStepRequest, StartCycleRequest, VerificationRequest } from '../domain/cycle.model';
+import { CleaningCycle, ConsumptionRequest, ConsumptionSummary, RecordStepRequest, StartCycleRequest, VerificationRequest }
+  from '../domain/cycle.model';
+import { HttpParams } from '@angular/common/http';
 
 @Injectable({ providedIn: 'root' })
 export class CyclesApi {
@@ -45,5 +47,15 @@ export class CyclesApi {
 
   reject(id: string) {
     return this.http.post<void>(`${this.baseUrl}/${id}/reject`, {});
+  }
+
+  recordConsumption(id: string, request: ConsumptionRequest) {
+    return this.http.post<void>(`${this.baseUrl}/${id}/consumption`, request);
+  }
+
+  consumptionSummary(procedureCode: string) {
+    return this.http.get<ConsumptionSummary>('/api/v1/sanitation/consumption/summary', {
+      params: new HttpParams().set('procedureCode', procedureCode),
+    });
   }
 }

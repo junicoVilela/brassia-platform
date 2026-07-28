@@ -913,6 +913,36 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/cycles/{id}/consumption:
+    post:
+      operationId: recordCycleConsumption
+      summary: "Registra/atualiza o consumo (água/energia/produto) de um ciclo com execução encerrada"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CleaningConsumption'}
+      responses:
+        '204': {description: Consumo registrado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/consumption/summary:
+    get:
+      operationId: cleaningConsumptionSummary
+      summary: "Comparação consultiva de consumo por POP (read-only; não reduz parâmetros do POP)"
+      parameters:
+        - {name: procedureCode, in: query, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Resumo de consumo
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConsumptionSummary'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /suppliers:
     get:
       operationId: listSuppliers
@@ -1570,7 +1600,40 @@ components:
         verification:
           nullable: true
           allOf: [{$ref: '#/components/schemas/CycleVerificationView'}]
+        consumption:
+          nullable: true
+          allOf: [{$ref: '#/components/schemas/CycleConsumptionView'}]
         steps: {type: array, items: {$ref: '#/components/schemas/CycleStep'}}
+    CleaningConsumption:
+      type: object
+      required: [waterLiters, energyKwh, productKg]
+      properties:
+        waterLiters: {type: number, minimum: 0}
+        energyKwh: {type: number, minimum: 0}
+        productKg: {type: number, minimum: 0}
+    CycleConsumptionView:
+      type: object
+      required: [waterLiters, energyKwh, productKg, recordedAt]
+      properties:
+        waterLiters: {type: number}
+        energyKwh: {type: number}
+        productKg: {type: number}
+        recordedAt: {type: string, format: date-time}
+    ConsumptionSummary:
+      type: object
+      required: [procedureCode, cycleCount]
+      properties:
+        procedureCode: {type: string}
+        cycleCount: {type: integer}
+        avgWaterLiters: {type: number, nullable: true}
+        minWaterLiters: {type: number, nullable: true}
+        maxWaterLiters: {type: number, nullable: true}
+        avgEnergyKwh: {type: number, nullable: true}
+        minEnergyKwh: {type: number, nullable: true}
+        maxEnergyKwh: {type: number, nullable: true}
+        avgProductKg: {type: number, nullable: true}
+        minProductKg: {type: number, nullable: true}
+        maxProductKg: {type: number, nullable: true}
     CycleVerificationView:
       type: object
       required: [rinseOk, visualOk, atpRlu, atpThreshold, atpOk, microOk, passed, verifiedAt]

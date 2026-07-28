@@ -1,11 +1,13 @@
 package br.com.brew.brassia.sanitation.adapter.inbound.web;
 
+import br.com.brew.brassia.sanitation.adapter.inbound.web.dto.ConsumptionRequest;
 import br.com.brew.brassia.sanitation.adapter.inbound.web.dto.CycleView;
 import br.com.brew.brassia.sanitation.adapter.inbound.web.dto.InterruptCycleRequest;
 import br.com.brew.brassia.sanitation.adapter.inbound.web.dto.RecordStepRequest;
 import br.com.brew.brassia.sanitation.adapter.inbound.web.dto.StartCycleRequest;
 import br.com.brew.brassia.sanitation.adapter.inbound.web.dto.VerificationRequest;
 import br.com.brew.brassia.sanitation.application.port.inbound.CompleteCycleUseCase;
+import br.com.brew.brassia.sanitation.application.port.inbound.RecordConsumptionUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.GetCycleUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.InterruptCycleUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.ListCyclesUseCase;
@@ -43,12 +45,14 @@ final class CleaningCycleController {
     private final RecordVerificationUseCase verify;
     private final ReleaseCycleUseCase release;
     private final RejectCycleUseCase reject;
+    private final RecordConsumptionUseCase recordConsumption;
     private final GetCycleUseCase get;
     private final ListCyclesUseCase list;
 
     CleaningCycleController(StartCycleUseCase start, RecordStepUseCase recordStep, InterruptCycleUseCase interrupt,
             ResumeCycleUseCase resume, CompleteCycleUseCase complete, RecordVerificationUseCase verify,
-            ReleaseCycleUseCase release, RejectCycleUseCase reject, GetCycleUseCase get, ListCyclesUseCase list) {
+            ReleaseCycleUseCase release, RejectCycleUseCase reject, RecordConsumptionUseCase recordConsumption,
+            GetCycleUseCase get, ListCyclesUseCase list) {
         this.start = start;
         this.recordStep = recordStep;
         this.interrupt = interrupt;
@@ -57,6 +61,7 @@ final class CleaningCycleController {
         this.verify = verify;
         this.release = release;
         this.reject = reject;
+        this.recordConsumption = recordConsumption;
         this.get = get;
         this.list = list;
     }
@@ -142,6 +147,16 @@ final class CleaningCycleController {
     ResponseEntity<Void> reject(@PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("sanitation.cycle.release");
         reject.handle(new RejectCycleUseCase.Command(principal.userId(), principal.requireBrewery(), id));
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/consumption")
+    ResponseEntity<Void> consumption(@PathVariable UUID id, @Valid @RequestBody ConsumptionRequest request,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("sanitation.consumption.manage");
+        recordConsumption.handle(new RecordConsumptionUseCase.Command(
+                principal.userId(), principal.requireBrewery(), id, request.waterLiters(), request.energyKwh(),
+                request.productKg()));
         return ResponseEntity.noContent().build();
     }
 }

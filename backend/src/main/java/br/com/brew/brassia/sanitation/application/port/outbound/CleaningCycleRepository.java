@@ -1,6 +1,7 @@
 package br.com.brew.brassia.sanitation.application.port.outbound;
 
 import br.com.brew.brassia.sanitation.domain.CleaningCycle;
+import br.com.brew.brassia.sanitation.domain.ConsumptionSummary;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,4 +18,7 @@ public interface CleaningCycleRepository {
     void update(CleaningCycle cycle);
 
     List<CleaningCycle> findAll(UUID breweryId);
+
+    /** Resumo consultivo de consumo por código de POP (CLN-005). */
+    ConsumptionSummary summarizeConsumption(UUID breweryId, String procedureCode);
 }

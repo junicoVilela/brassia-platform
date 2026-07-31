@@ -129,6 +129,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('fermentation.yeast.read')) {
+            <li class="menu-item">
+              <a routerLink="/fermentation/yeast" routerLinkActive="active" class="menu-link">
+                <i class="ri-flask-line menu-icon"></i>
+                <span class="title">Coletas de levedura</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('fermentation.reading.read')) {
             <li class="menu-item">
               <a routerLink="/fermentation/readings" routerLinkActive="active" class="menu-link">

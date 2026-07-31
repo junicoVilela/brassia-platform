@@ -4,14 +4,20 @@ import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.fermentation.application.port.inbound.CreateProfileUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.GetProfileUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.ListProfilesUseCase;
+import br.com.brew.brassia.fermentation.application.port.inbound.ListReadingsUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.PublishProfileUseCase;
+import br.com.brew.brassia.fermentation.application.port.inbound.RecordReadingUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.UpdateProfileUseCase;
 import br.com.brew.brassia.fermentation.application.port.outbound.ProfileRepository;
+import br.com.brew.brassia.fermentation.application.port.outbound.ReadingRepository;
 import br.com.brew.brassia.fermentation.application.service.CreateProfileHandler;
 import br.com.brew.brassia.fermentation.application.service.GetProfileHandler;
 import br.com.brew.brassia.fermentation.application.service.ListProfilesHandler;
+import br.com.brew.brassia.fermentation.application.service.ListReadingsHandler;
 import br.com.brew.brassia.fermentation.application.service.PublishProfileHandler;
+import br.com.brew.brassia.fermentation.application.service.RecordReadingHandler;
 import br.com.brew.brassia.fermentation.application.service.UpdateProfileHandler;
+import br.com.brew.brassia.production.BatchLookup;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -53,5 +59,18 @@ class FermentationConfiguration {
     @Bean
     GetProfileUseCase getProfileUseCase(ProfileRepository repository) {
         return new GetProfileHandler(repository);
+    }
+
+    @Bean
+    RecordReadingUseCase recordReadingUseCase(ReadingRepository readings, BatchLookup batches, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new RecordReadingHandler(readings, batches, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ListReadingsUseCase listReadingsUseCase(ReadingRepository readings) {
+        return new ListReadingsHandler(readings);
     }
 }

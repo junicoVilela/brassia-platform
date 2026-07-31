@@ -3,6 +3,7 @@ package br.com.brew.brassia.production.config;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.calculator.CalculatorEngine;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
+import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.production.application.port.inbound.ApplyCorrectionUseCase;
 import br.com.brew.brassia.production.application.port.inbound.CompleteBatchStepUseCase;
 import br.com.brew.brassia.production.application.port.inbound.ConfirmAlertUseCase;
@@ -146,5 +147,11 @@ class ProductionConfiguration {
         var handler = new ConfirmAlertHandler(alerts, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    /** Existência de lote publicada para outros módulos (ex.: leituras de fermentação, FER-002). */
+    @Bean
+    BatchLookup batchLookup(BatchRepository batches) {
+        return (breweryId, batchId) -> batches.findById(breweryId, batchId).isPresent();
     }
 }

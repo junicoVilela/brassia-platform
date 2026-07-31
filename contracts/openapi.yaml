@@ -751,6 +751,37 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /fermentation/readings:
+    get:
+      operationId: listFermentationReadings
+      summary: "Série de leituras do lote (curva), opcionalmente filtrada por grandeza"
+      parameters:
+        - {name: batchId, in: query, required: true, schema: {type: string, format: uuid}}
+        - name: kind
+          in: query
+          required: false
+          schema: {type: string, enum: [DENSITY, TEMPERATURE, PRESSURE, PH]}
+      responses:
+        '200':
+          description: "Leituras ordenadas por instante; cada uma traz origem (manual/sensor) e validade"
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/FermentationReading'}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: recordFermentationReading
+      summary: "Registra leitura de fermentação (idempotente por lote+grandeza+origem+instante)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RecordFermentationReading'}
+      responses:
+        '200': {description: "Reenvio da mesma chave natural; nada foi duplicado"}
+        '201': {description: "Leitura registrada; fora da faixa plausível vem com valid=false e motivo"}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /sanitation/procedures:
     get:
       operationId: listCleaningProcedures
@@ -1587,6 +1618,29 @@ components:
       properties:
         name: {type: string, maxLength: 160}
         stages: {type: array, minItems: 1, items: {$ref: '#/components/schemas/FermentationStage'}}
+    FermentationReading:
+      type: object
+      required: [id, batchId, kind, source, value, unit, measuredAt, valid]
+      properties:
+        id: {type: string, format: uuid}
+        batchId: {type: string, format: uuid}
+        kind: {type: string, enum: [DENSITY, TEMPERATURE, PRESSURE, PH]}
+        source: {type: string, enum: [MANUAL, SENSOR]}
+        value: {type: number}
+        unit: {type: string, enum: [SG, PLATO, C, F, PSI, BAR, PH]}
+        measuredAt: {type: string, format: date-time}
+        valid: {type: boolean, description: "false sinaliza leitura fora da faixa plausível (não é descartada)"}
+        invalidReason: {type: string, nullable: true}
+    RecordFermentationReading:
+      type: object
+      required: [batchId, kind, source, value, unit, measuredAt]
+      properties:
+        batchId: {type: string, format: uuid}
+        kind: {type: string, enum: [DENSITY, TEMPERATURE, PRESSURE, PH]}
+        source: {type: string, enum: [MANUAL, SENSOR]}
+        value: {type: number}
+        unit: {type: string, description: "Unidade compatível com a grandeza; incompatível → 400"}
+        measuredAt: {type: string, format: date-time}
     ProcedureStep:
       type: object
       required: [sequence, method]

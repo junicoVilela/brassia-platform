@@ -18,7 +18,7 @@ class JdbcYeastHarvestRepository implements YeastHarvestRepository {
     private static final String COLUMNS = """
             SELECT id, brewery_id, code, strain_id, source_batch_id, parent_harvest_id, generation, harvested_at,
                    viability_percent, condition, storage_location, storage_temp_c, status, review_note,
-                   reviewed_at, reviewed_by
+                   reviewed_at, reviewed_by, pitched_batch_id, pitched_at
             FROM fermentation_yeast_harvest
             """;
 
@@ -71,6 +71,22 @@ class JdbcYeastHarvestRepository implements YeastHarvestRepository {
     }
 
     @Override
+    public void updatePitch(YeastHarvest h) {
+        // Guardado pelo estado: só coleta aprovada é consumida, então o mesmo pitch não repete.
+        jdbc.sql("""
+                UPDATE fermentation_yeast_harvest
+                SET status = :status, pitched_batch_id = :batch, pitched_at = :at
+                WHERE id = :id AND brewery_id = :brewery AND status = 'APPROVED'
+                """)
+                .param("status", h.status().name())
+                .param("batch", h.pitchedBatchId())
+                .param("at", h.pitchedAt() == null ? null : Timestamp.from(h.pitchedAt()))
+                .param("id", h.id())
+                .param("brewery", h.breweryId())
+                .update();
+    }
+
+    @Override
     public Optional<YeastHarvest> findById(UUID breweryId, UUID harvestId) {
         return jdbc.sql(COLUMNS + " WHERE brewery_id = :brewery AND id = :id")
                 .param("brewery", breweryId).param("id", harvestId)
@@ -110,7 +126,7 @@ class JdbcYeastHarvestRepository implements YeastHarvestRepository {
                 )
                 SELECT id, brewery_id, code, strain_id, source_batch_id, parent_harvest_id, generation, harvested_at,
                        viability_percent, condition, storage_location, storage_temp_c, status, review_note,
-                       reviewed_at, reviewed_by
+                       reviewed_at, reviewed_by, pitched_batch_id, pitched_at
                 FROM ancestry ORDER BY depth
                 """)
                 .param("brewery", breweryId).param("id", harvestId)
@@ -120,6 +136,7 @@ class JdbcYeastHarvestRepository implements YeastHarvestRepository {
 
     private YeastHarvest map(ResultSet rs) throws SQLException {
         var reviewedAt = rs.getTimestamp("reviewed_at");
+        var pitchedAt = rs.getTimestamp("pitched_at");
         return YeastHarvest.reconstitute(
                 rs.getObject("id", UUID.class),
                 rs.getObject("brewery_id", UUID.class),
@@ -136,6 +153,8 @@ class JdbcYeastHarvestRepository implements YeastHarvestRepository {
                 YeastHarvestStatus.valueOf(rs.getString("status")),
                 rs.getString("review_note"),
                 reviewedAt == null ? null : reviewedAt.toInstant(),
-                rs.getObject("reviewed_by", UUID.class));
+                rs.getObject("reviewed_by", UUID.class),
+                rs.getObject("pitched_batch_id", UUID.class),
+                pitchedAt == null ? null : pitchedAt.toInstant());
     }
 }

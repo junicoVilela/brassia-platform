@@ -12,6 +12,9 @@ public interface YeastHarvestRepository {
     /** Persiste o resultado da revisão (status + parecer); a coleta em si é imutável. */
     void updateReview(YeastHarvest harvest);
 
+    /** Persiste o uso confirmado (YST-002): status USED + lote de destino. */
+    void updatePitch(YeastHarvest harvest);
+
     Optional<YeastHarvest> findById(UUID breweryId, UUID harvestId);
 
     boolean existsByCode(UUID breweryId, String code);

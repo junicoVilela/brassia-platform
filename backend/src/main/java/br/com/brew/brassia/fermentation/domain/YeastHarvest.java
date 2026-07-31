@@ -34,6 +34,8 @@ public final class YeastHarvest {
     private String reviewNote;
     private Instant reviewedAt;
     private UUID reviewedBy;
+    private UUID pitchedBatchId;
+    private Instant pitchedAt;
 
     private YeastHarvest(UUID id, UUID breweryId, String code, UUID strainId, UUID sourceBatchId,
             UUID parentHarvestId, int generation, Instant harvestedAt, BigDecimal viabilityPercent, String condition,
@@ -82,10 +84,13 @@ public final class YeastHarvest {
     public static YeastHarvest reconstitute(UUID id, UUID breweryId, String code, UUID strainId, UUID sourceBatchId,
             UUID parentHarvestId, int generation, Instant harvestedAt, BigDecimal viabilityPercent, String condition,
             String storageLocation, BigDecimal storageTempC, YeastHarvestStatus status, String reviewNote,
-            Instant reviewedAt, UUID reviewedBy) {
-        return new YeastHarvest(id, breweryId, code, strainId, sourceBatchId, parentHarvestId, generation,
+            Instant reviewedAt, UUID reviewedBy, UUID pitchedBatchId, Instant pitchedAt) {
+        var harvest = new YeastHarvest(id, breweryId, code, strainId, sourceBatchId, parentHarvestId, generation,
                 harvestedAt, viabilityPercent, condition, storageLocation, storageTempC, status, reviewNote,
                 reviewedAt, reviewedBy);
+        harvest.pitchedBatchId = pitchedBatchId;
+        harvest.pitchedAt = pitchedAt;
+        return harvest;
     }
 
     /** Libera a coleta para reúso. Só de quarentena: a revisão é terminal. */
@@ -109,6 +114,19 @@ public final class YeastHarvest {
         this.reviewNote = note == null || note.isBlank() ? null : requireText(note, "parecer", 200);
         this.reviewedBy = Objects.requireNonNull(actorId, "revisor é obrigatório");
         this.reviewedAt = Objects.requireNonNull(at, "instante da revisão é obrigatório");
+    }
+
+    /**
+     * Confirma o uso da coleta num lote (YST-002). Consome: a coleta sai de circulação
+     * vinculada ao destino, para a mesma levedura não ser pitchada duas vezes.
+     */
+    public void useIn(UUID batchId, Instant at) {
+        if (status != YeastHarvestStatus.APPROVED) {
+            throw new IllegalStateException("coleta não está disponível para uso: " + status);
+        }
+        this.pitchedBatchId = Objects.requireNonNull(batchId, "lote de destino é obrigatório");
+        this.pitchedAt = Objects.requireNonNull(at, "instante do uso é obrigatório");
+        this.status = YeastHarvestStatus.USED;
     }
 
     /** Só coleta aprovada pode ser reutilizada ou virar mãe de outra. */
@@ -151,4 +169,6 @@ public final class YeastHarvest {
     public String reviewNote() { return reviewNote; }
     public Instant reviewedAt() { return reviewedAt; }
     public UUID reviewedBy() { return reviewedBy; }
+    public UUID pitchedBatchId() { return pitchedBatchId; }
+    public Instant pitchedAt() { return pitchedAt; }
 }

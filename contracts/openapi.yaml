@@ -782,6 +782,30 @@ paths:
         '201': {description: "Leitura registrada; fora da faixa plausível vem com valid=false e motivo"}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /fermentation/batches/{batchId}/fg-stability:
+    get:
+      operationId: evaluateFgStability
+      summary: "Avalia a estabilidade de FG do lote sob o critério de um perfil publicado"
+      description: >
+        Parecer explicável: devolve o critério aplicado e as leituras que o sustentam.
+        Não encerra a fermentação nem altera o lote — a decisão é do cervejeiro.
+        Só entram leituras de densidade em SG marcadas como válidas.
+      parameters:
+        - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+        - name: profileId
+          in: query
+          required: true
+          description: "Perfil publicado cujo critério rege a avaliação"
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Parecer de estabilidade
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FgStability'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /sanitation/procedures:
     get:
       operationId: listCleaningProcedures
@@ -1605,6 +1629,7 @@ components:
         version: {type: integer}
         status: {type: string, enum: [DRAFT, PUBLISHED]}
         stages: {type: array, items: {$ref: '#/components/schemas/FermentationStage'}}
+        stability: {$ref: '#/components/schemas/FgStabilityPolicy'}
     CreateFermentationProfile:
       type: object
       required: [code, name, stages]
@@ -1612,12 +1637,14 @@ components:
         code: {type: string, maxLength: 40}
         name: {type: string, maxLength: 160}
         stages: {type: array, minItems: 1, items: {$ref: '#/components/schemas/FermentationStage'}}
+        stability: {$ref: '#/components/schemas/FgStabilityPolicy'}
     UpdateFermentationProfile:
       type: object
       required: [name, stages]
       properties:
         name: {type: string, maxLength: 160}
         stages: {type: array, minItems: 1, items: {$ref: '#/components/schemas/FermentationStage'}}
+        stability: {$ref: '#/components/schemas/FgStabilityPolicy'}
     FermentationReading:
       type: object
       required: [id, batchId, kind, source, value, unit, measuredAt, valid]
@@ -1641,6 +1668,29 @@ components:
         value: {type: number}
         unit: {type: string, description: "Unidade compatível com a grandeza; incompatível → 400"}
         measuredAt: {type: string, format: date-time}
+    FgStabilityPolicy:
+      type: object
+      description: "Critério de estabilidade de FG congelado na versão publicada do perfil"
+      properties:
+        windowHours: {type: integer, minimum: 1, description: "Janela que a série precisa cobrir (padrão 48)"}
+        minReadings: {type: integer, minimum: 2, description: "Leituras mínimas na janela (padrão 3)"}
+        toleranceSg: {type: number, description: "Variação máxima entre a menor e a maior leitura (padrão 0,0020)"}
+    FgStability:
+      type: object
+      required: [stable, verdict, policy, spanHours, amplitudeSg, readings]
+      properties:
+        stable: {type: boolean}
+        verdict:
+          type: string
+          enum: [STABLE, INSUFFICIENT_READINGS, WINDOW_NOT_COVERED, VARIATION_ABOVE_TOLERANCE]
+          description: "WINDOW_NOT_COVERED é o FG falso estável: leituras próximas demais no tempo"
+        policy: {$ref: '#/components/schemas/FgStabilityPolicy'}
+        spanHours: {type: integer, description: "Intervalo coberto pelas leituras consideradas"}
+        amplitudeSg: {type: number, description: "Diferença entre a maior e a menor leitura considerada"}
+        readings:
+          type: array
+          description: "Leituras que sustentam o parecer"
+          items: {$ref: '#/components/schemas/FermentationReading'}
     ProcedureStep:
       type: object
       required: [sequence, method]

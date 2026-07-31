@@ -28,6 +28,10 @@ export class ProfilesPageComponent implements OnInit {
   protected readonly form = this.fb.nonNullable.group({
     code: ['', [Validators.required, Validators.maxLength(40)]],
     name: ['', [Validators.required, Validators.maxLength(160)]],
+    // Critério de estabilidade de FG (FER-003); em branco = padrão do domínio.
+    stabilityWindowHours: this.fb.control<number | null>(48, Validators.min(1)),
+    stabilityMinReadings: this.fb.control<number | null>(3, Validators.min(2)),
+    stabilityToleranceSg: this.fb.control<number | null>(0.002, Validators.min(0)),
   });
 
   protected readonly stageForm = this.fb.nonNullable.group({
@@ -74,9 +78,25 @@ export class ProfilesPageComponent implements OnInit {
       return;
     }
     const v = this.form.getRawValue();
-    this.store.create({ code: v.code, name: v.name, stages: this.stages() }, () => {
-      this.form.reset({ code: '', name: '' });
-      this.stages.set([]);
-    });
+    this.store.create(
+      {
+        code: v.code,
+        name: v.name,
+        stages: this.stages(),
+        stability: v.stabilityWindowHours !== null && v.stabilityMinReadings !== null
+          && v.stabilityToleranceSg !== null
+          ? {
+              windowHours: v.stabilityWindowHours,
+              minReadings: v.stabilityMinReadings,
+              toleranceSg: v.stabilityToleranceSg,
+            }
+          : null,
+      },
+      () => {
+        this.form.reset({ code: '', name: '', stabilityWindowHours: 48, stabilityMinReadings: 3,
+          stabilityToleranceSg: 0.002 });
+        this.stages.set([]);
+      },
+    );
   }
 }

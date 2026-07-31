@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { FermentationReading } from '../domain/reading.model';
+import { FermentationReading, FgStability } from '../domain/reading.model';
 import { ReadingsApi } from './readings.api';
 import { ReadingsStore } from './readings.store';
 
@@ -69,6 +69,50 @@ describe('ReadingsStore', () => {
     expect(toast.error).toHaveBeenCalled();
     expect(toast.success).not.toHaveBeenCalled();
     expect(store.actionError()).toBeNull();
+  });
+
+  it('só oferece perfis publicados para reger o parecer', () => {
+    const profiles = vi.fn(() => of([
+      { id: 'p1', code: 'ALE', name: 'Ale', version: 1, status: 'DRAFT', stages: [],
+        stability: { windowHours: 48, minReadings: 3, toleranceSg: 0.002 } },
+      { id: 'p2', code: 'ALE', name: 'Ale', version: 2, status: 'PUBLISHED', stages: [],
+        stability: { windowHours: 48, minReadings: 3, toleranceSg: 0.002 } },
+    ]));
+    const { store } = setup({ profiles });
+    store.loadProfiles();
+    expect(store.profiles().map(p => p.id)).toEqual(['p2']);
+    expect(store.profileId()).toBe('p2');
+  });
+
+  it('avalia a estabilidade de FG e guarda o parecer', () => {
+    const parecer: FgStability = {
+      stable: false, verdict: 'WINDOW_NOT_COVERED', policy: { windowHours: 48, minReadings: 3, toleranceSg: 0.002 },
+      spanHours: 4, amplitudeSg: 0.0001, readings: [],
+    };
+    const fgStability = vi.fn(() => of(parecer));
+    const { store } = setup({ fgStability, list: () => of([]) });
+    store.select('b1');
+    store.selectProfile('p1');
+    store.evaluateStability();
+    expect(fgStability).toHaveBeenCalledWith('b1', 'p1');
+    expect(store.stability()?.verdict).toBe('WINDOW_NOT_COVERED');
+  });
+
+  it('explica que rascunho não pode reger a avaliação', () => {
+    const fgStability = vi.fn(() => throwError(() => ({ status: 409 })));
+    const { store } = setup({ fgStability, list: () => of([]) });
+    store.select('b1');
+    store.selectProfile('p1');
+    store.evaluateStability();
+    expect(store.stabilityError()).toContain('publique');
+  });
+
+  it('não avalia sem lote ou sem perfil', () => {
+    const fgStability = vi.fn(() => of(null as unknown as FgStability));
+    const { store } = setup({ fgStability, list: () => of([]) });
+    store.select('b1');
+    store.evaluateStability();
+    expect(fgStability).not.toHaveBeenCalled();
   });
 
   it('reporta erro de carga', () => {

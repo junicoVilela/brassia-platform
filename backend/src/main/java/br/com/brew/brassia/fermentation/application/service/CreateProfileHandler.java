@@ -3,6 +3,7 @@ package br.com.brew.brassia.fermentation.application.service;
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.fermentation.application.port.inbound.CreateProfileUseCase;
+import br.com.brew.brassia.fermentation.application.port.inbound.StabilityInput;
 import br.com.brew.brassia.fermentation.application.port.outbound.ProfileRepository;
 import br.com.brew.brassia.fermentation.domain.FermentationProfile;
 import java.util.Map;
@@ -35,7 +36,7 @@ public final class CreateProfileHandler implements CreateProfileUseCase {
         }
 
         var profile = FermentationProfile.draft(command.breweryId(), command.code(), command.name(), version,
-                ProfileStages.from(command.stages()));
+                ProfileStages.from(command.stages()), StabilityInput.toPolicy(command.stability()));
         repository.insert(profile);
 
         audit.record(AuditEvent.success(command.breweryId(), command.actorId(), "fermentation.profile.create",

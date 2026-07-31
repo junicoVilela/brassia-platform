@@ -62,7 +62,8 @@ final class ProfileController {
         principal.requirePermission("fermentation.profile.manage");
         var result = createProfile.handle(new CreateProfileUseCase.Command(
                 principal.userId(), principal.requireBrewery(), request.code(), request.name(),
-                request.stages().stream().map(StageDto::toInput).toList()));
+                request.stages().stream().map(StageDto::toInput).toList(),
+                request.stability() == null ? null : request.stability().toInput()));
         return ResponseEntity.created(URI.create("/api/v1/fermentation/profiles/" + result.id()))
                 .body(new Created(result.id(), result.version()));
     }
@@ -75,7 +76,8 @@ final class ProfileController {
         principal.requirePermission("fermentation.profile.manage");
         updateProfile.handle(new UpdateProfileUseCase.Command(
                 principal.userId(), principal.requireBrewery(), id, request.name(),
-                request.stages().stream().map(StageDto::toInput).toList()));
+                request.stages().stream().map(StageDto::toInput).toList(),
+                request.stability() == null ? null : request.stability().toInput()));
     }
 
     @PostMapping("/{id}/publish")

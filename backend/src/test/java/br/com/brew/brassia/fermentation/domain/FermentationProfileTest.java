@@ -19,23 +19,33 @@ class FermentationProfileTest {
 
     @Test
     void draftAllowsUpdateAndKeepsUniqueSequences() {
-        var profile = FermentationProfile.draft(BREWERY, "ALE-STD", "Ale padrão", 1, List.of(timeStage(1, 5)));
+        var profile = FermentationProfile.draft(BREWERY, "ALE-STD", "Ale padrão", 1, List.of(timeStage(1, 5)), null);
         assertThat(profile.draftStatus()).isTrue();
-        profile.update("Ale padrão v2", List.of(timeStage(1, 6), timeStage(2, 3)));
+        profile.update("Ale padrão v2", List.of(timeStage(1, 6), timeStage(2, 3)), null);
         assertThat(profile.stages()).hasSize(2);
+    }
+
+    @Test
+    void carriesFgStabilityCriterionAndFallsBackToDefaults() {
+        var profile = FermentationProfile.draft(BREWERY, "ALE", "Ale", 1, List.of(timeStage(1, 5)), null);
+        assertThat(profile.stability()).isEqualTo(FgStabilityPolicy.defaults());
+
+        var strict = new FgStabilityPolicy(96, 4, new BigDecimal("0.0010"));
+        profile.update("Ale", List.of(timeStage(1, 5)), strict);
+        assertThat(profile.stability()).isEqualTo(strict);
     }
 
     @Test
     void rejectsDuplicateStageSequences() {
         assertThatThrownBy(() -> FermentationProfile.draft(BREWERY, "ALE", "Ale", 1,
-                List.of(timeStage(1, 5), timeStage(1, 3)))).isInstanceOf(IllegalArgumentException.class);
+                List.of(timeStage(1, 5), timeStage(1, 3)), null)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void publishedProfileIsImmutable() {
         var published = FermentationProfile.reconstitute(ProfileId.newId(), BREWERY, "ALE", "Ale", 1,
-                ProfileStatus.PUBLISHED, List.of(timeStage(1, 5)));
-        assertThatThrownBy(() -> published.update("x", List.of(timeStage(1, 5))))
+                ProfileStatus.PUBLISHED, List.of(timeStage(1, 5)), null);
+        assertThatThrownBy(() -> published.update("x", List.of(timeStage(1, 5)), null))
                 .isInstanceOf(IllegalStateException.class);
     }
 

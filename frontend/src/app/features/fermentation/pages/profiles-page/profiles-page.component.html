@@ -12,6 +12,22 @@
           <input id="pname" type="text" class="form-control" formControlName="name" placeholder="Ale padrão"></div>
       </form>
 
+      <h3 class="h6 fw-semibold mb-2">Estabilidade de FG</h3>
+      <p class="text-muted small mb-2">
+        Critério congelado ao publicar esta versão: a série de densidade precisa cobrir a janela.
+      </p>
+      <form [formGroup]="form" class="row g-2 mb-3">
+        <div class="col-sm-3"><label class="form-label small" for="swin">Janela (h)</label>
+          <input id="swin" type="number" class="form-control form-control-sm"
+                 formControlName="stabilityWindowHours"></div>
+        <div class="col-sm-3"><label class="form-label small" for="smin">Leituras mínimas</label>
+          <input id="smin" type="number" class="form-control form-control-sm"
+                 formControlName="stabilityMinReadings"></div>
+        <div class="col-sm-3"><label class="form-label small" for="stol">Tolerância (SG)</label>
+          <input id="stol" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="stabilityToleranceSg"></div>
+      </form>
+
       <h3 class="h6 fw-semibold mb-2">Estágio</h3>
       <form [formGroup]="stageForm" (ngSubmit)="addStage()" class="row g-2 align-items-end mb-2">
         <div class="col-sm-3"><label class="form-label small" for="sname">Nome</label>
@@ -138,6 +154,10 @@
                         </li>
                       }
                     </ol>
+                    <p class="small text-muted mb-0 mt-2">
+                      Estabilidade de FG: {{ p.stability.windowHours }}h de janela ·
+                      {{ p.stability.minReadings }} leituras · ±{{ p.stability.toleranceSg }} SG
+                    </p>
                   </td>
                 </tr>
               }

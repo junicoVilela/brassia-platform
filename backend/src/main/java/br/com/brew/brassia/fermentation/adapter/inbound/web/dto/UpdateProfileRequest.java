@@ -7,4 +7,5 @@ import java.util.List;
 
 public record UpdateProfileRequest(
         @NotBlank String name,
-        @NotEmpty List<@Valid StageDto> stages) {}
+        @NotEmpty List<@Valid StageDto> stages,
+        @Valid StabilityDto stability) {}

@@ -2,6 +2,7 @@ package br.com.brew.brassia.fermentation.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.fermentation.application.port.inbound.CreateProfileUseCase;
+import br.com.brew.brassia.fermentation.application.port.inbound.EvaluateFgStabilityUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.GetProfileUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.ListProfilesUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.ListReadingsUseCase;
@@ -11,6 +12,7 @@ import br.com.brew.brassia.fermentation.application.port.inbound.UpdateProfileUs
 import br.com.brew.brassia.fermentation.application.port.outbound.ProfileRepository;
 import br.com.brew.brassia.fermentation.application.port.outbound.ReadingRepository;
 import br.com.brew.brassia.fermentation.application.service.CreateProfileHandler;
+import br.com.brew.brassia.fermentation.application.service.EvaluateFgStabilityHandler;
 import br.com.brew.brassia.fermentation.application.service.GetProfileHandler;
 import br.com.brew.brassia.fermentation.application.service.ListProfilesHandler;
 import br.com.brew.brassia.fermentation.application.service.ListReadingsHandler;
@@ -72,5 +74,11 @@ class FermentationConfiguration {
     @Bean
     ListReadingsUseCase listReadingsUseCase(ReadingRepository readings) {
         return new ListReadingsHandler(readings);
+    }
+
+    @Bean
+    EvaluateFgStabilityUseCase evaluateFgStabilityUseCase(
+            ReadingRepository readings, ProfileRepository profiles, BatchLookup batches) {
+        return new EvaluateFgStabilityHandler(readings, profiles, batches);
     }
 }

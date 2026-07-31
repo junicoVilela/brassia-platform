@@ -1,6 +1,13 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { BatchOption, FermentationReading, ReadingKind, RecordReadingRequest } from '../domain/reading.model';
+import { FermentationProfile } from '../domain/profile.model';
+import {
+  BatchOption,
+  FermentationReading,
+  FgStability,
+  ReadingKind,
+  RecordReadingRequest,
+} from '../domain/reading.model';
 
 @Injectable({ providedIn: 'root' })
 export class ReadingsApi {
@@ -18,6 +25,17 @@ export class ReadingsApi {
       params = params.set('kind', kind);
     }
     return this.http.get<FermentationReading[]>(this.baseUrl, { params });
+  }
+
+  /** Perfis publicados; só eles podem reger um parecer de estabilidade. */
+  profiles() {
+    return this.http.get<FermentationProfile[]>('/api/v1/fermentation/profiles');
+  }
+
+  fgStability(batchId: string, profileId: string) {
+    return this.http.get<FgStability>(`/api/v1/fermentation/batches/${batchId}/fg-stability`, {
+      params: new HttpParams().set('profileId', profileId),
+    });
   }
 
   record(request: RecordReadingRequest) {

@@ -8,7 +8,7 @@ Estado: EM ANDAMENTO
 |---|---|---|---|---|
 | FER-001 | Concluída | IA | (local) | Perfil de fermentação versionado (módulo novo `fermentation`): DRAFT editável → publicar congela a versão (imutável; histórico não reescrito); editar publicado → nova versão; só um rascunho por código. Estágios ordenados com setpoint de temperatura, rampa (h), pressão e **critério de avanço tipado** (TIME=dias / GRAVITY=FG-alvo / MANUAL) + **exige confirmação**. `POST/GET/PUT /fermentation/profiles` + `/{id}/publish`. Migration V61 (+ domínio de permissão `fermentation`); permissões `fermentation.profile.read/manage`. UI: cadastro multi-estágio + lista/publicar. Backend +7 (domínio) +4 (IT). |
 | FER-002 | Concluída | IA | (local) | Leituras e curvas: densidade/temperatura/pressão/pH por lote, origem MANUAL ou SENSOR. Faixa de plausibilidade por grandeza+unidade → fora da faixa é **gravada e sinalizada** (`valid=false` + motivo), nunca recusada; unidade incompatível com a grandeza → 400. Ingestão **idempotente** pela chave natural (lote, grandeza, origem, instante): reenvio de sensor devolve 200 e não duplica a série. Lote validado por consulta publicada `production.BatchLookup` (sem acessar tabela alheia). `POST/GET /fermentation/readings`. Migration V62; permissões `fermentation.reading.read/record`. UI: curva SVG que diferencia manual/sensor por **cor e forma** + anel de status nas sinalizadas, com tabela equivalente. Backend +7 (domínio) +7 (IT); frontend +6 (store). |
-| FER-003 | A fazer | — | — | — |
+| FER-003 | Concluída | IA | (local) | Estabilidade de FG: parecer **explicável** sobre a série de densidade — devolve veredito, critério aplicado e as leituras que o sustentam, e **não encerra** a fermentação. Janela/leituras mínimas/tolerância ficam no **perfil de fermentação**, congeladas pela versão publicada (rascunho não rege parecer → 409). Rejeita **FG falso estável** (`WINDOW_NOT_COVERED`): leituras aglomeradas num intervalo curto não provam nada. Só entram leituras de densidade em SG válidas — sensor ruidoso da FER-002 é descartado. `GET /fermentation/batches/{id}/fg-stability?profileId=`. Migration V63 (colunas no perfil, com padrão 48h/3/0,0020 SG). UI: painel de parecer na tela de leituras + campos no cadastro de perfil. Backend +11 (domínio) +8 (IT); frontend +4 (store). |
 | FER-004 | A fazer | — | — | — |
 | YST-001 | A fazer | — | — | — |
 | YST-002 | A fazer | — | — | — |
@@ -16,6 +16,12 @@ Estado: EM ANDAMENTO
 ## Decisões e bloqueios
 
 Registre aqui somente decisões temporárias, bloqueios e dependências. Decisão arquitetural permanente deve virar ADR; débito técnico deve ter identificador e critério de remoção.
+
+### FER-003 — decisões (confirmadas com o mantenedor)
+- **Config no perfil de fermentação**, não em preferência global: como a versão publicada é imutável, o critério usado numa avaliação passada continua reproduzível, e Ale/Lager podem divergir. Padrão 48h / 3 leituras / 0,0020 SG para perfis que não declaram (inclusive os criados antes da V63).
+- **Falso estável = janela não coberta**: leituras dentro da tolerância mas com intervalo total menor que a janela reprovam. Não foi implementada comparação com FG-alvo nem exigência de leitura manual.
+- **Débito FER-003-1 — perfil vem por query param**: a avaliação recebe `profileId` porque o vínculo persistente lote↔perfil só chega na FER-004. *Critério de remoção:* quando FER-004 vincular o perfil ao lote, o parâmetro sai e o perfil passa a ser derivado do lote.
+- **Limitação conhecida**: leituras de densidade em PLATO são ignoradas (a tolerância é declarada em SG); converter aqui seria inventar comportamento. Se necessário, vira história com o `CalculatorEngine`.
 
 ### FER-002 — decisões (pendentes de confirmação do mantenedor)
 - **"Leitura inválida é sinalizada, não rejeitada"** foi lido como plausibilidade física por grandeza+unidade (SG 0,980–1,180; °C −10–45; psi 0–60; pH 2,5–7,5). Faixa fixa no domínio nesta fatia; se a cervejaria precisar de faixa configurável, vira história própria.

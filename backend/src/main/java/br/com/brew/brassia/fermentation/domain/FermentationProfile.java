@@ -7,7 +7,8 @@ import java.util.UUID;
 /**
  * Perfil de fermentação versionado (FER-001). Nasce em DRAFT (editável); publicar congela
  * a versão (imutável) — o histórico não é reescrito. Editar um perfil publicado gera uma
- * nova versão (orquestrado no caso de uso). Estágios ordenados por sequência única.
+ * nova versão (orquestrado no caso de uso). Estágios ordenados por sequência única. Carrega
+ * também o critério de estabilidade de FG (FER-003), que a publicação congela junto.
  */
 public final class FermentationProfile {
 
@@ -18,9 +19,10 @@ public final class FermentationProfile {
     private final int version;
     private final ProfileStatus status;
     private List<FermentationStage> stages;
+    private FgStabilityPolicy stability;
 
     private FermentationProfile(ProfileId id, UUID breweryId, String code, String name, int version,
-            ProfileStatus status, List<FermentationStage> stages) {
+            ProfileStatus status, List<FermentationStage> stages, FgStabilityPolicy stability) {
         this.id = Objects.requireNonNull(id, "id");
         this.breweryId = Objects.requireNonNull(breweryId, "breweryId");
         this.code = requireText(code, "código", 40);
@@ -31,30 +33,32 @@ public final class FermentationProfile {
         this.version = version;
         this.status = Objects.requireNonNull(status, "status");
         this.stages = validateStages(stages);
+        this.stability = stability == null ? FgStabilityPolicy.defaults() : stability;
     }
 
     public static FermentationProfile draft(UUID breweryId, String code, String name, int version,
-            List<FermentationStage> stages) {
+            List<FermentationStage> stages, FgStabilityPolicy stability) {
         return new FermentationProfile(ProfileId.newId(), breweryId, code, name, version, ProfileStatus.DRAFT,
-                stages);
+                stages, stability);
     }
 
     public static FermentationProfile reconstitute(ProfileId id, UUID breweryId, String code, String name,
-            int version, ProfileStatus status, List<FermentationStage> stages) {
-        return new FermentationProfile(id, breweryId, code, name, version, status, stages);
+            int version, ProfileStatus status, List<FermentationStage> stages, FgStabilityPolicy stability) {
+        return new FermentationProfile(id, breweryId, code, name, version, status, stages, stability);
     }
 
     public boolean draftStatus() {
         return status == ProfileStatus.DRAFT;
     }
 
-    /** Atualiza o rascunho (nome + estágios); um perfil publicado é imutável. */
-    public void update(String name, List<FermentationStage> stages) {
+    /** Atualiza o rascunho (nome, estágios e critério de FG); um perfil publicado é imutável. */
+    public void update(String name, List<FermentationStage> stages, FgStabilityPolicy stability) {
         if (status != ProfileStatus.DRAFT) {
             throw new IllegalStateException("perfil publicado é imutável; crie uma nova versão");
         }
         this.name = requireText(name, "nome", 160);
         this.stages = validateStages(stages);
+        this.stability = stability == null ? FgStabilityPolicy.defaults() : stability;
     }
 
     private static List<FermentationStage> validateStages(List<FermentationStage> stages) {
@@ -84,4 +88,6 @@ public final class FermentationProfile {
     public int version() { return version; }
     public ProfileStatus status() { return status; }
     public List<FermentationStage> stages() { return stages; }
+    /** Critério de estabilidade de FG (FER-003) congelado nesta versão. */
+    public FgStabilityPolicy stability() { return stability; }
 }

@@ -803,6 +803,69 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/FgStability'}
+  /fermentation/yeast/harvests:
+    get:
+      operationId: listYeastHarvests
+      summary: Lista coletas de levedura
+      parameters:
+        - name: onlyAvailable
+          in: query
+          required: false
+          description: "true restringe às aprovadas — as únicas reutilizáveis"
+          schema: {type: boolean, default: false}
+      responses:
+        '200':
+          description: Coletas
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/YeastHarvest'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: collectYeast
+      summary: "Registra uma coleta de levedura (nasce em quarentena)"
+      description: >
+        A geração é derivada da coleta-mãe e nunca informada: sem mãe é levedura comprada
+        (geração 1). Coleta-mãe indisponível (em quarentena ou reprovada) não propaga linhagem.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CollectYeast'}
+      responses:
+        '201': {description: "Coleta registrada em quarentena"}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /fermentation/yeast/harvests/{id}/genealogy:
+    get:
+      operationId: getYeastGenealogy
+      summary: "Genealogia completa da coleta, dela até a levedura comprada"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: "Linhagem da mais nova para a mais antiga"
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/YeastHarvest'}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /fermentation/yeast/harvests/{id}/review:
+    post:
+      operationId: reviewYeastHarvest
+      summary: "Aprova ou reprova a coleta (decisão humana, terminal)"
+      description: >
+        Só aprovada fica disponível para reúso. Reprovação exige motivo e não pode ser
+        revertida; coleta já revisada responde 409.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReviewYeastHarvest'}
+      responses:
+        '200': {description: Coleta revisada}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
@@ -1691,6 +1754,50 @@ components:
           type: array
           description: "Leituras que sustentam o parecer"
           items: {$ref: '#/components/schemas/FermentationReading'}
+    YeastHarvest:
+      type: object
+      required: [id, code, strainId, sourceBatchId, generation, harvestedAt, viabilityPercent, condition,
+                 storageLocation, storageTempC, status, available]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        strainId: {type: string, format: uuid}
+        sourceBatchId: {type: string, format: uuid}
+        parentHarvestId: {type: string, format: uuid, nullable: true, description: "nulo = levedura comprada"}
+        generation: {type: integer, minimum: 1, description: "Derivada da coleta-mãe; comprada = 1"}
+        harvestedAt: {type: string, format: date-time}
+        viabilityPercent: {type: number, minimum: 0, maximum: 100}
+        condition: {type: string}
+        storageLocation: {type: string}
+        storageTempC: {type: number}
+        status: {type: string, enum: [QUARANTINE, APPROVED, REJECTED]}
+        available: {type: boolean, description: "Só aprovada é reutilizável"}
+        reviewNote: {type: string, nullable: true}
+        reviewedAt: {type: string, format: date-time, nullable: true}
+    CollectYeast:
+      type: object
+      required: [code, strainId, sourceBatchId, harvestedAt, viabilityPercent, condition, storageLocation,
+                 storageTempC]
+      properties:
+        code: {type: string, maxLength: 40}
+        strainId: {type: string, format: uuid}
+        sourceBatchId: {type: string, format: uuid}
+        parentHarvestId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Coleta-mãe aprovada; omitido para levedura comprada. A geração nunca é informada."
+        harvestedAt: {type: string, format: date-time}
+        viabilityPercent: {type: number, minimum: 0, maximum: 100}
+        condition: {type: string, maxLength: 200}
+        storageLocation: {type: string, maxLength: 120}
+        storageTempC: {type: number}
+    ReviewYeastHarvest:
+      type: object
+      required: [approve]
+      properties:
+        approve: {type: boolean}
+        note: {type: string, maxLength: 200, description: "Obrigatório quando approve=false"}
     ProcedureStep:
       type: object
       required: [sequence, method]

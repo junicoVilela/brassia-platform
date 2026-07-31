@@ -10,7 +10,7 @@ Estado: EM ANDAMENTO
 | FER-002 | Concluída | IA | (local) | Leituras e curvas: densidade/temperatura/pressão/pH por lote, origem MANUAL ou SENSOR. Faixa de plausibilidade por grandeza+unidade → fora da faixa é **gravada e sinalizada** (`valid=false` + motivo), nunca recusada; unidade incompatível com a grandeza → 400. Ingestão **idempotente** pela chave natural (lote, grandeza, origem, instante): reenvio de sensor devolve 200 e não duplica a série. Lote validado por consulta publicada `production.BatchLookup` (sem acessar tabela alheia). `POST/GET /fermentation/readings`. Migration V62; permissões `fermentation.reading.read/record`. UI: curva SVG que diferencia manual/sensor por **cor e forma** + anel de status nas sinalizadas, com tabela equivalente. Backend +7 (domínio) +7 (IT); frontend +6 (store). |
 | FER-003 | Concluída | IA | (local) | Estabilidade de FG: parecer **explicável** sobre a série de densidade — devolve veredito, critério aplicado e as leituras que o sustentam, e **não encerra** a fermentação. Janela/leituras mínimas/tolerância ficam no **perfil de fermentação**, congeladas pela versão publicada (rascunho não rege parecer → 409). Rejeita **FG falso estável** (`WINDOW_NOT_COVERED`): leituras aglomeradas num intervalo curto não provam nada. Só entram leituras de densidade em SG válidas — sensor ruidoso da FER-002 é descartado. `GET /fermentation/batches/{id}/fg-stability?profileId=`. Migration V63 (colunas no perfil, com padrão 48h/3/0,0020 SG). UI: painel de parecer na tela de leituras + campos no cadastro de perfil. Backend +11 (domínio) +8 (IT); frontend +4 (store). |
 | FER-004 | A fazer | — | — | — |
-| YST-001 | A fazer | — | — | — |
+| YST-001 | Concluída | IA | (local) | Coleta de levedura: origem (lote via `BatchLookup` + coleta-mãe), geração, condição, viabilidade e armazenamento. **Geração derivada** da mãe (comprada = 1), então genealogia e geração nunca divergem; mãe indisponível não propaga linhagem (409). Nasce em **quarentena**: aprovar/reprovar é decisão humana, auditada e **terminal** — reprovada (contaminação) nunca volta a ficar disponível, e reprovar exige motivo. Genealogia completa via CTE recursiva. `POST/GET /fermentation/yeast/harvests`, `/{id}/review`, `/{id}/genealogy`. Migration V64; permissões `fermentation.yeast.read/manage`. UI: cadastro, revisão e linhagem expansível. Backend +10 (domínio) +9 (IT); frontend +8 (store). |
 | YST-002 | A fazer | — | — | — |
 
 ## Decisões e bloqueios
@@ -22,6 +22,13 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Falso estável = janela não coberta**: leituras dentro da tolerância mas com intervalo total menor que a janela reprovam. Não foi implementada comparação com FG-alvo nem exigência de leitura manual.
 - **Débito FER-003-1 — perfil vem por query param**: a avaliação recebe `profileId` porque o vínculo persistente lote↔perfil só chega na FER-004. *Critério de remoção:* quando FER-004 vincular o perfil ao lote, o parâmetro sai e o perfil passa a ser derivado do lote.
 - **Limitação conhecida**: leituras de densidade em PLATO são ignoradas (a tolerância é declarada em SG); converter aqui seria inventar comportamento. Se necessário, vira história com o `CalculatorEngine`.
+
+### YST-001 — decisões (confirmadas com o mantenedor)
+- **Reprovação é decisão humana**, não limiar automático de viabilidade: a coleta nasce em quarentena e alguém aprova ou reprova com motivo. Cobre contaminação sem queda de viabilidade, que um limiar deixaria passar. A revisão é terminal (segunda tentativa → 409).
+- **Geração derivada da coleta-mãe** (sem mãe = comprada, geração 1), nunca informada. Só coleta aprovada pode ser mãe — mãe em quarentena ou reprovada não propaga linhagem.
+- **Levedura mora no módulo `fermentation`** (docs/02_MODULE_BOUNDARIES.md), sem módulo novo.
+- **Ordem de merge**: a migration é V64, aplicada depois da V63 (FER-003).
+- **Fora de escopo aqui**: recomendação de reúso, limite de gerações e vínculo do pitch a um lote são YST-002. Esta fatia só registra e libera/reprova.
 
 ### FER-002 — decisões (pendentes de confirmação do mantenedor)
 - **"Leitura inválida é sinalizada, não rejeitada"** foi lido como plausibilidade física por grandeza+unidade (SG 0,980–1,180; °C −10–45; psi 0–60; pH 2,5–7,5). Faixa fixa no domínio nesta fatia; se a cervejaria precisar de faixa configurável, vira história própria.

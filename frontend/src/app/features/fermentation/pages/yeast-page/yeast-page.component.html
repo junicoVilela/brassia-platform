@@ -1,0 +1,143 @@
+<app-page-header title="Coletas de levedura"
+                 subtitle="Origem, geração, condição, viabilidade e armazenamento" />
+
+@if (canManage) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-1">Nova coleta</h2>
+      <p class="text-muted small mb-3">
+        A coleta nasce em quarentena. A geração é derivada da coleta-mãe — sem mãe, é levedura comprada (geração 1).
+      </p>
+      <form [formGroup]="form" (ngSubmit)="collect()" class="row g-2 align-items-end">
+        <div class="col-sm-3"><label class="form-label small" for="ycode">Código</label>
+          <input id="ycode" type="text" class="form-control form-control-sm" formControlName="code"
+                 placeholder="LV-001"></div>
+        <div class="col-sm-3"><label class="form-label small" for="ystrain">Cepa (id do catálogo)</label>
+          <input id="ystrain" type="text" class="form-control form-control-sm" formControlName="strainId"></div>
+        <div class="col-sm-6"><label class="form-label small" for="ybatch">Lote de origem</label>
+          <select id="ybatch" class="form-select form-select-sm" formControlName="sourceBatchId">
+            <option value="">Selecione…</option>
+            @for (b of store.batches(); track b.id) {
+              <option [value]="b.id">{{ b.code }} — {{ b.recipeName }}</option>
+            }
+          </select></div>
+        <div class="col-sm-6"><label class="form-label small" for="yparent">Coleta-mãe</label>
+          <select id="yparent" class="form-select form-select-sm" formControlName="parentHarvestId">
+            <option value="">Nenhuma (levedura comprada)</option>
+            @for (h of store.parentOptions(); track h.id) {
+              <option [value]="h.id">{{ h.code }} — geração {{ h.generation }}</option>
+            }
+          </select></div>
+        <div class="col-sm-3"><label class="form-label small" for="yat">Coletada em</label>
+          <input id="yat" type="datetime-local" class="form-control form-control-sm" formControlName="harvestedAt"></div>
+        <div class="col-sm-3"><label class="form-label small" for="yvia">Viabilidade (%)</label>
+          <input id="yvia" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="viabilityPercent"></div>
+        <div class="col-sm-6"><label class="form-label small" for="ycond">Condição</label>
+          <input id="ycond" type="text" class="form-control form-control-sm" formControlName="condition"
+                 placeholder="Creme limpo, sem odor"></div>
+        <div class="col-sm-4"><label class="form-label small" for="yloc">Armazenamento</label>
+          <input id="yloc" type="text" class="form-control form-control-sm" formControlName="storageLocation"
+                 placeholder="Câmara fria 1"></div>
+        <div class="col-sm-2"><label class="form-label small" for="ytemp">Temp. (°C)</label>
+          <input id="ytemp" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="storageTempC"></div>
+        <div class="col-sm-3 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm" [disabled]="form.invalid || store.submitting()">
+            <i class="ri-flask-line me-1" aria-hidden="true"></i> Registrar coleta
+          </button>
+        </div>
+      </form>
+      @if (store.actionError(); as actionError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+      }
+    </div>
+  </div>
+}
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="h6 fw-semibold mb-0">Coletas</h2>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="yonly" [checked]="store.onlyAvailable()"
+               (change)="store.toggleOnlyAvailable($any($event.target).checked)">
+        <label class="form-check-label small" for="yonly">Só disponíveis</label>
+      </div>
+    </div>
+
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-flask-line" message="Nenhuma coleta registrada." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Código</th>
+              <th scope="col" class="text-end">Geração</th>
+              <th scope="col">Coletada em</th>
+              <th scope="col" class="text-end">Viabilidade</th>
+              <th scope="col">Armazenamento</th>
+              <th scope="col">Situação</th>
+              <th scope="col" class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (h of store.items(); track h.id) {
+              <tr>
+                <td class="fw-medium">{{ h.code }}</td>
+                <td class="text-end">G{{ h.generation }}</td>
+                <td>{{ h.harvestedAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td class="text-end">{{ h.viabilityPercent }}%</td>
+                <td class="small">{{ h.storageLocation }} · {{ h.storageTempC }}°C</td>
+                <td>
+                  <span class="badge"
+                        [class]="h.status === 'APPROVED' ? 'text-bg-success'
+                          : h.status === 'REJECTED' ? 'text-bg-danger' : 'text-bg-secondary'">
+                    {{ statusLabels[h.status] }}
+                  </span>
+                  @if (h.reviewNote) {
+                    <div class="small text-muted">{{ h.reviewNote }}</div>
+                  }
+                </td>
+                <td class="text-end text-nowrap">
+                  <button type="button" class="btn btn-sm btn-outline-primary me-1"
+                          (click)="store.toggleGenealogy(h.id)">
+                    <i class="ri-node-tree me-1" aria-hidden="true"></i> Genealogia
+                  </button>
+                  @if (canManage && h.status === 'QUARANTINE') {
+                    <button type="button" class="btn btn-sm btn-outline-success me-1"
+                            (click)="store.review(h.id, true, null)">Aprovar</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            (click)="reject(h.id)">Reprovar</button>
+                  }
+                </td>
+              </tr>
+              @if (store.genealogyOf() === h.id) {
+                <tr>
+                  <td colspan="7" class="bg-body-tertiary">
+                    <p class="small fw-medium mb-1">Linhagem, da coleta até a levedura comprada:</p>
+                    <ol class="small mb-0 ps-3">
+                      @for (a of store.genealogy(); track a.id) {
+                        <li>
+                          <span class="fw-medium">{{ a.code }}</span> · geração {{ a.generation }} ·
+                          {{ a.harvestedAt | date: 'dd/MM/yyyy' }} · viabilidade {{ a.viabilityPercent }}% ·
+                          {{ statusLabels[a.status] }}
+                          @if (!a.parentHarvestId) { <span class="text-muted">(levedura comprada)</span> }
+                        </li>
+                      }
+                    </ol>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

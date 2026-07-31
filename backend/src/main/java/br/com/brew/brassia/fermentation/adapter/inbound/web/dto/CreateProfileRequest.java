@@ -8,4 +8,5 @@ import java.util.List;
 public record CreateProfileRequest(
         @NotBlank String code,
         @NotBlank String name,
-        @NotEmpty List<@Valid StageDto> stages) {}
+        @NotEmpty List<@Valid StageDto> stages,
+        @Valid StabilityDto stability) {}

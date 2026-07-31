@@ -7,5 +7,6 @@ import java.util.UUID;
 public interface UpdateProfileUseCase {
     void handle(Command command);
 
-    record Command(UUID actorId, UUID breweryId, UUID profileId, String name, List<StageInput> stages) {}
+    record Command(UUID actorId, UUID breweryId, UUID profileId, String name, List<StageInput> stages,
+            StabilityInput stability) {}
 }

@@ -47,3 +47,26 @@ export interface RecordReadingRequest {
   unit: string;
   measuredAt: string;
 }
+
+export type FgStabilityVerdict =
+  | 'STABLE'
+  | 'INSUFFICIENT_READINGS'
+  | 'WINDOW_NOT_COVERED'
+  | 'VARIATION_ABOVE_TOLERANCE';
+
+/** Como explicar cada veredito ao cervejeiro — o parecer nunca encerra a fermentação sozinho. */
+export const FG_VERDICT_LABELS: Record<FgStabilityVerdict, string> = {
+  STABLE: 'Série cobre a janela e varia dentro da tolerância.',
+  INSUFFICIENT_READINGS: 'Leituras de densidade válidas em SG insuficientes para o critério.',
+  WINDOW_NOT_COVERED: 'As leituras não cobrem a janela — estabilidade ainda não comprovada.',
+  VARIATION_ABOVE_TOLERANCE: 'A densidade ainda varia acima da tolerância.',
+};
+
+export interface FgStability {
+  stable: boolean;
+  verdict: FgStabilityVerdict;
+  policy: { windowHours: number; minReadings: number; toleranceSg: number };
+  spanHours: number;
+  amplitudeSg: number;
+  readings: FermentationReading[];
+}

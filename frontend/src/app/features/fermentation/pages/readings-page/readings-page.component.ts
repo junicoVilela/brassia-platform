@@ -8,6 +8,7 @@ import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicat
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
 import { ReadingsStore } from '../../data-access/readings.store';
 import {
+  FG_VERDICT_LABELS,
   READING_KINDS,
   READING_KIND_LABELS,
   READING_SOURCES,
@@ -41,6 +42,7 @@ export class ReadingsPageComponent implements OnInit {
   protected readonly kinds = READING_KINDS;
   protected readonly sources = READING_SOURCES;
   protected readonly kindLabels = READING_KIND_LABELS;
+  protected readonly verdictLabels = FG_VERDICT_LABELS;
 
   protected readonly form = this.fb.nonNullable.group({
     kind: this.fb.nonNullable.control<ReadingKind>('DENSITY', Validators.required),
@@ -52,6 +54,7 @@ export class ReadingsPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.loadBatches();
+    this.store.loadProfiles();
     // Trocar a grandeza reposiciona a unidade: unidade incompatível é recusada pelo domínio.
     this.form.controls.kind.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))

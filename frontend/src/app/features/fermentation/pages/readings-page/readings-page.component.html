@@ -72,6 +72,70 @@
   </div>
 }
 
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-1">Estabilidade de FG</h2>
+    <p class="text-muted small mb-3">
+      Parecer sob o critério do perfil publicado. Não encerra a fermentação — quem decide é você.
+    </p>
+    @if (store.profiles().length === 0) {
+      <app-empty-state icon="ri-scales-3-line"
+                       message="Nenhum perfil publicado: publique um perfil de fermentação para avaliar." />
+    } @else {
+      <div class="row g-2 align-items-end mb-3">
+        <div class="col-sm-8">
+          <label class="form-label small" for="sprofile">Perfil que rege o critério</label>
+          <select id="sprofile" class="form-select form-select-sm" [value]="store.profileId() ?? ''"
+                  (change)="store.selectProfile($any($event.target).value)">
+            @for (p of store.profiles(); track p.id) {
+              <option [value]="p.id">
+                {{ p.code }} v{{ p.version }} — {{ p.stability.windowHours }}h /
+                {{ p.stability.minReadings }} leituras / ±{{ p.stability.toleranceSg }} SG
+              </option>
+            }
+          </select>
+        </div>
+        <div class="col-sm-4 d-grid">
+          <button type="button" class="btn btn-outline-primary btn-sm"
+                  [disabled]="!store.batchId() || store.evaluating()" (click)="store.evaluateStability()">
+            <i class="ri-scales-3-line me-1" aria-hidden="true"></i> Avaliar
+          </button>
+        </div>
+      </div>
+
+      @if (store.evaluating()) {
+        <app-loading-indicator />
+      } @else if (store.stabilityError(); as stabilityError) {
+        <div class="alert alert-danger mb-0" role="alert">{{ stabilityError }}</div>
+      } @else if (store.stability(); as fg) {
+        <div class="alert mb-0" [class]="fg.stable ? 'alert-success' : 'alert-warning'" role="status">
+          <p class="fw-semibold mb-1">
+            <i class="me-1" aria-hidden="true"
+               [class]="fg.stable ? 'ri-check-line' : 'ri-time-line'"></i>
+            {{ fg.stable ? 'FG estável' : 'FG ainda não estável' }}
+          </p>
+          <p class="mb-2">{{ verdictLabels[fg.verdict] }}</p>
+          <p class="small mb-2">
+            Critério: {{ fg.policy.windowHours }}h de janela, mínimo de {{ fg.policy.minReadings }} leituras,
+            tolerância ±{{ fg.policy.toleranceSg }} SG.
+            Série considerada: {{ fg.spanHours }}h, variação {{ fg.amplitudeSg }} SG.
+          </p>
+          @if (fg.readings.length > 0) {
+            <p class="small fw-medium mb-1">Leituras usadas:</p>
+            <ul class="small mb-0 ps-3">
+              @for (r of fg.readings; track r.id) {
+                <li>{{ r.measuredAt | date: 'dd/MM HH:mm' }} — {{ r.value }} {{ r.unit }} ({{ r.source }})</li>
+              }
+            </ul>
+          } @else {
+            <p class="small mb-0">Nenhuma leitura elegível no período.</p>
+          }
+        </div>
+      }
+    }
+  </div>
+</div>
+
 <div class="card border-0 rounded-10">
   <div class="card-body p-4">
     <h2 class="h6 fw-semibold mb-3">Curva de {{ kindLabels[store.kind()] }}</h2>

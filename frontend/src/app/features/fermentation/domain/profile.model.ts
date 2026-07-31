@@ -13,6 +13,13 @@ export interface FermentationStage {
   requiresConfirmation: boolean;
 }
 
+/** Critério de estabilidade de FG (FER-003), congelado ao publicar a versão. */
+export interface FgStabilityPolicy {
+  windowHours: number;
+  minReadings: number;
+  toleranceSg: number;
+}
+
 export interface FermentationProfile {
   id: string;
   code: string;
@@ -20,10 +27,12 @@ export interface FermentationProfile {
   version: number;
   status: string;
   stages: FermentationStage[];
+  stability: FgStabilityPolicy;
 }
 
 export interface CreateProfileRequest {
   code: string;
   name: string;
   stages: FermentationStage[];
+  stability: FgStabilityPolicy | null;
 }

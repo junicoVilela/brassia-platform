@@ -4,6 +4,7 @@ import br.com.brew.brassia.fermentation.application.port.outbound.ProfileReposit
 import br.com.brew.brassia.fermentation.domain.AdvanceCondition;
 import br.com.brew.brassia.fermentation.domain.FermentationProfile;
 import br.com.brew.brassia.fermentation.domain.FermentationStage;
+import br.com.brew.brassia.fermentation.domain.FgStabilityPolicy;
 import br.com.brew.brassia.fermentation.domain.ProfileId;
 import br.com.brew.brassia.fermentation.domain.ProfileStatus;
 import java.sql.ResultSet;
@@ -20,7 +21,9 @@ import org.springframework.stereotype.Repository;
 class JdbcProfileRepository implements ProfileRepository {
 
     private static final String COLUMNS = """
-            SELECT id, brewery_id, code, name, version, status FROM fermentation_profile
+            SELECT id, brewery_id, code, name, version, status, stability_window_hours,
+                   stability_min_readings, stability_tolerance_sg
+            FROM fermentation_profile
             """;
 
     private final JdbcClient jdbc;
@@ -32,8 +35,9 @@ class JdbcProfileRepository implements ProfileRepository {
     @Override
     public void insert(FermentationProfile p) {
         jdbc.sql("""
-                INSERT INTO fermentation_profile (id, brewery_id, code, name, version, status, created_at)
-                VALUES (:id, :brewery, :code, :name, :version, :status, :at)
+                INSERT INTO fermentation_profile (id, brewery_id, code, name, version, status, created_at,
+                    stability_window_hours, stability_min_readings, stability_tolerance_sg)
+                VALUES (:id, :brewery, :code, :name, :version, :status, :at, :window, :minReadings, :tolerance)
                 """)
                 .param("id", p.id().value())
                 .param("brewery", p.breweryId())
@@ -42,14 +46,26 @@ class JdbcProfileRepository implements ProfileRepository {
                 .param("version", p.version())
                 .param("status", p.status().name())
                 .param("at", Timestamp.from(Instant.now()))
+                .param("window", p.stability().windowHours())
+                .param("minReadings", p.stability().minReadings())
+                .param("tolerance", p.stability().toleranceSg())
                 .update();
         insertStages(p);
     }
 
     @Override
     public void update(FermentationProfile p) {
-        jdbc.sql("UPDATE fermentation_profile SET name = :name WHERE id = :id AND brewery_id = :brewery")
-                .param("name", p.name()).param("id", p.id().value()).param("brewery", p.breweryId())
+        jdbc.sql("""
+                UPDATE fermentation_profile
+                SET name = :name, stability_window_hours = :window, stability_min_readings = :minReadings,
+                    stability_tolerance_sg = :tolerance
+                WHERE id = :id AND brewery_id = :brewery
+                """)
+                .param("name", p.name())
+                .param("window", p.stability().windowHours())
+                .param("minReadings", p.stability().minReadings())
+                .param("tolerance", p.stability().toleranceSg())
+                .param("id", p.id().value()).param("brewery", p.breweryId())
                 .update();
         jdbc.sql("DELETE FROM fermentation_profile_stage WHERE profile_id = :id")
                 .param("id", p.id().value()).update();
@@ -126,7 +142,11 @@ class JdbcProfileRepository implements ProfileRepository {
                 rs.getString("name"),
                 rs.getInt("version"),
                 ProfileStatus.valueOf(rs.getString("status")),
-                stages(breweryId, id));
+                stages(breweryId, id),
+                new FgStabilityPolicy(
+                        rs.getInt("stability_window_hours"),
+                        rs.getInt("stability_min_readings"),
+                        rs.getBigDecimal("stability_tolerance_sg")));
     }
 
     private List<FermentationStage> stages(UUID breweryId, UUID profileId) {

@@ -7,7 +7,8 @@ import java.util.UUID;
 public interface CreateProfileUseCase {
     Result handle(Command command);
 
-    record Command(UUID actorId, UUID breweryId, String code, String name, List<StageInput> stages) {}
+    record Command(UUID actorId, UUID breweryId, String code, String name, List<StageInput> stages,
+            StabilityInput stability) {}
 
     record Result(UUID id, int version) {}
 }

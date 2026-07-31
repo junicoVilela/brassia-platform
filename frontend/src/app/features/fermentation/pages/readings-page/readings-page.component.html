@@ -1,0 +1,126 @@
+<app-page-header title="Leituras e curvas"
+                 subtitle="Densidade, temperatura, pressão e pH por lote, de origem manual ou sensor" />
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-sm-6">
+        <label class="form-label" for="rbatch">Lote</label>
+        <select id="rbatch" class="form-select" [value]="store.batchId() ?? ''"
+                (change)="store.select($any($event.target).value)">
+          @for (b of store.batches(); track b.id) {
+            <option [value]="b.id">{{ b.code }} — {{ b.recipeName }}</option>
+          }
+        </select>
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label" for="rkind">Grandeza</label>
+        <select id="rkind" class="form-select" [value]="store.kind()"
+                (change)="store.selectKind($any($event.target).value)">
+          @for (k of kinds; track k) { <option [value]="k">{{ kindLabels[k] }}</option> }
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+@if (canRecord) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-3">Nova leitura</h2>
+      <form [formGroup]="form" (ngSubmit)="record()" class="row g-2 align-items-end">
+        <div class="col-sm-2">
+          <label class="form-label small" for="fkind">Grandeza</label>
+          <select id="fkind" class="form-select form-select-sm" formControlName="kind">
+            @for (k of kinds; track k) { <option [value]="k">{{ kindLabels[k] }}</option> }
+          </select>
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small" for="fsource">Origem</label>
+          <select id="fsource" class="form-select form-select-sm" formControlName="source">
+            @for (s of sources; track s) { <option [value]="s">{{ s === 'MANUAL' ? 'Manual' : 'Sensor' }}</option> }
+          </select>
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small" for="fvalue">Valor</label>
+          <input id="fvalue" type="number" step="any" class="form-control form-control-sm" formControlName="value">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small" for="funit">Unidade</label>
+          <select id="funit" class="form-select form-select-sm" formControlName="unit">
+            @for (u of units(); track u) { <option [value]="u">{{ u }}</option> }
+          </select>
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small" for="fat">Instante</label>
+          <input id="fat" type="datetime-local" class="form-control form-control-sm" formControlName="measuredAt">
+        </div>
+        <div class="col-sm-1 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm"
+                  [disabled]="form.invalid || !store.batchId() || store.submitting()">
+            <i class="ri-add-line" aria-hidden="true"></i>
+          </button>
+        </div>
+      </form>
+      <p class="text-muted small mb-0 mt-2">
+        Valor fora da faixa plausível é gravado e sinalizado, nunca descartado.
+      </p>
+      @if (store.actionError(); as actionError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+      }
+    </div>
+  </div>
+}
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Curva de {{ kindLabels[store.kind()] }}</h2>
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-line-chart-line" message="Nenhuma leitura registrada para este lote." />
+    } @else {
+      <app-readings-chart [readings]="store.items()" />
+
+      <div class="table-responsive mt-4">
+        <table class="table table-sm table-hover align-middle mb-0">
+          <caption class="visually-hidden">Leituras registradas, com origem e validade</caption>
+          <thead>
+            <tr>
+              <th scope="col">Instante</th>
+              <th scope="col">Origem</th>
+              <th scope="col" class="text-end">Valor</th>
+              <th scope="col">Unidade</th>
+              <th scope="col">Situação</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of store.items(); track r.id) {
+              <tr>
+                <td>{{ r.measuredAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td>
+                  <span class="badge" [class]="r.source === 'SENSOR' ? 'text-bg-primary' : 'text-bg-secondary'">
+                    {{ r.source === 'SENSOR' ? 'Sensor' : 'Manual' }}
+                  </span>
+                </td>
+                <td class="text-end fw-medium">{{ r.value }}</td>
+                <td>{{ r.unit }}</td>
+                <td>
+                  @if (r.valid) {
+                    <span class="text-success"><i class="ri-check-line me-1" aria-hidden="true"></i>Válida</span>
+                  } @else {
+                    <span class="text-danger">
+                      <i class="ri-error-warning-line me-1" aria-hidden="true"></i>{{ r.invalidReason }}
+                    </span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

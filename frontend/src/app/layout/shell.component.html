@@ -129,6 +129,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('fermentation.reading.read')) {
+            <li class="menu-item">
+              <a routerLink="/fermentation/readings" routerLinkActive="active" class="menu-link">
+                <i class="ri-line-chart-line menu-icon"></i>
+                <span class="title">Leituras de fermentação</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('inventory.lot.read')) {
             <li class="menu-item">
               <a routerLink="/inventory" routerLinkActive="active" class="menu-link" [routerLinkActiveOptions]="{ exact: true }">

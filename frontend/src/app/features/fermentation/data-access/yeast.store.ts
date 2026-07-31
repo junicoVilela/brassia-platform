@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
 import { BatchOption } from '../domain/reading.model';
-import { CollectYeastRequest, YeastHarvest } from '../domain/yeast.model';
+import { CollectYeastRequest, YeastHarvest, YeastPolicy, YeastRecommendation } from '../domain/yeast.model';
 import { YeastApi } from './yeast.api';
 
 /** Estado das coletas de levedura (YST-001). */
@@ -29,6 +29,12 @@ export class YeastStore {
 
   readonly genealogyOf = signal<string | null>(null);
   readonly genealogy = signal<YeastHarvest[]>([]);
+
+  /** Recomendação de repitch (YST-002): consulta sob demanda, nunca dispara o uso. */
+  readonly recommendations = signal<YeastRecommendation[]>([]);
+  readonly policy = signal<YeastPolicy | null>(null);
+  readonly recommending = signal(false);
+  readonly policyError = signal<string | null>(null);
 
   load(): void {
     this.loading.set(true);
@@ -82,6 +88,59 @@ export class YeastStore {
           this.toast.error(err?.status === 409
             ? 'Coleta já revisada; a decisão é definitiva.'
             : 'Não foi possível revisar a coleta (motivo é obrigatório na reprovação).'),
+      });
+  }
+
+  loadPolicy(): void {
+    this.api.policy()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: policy => this.policy.set(policy), error: () => this.policy.set(null) });
+  }
+
+  savePolicy(policy: YeastPolicy): void {
+    this.policyError.set(null);
+    this.api.savePolicy(policy)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.policy.set(policy);
+          this.toast.success('Política de reutilização salva.');
+          this.recommend();
+        },
+        error: (err: { status?: number }) =>
+          this.policyError.set(err?.status === 403
+            ? 'Sem permissão para alterar a política.'
+            : 'Não foi possível salvar a política (valores inválidos).'),
+      });
+  }
+
+  recommend(strainId: string | null = null): void {
+    this.recommending.set(true);
+    this.api.reuse(strainId)
+      .pipe(finalize(() => this.recommending.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: result => {
+          this.recommendations.set(result.recommendations);
+          this.policy.set(result.policy);
+        },
+        error: () => this.toast.error('Não foi possível carregar as recomendações.'),
+      });
+  }
+
+  /** O uso é sempre um ato explícito do cervejeiro; a recomendação não o dispara. */
+  use(harvestId: string, targetBatchId: string): void {
+    this.api.use(harvestId, targetBatchId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success('Uso confirmado; a coleta foi consumida.');
+          this.load();
+          this.recommend();
+        },
+        error: (err: { status?: number }) =>
+          this.toast.error(err?.status === 409
+            ? 'Coleta já usada; a mesma levedura não pode ser pitchada duas vezes.'
+            : 'Não foi possível confirmar o uso.'),
       });
   }
 

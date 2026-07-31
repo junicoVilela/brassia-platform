@@ -10,12 +10,16 @@ import br.com.brew.brassia.fermentation.application.port.inbound.ListProfilesUse
 import br.com.brew.brassia.fermentation.application.port.inbound.ListReadingsUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.ListYeastHarvestsUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.PublishProfileUseCase;
+import br.com.brew.brassia.fermentation.application.port.inbound.RecommendYeastReuseUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.RecordReadingUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.ReviewYeastHarvestUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.UpdateProfileUseCase;
+import br.com.brew.brassia.fermentation.application.port.inbound.UseYeastHarvestUseCase;
+import br.com.brew.brassia.fermentation.application.port.inbound.YeastPolicyUseCase;
 import br.com.brew.brassia.fermentation.application.port.outbound.ProfileRepository;
 import br.com.brew.brassia.fermentation.application.port.outbound.ReadingRepository;
 import br.com.brew.brassia.fermentation.application.port.outbound.YeastHarvestRepository;
+import br.com.brew.brassia.fermentation.application.port.outbound.YeastPolicyRepository;
 import br.com.brew.brassia.fermentation.application.service.CollectYeastHandler;
 import br.com.brew.brassia.fermentation.application.service.CreateProfileHandler;
 import br.com.brew.brassia.fermentation.application.service.EvaluateFgStabilityHandler;
@@ -25,9 +29,12 @@ import br.com.brew.brassia.fermentation.application.service.ListProfilesHandler;
 import br.com.brew.brassia.fermentation.application.service.ListReadingsHandler;
 import br.com.brew.brassia.fermentation.application.service.ListYeastHarvestsHandler;
 import br.com.brew.brassia.fermentation.application.service.PublishProfileHandler;
+import br.com.brew.brassia.fermentation.application.service.RecommendYeastReuseHandler;
 import br.com.brew.brassia.fermentation.application.service.RecordReadingHandler;
 import br.com.brew.brassia.fermentation.application.service.ReviewYeastHarvestHandler;
 import br.com.brew.brassia.fermentation.application.service.UpdateProfileHandler;
+import br.com.brew.brassia.fermentation.application.service.UseYeastHarvestHandler;
+import br.com.brew.brassia.fermentation.application.service.YeastPolicyHandler;
 import br.com.brew.brassia.production.BatchLookup;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -115,5 +122,24 @@ class FermentationConfiguration {
     @Bean
     GetYeastGenealogyUseCase getYeastGenealogyUseCase(YeastHarvestRepository harvests) {
         return new GetYeastGenealogyHandler(harvests);
+    }
+
+    @Bean
+    RecommendYeastReuseUseCase recommendYeastReuseUseCase(
+            YeastHarvestRepository harvests, YeastPolicyRepository policies) {
+        return new RecommendYeastReuseHandler(harvests, policies);
+    }
+
+    @Bean
+    UseYeastHarvestUseCase useYeastHarvestUseCase(YeastHarvestRepository harvests, BatchLookup batches,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new UseYeastHarvestHandler(harvests, batches, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    YeastPolicyUseCase yeastPolicyUseCase(YeastPolicyRepository policies, AuditTrail audit) {
+        return new YeastPolicyHandler(policies, audit);
     }
 }

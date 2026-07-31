@@ -2,11 +2,13 @@ package br.com.brew.brassia.fermentation.adapter.inbound.web;
 
 import br.com.brew.brassia.fermentation.adapter.inbound.web.dto.CollectYeastRequest;
 import br.com.brew.brassia.fermentation.adapter.inbound.web.dto.ReviewYeastRequest;
+import br.com.brew.brassia.fermentation.adapter.inbound.web.dto.UseYeastRequest;
 import br.com.brew.brassia.fermentation.adapter.inbound.web.dto.YeastHarvestView;
 import br.com.brew.brassia.fermentation.application.port.inbound.CollectYeastUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.GetYeastGenealogyUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.ListYeastHarvestsUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.ReviewYeastHarvestUseCase;
+import br.com.brew.brassia.fermentation.application.port.inbound.UseYeastHarvestUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -31,13 +33,15 @@ final class YeastHarvestController {
     private final ReviewYeastHarvestUseCase review;
     private final ListYeastHarvestsUseCase list;
     private final GetYeastGenealogyUseCase genealogy;
+    private final UseYeastHarvestUseCase use;
 
     YeastHarvestController(CollectYeastUseCase collect, ReviewYeastHarvestUseCase review,
-            ListYeastHarvestsUseCase list, GetYeastGenealogyUseCase genealogy) {
+            ListYeastHarvestsUseCase list, GetYeastGenealogyUseCase genealogy, UseYeastHarvestUseCase use) {
         this.collect = collect;
         this.review = review;
         this.list = list;
         this.genealogy = genealogy;
+        this.use = use;
     }
 
     @GetMapping
@@ -75,5 +79,14 @@ final class YeastHarvestController {
         principal.requirePermission("fermentation.yeast.manage");
         review.handle(new ReviewYeastHarvestUseCase.Command(
                 principal.userId(), principal.requireBrewery(), id, request.approve(), request.note()));
+    }
+
+    /** Confirma o uso da coleta num lote; consome a coleta (YST-002). */
+    @PostMapping("/{id}/use")
+    void use(@PathVariable UUID id, @Valid @RequestBody UseYeastRequest request,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("fermentation.yeast.manage");
+        use.handle(new UseYeastHarvestUseCase.Command(
+                principal.userId(), principal.requireBrewery(), id, request.targetBatchId(), request.confirmed()));
     }
 }

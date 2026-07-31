@@ -55,6 +55,94 @@
   </div>
 }
 
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-1">Recomendação de reutilização</h2>
+    <p class="text-muted small mb-3">
+      Combina geração, idade e viabilidade contra a política da casa. Recomendar não usa nada —
+      o repitch exige a sua confirmação e um lote de destino.
+    </p>
+
+    @if (canManagePolicy) {
+      <form [formGroup]="policyForm" (ngSubmit)="savePolicy()" class="row g-2 align-items-end mb-3">
+        <div class="col-sm-3"><label class="form-label small" for="pgen">Geração máxima</label>
+          <input id="pgen" type="number" class="form-control form-control-sm" formControlName="maxGeneration"></div>
+        <div class="col-sm-3"><label class="form-label small" for="page">Idade máxima (dias)</label>
+          <input id="page" type="number" class="form-control form-control-sm" formControlName="maxAgeDays"></div>
+        <div class="col-sm-3"><label class="form-label small" for="pvia">Viabilidade mínima (%)</label>
+          <input id="pvia" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="minViabilityPercent"></div>
+        <div class="col-sm-3 d-grid">
+          <button type="submit" class="btn btn-outline-primary btn-sm" [disabled]="policyForm.invalid">
+            <i class="ri-save-line me-1" aria-hidden="true"></i> Salvar política
+          </button>
+        </div>
+      </form>
+      @if (store.policyError(); as policyError) {
+        <div class="alert alert-danger mb-3" role="alert">{{ policyError }}</div>
+      }
+    } @else if (store.policy(); as policy) {
+      <p class="small text-muted mb-3">
+        Política vigente: até geração {{ policy.maxGeneration }}, {{ policy.maxAgeDays }} dias de idade,
+        viabilidade mínima de {{ policy.minViabilityPercent }}%.
+      </p>
+    }
+
+    @if (canManage) {
+      <div class="mb-3">
+        <label class="form-label small" for="ytarget">Lote de destino do repitch</label>
+        <select id="ytarget" class="form-select form-select-sm" [value]="targetBatchId()"
+                (change)="targetBatchId.set($any($event.target).value)">
+          <option value="">Selecione o lote antes de confirmar um uso…</option>
+          @for (b of store.batches(); track b.id) {
+            <option [value]="b.id">{{ b.code }} — {{ b.recipeName }}</option>
+          }
+        </select>
+      </div>
+    }
+
+    @if (store.recommending()) {
+      <app-loading-indicator />
+    } @else if (store.recommendations().length === 0) {
+      <app-empty-state icon="ri-seedling-line" message="Nenhuma coleta disponível para reutilização." />
+    } @else {
+      <ul class="list-unstyled mb-0">
+        @for (r of store.recommendations(); track r.harvest.id) {
+          <li class="border rounded-10 p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <span class="badge me-2" [class]="r.recommended ? 'text-bg-success' : 'text-bg-warning'">
+                  {{ r.recommended ? 'Recomendada' : 'Não recomendada' }}
+                </span>
+                <span class="fw-medium">{{ r.harvest.code }}</span>
+                <span class="text-muted small">
+                  · geração {{ r.harvest.generation }} · {{ r.ageDays }} dia(s) ·
+                  viabilidade {{ r.harvest.viabilityPercent }}%
+                </span>
+                <ul class="small mb-0 mt-2 ps-3">
+                  @for (f of r.factors; track f.name) {
+                    <li [class.text-danger]="!f.withinPolicy">
+                      <i class="me-1" aria-hidden="true"
+                         [class]="f.withinPolicy ? 'ri-check-line' : 'ri-close-line'"></i>{{ f.explanation }}
+                    </li>
+                  }
+                </ul>
+              </div>
+              @if (canManage) {
+                <button type="button" class="btn btn-sm btn-outline-success text-nowrap"
+                        [disabled]="!targetBatchId()"
+                        (click)="confirmUse(r.harvest.id, r.harvest.code)">
+                  <i class="ri-seedling-line me-1" aria-hidden="true"></i> Usar
+                </button>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</div>
+
 <div class="card border-0 rounded-10">
   <div class="card-body p-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -102,6 +190,9 @@
                   </span>
                   @if (h.reviewNote) {
                     <div class="small text-muted">{{ h.reviewNote }}</div>
+                  }
+                  @if (h.pitchedAt) {
+                    <div class="small text-muted">Usada em {{ h.pitchedAt | date: 'dd/MM/yyyy' }}</div>
                   }
                 </td>
                 <td class="text-end text-nowrap">

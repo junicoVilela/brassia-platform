@@ -850,6 +850,69 @@ paths:
               schema: {type: array, items: {$ref: '#/components/schemas/YeastHarvest'}}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /fermentation/yeast/reuse:
+    get:
+      operationId: recommendYeastReuse
+      summary: "Recomenda coletas para repitch, ordenadas e explicadas"
+      description: >
+        Consulta: combina geração, idade e viabilidade contra a política da cervejaria e
+        devolve, por coleta, o veredito e a explicação de cada fator. Recomendar não usa nada —
+        o pitch exige confirmação no endpoint da coleta. Só coletas aprovadas são candidatas.
+      parameters:
+        - name: strainId
+          in: query
+          required: false
+          description: "Restringe a uma cepa; omitido considera todas"
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: "Recomendações ordenadas + a política aplicada"
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/YeastReuse'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /fermentation/yeast/policy:
+    get:
+      operationId: getYeastPolicy
+      summary: "Política de reutilização da cervejaria (padrão do domínio se não configurada)"
+      responses:
+        '200':
+          description: Política vigente
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/YeastPolicy'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: saveYeastPolicy
+      summary: Ajusta a política de reutilização
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/YeastPolicy'}
+      responses:
+        '200': {description: Política salva}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /fermentation/yeast/harvests/{id}/use:
+    post:
+      operationId: useYeastHarvest
+      summary: "Confirma o uso da coleta num lote (consome a coleta)"
+      description: >
+        Exige confirmação explícita e lote de destino existente. A coleta passa a USED e sai
+        das disponíveis, para a mesma levedura não ser pitchada duas vezes.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UseYeastHarvest'}
+      responses:
+        '200': {description: Uso confirmado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /fermentation/yeast/harvests/{id}/review:
     post:
       operationId: reviewYeastHarvest
@@ -1770,10 +1833,12 @@ components:
         condition: {type: string}
         storageLocation: {type: string}
         storageTempC: {type: number}
-        status: {type: string, enum: [QUARANTINE, APPROVED, REJECTED]}
-        available: {type: boolean, description: "Só aprovada é reutilizável"}
+        status: {type: string, enum: [QUARANTINE, APPROVED, REJECTED, USED]}
+        available: {type: boolean, description: "Só aprovada e ainda não usada é reutilizável"}
         reviewNote: {type: string, nullable: true}
         reviewedAt: {type: string, format: date-time, nullable: true}
+        pitchedBatchId: {type: string, format: uuid, nullable: true, description: "Lote que recebeu a coleta"}
+        pitchedAt: {type: string, format: date-time, nullable: true}
     CollectYeast:
       type: object
       required: [code, strainId, sourceBatchId, harvestedAt, viabilityPercent, condition, storageLocation,
@@ -1798,6 +1863,49 @@ components:
       properties:
         approve: {type: boolean}
         note: {type: string, maxLength: 200, description: "Obrigatório quando approve=false"}
+    YeastPolicy:
+      type: object
+      description: "Limites de repitch da cervejaria; campo omitido herda o padrão (10 / 21 dias / 70%)"
+      properties:
+        maxGeneration: {type: integer, minimum: 1}
+        maxAgeDays: {type: integer, minimum: 1}
+        minViabilityPercent: {type: number, minimum: 0, maximum: 100}
+    YeastRecommendationFactor:
+      type: object
+      required: [name, withinPolicy, explanation]
+      properties:
+        name: {type: string, enum: [generation, age, viability]}
+        withinPolicy: {type: boolean}
+        explanation: {type: string, description: "Frase pronta explicando o fator"}
+    YeastRecommendation:
+      type: object
+      required: [harvest, recommended, ageDays, factors, blockers]
+      properties:
+        harvest: {$ref: '#/components/schemas/YeastHarvest'}
+        recommended: {type: boolean}
+        ageDays: {type: integer}
+        factors:
+          type: array
+          items: {$ref: '#/components/schemas/YeastRecommendationFactor'}
+        blockers:
+          type: array
+          description: "Explicações dos fatores fora da política; vazio quando recomendada"
+          items: {type: string}
+    YeastReuse:
+      type: object
+      required: [policy, recommendations]
+      properties:
+        policy: {$ref: '#/components/schemas/YeastPolicy'}
+        recommendations:
+          type: array
+          description: "Recomendadas primeiro; depois maior viabilidade, menor geração, mais nova"
+          items: {$ref: '#/components/schemas/YeastRecommendation'}
+    UseYeastHarvest:
+      type: object
+      required: [targetBatchId, confirmed]
+      properties:
+        targetBatchId: {type: string, format: uuid}
+        confirmed: {type: boolean, description: "false → 400; o uso nunca é implícito"}
     ProcedureStep:
       type: object
       required: [sequence, method]

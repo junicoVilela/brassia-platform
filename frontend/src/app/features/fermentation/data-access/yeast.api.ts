@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { BatchOption } from '../domain/reading.model';
-import { CollectYeastRequest, YeastHarvest } from '../domain/yeast.model';
+import { CollectYeastRequest, YeastHarvest, YeastPolicy, YeastReuse } from '../domain/yeast.model';
 
 @Injectable({ providedIn: 'root' })
 export class YeastApi {
@@ -24,6 +24,28 @@ export class YeastApi {
 
   review(harvestId: string, approve: boolean, note: string | null) {
     return this.http.post<void>(`${this.baseUrl}/${harvestId}/review`, { approve, note });
+  }
+
+  /** Recomendação de repitch; strainId nulo considera todas as cepas. */
+  reuse(strainId: string | null) {
+    let params = new HttpParams();
+    if (strainId) {
+      params = params.set('strainId', strainId);
+    }
+    return this.http.get<YeastReuse>('/api/v1/fermentation/yeast/reuse', { params });
+  }
+
+  policy() {
+    return this.http.get<YeastPolicy>('/api/v1/fermentation/yeast/policy');
+  }
+
+  savePolicy(policy: YeastPolicy) {
+    return this.http.put<void>('/api/v1/fermentation/yeast/policy', policy);
+  }
+
+  /** O uso nunca é implícito: confirmed=false é recusado pelo backend. */
+  use(harvestId: string, targetBatchId: string) {
+    return this.http.post<void>(`${this.baseUrl}/${harvestId}/use`, { targetBatchId, confirmed: true });
   }
 
   /** Lotes de origem possíveis para a coleta. */

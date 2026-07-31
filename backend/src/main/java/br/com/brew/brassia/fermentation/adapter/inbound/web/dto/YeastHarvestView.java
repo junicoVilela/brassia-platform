@@ -8,11 +8,13 @@ import java.util.UUID;
 public record YeastHarvestView(
         UUID id, String code, UUID strainId, UUID sourceBatchId, UUID parentHarvestId, int generation,
         Instant harvestedAt, BigDecimal viabilityPercent, String condition, String storageLocation,
-        BigDecimal storageTempC, String status, boolean available, String reviewNote, Instant reviewedAt) {
+        BigDecimal storageTempC, String status, boolean available, String reviewNote, Instant reviewedAt,
+        UUID pitchedBatchId, Instant pitchedAt) {
 
     public static YeastHarvestView from(YeastHarvest h) {
         return new YeastHarvestView(h.id(), h.code(), h.strainId(), h.sourceBatchId(), h.parentHarvestId(),
                 h.generation(), h.harvestedAt(), h.viabilityPercent(), h.condition(), h.storageLocation(),
-                h.storageTempC(), h.status().name(), h.available(), h.reviewNote(), h.reviewedAt());
+                h.storageTempC(), h.status().name(), h.available(), h.reviewNote(), h.reviewedAt(),
+                h.pitchedBatchId(), h.pitchedAt());
     }
 }

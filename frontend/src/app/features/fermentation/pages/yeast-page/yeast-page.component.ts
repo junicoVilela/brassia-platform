@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
@@ -27,6 +27,7 @@ export class YeastPageComponent implements OnInit {
   private readonly auth = inject(AuthService);
 
   protected readonly canManage = this.auth.hasPermission('fermentation.yeast.manage');
+  protected readonly canManagePolicy = this.auth.hasPermission('fermentation.yeast.policy.manage');
   protected readonly statusLabels = YEAST_STATUS_LABELS;
 
   protected readonly form = this.fb.nonNullable.group({
@@ -43,9 +44,53 @@ export class YeastPageComponent implements OnInit {
     storageTempC: this.fb.control<number | null>(null, Validators.required),
   });
 
+  protected readonly policyForm = this.fb.nonNullable.group({
+    maxGeneration: this.fb.control<number | null>(null, [Validators.required, Validators.min(1)]),
+    maxAgeDays: this.fb.control<number | null>(null, [Validators.required, Validators.min(1)]),
+    minViabilityPercent: this.fb.control<number | null>(null, [Validators.required, Validators.min(0),
+      Validators.max(100)]),
+  });
+
+  /** Lote de destino do repitch, escolhido explicitamente antes de confirmar o uso. */
+  protected readonly targetBatchId = signal<string>('');
+
+  // Espelha a política vigente no formulário assim que ela chega do servidor.
+  private readonly syncPolicyForm = effect(() => {
+    const policy = this.store.policy();
+    if (policy) {
+      this.policyForm.patchValue(policy, { emitEvent: false });
+    }
+  });
+
   ngOnInit(): void {
     this.store.load();
     this.store.loadBatches();
+    this.store.recommend();
+  }
+
+  protected savePolicy(): void {
+    if (this.policyForm.invalid) {
+      return;
+    }
+    const v = this.policyForm.getRawValue();
+    this.store.savePolicy({
+      maxGeneration: v.maxGeneration!,
+      maxAgeDays: v.maxAgeDays!,
+      minViabilityPercent: v.minViabilityPercent!,
+    });
+  }
+
+  /** Confirmação explícita antes de consumir a coleta, no lote escolhido. */
+  protected confirmUse(harvestId: string, code: string): void {
+    const batchId = this.targetBatchId();
+    if (!batchId) {
+      return;
+    }
+    const batch = this.store.batches().find(b => b.id === batchId);
+    if (window.confirm(`Confirmar o uso da coleta ${code} no lote ${batch?.code ?? batchId}?`
+        + ' Ela será consumida e não poderá ser pitchada de novo.')) {
+      this.store.use(harvestId, batchId);
+    }
   }
 
   protected collect(): void {

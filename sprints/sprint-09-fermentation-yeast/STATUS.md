@@ -1,6 +1,6 @@
 # Status — Sprint 09
 
-Estado: EM ANDAMENTO
+Estado: CONCLUÍDA (aceite pendente do mantenedor)
 
 ## Controle das histórias
 
@@ -56,9 +56,13 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- Build/commit: `main` em `bc0d0c6`; PRs #108 (FER-001), #112 (FER-002), #113 (FER-003), #114 (YST-001), #115 (YST-002) e #116 (FER-004) mergeados por squash.
+- Testes executados: `./mvnw verify` — 397 unitários + 280 de integração (Testcontainers/PostgreSQL 18), verdes; frontend `ng build` + `ng test` — 186 testes, verdes.
+- Migration aplicada: V61→V66, sequência contínua, aplicada em banco limpo a cada IT.
+- Contratos atualizados: `contracts/openapi.yaml` (endpoints e schemas das seis histórias).
+- Riscos remanescentes: (1) decisões da FER-002 ainda pendentes de confirmação; (2) varredura de atrasos da FER-004 sem agendador, disparada por endpoint; (3) sem harness de e2e no projeto, único item não atendido do DoD; (4) ids digitados à mão em três telas (responsável, cepa).
+- Aceite: **pendente do mantenedor** — ver `ACCEPTANCE.md`.
+
+## Débitos abertos ao fim da sprint
+
+Nenhum débito com identificador segue aberto: o único criado (**FER-003-1**, perfil por query param) foi removido pela FER-004. Os itens acima são pendências de decisão ou de acabamento, não débito técnico com critério de remoção.

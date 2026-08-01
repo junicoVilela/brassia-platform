@@ -71,19 +71,6 @@ describe('ReadingsStore', () => {
     expect(store.actionError()).toBeNull();
   });
 
-  it('só oferece perfis publicados para reger o parecer', () => {
-    const profiles = vi.fn(() => of([
-      { id: 'p1', code: 'ALE', name: 'Ale', version: 1, status: 'DRAFT', stages: [],
-        stability: { windowHours: 48, minReadings: 3, toleranceSg: 0.002 } },
-      { id: 'p2', code: 'ALE', name: 'Ale', version: 2, status: 'PUBLISHED', stages: [],
-        stability: { windowHours: 48, minReadings: 3, toleranceSg: 0.002 } },
-    ]));
-    const { store } = setup({ profiles });
-    store.loadProfiles();
-    expect(store.profiles().map(p => p.id)).toEqual(['p2']);
-    expect(store.profileId()).toBe('p2');
-  });
-
   it('avalia a estabilidade de FG e guarda o parecer', () => {
     const parecer: FgStability = {
       stable: false, verdict: 'WINDOW_NOT_COVERED', policy: { windowHours: 48, minReadings: 3, toleranceSg: 0.002 },
@@ -92,25 +79,23 @@ describe('ReadingsStore', () => {
     const fgStability = vi.fn(() => of(parecer));
     const { store } = setup({ fgStability, list: () => of([]) });
     store.select('b1');
-    store.selectProfile('p1');
     store.evaluateStability();
-    expect(fgStability).toHaveBeenCalledWith('b1', 'p1');
+    // O perfil vem da agenda do lote, não é escolhido aqui.
+    expect(fgStability).toHaveBeenCalledWith('b1');
     expect(store.stability()?.verdict).toBe('WINDOW_NOT_COVERED');
   });
 
-  it('explica que rascunho não pode reger a avaliação', () => {
-    const fgStability = vi.fn(() => throwError(() => ({ status: 409 })));
+  it('explica que o lote ainda não tem agenda', () => {
+    const fgStability = vi.fn(() => throwError(() => ({ status: 400 })));
     const { store } = setup({ fgStability, list: () => of([]) });
     store.select('b1');
-    store.selectProfile('p1');
     store.evaluateStability();
-    expect(store.stabilityError()).toContain('publique');
+    expect(store.stabilityError()).toContain('agenda');
   });
 
-  it('não avalia sem lote ou sem perfil', () => {
+  it('não avalia sem lote selecionado', () => {
     const fgStability = vi.fn(() => of(null as unknown as FgStability));
     const { store } = setup({ fgStability, list: () => of([]) });
-    store.select('b1');
     store.evaluateStability();
     expect(fgStability).not.toHaveBeenCalled();
   });

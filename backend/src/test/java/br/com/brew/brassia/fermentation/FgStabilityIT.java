@@ -54,13 +54,13 @@ class FgStabilityIT {
     void reportsStableSeriesWithTheReadingsItUsed() throws Exception {
         var session = login();
         var batchId = startedBatch(session);
-        var profileId = publishedProfile(session, null);
+        planSchedule(session, batchId, publishedProfile(session, null));
 
         density(session, batchId, "1.0125", "2026-07-28T08:00:00Z");
         density(session, batchId, "1.0120", "2026-07-29T08:00:00Z");
         density(session, batchId, "1.0118", "2026-07-30T08:00:00Z");
 
-        mockMvc.perform(get(url(batchId, profileId)).session(session))
+        mockMvc.perform(get(url(batchId)).session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stable", is(true)))
                 .andExpect(jsonPath("$.verdict", is("STABLE")))
@@ -75,14 +75,14 @@ class FgStabilityIT {
     void rejectsFalseStabilityWhenTheWindowIsNotCovered() throws Exception {
         var session = login();
         var batchId = startedBatch(session);
-        var profileId = publishedProfile(session, null);
+        planSchedule(session, batchId, publishedProfile(session, null));
 
         // Três leituras quase idênticas na mesma tarde: o clássico FG falso estável.
         density(session, batchId, "1.0120", "2026-07-28T08:00:00Z");
         density(session, batchId, "1.0119", "2026-07-28T10:00:00Z");
         density(session, batchId, "1.0120", "2026-07-28T12:00:00Z");
 
-        mockMvc.perform(get(url(batchId, profileId)).session(session))
+        mockMvc.perform(get(url(batchId)).session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stable", is(false)))
                 .andExpect(jsonPath("$.verdict", is("WINDOW_NOT_COVERED")))
@@ -95,12 +95,13 @@ class FgStabilityIT {
         var batchId = startedBatch(session);
         // Perfil exigente: janela de 96h — a mesma série de 48h deixa de bastar.
         var strict = publishedProfile(session, "{\"windowHours\":96,\"minReadings\":3,\"toleranceSg\":0.0020}");
+        planSchedule(session, batchId, strict);
 
         density(session, batchId, "1.0125", "2026-07-28T08:00:00Z");
         density(session, batchId, "1.0120", "2026-07-29T08:00:00Z");
         density(session, batchId, "1.0118", "2026-07-30T08:00:00Z");
 
-        mockMvc.perform(get(url(batchId, strict)).session(session))
+        mockMvc.perform(get(url(batchId)).session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stable", is(false)))
                 .andExpect(jsonPath("$.verdict", is("WINDOW_NOT_COVERED")))
@@ -111,7 +112,7 @@ class FgStabilityIT {
     void ignoresFlaggedReadings() throws Exception {
         var session = login();
         var batchId = startedBatch(session);
-        var profileId = publishedProfile(session, null);
+        planSchedule(session, batchId, publishedProfile(session, null));
 
         density(session, batchId, "1.0125", "2026-07-28T08:00:00Z");
         // Sensor ruidoso: gravada e sinalizada pela FER-002, não sustenta parecer.
@@ -122,7 +123,7 @@ class FgStabilityIT {
         density(session, batchId, "1.0120", "2026-07-29T08:00:00Z");
         density(session, batchId, "1.0118", "2026-07-30T08:00:00Z");
 
-        mockMvc.perform(get(url(batchId, profileId)).session(session))
+        mockMvc.perform(get(url(batchId)).session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stable", is(true)))
                 .andExpect(jsonPath("$.readings.length()", is(3)));
@@ -134,19 +135,23 @@ class FgStabilityIT {
         var batchId = startedBatch(session);
         var draft = createProfile(session, null);
 
-        mockMvc.perform(get(url(batchId, draft)).session(session))
+        // O vínculo nasce na agenda: é lá que o rascunho é barrado.
+        mockMvc.perform(post("/api/v1/fermentation/batches/" + batchId + "/schedule").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"profileId\":\"" + draft + "\",\"start\":\"2026-07-28T08:00:00Z\","
+                                + "\"responsibleUserId\":\"" + UUID.randomUUID() + "\"}"))
                 .andExpect(status().isConflict());
     }
 
     @Test
-    void rejectsUnknownBatchOrProfile() throws Exception {
+    void rejectsUnknownBatchOrBatchWithoutSchedule() throws Exception {
         var session = login();
         var batchId = startedBatch(session);
-        var profileId = publishedProfile(session, null);
 
-        mockMvc.perform(get(url(UUID.randomUUID().toString(), profileId)).session(session))
+        mockMvc.perform(get(url(UUID.randomUUID().toString())).session(session))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(get(url(batchId, UUID.randomUUID().toString())).session(session))
+        // Sem agenda não há critério a aplicar.
+        mockMvc.perform(get(url(batchId)).session(session))
                 .andExpect(status().isBadRequest());
     }
 
@@ -154,9 +159,9 @@ class FgStabilityIT {
     void deniesWithoutPermission() throws Exception {
         var session = login();
         var batchId = startedBatch(session);
-        var profileId = publishedProfile(session, null);
+        planSchedule(session, batchId, publishedProfile(session, null));
 
-        mockMvc.perform(get(url(batchId, profileId))
+        mockMvc.perform(get(url(batchId))
                         .with(authentication(principal(UUID.randomUUID(), Set.of("fermentation.profile.read")))))
                 .andExpect(status().isForbidden());
     }
@@ -165,17 +170,29 @@ class FgStabilityIT {
     void isolatesByTenant() throws Exception {
         var session = login();
         var batchId = startedBatch(session);
-        var profileId = publishedProfile(session, null);
+        planSchedule(session, batchId, publishedProfile(session, null));
 
-        mockMvc.perform(get(url(batchId, profileId))
+        mockMvc.perform(get(url(batchId))
                         .with(authentication(principal(UUID.randomUUID(), Set.of("fermentation.reading.read")))))
                 .andExpect(status().isBadRequest());
     }
 
     // --- helpers ---
 
-    private static String url(String batchId, String profileId) {
-        return "/api/v1/fermentation/batches/" + batchId + "/fg-stability?profileId=" + profileId;
+    private static String url(String batchId) {
+        return "/api/v1/fermentation/batches/" + batchId + "/fg-stability";
+    }
+
+    /**
+     * Desde a FER-004 o perfil vem da agenda do lote, não por parâmetro: planejar a agenda é
+     * o que dá ao lote o critério de estabilidade.
+     */
+    private void planSchedule(MockHttpSession session, String batchId, String profileId) throws Exception {
+        mockMvc.perform(post("/api/v1/fermentation/batches/" + batchId + "/schedule").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"profileId\":\"" + profileId + "\",\"start\":\"2026-07-28T08:00:00Z\","
+                                + "\"responsibleUserId\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isCreated());
     }
 
     private static String body(String batchId, String value, String at) {

@@ -2,7 +2,6 @@ import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { FermentationProfile } from '../domain/profile.model';
 import {
   BatchOption,
   FermentationReading,
@@ -33,8 +32,6 @@ export class ReadingsStore {
   readonly invalidCount = computed(() => this.items().filter(r => !r.valid).length);
 
   /** Estabilidade de FG (FER-003): parecer sob demanda, nunca automático. */
-  readonly profiles = signal<FermentationProfile[]>([]);
-  readonly profileId = signal<string | null>(null);
   readonly stability = signal<FgStability | null>(null);
   readonly evaluating = signal(false);
   readonly stabilityError = signal<string | null>(null);
@@ -53,22 +50,6 @@ export class ReadingsStore {
       });
   }
 
-  /** Só perfil publicado rege um parecer; rascunho ainda muda debaixo da avaliação. */
-  loadProfiles(): void {
-    this.api.profiles()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: profiles => {
-          const published = profiles.filter(p => p.status === 'PUBLISHED');
-          this.profiles.set(published);
-          if (!this.profileId() && published.length > 0) {
-            this.profileId.set(published[0].id);
-          }
-        },
-        error: () => this.profiles.set([]),
-      });
-  }
-
   select(batchId: string): void {
     this.batchId.set(batchId);
     this.stability.set(null);
@@ -76,26 +57,21 @@ export class ReadingsStore {
     this.load();
   }
 
-  selectProfile(profileId: string): void {
-    this.profileId.set(profileId);
-    this.stability.set(null);
-  }
-
+  /** O critério vem do perfil da agenda do lote; sem agenda não há o que aplicar. */
   evaluateStability(): void {
     const batchId = this.batchId();
-    const profileId = this.profileId();
-    if (!batchId || !profileId) {
+    if (!batchId) {
       return;
     }
     this.evaluating.set(true);
     this.stabilityError.set(null);
-    this.api.fgStability(batchId, profileId)
+    this.api.fgStability(batchId)
       .pipe(finalize(() => this.evaluating.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: result => this.stability.set(result),
         error: (err: { status?: number }) =>
-          this.stabilityError.set(err?.status === 409
-            ? 'Perfil em rascunho não pode reger a avaliação; publique-o antes.'
+          this.stabilityError.set(err?.status === 400
+            ? 'Este lote ainda não tem agenda de fermentação, que é o que define o critério de FG.'
             : 'Não foi possível avaliar a estabilidade de FG.'),
       });
   }

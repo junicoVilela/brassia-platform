@@ -1,0 +1,202 @@
+<app-page-header title="Linha do tempo de fermentação"
+                 subtitle="Rampas, descanso, dry hop, cold crash, transferência e acondicionamento" />
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <label class="form-label" for="slote">Lote</label>
+    <select id="slote" class="form-select" [value]="store.batchId() ?? ''"
+            (change)="store.select($any($event.target).value)">
+      @for (b of store.batches(); track b.id) {
+        <option [value]="b.id">{{ b.code }} — {{ b.recipeName }}</option>
+      }
+    </select>
+  </div>
+</div>
+
+@if (store.loading()) {
+  <app-loading-indicator />
+} @else if (!store.planned()) {
+  <div class="card border-0 rounded-10">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-1">Planejar agenda</h2>
+      <p class="text-muted small mb-3">
+        As etapas são derivadas dos estágios de um perfil publicado. Esse vínculo também define o critério
+        de estabilidade de FG do lote.
+      </p>
+      @if (!canManage) {
+        <app-empty-state icon="ri-calendar-line" message="Este lote ainda não tem agenda de fermentação." />
+      } @else {
+        <form [formGroup]="planForm" (ngSubmit)="plan()" class="row g-2 align-items-end">
+          <div class="col-sm-4"><label class="form-label small" for="pprofile">Perfil publicado</label>
+            <select id="pprofile" class="form-select form-select-sm" formControlName="profileId">
+              <option value="">Selecione…</option>
+              @for (p of store.profiles(); track p.id) {
+                <option [value]="p.id">{{ p.code }} v{{ p.version }} — {{ p.name }}</option>
+              }
+            </select></div>
+          <div class="col-sm-3"><label class="form-label small" for="pstart">Início</label>
+            <input id="pstart" type="datetime-local" class="form-control form-control-sm" formControlName="start"></div>
+          <div class="col-sm-3"><label class="form-label small" for="presp">Responsável (id)</label>
+            <input id="presp" type="text" class="form-control form-control-sm" formControlName="responsibleUserId"></div>
+          <div class="col-sm-1"><label class="form-label small" for="pdur">Dias</label>
+            <input id="pdur" type="number" class="form-control form-control-sm" formControlName="defaultDurationDays"></div>
+          <div class="col-sm-1"><label class="form-label small" for="ptol">Tol. (h)</label>
+            <input id="ptol" type="number" class="form-control form-control-sm" formControlName="toleranceHours"></div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-primary btn-sm" [disabled]="planForm.invalid || store.submitting()">
+              <i class="ri-calendar-check-line me-1" aria-hidden="true"></i> Planejar
+            </button>
+          </div>
+        </form>
+        @if (store.actionError(); as actionError) {
+          <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+        }
+      }
+    </div>
+  </div>
+} @else {
+  @if (store.preview(); as preview) {
+    <div class="card border-0 rounded-10 mb-4 border-warning">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-1">Prévia do replanejamento</h2>
+        <p class="text-muted small mb-3">
+          Deslocamento de {{ preview.deltaHours }}h. Nada foi gravado ainda.
+        </p>
+        <ul class="small mb-3 ps-3">
+          @for (c of preview.changes; track c.stepId) {
+            <li>
+              <span class="fw-medium">{{ c.name }}</span>:
+              {{ c.fromStart | date: 'dd/MM HH:mm' }} → {{ c.toStart | date: 'dd/MM HH:mm' }}
+            </li>
+          }
+        </ul>
+        @if (preview.blocked.length > 0) {
+          <p class="small fw-medium mb-1">A propagação parou aqui:</p>
+          <ul class="small text-muted mb-3 ps-3">
+            @for (b of preview.blocked; track b.stepId) {
+              <li>{{ b.name }} — {{ b.reason }}</li>
+            }
+          </ul>
+        }
+        <button type="button" class="btn btn-sm btn-warning me-2" (click)="store.confirmReschedule()">
+          <i class="ri-check-line me-1" aria-hidden="true"></i> Confirmar
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" (click)="store.clearPreview()">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  }
+
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-3">Etapas</h2>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <caption class="visually-hidden">Etapas planejadas, executadas e seus desvios</caption>
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Etapa</th>
+              <th scope="col">Ação</th>
+              <th scope="col">Janela planejada</th>
+              <th scope="col">Tolerância</th>
+              <th scope="col">Situação</th>
+              <th scope="col" class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (s of store.steps(); track s.id) {
+              <tr>
+                <td>{{ s.sequence }}</td>
+                <td class="fw-medium">
+                  {{ s.name }}
+                  @if (!s.dependsOnPrevious) {
+                    <span class="badge text-bg-light ms-1" title="Data própria: o recálculo para aqui">âncora</span>
+                  }
+                </td>
+                <td class="small">{{ actionLabels[s.action] }}</td>
+                <td class="small">
+                  {{ s.plannedStart | date: 'dd/MM HH:mm' }} → {{ s.plannedEnd | date: 'dd/MM HH:mm' }}
+                </td>
+                <td class="small">±{{ s.toleranceHours }}h</td>
+                <td>
+                  @if (s.status === 'DONE') {
+                    <span class="badge text-bg-success">Executada</span>
+                    <div class="small text-muted">
+                      {{ s.executedAt | date: 'dd/MM HH:mm' }}
+                      @if (s.deviationHours !== 0) {
+                        · desvio {{ s.deviationHours }}h
+                      }
+                    </div>
+                    @if (s.justification) {
+                      <div class="small text-muted">{{ s.justification }}</div>
+                    }
+                  } @else {
+                    <span class="badge text-bg-secondary">Planejada</span>
+                  }
+                </td>
+                <td class="text-end text-nowrap">
+                  @if (canManage && s.status === 'PLANNED') {
+                    <button type="button" class="btn btn-sm btn-outline-primary me-1"
+                            (click)="askPreview(s.id, s.plannedStart)">
+                      <i class="ri-calendar-event-line me-1" aria-hidden="true"></i> Mover
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-success"
+                            (click)="registerExecution(s.id)">Executar</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  @if (canManage) {
+    <div class="card border-0 rounded-10">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-1">Nova etapa do lote</h2>
+        <p class="text-muted small mb-3">
+          Etapas específicas deste lote. Desmarque "segue a anterior" para fixar a data (âncora).
+        </p>
+        <form [formGroup]="stepForm" (ngSubmit)="addStep()" class="row g-2 align-items-end">
+          <div class="col-sm-3"><label class="form-label small" for="ename">Nome</label>
+            <input id="ename" type="text" class="form-control form-control-sm" formControlName="name"
+                   placeholder="Dry hop"></div>
+          <div class="col-sm-2"><label class="form-label small" for="eaction">Ação</label>
+            <select id="eaction" class="form-select form-select-sm" formControlName="action">
+              @for (a of actions; track a) { <option [value]="a">{{ actionLabels[a] }}</option> }
+            </select></div>
+          <div class="col-sm-2"><label class="form-label small" for="estart">Início</label>
+            <input id="estart" type="datetime-local" class="form-control form-control-sm"
+                   formControlName="plannedStart"></div>
+          <div class="col-sm-2"><label class="form-label small" for="eend">Fim</label>
+            <input id="eend" type="datetime-local" class="form-control form-control-sm"
+                   formControlName="plannedEnd"></div>
+          <div class="col-sm-1"><label class="form-label small" for="etol">Tol. (h)</label>
+            <input id="etol" type="number" class="form-control form-control-sm" formControlName="toleranceHours"></div>
+          <div class="col-sm-2"><label class="form-label small" for="eresp">Responsável (id)</label>
+            <input id="eresp" type="text" class="form-control form-control-sm"
+                   formControlName="responsibleUserId"></div>
+          <div class="col-sm-3 d-flex align-items-center pt-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="edep" formControlName="dependsOnPrevious">
+              <label class="form-check-label small" for="edep">Segue a anterior</label>
+            </div>
+          </div>
+          <div class="col-sm-3">
+            <button type="submit" class="btn btn-outline-primary btn-sm"
+                    [disabled]="stepForm.invalid || store.submitting()">
+              <i class="ri-add-line me-1" aria-hidden="true"></i> Acrescentar etapa
+            </button>
+          </div>
+        </form>
+        @if (store.actionError(); as actionError) {
+          <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+        }
+      </div>
+    </div>
+  }
+}

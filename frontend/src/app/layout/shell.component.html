@@ -129,6 +129,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('fermentation.schedule.read')) {
+            <li class="menu-item">
+              <a routerLink="/fermentation/schedule" routerLinkActive="active" class="menu-link">
+                <i class="ri-calendar-line menu-icon"></i>
+                <span class="title">Linha do tempo</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('fermentation.yeast.read')) {
             <li class="menu-item">
               <a routerLink="/fermentation/yeast" routerLinkActive="active" class="menu-link">

@@ -54,7 +54,6 @@ export class ReadingsPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.loadBatches();
-    this.store.loadProfiles();
     // Trocar a grandeza reposiciona a unidade: unidade incompatível é recusada pelo domínio.
     this.form.controls.kind.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))

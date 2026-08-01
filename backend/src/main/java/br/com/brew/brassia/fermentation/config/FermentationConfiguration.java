@@ -1,23 +1,30 @@
 package br.com.brew.brassia.fermentation.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.fermentation.application.port.inbound.AddScheduleStepUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.CollectYeastUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.CreateProfileUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.EvaluateFgStabilityUseCase;
+import br.com.brew.brassia.fermentation.application.port.inbound.ExecuteScheduleStepUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.GetProfileUseCase;
+import br.com.brew.brassia.fermentation.application.port.inbound.GetScheduleUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.GetYeastGenealogyUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.ListProfilesUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.ListReadingsUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.ListYeastHarvestsUseCase;
+import br.com.brew.brassia.fermentation.application.port.inbound.PlanScheduleUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.PublishProfileUseCase;
+import br.com.brew.brassia.fermentation.application.port.inbound.RaiseLateStepAlertsUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.RecommendYeastReuseUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.RecordReadingUseCase;
+import br.com.brew.brassia.fermentation.application.port.inbound.RescheduleStepUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.ReviewYeastHarvestUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.UpdateProfileUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.UseYeastHarvestUseCase;
 import br.com.brew.brassia.fermentation.application.port.inbound.YeastPolicyUseCase;
 import br.com.brew.brassia.fermentation.application.port.outbound.ProfileRepository;
 import br.com.brew.brassia.fermentation.application.port.outbound.ReadingRepository;
+import br.com.brew.brassia.fermentation.application.port.outbound.ScheduleRepository;
 import br.com.brew.brassia.fermentation.application.port.outbound.YeastHarvestRepository;
 import br.com.brew.brassia.fermentation.application.port.outbound.YeastPolicyRepository;
 import br.com.brew.brassia.fermentation.application.service.CollectYeastHandler;
@@ -31,10 +38,12 @@ import br.com.brew.brassia.fermentation.application.service.ListYeastHarvestsHan
 import br.com.brew.brassia.fermentation.application.service.PublishProfileHandler;
 import br.com.brew.brassia.fermentation.application.service.RecommendYeastReuseHandler;
 import br.com.brew.brassia.fermentation.application.service.RecordReadingHandler;
+import br.com.brew.brassia.fermentation.application.service.ScheduleHandlers;
 import br.com.brew.brassia.fermentation.application.service.ReviewYeastHarvestHandler;
 import br.com.brew.brassia.fermentation.application.service.UpdateProfileHandler;
 import br.com.brew.brassia.fermentation.application.service.UseYeastHarvestHandler;
 import br.com.brew.brassia.fermentation.application.service.YeastPolicyHandler;
+import br.com.brew.brassia.production.BatchAlertPublisher;
 import br.com.brew.brassia.production.BatchLookup;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -93,9 +102,9 @@ class FermentationConfiguration {
     }
 
     @Bean
-    EvaluateFgStabilityUseCase evaluateFgStabilityUseCase(
-            ReadingRepository readings, ProfileRepository profiles, BatchLookup batches) {
-        return new EvaluateFgStabilityHandler(readings, profiles, batches);
+    EvaluateFgStabilityUseCase evaluateFgStabilityUseCase(ReadingRepository readings, ProfileRepository profiles,
+            ScheduleRepository schedules, BatchLookup batches) {
+        return new EvaluateFgStabilityHandler(readings, profiles, schedules, batches);
     }
 
     @Bean
@@ -141,5 +150,48 @@ class FermentationConfiguration {
     @Bean
     YeastPolicyUseCase yeastPolicyUseCase(YeastPolicyRepository policies, AuditTrail audit) {
         return new YeastPolicyHandler(policies, audit);
+    }
+
+    @Bean
+    PlanScheduleUseCase planScheduleUseCase(ScheduleRepository schedules, ProfileRepository profiles,
+            BatchLookup batches, AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new ScheduleHandlers.Plan(schedules, profiles, batches, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    GetScheduleUseCase getScheduleUseCase(ScheduleRepository schedules) {
+        return new ScheduleHandlers.Get(schedules);
+    }
+
+    @Bean
+    AddScheduleStepUseCase addScheduleStepUseCase(ScheduleRepository schedules, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ScheduleHandlers.AddStep(schedules, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    RescheduleStepUseCase rescheduleStepUseCase(ScheduleRepository schedules, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ScheduleHandlers.Reschedule(schedules, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ExecuteScheduleStepUseCase executeScheduleStepUseCase(ScheduleRepository schedules, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ScheduleHandlers.Execute(schedules, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    RaiseLateStepAlertsUseCase raiseLateStepAlertsUseCase(ScheduleRepository schedules,
+            BatchAlertPublisher alerts) {
+        return new ScheduleHandlers.RaiseLateAlerts(schedules, alerts);
     }
 }

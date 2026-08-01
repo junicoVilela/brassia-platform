@@ -3,6 +3,7 @@ package br.com.brew.brassia.production.config;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.calculator.CalculatorEngine;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
+import br.com.brew.brassia.production.BatchAlertPublisher;
 import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.production.application.port.inbound.ApplyCorrectionUseCase;
 import br.com.brew.brassia.production.application.port.inbound.CompleteBatchStepUseCase;
@@ -153,5 +154,16 @@ class ProductionConfiguration {
     @Bean
     BatchLookup batchLookup(BatchRepository batches) {
         return (breweryId, batchId) -> batches.findById(breweryId, batchId).isPresent();
+    }
+
+    /**
+     * Abertura de alerta publicada para outros módulos (ex.: agenda de fermentação, FER-004).
+     * Entra como STEP na central existente; segue sendo aviso, sem efeito no lote.
+     */
+    @Bean
+    BatchAlertPublisher batchAlertPublisher(CreateAlertUseCase createAlert) {
+        return (breweryId, actorId, batchId, message, plannedAt, occurredAt) -> createAlert.handle(
+                new CreateAlertUseCase.Command(actorId, breweryId, batchId, "STEP", message, plannedAt, occurredAt))
+                .id();
     }
 }

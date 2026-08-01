@@ -785,18 +785,14 @@ paths:
   /fermentation/batches/{batchId}/fg-stability:
     get:
       operationId: evaluateFgStability
-      summary: "Avalia a estabilidade de FG do lote sob o critério de um perfil publicado"
+      summary: "Avalia a estabilidade de FG do lote sob o critério do perfil da sua agenda"
       description: >
         Parecer explicável: devolve o critério aplicado e as leituras que o sustentam.
         Não encerra a fermentação nem altera o lote — a decisão é do cervejeiro.
         Só entram leituras de densidade em SG marcadas como válidas.
+        O critério vem do perfil da agenda do lote; lote sem agenda responde 400.
       parameters:
         - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
-        - name: profileId
-          in: query
-          required: true
-          description: "Perfil publicado cujo critério rege a avaliação"
-          schema: {type: string, format: uuid}
       responses:
         '200':
           description: Parecer de estabilidade
@@ -849,6 +845,113 @@ paths:
             application/json:
               schema: {type: array, items: {$ref: '#/components/schemas/YeastHarvest'}}
         '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /fermentation/batches/{batchId}/schedule:
+    get:
+      operationId: getFermentationSchedule
+      summary: Linha do tempo de fermentação do lote
+      parameters:
+        - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Agenda do lote
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FermentationSchedule'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: planFermentationSchedule
+      summary: "Planeja a agenda a partir de um perfil publicado"
+      description: >
+        Deriva as etapas dos estágios do perfil. O vínculo lote↔perfil resultante também
+        define o critério de estabilidade de FG do lote. Um lote tem uma agenda só (409);
+        perfil em rascunho não rege agenda (409).
+      parameters:
+        - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PlanFermentationSchedule'}
+      responses:
+        '201': {description: Agenda planejada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /fermentation/batches/{batchId}/schedule/steps:
+    post:
+      operationId: addFermentationScheduleStep
+      summary: "Acrescenta etapa específica do lote (dry hop, cold crash, transferência)"
+      parameters:
+        - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AddScheduleStep'}
+      responses:
+        '201': {description: Etapa acrescentada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /fermentation/batches/{batchId}/schedule/steps/{stepId}/reschedule:
+    post:
+      operationId: rescheduleFermentationStep
+      summary: "Move a data de uma etapa; com apply=false devolve só a prévia"
+      description: >
+        A propagação segue apenas a cadeia de etapas encadeadas e ainda pendentes: etapa
+        executada e etapa-âncora (sem dependência da anterior) não se movem e aparecem em
+        `blocked` com o motivo. Nada é gravado quando apply=false.
+      parameters:
+        - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: stepId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RescheduleStep'}
+      responses:
+        '200':
+          description: Prévia (ou efeito aplicado) do recálculo
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReschedulePreview'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /fermentation/batches/{batchId}/schedule/steps/{stepId}/execute:
+    post:
+      operationId: executeFermentationStep
+      summary: "Registra a execução da etapa (planejado permanece)"
+      description: >
+        Desvio e justificativa entram ao lado da janela planejada, que não é reescrita.
+        Execução fora da tolerância exige justificativa (400 sem ela); etapa já executada
+        responde 409.
+      parameters:
+        - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: stepId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExecuteScheduleStep'}
+      responses:
+        '200': {description: Execução registrada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /fermentation/schedule/late-step-alerts:
+    post:
+      operationId: raiseLateStepAlerts
+      summary: "Abre alerta na central do lote para cada etapa vencida além da tolerância"
+      description: >
+        Alerta é aviso: não altera setpoint, equipamento nem o estado da etapa.
+      responses:
+        '200':
+          description: Ids dos alertas abertos
+          content:
+            application/json:
+              schema: {type: array, items: {type: string, format: uuid}}
         '403': {$ref: '#/components/responses/Problem'}
   /fermentation/yeast/reuse:
     get:
@@ -1863,6 +1966,108 @@ components:
       properties:
         approve: {type: boolean}
         note: {type: string, maxLength: 200, description: "Obrigatório quando approve=false"}
+    FermentationScheduleStep:
+      type: object
+      required: [id, sequence, name, action, condition, plannedStart, plannedEnd, toleranceHours,
+                 responsibleUserId, dependsOnPrevious, status, deviationHours]
+      properties:
+        id: {type: string, format: uuid}
+        sequence: {type: integer, minimum: 1}
+        name: {type: string}
+        action: {type: string, enum: [RAMP, REST, DRY_HOP, COLD_CRASH, TRANSFER, CONDITIONING]}
+        condition: {type: string, enum: [TIME, GRAVITY, MANUAL]}
+        conditionDays: {type: integer, nullable: true}
+        targetGravity: {type: number, nullable: true}
+        plannedStart: {type: string, format: date-time}
+        plannedEnd: {type: string, format: date-time}
+        toleranceHours: {type: integer, minimum: 0}
+        responsibleUserId: {type: string, format: uuid}
+        dependsOnPrevious:
+          type: boolean
+          description: "false = âncora com data própria; a propagação do recálculo para nela"
+        status: {type: string, enum: [PLANNED, DONE]}
+        executedAt: {type: string, format: date-time, nullable: true}
+        deviationHours:
+          type: integer
+          description: "Desvio da execução em relação à janela: negativo antes, positivo depois"
+        justification: {type: string, nullable: true}
+    FermentationSchedule:
+      type: object
+      required: [id, batchId, profileId, profileVersion, steps]
+      properties:
+        id: {type: string, format: uuid}
+        batchId: {type: string, format: uuid}
+        profileId: {type: string, format: uuid}
+        profileVersion: {type: integer}
+        steps:
+          type: array
+          items: {$ref: '#/components/schemas/FermentationScheduleStep'}
+    PlanFermentationSchedule:
+      type: object
+      required: [profileId, start, responsibleUserId]
+      properties:
+        profileId: {type: string, format: uuid, description: "Perfil publicado"}
+        start: {type: string, format: date-time}
+        responsibleUserId: {type: string, format: uuid}
+        defaultDurationDays:
+          type: integer
+          minimum: 1
+          description: "Duração de estágio cujo fim não é por tempo (padrão 3)"
+        toleranceHours: {type: integer, minimum: 0, description: "Padrão 12"}
+    AddScheduleStep:
+      type: object
+      required: [name, action, condition, plannedStart, plannedEnd, responsibleUserId]
+      properties:
+        name: {type: string, maxLength: 120}
+        action: {type: string, enum: [RAMP, REST, DRY_HOP, COLD_CRASH, TRANSFER, CONDITIONING]}
+        condition: {type: string, enum: [TIME, GRAVITY, MANUAL]}
+        conditionDays: {type: integer}
+        targetGravity: {type: number}
+        plannedStart: {type: string, format: date-time}
+        plannedEnd: {type: string, format: date-time}
+        toleranceHours: {type: integer, minimum: 0}
+        responsibleUserId: {type: string, format: uuid}
+        dependsOnPrevious: {type: boolean}
+    RescheduleStep:
+      type: object
+      required: [newStart]
+      properties:
+        newStart: {type: string, format: date-time}
+        apply: {type: boolean, description: "false devolve só a prévia; nada é gravado"}
+    ExecuteScheduleStep:
+      type: object
+      required: [executedAt]
+      properties:
+        executedAt: {type: string, format: date-time}
+        justification: {type: string, maxLength: 300, description: "Obrigatória fora da tolerância"}
+    ReschedulePreview:
+      type: object
+      required: [deltaHours, changes, blocked]
+      properties:
+        deltaHours: {type: integer}
+        changes:
+          type: array
+          description: "Etapas que se movem, com a janela atual e a proposta"
+          items:
+            type: object
+            properties:
+              stepId: {type: string, format: uuid}
+              sequence: {type: integer}
+              name: {type: string}
+              fromStart: {type: string, format: date-time}
+              toStart: {type: string, format: date-time}
+              fromEnd: {type: string, format: date-time}
+              toEnd: {type: string, format: date-time}
+        blocked:
+          type: array
+          description: "Onde a propagação parou, e por quê"
+          items:
+            type: object
+            properties:
+              stepId: {type: string, format: uuid}
+              sequence: {type: integer}
+              name: {type: string}
+              reason: {type: string}
     YeastPolicy:
       type: object
       description: "Limites de repitch da cervejaria; campo omitido herda o padrão (10 / 21 dias / 70%)"

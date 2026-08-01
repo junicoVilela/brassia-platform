@@ -83,6 +83,13 @@ export const routes: Routes = [
         loadChildren: () => import('./features/fermentation/fermentation.routes').then(m => m.FERMENTATION_ROUTES),
       },
       {
+        path: 'fermentation/schedule',
+        canActivate: [permissionGuard],
+        data: { permission: 'fermentation.schedule.read' },
+        loadChildren: () =>
+          import('./features/fermentation/fermentation.routes').then(m => m.FERMENTATION_SCHEDULE_ROUTES),
+      },
+      {
         path: 'fermentation/yeast',
         canActivate: [permissionGuard],
         data: { permission: 'fermentation.yeast.read' },

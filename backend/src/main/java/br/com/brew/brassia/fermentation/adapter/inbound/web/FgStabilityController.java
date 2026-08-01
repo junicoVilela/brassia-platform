@@ -7,12 +7,12 @@ import java.util.UUID;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Estabilidade de FG (FER-003). É consulta: devolve um parecer explicável e não encerra a
- * fermentação — por isso GET, sem auditoria de comando.
+ * fermentação — por isso GET, sem auditoria de comando. O critério vem do perfil da agenda do
+ * lote (FER-004).
  */
 @RestController
 final class FgStabilityController {
@@ -24,9 +24,8 @@ final class FgStabilityController {
     }
 
     @GetMapping("/api/v1/fermentation/batches/{batchId}/fg-stability")
-    FgStabilityView evaluate(@PathVariable UUID batchId, @RequestParam UUID profileId,
-            @AuthenticationPrincipal SecurityPrincipal principal) {
+    FgStabilityView evaluate(@PathVariable UUID batchId, @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("fermentation.reading.read");
-        return FgStabilityView.from(evaluate.handle(principal.requireBrewery(), batchId, profileId));
+        return FgStabilityView.from(evaluate.handle(principal.requireBrewery(), batchId));
     }
 }

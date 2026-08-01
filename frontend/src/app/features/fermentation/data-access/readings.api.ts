@@ -32,10 +32,9 @@ export class ReadingsApi {
     return this.http.get<FermentationProfile[]>('/api/v1/fermentation/profiles');
   }
 
-  fgStability(batchId: string, profileId: string) {
-    return this.http.get<FgStability>(`/api/v1/fermentation/batches/${batchId}/fg-stability`, {
-      params: new HttpParams().set('profileId', profileId),
-    });
+  /** O critério vem do perfil da agenda do lote (FER-004); sem agenda, o backend recusa. */
+  fgStability(batchId: string) {
+    return this.http.get<FgStability>(`/api/v1/fermentation/batches/${batchId}/fg-stability`);
   }
 
   record(request: RecordReadingRequest) {

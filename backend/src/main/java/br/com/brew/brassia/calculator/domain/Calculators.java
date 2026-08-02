@@ -45,7 +45,14 @@ public final class Calculators {
                         "Massa de açúcar para completar do CO₂ residual até os volumes alvo."),
                 new CalculatorSpec("forced-carbonation-pressure", "Pressão de carbonatação forçada",
                         List.of("targetVolumes", "tempC"), "bar",
-                        "Pressão de equilíbrio para atingir os volumes alvo na temperatura informada."));
+                        "Pressão de equilíbrio para atingir os volumes alvo na temperatura informada."),
+                new CalculatorSpec("line-balance", "Balanceamento de linha de serviço",
+                        List.of("appliedPressureBar", "elevationMeters", "residualPressureBar",
+                                "resistanceBarPerMeter", "targetFlowLpm", "referenceFlowLpm"), "m",
+                        "Comprimento de linha que equilibra a pressão aplicada na vazão desejada."),
+                new CalculatorSpec("beer-column-pressure", "Pressão da coluna de cerveja",
+                        List.of("elevationMeters"), "bar",
+                        "Pressão hidrostática ganha ou perdida pelo desnível entre barril e torneira."));
     }
 
     public CalculationResult compute(String id, Map<String, BigDecimal> inputs) {
@@ -63,6 +70,8 @@ public final class Calculators {
             case "co2-residual" -> co2Residual(inputs);
             case "priming-sugar" -> primingSugar(inputs);
             case "forced-carbonation-pressure" -> forcedCarbonationPressure(inputs);
+            case "line-balance" -> lineBalance(inputs);
+            case "beer-column-pressure" -> beerColumnPressure(inputs);
             default -> throw new IllegalArgumentException("calculadora desconhecida: " + id);
         };
     }
@@ -273,6 +282,67 @@ public final class Calculators {
         return result("forced-carbonation-pressure", in, round(psi * PSI_TO_BAR, 2), "bar",
                 "P(psig) = (vol + 0.003342) / (0.01821 + 0.09011·e^(−(T−32)/43.11)) − 14.695 (T em °F)",
                 List.of("equilíbrio atingido", "pressão manométrica convertida a bar"), alerts);
+    }
+
+    /**
+     * Pressão hidrostática de uma coluna de cerveja, em bar por metro: ρ·g com densidade de
+     * 1010 kg/m³ e g = 9,80665 m/s². É física, não escolha — a cerveja pesa o que pesa.
+     */
+    private static final double BEER_COLUMN_BAR_PER_METER = 1010.0 * 9.80665 / 100_000.0;
+
+    /**
+     * Pressão ganha ou perdida pelo desnível entre o barril e a torneira (GAS-002). Torneira acima
+     * do barril consome pressão; abaixo, devolve — por isso o desnível pode ser negativo.
+     */
+    private CalculationResult beerColumnPressure(Map<String, BigDecimal> in) {
+        double meters = require(in, "elevationMeters").doubleValue();
+        return result("beer-column-pressure", in, round(meters * BEER_COLUMN_BAR_PER_METER, 4), "bar",
+                "P = ρ·g·h, com ρ = 1010 kg/m³ e g = 9,80665 m/s²",
+                List.of("densidade típica de cerveja", "desnível positivo = torneira acima do barril"),
+                List.of());
+    }
+
+    /**
+     * Comprimento de linha que equilibra a pressão aplicada (GAS-002).
+     *
+     * <p>A pressão aplicada não é livre: ela é ditada pelo equilíbrio de carbonatação na
+     * temperatura de serviço. O que sobra dela, depois de vencer o desnível e a pressão residual
+     * que mantém a torneira fluindo, é o que a linha precisa dissipar por atrito.
+     *
+     * <p>A vazão entra escalando a resistência: em escoamento laminar a perda de carga é
+     * proporcional à vazão, então pedir o dobro da vazão de referência do fabricante dobra a
+     * resistência efetiva do mesmo tubo.
+     */
+    private CalculationResult lineBalance(Map<String, BigDecimal> in) {
+        double applied = require(in, "appliedPressureBar").doubleValue();
+        double elevation = require(in, "elevationMeters").doubleValue();
+        double residual = require(in, "residualPressureBar").doubleValue();
+        double resistance = require(in, "resistanceBarPerMeter").doubleValue();
+        double targetFlow = require(in, "targetFlowLpm").doubleValue();
+        double referenceFlow = require(in, "referenceFlowLpm").doubleValue();
+
+        var alerts = new ArrayList<String>();
+        if (resistance <= 0 || referenceFlow <= 0 || targetFlow <= 0) {
+            return result("line-balance", in, BigDecimal.ZERO, "m", "balanceamento de linha", List.of(),
+                    List.of("resistência, vazão alvo e vazão de referência devem ser positivas"));
+        }
+
+        double effectiveResistance = resistance * (targetFlow / referenceFlow);
+        double available = applied - elevation * BEER_COLUMN_BAR_PER_METER - residual;
+        if (available <= 0) {
+            alerts.add("A pressão aplicada não vence o desnível mais a pressão residual: nessa montagem "
+                    + "a cerveja não flui. Reduza o desnível, a pressão residual, ou reveja a carbonatação.");
+            return result("line-balance", in, BigDecimal.ZERO, "m",
+                    "L = (P − ρ·g·h − P_residual) / (R × vazão/vazão_ref)",
+                    List.of("escoamento laminar: perda de carga proporcional à vazão"), alerts);
+        }
+
+        double length = available / effectiveResistance;
+        return result("line-balance", in, round(length, 2), "m",
+                "L = (P − ρ·g·h − P_residual) / (R × vazão/vazão_ref)",
+                List.of("escoamento laminar: perda de carga proporcional à vazão",
+                        "resistência do tubo medida na vazão de referência do fabricante"),
+                alerts);
     }
 
     private static final BigDecimal HUNDRED = new BigDecimal("100");

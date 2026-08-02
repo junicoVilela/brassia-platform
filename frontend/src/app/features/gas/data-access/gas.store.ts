@@ -3,13 +3,19 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
 import {
+  ApplyRevisionRequest,
+  BalanceInput,
   ConnectGasRequest,
   GasBlocker,
   GasComponent,
   GasConnection,
   GasConnectionDetail,
   GasCylinder,
+  GasTubing,
+  LineBalance,
   RegisterCylinderRequest,
+  ServiceLine,
+  ServiceLineDetail,
 } from '../domain/gas.model';
 import { EquipmentOption, GasApi } from './gas.api';
 
@@ -41,6 +47,15 @@ export class GasStore {
 
   /** Impedimentos da última tentativa de conexão, mostrados todos de uma vez. */
   readonly connectBlockers = signal<GasBlocker[]>([]);
+
+  /** Linha de serviço (GAS-002): calcular e aplicar são passos separados. */
+  readonly serviceLines = signal<ServiceLine[]>([]);
+  readonly tubing = signal<GasTubing[]>([]);
+  readonly lineDetail = signal<ServiceLineDetail | null>(null);
+  readonly openLineOf = signal<string | null>(null);
+  readonly lineBalance = signal<LineBalance | null>(null);
+  readonly balancing = signal(false);
+  readonly lineError = signal<string | null>(null);
 
   readonly empty = computed(() => !this.loading() && !this.error() && this.connections().length === 0);
 
@@ -229,6 +244,97 @@ export class GasStore {
           this.toast.error(err?.status === 409
             ? 'Linha já desconectada.'
             : 'Não foi possível desconectar a linha.'),
+      });
+  }
+
+  // --- linha de serviço (GAS-002) ---
+
+  loadServiceLines(): void {
+    this.api.serviceLines()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: lines => this.serviceLines.set(lines), error: () => this.serviceLines.set([]) });
+    this.api.tubing()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: tubing => this.tubing.set(tubing), error: () => this.tubing.set([]) });
+  }
+
+  toggleLine(lineId: string): void {
+    if (this.openLineOf() === lineId) {
+      this.openLineOf.set(null);
+      this.lineDetail.set(null);
+      this.lineBalance.set(null);
+      this.lineError.set(null);
+      return;
+    }
+    this.openLineOf.set(lineId);
+    this.lineBalance.set(null);
+    this.lineError.set(null);
+    this.loadLineDetail(lineId);
+  }
+
+  registerServiceLine(code: string, name: string, pointOfUseEquipmentId: string, onSuccess?: () => void): void {
+    this.submitting.set(true);
+    this.lineError.set(null);
+    this.api.registerServiceLine(code, name, pointOfUseEquipmentId)
+      .pipe(finalize(() => this.submitting.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          onSuccess?.();
+          this.toast.success('Linha de serviço cadastrada.');
+          this.loadServiceLines();
+        },
+        error: (err: { status?: number }) =>
+          this.lineError.set(err?.status === 409
+            ? 'Código de linha já usado.'
+            : 'Não foi possível cadastrar a linha (ponto de uso inválido).'),
+      });
+  }
+
+  registerTubing(material: string, diameterMm: number, resistance: number, referenceFlow: number): void {
+    this.api.registerTubing(material, diameterMm, resistance, referenceFlow)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success('Tubo do catálogo salvo.');
+          this.loadServiceLines();
+        },
+        error: () => this.toast.error('Não foi possível salvar o tubo (valores devem ser positivos).'),
+      });
+  }
+
+  /** Calcular não aplica nada: a recomendação fica separada da montagem. */
+  balance(lineId: string, input: BalanceInput): void {
+    this.balancing.set(true);
+    this.lineError.set(null);
+    this.api.balance(lineId, input)
+      .pipe(finalize(() => this.balancing.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: balance => this.lineBalance.set(balance),
+        error: () => this.lineError.set('Não foi possível calcular (verifique o tubo e os valores).'),
+      });
+  }
+
+  applyRevision(lineId: string, request: ApplyRevisionRequest): void {
+    this.balancing.set(true);
+    this.lineError.set(null);
+    this.api.applyRevision(lineId, request)
+      .pipe(finalize(() => this.balancing.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: result => {
+          this.toast.success(`Revisão ${result.revision} aplicada; a anterior foi preservada.`);
+          this.loadLineDetail(lineId);
+          this.loadServiceLines();
+        },
+        error: () => this.lineError.set('Não foi possível aplicar a montagem.'),
+      });
+  }
+
+  private loadLineDetail(lineId: string): void {
+    this.api.serviceLine(lineId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: detail => this.lineDetail.set(detail),
+        error: () => this.lineDetail.set(null),
       });
   }
 

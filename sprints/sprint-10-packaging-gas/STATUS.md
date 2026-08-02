@@ -11,7 +11,7 @@ Estado: EM ANDAMENTO
 | PKG-002 | Concluída | — | V69 + `CarbonationIT` (13 testes) | Fórmulas no hub `calculator` |
 | PKG-003 | Concluída | — | V70 + `PackagingRunIT` (12 testes) | Perda derivada; consumo vira movimento |
 | FSL-001 | Concluída | — | V71 + `FreshnessIT` (13 testes) | Política de vida útil é da cervejaria |
-| GAS-002 | A fazer | — | — | — |
+| GAS-002 | Concluída | — | V72 + `ServiceLineIT` (12 testes) | Recomendação; nada é ajustado |
 | PKG-004 | A fazer | — | — | — |
 
 ## Decisões e bloqueios
@@ -133,3 +133,29 @@ Estado: EM ANDAMENTO
 - Configurar a política é alçada própria (`packaging.policy.manage`): gerir plano não basta.
 - A política curva só desce: uma faixa mais suja não pode prometer mais dias que uma mais limpa, e
   o pior caso não pode render mais que a última faixa.
+
+### GAS-002
+
+- **A pressão de serviço não é escolha livre.** Ela sai do equilíbrio de carbonatação na temperatura
+  de serviço — a mesma calculadora da PKG-002, reutilizada, não copiada. Servir a outra pressão faz
+  o barril ganhar ou perder CO₂ ao longo do tempo, e a cerveja sai do padrão sem ninguém ter mexido
+  nela. O que sobra dessa pressão, depois do desnível e da pressão residual da torneira, é o que a
+  linha dissipa por atrito.
+- **A vazão entra escalando a resistência**, não como enfeite: em escoamento laminar a perda de
+  carga é proporcional à vazão, então pedir o dobro da vazão de referência do fabricante dobra a
+  resistência efetiva do mesmo tubo. Por isso a vazão de referência é guardada ao lado da
+  resistência no catálogo de tubos — sem ela não dá para escalar corretamente.
+- **A resistência do tubo vem da ficha do fabricante**, não do sistema: material e diâmetro interno
+  são a identidade do tubo, e recadastrar a mesma combinação só atualiza os números.
+- **Nenhuma válvula ou regulador é ajustado automaticamente.** Todo retorno do balanceamento carrega
+  o aviso `manual_adjustment_only`, marcado como aviso de segurança. Montagem impossível vem com
+  `feasible: false`; pressão acima do teto da rede de gás do ponto (reaproveitando o
+  `networkMaxPressureBar` de GAS-001) vem com `above_network_limit`.
+- **Aplicar gera revisão e preserva a anterior:** a montagem física de ontem é a única evidência de
+  por que a cerveja de ontem saiu como saiu. O comprimento montado pode divergir do recomendado, e
+  o desvio é **registrado, não corrigido**.
+- A pressão hidrostática da coluna de cerveja (ρ·g com 1010 kg/m³) é física, não escolha, e ficou
+  numa calculadora própria (`beer-column-pressure`). O desnível pode ser negativo: a torneira pode
+  ficar abaixo do barril, e aí a coluna devolve pressão em vez de consumir.
+- Dataset dourado do balanceamento confere com a regra clássica de campo (3,5 pés para 12 psi em
+  tubo 3/16" com 1 pé de subida), o que valida o modelo métrico contra a prática conhecida.

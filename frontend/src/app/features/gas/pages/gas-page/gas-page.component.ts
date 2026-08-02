@@ -7,12 +7,14 @@ import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicat
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
 import { GasStore } from '../../data-access/gas.store';
 import {
+  BalanceInput,
   CONNECTION_STATUS_LABELS,
   CYLINDER_STATUS_LABELS,
   COMPONENT_KIND_LABELS,
   GasConnection,
   GasCylinder,
   GasType,
+  ServiceLine,
 } from '../../domain/gas.model';
 
 @Component({
@@ -57,9 +59,106 @@ export class GasPageComponent implements OnInit {
     workingPressureBar: this.fb.control<number | null>(null, [Validators.required, Validators.min(0.001)]),
   });
 
+  // --- linha de serviço (GAS-002) ---
+
+  protected readonly lineForm = this.fb.nonNullable.group({
+    code: ['', [Validators.required, Validators.maxLength(40)]],
+    name: ['', [Validators.required, Validators.maxLength(120)]],
+    pointOfUseEquipmentId: ['', Validators.required],
+  });
+
+  protected readonly tubingForm = this.fb.nonNullable.group({
+    material: ['', [Validators.required, Validators.maxLength(60)]],
+    internalDiameterMm: this.fb.control<number | null>(null, [Validators.required, Validators.min(0.01)]),
+    resistanceBarPerMeter: this.fb.control<number | null>(null, [Validators.required, Validators.min(0.0001)]),
+    referenceFlowLpm: this.fb.control<number | null>(null, [Validators.required, Validators.min(0.001)]),
+  });
+
+  /** O desnível pode ser negativo: a torneira pode ficar abaixo do barril. */
+  protected readonly balanceForm = this.fb.nonNullable.group({
+    targetCo2Volumes: this.fb.control<number | null>(2.5, [Validators.required, Validators.min(0.01)]),
+    servingTempC: this.fb.control<number | null>(4, Validators.required),
+    elevationMeters: this.fb.control<number | null>(0, Validators.required),
+    residualPressureBar: this.fb.control<number | null>(0.069, [Validators.required, Validators.min(0)]),
+    targetFlowLpm: this.fb.control<number | null>(1, [Validators.required, Validators.min(0.001)]),
+    resistanceId: ['', Validators.required],
+    appliedLengthMeters: this.fb.control<number | null>(null, [Validators.min(0.001)]),
+    note: [''],
+  });
+
+  protected toggleLine(line: ServiceLine): void {
+    this.store.toggleLine(line.id);
+  }
+
+  protected registerLine(): void {
+    if (this.lineForm.invalid) {
+      return;
+    }
+    const v = this.lineForm.getRawValue();
+    this.store.registerServiceLine(v.code, v.name, v.pointOfUseEquipmentId,
+      () => this.lineForm.reset({ code: '', name: '', pointOfUseEquipmentId: '' }));
+  }
+
+  protected registerTubing(): void {
+    if (this.tubingForm.invalid) {
+      return;
+    }
+    const v = this.tubingForm.getRawValue();
+    this.store.registerTubing(v.material, v.internalDiameterMm!, v.resistanceBarPerMeter!,
+      v.referenceFlowLpm!);
+    this.tubingForm.reset({ material: '', internalDiameterMm: null, resistanceBarPerMeter: null,
+      referenceFlowLpm: null });
+  }
+
+  protected balance(lineId: string): void {
+    const input = this.balanceInput();
+    if (input) {
+      this.store.balance(lineId, input);
+    }
+  }
+
+  /** Aplicar é ato explícito: o sistema calcula, quem monta a linha é a pessoa. */
+  protected applyRevision(lineId: string): void {
+    const input = this.balanceInput();
+    const v = this.balanceForm.getRawValue();
+    if (!input || !v.appliedLengthMeters) {
+      return;
+    }
+    if (window.confirm(`Registrar a montagem de ${v.appliedLengthMeters} m nesta linha?`
+        + ' Uma revisão nova é criada e a anterior é preservada.')) {
+      this.store.applyRevision(lineId, {
+        ...input,
+        appliedLengthMeters: v.appliedLengthMeters,
+        note: v.note.trim() || null,
+      });
+    }
+  }
+
+  private balanceInput(): BalanceInput | null {
+    const v = this.balanceForm.getRawValue();
+    if (!v.resistanceId || v.targetCo2Volumes === null || v.servingTempC === null
+        || v.elevationMeters === null || v.residualPressureBar === null || v.targetFlowLpm === null) {
+      return null;
+    }
+    return {
+      targetCo2Volumes: v.targetCo2Volumes,
+      servingTempC: v.servingTempC,
+      elevationMeters: v.elevationMeters,
+      residualPressureBar: v.residualPressureBar,
+      targetFlowLpm: v.targetFlowLpm,
+      resistanceId: v.resistanceId,
+    };
+  }
+
+  protected equipmentName(equipmentId: string): string {
+    const equipment = this.store.equipment().find(e => e.id === equipmentId);
+    return equipment ? `${equipment.code} — ${equipment.name}` : '—';
+  }
+
   ngOnInit(): void {
     this.store.load();
     this.store.loadReferences();
+    this.store.loadServiceLines();
   }
 
   protected registerCylinder(): void {

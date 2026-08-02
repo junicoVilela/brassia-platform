@@ -24,6 +24,12 @@ public interface GasConnectionRepository {
     /** Já existe conexão aberta neste ponto de uso? Um ponto recebe um cilindro por vez. */
     boolean hasOpenConnectionAtPoint(UUID breweryId, UUID pointOfUseEquipmentId);
 
+    /**
+     * Conexão aberta no ponto de uso, quando existe. O teto de pressão dela é limite físico real
+     * para o balanceamento da linha de serviço (GAS-002).
+     */
+    Optional<GasConnection> findOpenConnectionAtPoint(UUID breweryId, UUID pointOfUseEquipmentId);
+
     /** Leitura de pressão: evidência, nunca reescrita. */
     void insertPressureReading(UUID id, UUID breweryId, UUID connectionId, BigDecimal bar, BigDecimal tempC,
             boolean overPressure, UUID actorId, Instant at);

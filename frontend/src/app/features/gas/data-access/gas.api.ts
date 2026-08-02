@@ -1,13 +1,19 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import {
+  ApplyRevisionRequest,
+  BalanceInput,
   ConnectGasRequest,
   GasComponent,
   GasConnection,
   GasConnectionDetail,
   GasCylinder,
+  GasTubing,
+  LineBalance,
   PressureResult,
   RegisterCylinderRequest,
+  ServiceLine,
+  ServiceLineDetail,
 } from '../domain/gas.model';
 
 export interface EquipmentOption {
@@ -22,6 +28,8 @@ export class GasApi {
   private readonly cylindersUrl = '/api/v1/gas/cylinders';
   private readonly componentsUrl = '/api/v1/gas/components';
   private readonly connectionsUrl = '/api/v1/gas/connections';
+  private readonly serviceLinesUrl = '/api/v1/gas/service-lines';
+  private readonly tubingUrl = '/api/v1/gas/tubing';
 
   cylinders() {
     return this.http.get<GasCylinder[]>(this.cylindersUrl);
@@ -84,5 +92,47 @@ export class GasApi {
 
   equipment() {
     return this.http.get<EquipmentOption[]>('/api/v1/equipment');
+  }
+
+  // --- linha de serviço (GAS-002) ---
+
+  serviceLines() {
+    return this.http.get<ServiceLine[]>(this.serviceLinesUrl);
+  }
+
+  serviceLine(lineId: string) {
+    return this.http.get<ServiceLineDetail>(`${this.serviceLinesUrl}/${lineId}`);
+  }
+
+  registerServiceLine(code: string, name: string, pointOfUseEquipmentId: string) {
+    return this.http.post<{ id: string }>(this.serviceLinesUrl, { code, name, pointOfUseEquipmentId });
+  }
+
+  /** Calcula e explica; nada é aplicado nem ajustado na rede. */
+  balance(lineId: string, input: BalanceInput) {
+    const params = new HttpParams()
+      .set('targetCo2Volumes', input.targetCo2Volumes)
+      .set('servingTempC', input.servingTempC)
+      .set('elevationMeters', input.elevationMeters)
+      .set('residualPressureBar', input.residualPressureBar)
+      .set('targetFlowLpm', input.targetFlowLpm)
+      .set('resistanceId', input.resistanceId);
+    return this.http.get<LineBalance>(`${this.serviceLinesUrl}/${lineId}/balance`, { params });
+  }
+
+  /** Aplicar gera revisão nova e preserva a anterior. */
+  applyRevision(lineId: string, request: ApplyRevisionRequest) {
+    return this.http.post<{ revision: number; recommendedLengthMeters: number;
+      lengthDeviationMeters: number }>(`${this.serviceLinesUrl}/${lineId}/revisions`, request);
+  }
+
+  tubing() {
+    return this.http.get<GasTubing[]>(this.tubingUrl);
+  }
+
+  registerTubing(material: string, internalDiameterMm: number, resistanceBarPerMeter: number,
+      referenceFlowLpm: number) {
+    return this.http.post<{ id: string }>(this.tubingUrl,
+      { material, internalDiameterMm, resistanceBarPerMeter, referenceFlowLpm });
   }
 }

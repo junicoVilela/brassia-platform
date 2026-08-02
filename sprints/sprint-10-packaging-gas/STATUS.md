@@ -1,18 +1,18 @@
 # Status — Sprint 10
 
-Estado: HISTÓRIAS CONCLUÍDAS — AGUARDANDO ACEITE
+Estado: CONCLUÍDA (aceite pendente do mantenedor)
 
 ## Controle das histórias
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| PKG-001 | Concluída | — | V67 + `PackagingPlanIT` (16 testes) | Novo módulo `packaging` |
-| GAS-001 | Concluída | — | V68 + `GasNetworkIT` (16 testes) | Novo módulo `gas` |
-| PKG-002 | Concluída | — | V69 + `CarbonationIT` (13 testes) | Fórmulas no hub `calculator` |
-| PKG-003 | Concluída | — | V70 + `PackagingRunIT` (12 testes) | Perda derivada; consumo vira movimento |
-| FSL-001 | Concluída | — | V71 + `FreshnessIT` (13 testes) | Política de vida útil é da cervejaria |
-| GAS-002 | Concluída | — | V72 + `ServiceLineIT` (12 testes) | Recomendação; nada é ajustado |
-| PKG-004 | Concluída | — | V73 + `LabelIT` (14 testes) | Template versionado ≠ regra regulatória |
+| PKG-001 | Concluída | IA | #118 — V67 + `PackagingPlanIT` (16 testes) | Novo módulo `packaging` |
+| GAS-001 | Concluída | IA | #119 — V68 + `GasNetworkIT` (16 testes) | Novo módulo `gas` |
+| PKG-002 | Concluída | IA | #120 — V69 + `CarbonationIT` (13 testes) | Fórmulas no hub `calculator` |
+| PKG-003 | Concluída | IA | #121 — V70 + `PackagingRunIT` (12 testes) | Perda derivada; consumo vira movimento |
+| FSL-001 | Concluída | IA | #122 — V71 + `FreshnessIT` (13 testes) | Política de vida útil é da cervejaria |
+| GAS-002 | Concluída | IA | #123 — V72 + `ServiceLineIT` (12 testes) | Recomendação; nada é ajustado |
+| PKG-004 | Concluída | IA | #124 — V73 + `LabelIT` (14 testes) | Template versionado ≠ regra regulatória |
 
 ## Decisões e bloqueios
 
@@ -191,25 +191,34 @@ Estado: HISTÓRIAS CONCLUÍDAS — AGUARDANDO ACEITE
 
 ## Evidências de encerramento
 
-- **Build/commit:** sete PRs empilhados, um por história — #118 (PKG-001, base em `main`), #119
-  (GAS-001), #120 (PKG-002), #121 (PKG-003), #122 (FSL-001), #123 (GAS-002), #124 (PKG-004, topo).
-  Cada PR tem como base o anterior, então a ordem de merge é de baixo para cima: GAS-002 usa as
-  fórmulas de PKG-002 e PKG-004 lê FSL-001.
-- **Testes executados:** `mvn verify` completo no topo da pilha (JDK 25) — 513 unitários e 376 de
-  integração, zero falhas, incluindo `ModularityTest`. Cada branch intermediária compila e passa a
-  suíte unitária isoladamente (438 / 457 / 465 / 482 / 502) mais `PackagingPlanIT`. Frontend: 229
-  testes em 48 arquivos, build de produção limpo e ESLint sem warnings.
-- **Migration aplicada:** V67 `packaging_plan`, V68 `gas_network`, V69 `packaging_carbonation`,
-  V70 `packaging_run`, V71 `packaging_freshness`, V72 `gas_service_line`, V73 `packaging_label`.
-  Sequência contínua, sem alteração de migration já publicada.
-- **Contratos atualizados:** `contracts/openapi.yaml` de 94 para 129 paths (+35), cobrindo planos de
-  envase, carbonatação, execução, frescor, rótulos, cilindros/rede de gás e linhas de serviço. Cinco
-  cálculos novos publicados no hub: três em PKG-002 (`co2-residual`, `priming-sugar`,
-  `forced-carbonation-pressure`) e dois em GAS-002 (`line-balance`, `beer-column-pressure`).
-- **Riscos remanescentes:** seis débitos registrados, todos com critério de remoção e nenhum
-  bloqueando o uso das histórias entregues — PKG-001-A (validade do CIP por tempo), PKG-002-A
-  (pressão máxima por embalagem), GAS-001-A (custo/estoque do gás), GAS-001-B (periodicidade da
-  requalificação), PKG-004-A (alergênicos sem fonte no catálogo), PKG-004-B (ABV calculado, não
-  medido). Os dois de PKG-004 têm efeito visível no rótulo: alergênico exigido pela regra da casa
-  barra a impressão, e o ABV sai marcado como calculado.
-- **Aceite:**
+- **Build/commit:** `main` em `c7fece4`; PRs #118 (PKG-001), #119 (GAS-001), #120 (PKG-002),
+  #121 (PKG-003), #122 (FSL-001), #123 (GAS-002) e #124 (PKG-004) mergeados por squash, nesta
+  ordem — a pilha foi montada empilhada e cada branch foi rebaseada sobre a `main` antes do seu
+  merge.
+- **Testes executados:** `./mvnw verify` na `main` depois dos sete merges — 513 unitários + 376 de
+  integração (Testcontainers/PostgreSQL 18), verdes, incluindo `ModularityTest`; frontend
+  `ng build` + `ng test` — 229 testes, verdes, ESLint sem warnings.
+- **Migration aplicada:** V67→V73, sequência contínua, aplicada em banco limpo a cada IT; todas
+  com constraints e índices.
+- **Contratos atualizados:** `contracts/openapi.yaml` de 94 para 129 paths (+35) e sete códigos de
+  Problem Details novos. Cinco cálculos publicados no hub `calculator`: três em PKG-002
+  (`co2-residual`, `priming-sugar`, `forced-carbonation-pressure`) e dois em GAS-002
+  (`line-balance`, `beer-column-pressure`).
+- **Riscos remanescentes:** (1) `PKG-004-A` e `PKG-004-B` afetam rótulo impresso, não só código —
+  alergênico exigido barra a impressão, e o ABV sai marcado como calculado; (2) sem limite de
+  pressão por embalagem, um alvo alto em embalagem frágil passa (`PKG-002-A`); (3) a liberação de
+  limpeza não expira por tempo (`PKG-001-A`); (4) sem harness de e2e no projeto, único item não
+  atendido do DoD; (5) três achados cosméticos do tema, encontrados na verificação visual e não
+  introduzidos por esta sprint — contraste 2,1:1 do `btn-outline-secondary` no escuro (15
+  templates), `datetime-local` truncado em `col-sm-2` no desktop e `<code>` em vermelho ao lado de
+  resultado de cálculo.
+- **Aceite:** **pendente do mantenedor** — ver `ACCEPTANCE.md`.
+
+## Débitos abertos ao fim da sprint
+
+Seis débitos com identificador seguem abertos, todos com critério de remoção registrado e nenhum
+bloqueando o uso das histórias entregues: **PKG-001-A** (validade do CIP por tempo), **PKG-002-A**
+(pressão máxima por embalagem), **GAS-001-A** (custo e estoque do gás, previsto para a sprint 13),
+**GAS-001-B** (periodicidade da requalificação), **PKG-004-A** (alergênicos sem fonte no catálogo)
+e **PKG-004-B** (ABV calculado, não medido). Nenhum débito de sprint anterior foi removido nesta;
+o CLN-004-A da sprint 08, citado em PKG-001, continua aberto e sem dono.

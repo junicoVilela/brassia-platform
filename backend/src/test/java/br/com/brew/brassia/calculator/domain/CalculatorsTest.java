@@ -119,6 +119,101 @@ class CalculatorsTest {
         assertThat(r.alerts()).isNotEmpty();
     }
 
+    // --- balanceamento de linha (GAS-002) ---
+
+    @Test
+    void beerColumnPressureGolden() {
+        // ρ·g·h com cerveja a 1010 kg/m³: ~0,099 bar por metro de coluna.
+        assertThat(calculators.compute("beer-column-pressure", in("elevationMeters", "1"))
+                .value().doubleValue()).isCloseTo(0.0991, offset(0.0005));
+        // Torneira abaixo do barril devolve pressão.
+        assertThat(calculators.compute("beer-column-pressure", in("elevationMeters", "-0.5"))
+                .value().doubleValue()).isCloseTo(-0.0495, offset(0.0005));
+    }
+
+    @Test
+    void lineBalanceGolden() {
+        // 0,81 bar (2,5 vol a 4 °C), torneira 1 pé acima (0,305 m), residual 0,069 bar (1 psi),
+        // tubo 3/16" de vinil a 3 psi/pé = 0,679 bar/m → ~1,05 m, que é o 3,5 pé da regra clássica.
+        var r = calculators.compute("line-balance", in(
+                "appliedPressureBar", "0.81", "elevationMeters", "0.305", "residualPressureBar", "0.069",
+                "resistanceBarPerMeter", "0.679", "targetFlowLpm", "1", "referenceFlowLpm", "1"));
+
+        assertThat(r.value().doubleValue()).isCloseTo(1.05, offset(0.05));
+        assertThat(r.unit()).isEqualTo("m");
+    }
+
+    @Test
+    void widerTubingNeedsMoreLengthForTheSamePressure() {
+        // 3/8" tem resistência muito menor, então precisa de muito mais linha para equilibrar.
+        var narrow = calculators.compute("line-balance", in(
+                "appliedPressureBar", "1.0", "elevationMeters", "0", "residualPressureBar", "0.069",
+                "resistanceBarPerMeter", "0.679", "targetFlowLpm", "1", "referenceFlowLpm", "1")).value();
+        var wide = calculators.compute("line-balance", in(
+                "appliedPressureBar", "1.0", "elevationMeters", "0", "residualPressureBar", "0.069",
+                "resistanceBarPerMeter", "0.045", "targetFlowLpm", "1", "referenceFlowLpm", "1")).value();
+
+        assertThat(wide).isGreaterThan(narrow);
+    }
+
+    @Test
+    void higherFlowScalesResistanceAndShortensTheLine() {
+        var normal = calculators.compute("line-balance", in(
+                "appliedPressureBar", "1.0", "elevationMeters", "0", "residualPressureBar", "0.069",
+                "resistanceBarPerMeter", "0.679", "targetFlowLpm", "1", "referenceFlowLpm", "1")).value();
+        var faster = calculators.compute("line-balance", in(
+                "appliedPressureBar", "1.0", "elevationMeters", "0", "residualPressureBar", "0.069",
+                "resistanceBarPerMeter", "0.679", "targetFlowLpm", "2", "referenceFlowLpm", "1")).value();
+
+        // Escoamento laminar: dobrar a vazão dobra a resistência efetiva, então a linha cai à metade.
+        assertThat(faster.doubleValue()).isCloseTo(normal.doubleValue() / 2, offset(0.02));
+    }
+
+    @Test
+    void elevationEatsPressureAndCanMakeTheSetupImpossible() {
+        var flat = calculators.compute("line-balance", in(
+                "appliedPressureBar", "0.81", "elevationMeters", "0", "residualPressureBar", "0.069",
+                "resistanceBarPerMeter", "0.679", "targetFlowLpm", "1", "referenceFlowLpm", "1")).value();
+        var uphill = calculators.compute("line-balance", in(
+                "appliedPressureBar", "0.81", "elevationMeters", "3", "residualPressureBar", "0.069",
+                "resistanceBarPerMeter", "0.679", "targetFlowLpm", "1", "referenceFlowLpm", "1"));
+
+        assertThat(uphill.value()).isLessThan(flat);
+        // 3 m de subida consomem ~0,30 bar; ainda sobra pressão, mas a linha encurta muito.
+        assertThat(uphill.value().doubleValue()).isGreaterThan(0);
+
+        // 8 m de subida consomem mais do que a pressão aplicada: a cerveja não sobe.
+        var impossible = calculators.compute("line-balance", in(
+                "appliedPressureBar", "0.81", "elevationMeters", "8", "residualPressureBar", "0.069",
+                "resistanceBarPerMeter", "0.679", "targetFlowLpm", "1", "referenceFlowLpm", "1"));
+        assertThat(impossible.value()).isEqualByComparingTo("0");
+        assertThat(impossible.alerts()).anyMatch(a -> a.contains("não flui"));
+    }
+
+    @Test
+    void tapBelowTheKegGainsPressureAndNeedsMoreLine() {
+        var level = calculators.compute("line-balance", in(
+                "appliedPressureBar", "0.81", "elevationMeters", "0", "residualPressureBar", "0.069",
+                "resistanceBarPerMeter", "0.679", "targetFlowLpm", "1", "referenceFlowLpm", "1")).value();
+        var below = calculators.compute("line-balance", in(
+                "appliedPressureBar", "0.81", "elevationMeters", "-1", "residualPressureBar", "0.069",
+                "resistanceBarPerMeter", "0.679", "targetFlowLpm", "1", "referenceFlowLpm", "1")).value();
+
+        assertThat(below).isGreaterThan(level);
+    }
+
+    @Test
+    void lineBalanceRejectsNonPositiveResistanceAndFlow() {
+        assertThat(calculators.compute("line-balance", in(
+                "appliedPressureBar", "1.0", "elevationMeters", "0", "residualPressureBar", "0.069",
+                "resistanceBarPerMeter", "0", "targetFlowLpm", "1", "referenceFlowLpm", "1")).alerts())
+                .isNotEmpty();
+        assertThat(calculators.compute("line-balance", in(
+                "appliedPressureBar", "1.0", "elevationMeters", "0", "residualPressureBar", "0.069",
+                "resistanceBarPerMeter", "0.679", "targetFlowLpm", "0", "referenceFlowLpm", "1")).alerts())
+                .isNotEmpty();
+    }
+
     @Test
     void carbonationResultsCarryMethodAndVersion() {
         var r = calculators.compute("forced-carbonation-pressure", in("targetVolumes", "2.5", "tempC", "4"));

@@ -119,6 +119,17 @@ class JdbcGasConnectionRepository implements GasConnectionRepository {
     }
 
     @Override
+    public Optional<GasConnection> findOpenConnectionAtPoint(UUID breweryId, UUID pointOfUseEquipmentId) {
+        return jdbc.sql(COLUMNS + """
+                 WHERE brewery_id = :brewery AND point_of_use_equipment_id = :point
+                   AND status <> 'DISCONNECTED'
+                """)
+                .param("brewery", breweryId).param("point", pointOfUseEquipmentId)
+                .query((rs, n) -> map(rs))
+                .optional();
+    }
+
+    @Override
     public void insertPressureReading(UUID id, UUID breweryId, UUID connectionId, BigDecimal bar, BigDecimal tempC,
             boolean overPressure, UUID actorId, Instant at) {
         jdbc.sql("""

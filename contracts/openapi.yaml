@@ -2257,6 +2257,149 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /gas/tubing:
+    get:
+      operationId: listGasTubing
+      summary: Catálogo de tubos de serviço
+      responses:
+        '200':
+          description: Tubos com resistência e vazão de referência
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/GasTubing'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: registerGasTubing
+      summary: Cadastra ou atualiza um tubo do catálogo
+      description: >
+        Os números vêm da ficha do fabricante, não do sistema. Material e diâmetro interno são a
+        identidade do tubo: recadastrar a mesma combinação só atualiza resistência e vazão de
+        referência. A vazão de referência fica ao lado da resistência porque é ela que permite
+        escalar corretamente para outra vazão.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterGasTubing'}
+      responses:
+        '201': {description: Tubo cadastrado ou atualizado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /gas/service-lines:
+    get:
+      operationId: listServiceLines
+      summary: Lista linhas de serviço
+      responses:
+        '200':
+          description: Linhas de serviço
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ServiceLine'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: registerServiceLine
+      summary: Cadastra uma linha de serviço num ponto de uso
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, pointOfUseEquipmentId]
+              properties:
+                code: {type: string, maxLength: 40}
+                name: {type: string, maxLength: 120}
+                pointOfUseEquipmentId: {type: string, format: uuid}
+      responses:
+        '201': {description: "Linha cadastrada, ainda sem montagem aplicada"}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /gas/service-lines/{id}:
+    get:
+      operationId: getServiceLine
+      summary: Linha de serviço com o histórico de montagens
+      description: "A revisão anterior é preservada: ela explica a cerveja servida ontem."
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Linha e revisões, da mais recente para a mais antiga
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [line, revisions]
+                properties:
+                  line: {$ref: '#/components/schemas/ServiceLine'}
+                  revisions:
+                    type: array
+                    items: {$ref: '#/components/schemas/ServiceLineRevision'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /gas/service-lines/{id}/balance:
+    get:
+      operationId: balanceServiceLine
+      summary: "Calcula o balanceamento da linha (recomendação, nada é aplicado)"
+      description: >
+        A pressão de serviço NÃO é escolha livre: ela sai do equilíbrio de carbonatação na
+        temperatura informada — servir a outra pressão faz o barril ganhar ou perder CO₂ ao longo
+        do tempo. O que sobra dela, depois de vencer o desnível e a pressão residual da torneira, é
+        o que a linha dissipa por atrito. A vazão escala a resistência (escoamento laminar).
+        O resultado é recomendação: **nenhuma válvula ou regulador é ajustado pelo sistema**, e
+        todo retorno traz o aviso `manual_adjustment_only`. Montagem impossível vem com
+        `feasible: false` e `no_balance_possible`; pressão acima do teto da rede de gás do ponto vem
+        com `above_network_limit`.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: targetCo2Volumes, in: query, required: true, schema: {type: number, exclusiveMinimum: 0}}
+        - {name: servingTempC, in: query, required: true, schema: {type: number}}
+        - name: elevationMeters
+          in: query
+          required: true
+          description: "Positivo = torneira acima do barril; pode ser negativo"
+          schema: {type: number}
+        - {name: residualPressureBar, in: query, required: true, schema: {type: number, minimum: 0}}
+        - {name: targetFlowLpm, in: query, required: true, schema: {type: number, exclusiveMinimum: 0}}
+        - {name: resistanceId, in: query, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Recomendação com método, limites e avisos de segurança
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LineBalance'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /gas/service-lines/{id}/revisions:
+    post:
+      operationId: applyServiceLineRevision
+      summary: "Aplica a montagem à linha, gerando uma revisão"
+      description: >
+        Acrescenta uma revisão e preserva a anterior — a montagem física de ontem é a única
+        evidência de por que a cerveja de ontem saiu como saiu. O comprimento montado pode divergir
+        do recomendado; o desvio é registrado em vez de corrigido.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ApplyServiceLineRevision'}
+      responses:
+        '200':
+          description: Revisão aplicada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [revision, recommendedLengthMeters, lengthDeviationMeters]
+                properties:
+                  revision: {type: integer}
+                  recommendedLengthMeters: {type: number}
+                  lengthDeviationMeters: {type: number}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
     RegisterBrewery:
@@ -3378,6 +3521,102 @@ components:
           description: Override que estende a validade além do que a evidência sustentava
         effectiveShelfLifeDays: {type: integer, nullable: true, description: "A sobreposta, senão a recomendada"}
         effectiveBestBefore: {type: string, format: date, nullable: true}
+    GasTubing:
+      type: object
+      required: [id, material, internalDiameterMm, resistanceBarPerMeter, referenceFlowLpm]
+      properties:
+        id: {type: string, format: uuid}
+        material: {type: string}
+        internalDiameterMm: {type: number}
+        resistanceBarPerMeter: {type: number}
+        referenceFlowLpm:
+          type: number
+          description: Vazão em que o fabricante mediu a resistência; base do escalonamento
+    RegisterGasTubing:
+      type: object
+      required: [material, internalDiameterMm, resistanceBarPerMeter, referenceFlowLpm]
+      properties:
+        material: {type: string, maxLength: 60}
+        internalDiameterMm: {type: number, exclusiveMinimum: 0}
+        resistanceBarPerMeter: {type: number, exclusiveMinimum: 0}
+        referenceFlowLpm: {type: number, exclusiveMinimum: 0}
+    ServiceLine:
+      type: object
+      required: [id, code, name, pointOfUseEquipmentId, currentRevision, everApplied]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+        pointOfUseEquipmentId: {type: string, format: uuid}
+        currentRevision: {type: integer, description: "Zero enquanto nenhuma montagem foi aplicada"}
+        everApplied: {type: boolean}
+    ServiceLineRevision:
+      type: object
+      required: [revision, material, internalDiameterMm, appliedLengthMeters, recommendedLengthMeters,
+                 lengthDeviationMeters, appliedPressureBar, elevationMeters, residualPressureBar,
+                 targetFlowLpm, servingTempC, targetCo2Volumes, calculationMethod, calculatorVersion,
+                 appliedBy, appliedAt]
+      properties:
+        revision: {type: integer, minimum: 1}
+        material: {type: string}
+        internalDiameterMm: {type: number}
+        appliedLengthMeters: {type: number, description: "O que foi montado de fato"}
+        recommendedLengthMeters: {type: number}
+        lengthDeviationMeters: {type: number, description: "Montado − recomendado; registrado, não corrigido"}
+        appliedPressureBar: {type: number}
+        elevationMeters: {type: number}
+        residualPressureBar: {type: number}
+        targetFlowLpm: {type: number}
+        servingTempC: {type: number}
+        targetCo2Volumes: {type: number}
+        calculationMethod: {type: string}
+        calculatorVersion: {type: string}
+        note: {type: string, nullable: true}
+        appliedBy: {type: string, format: uuid}
+        appliedAt: {type: string, format: date-time}
+    ApplyServiceLineRevision:
+      type: object
+      required: [targetCo2Volumes, servingTempC, elevationMeters, residualPressureBar, targetFlowLpm,
+                 resistanceId, appliedLengthMeters]
+      properties:
+        targetCo2Volumes: {type: number, exclusiveMinimum: 0}
+        servingTempC: {type: number}
+        elevationMeters: {type: number, description: "Pode ser negativo: torneira abaixo do barril"}
+        residualPressureBar: {type: number, minimum: 0}
+        targetFlowLpm: {type: number, exclusiveMinimum: 0}
+        resistanceId: {type: string, format: uuid}
+        appliedLengthMeters: {type: number, exclusiveMinimum: 0}
+        note: {type: string, maxLength: 200}
+    LineBalance:
+      type: object
+      required: [appliedPressureBar, recommendedLengthMeters, hydrostaticBar,
+                 effectiveResistanceBarPerMeter, targetFlowLpm, servingTempC, targetCo2Volumes, material,
+                 internalDiameterMm, calculationMethod, calculatorVersion, feasible, warnings]
+      properties:
+        appliedPressureBar: {type: number, description: "Vem do equilíbrio de carbonatação na temperatura"}
+        recommendedLengthMeters: {type: number, description: "Zero quando a montagem é impossível"}
+        hydrostaticBar: {type: number, description: "Pressão consumida (ou devolvida) pelo desnível"}
+        effectiveResistanceBarPerMeter: {type: number, description: "Resistência do tubo escalada pela vazão"}
+        targetFlowLpm: {type: number}
+        servingTempC: {type: number}
+        targetCo2Volumes: {type: number}
+        material: {type: string}
+        internalDiameterMm: {type: number}
+        calculationMethod: {type: string}
+        calculatorVersion: {type: string}
+        feasible: {type: boolean}
+        warnings:
+          type: array
+          description: "Sempre inclui manual_adjustment_only: o sistema não ajusta válvula nem regulador"
+          items:
+            type: object
+            required: [code, message, safety]
+            properties:
+              code:
+                type: string
+                enum: [manual_adjustment_only, no_balance_possible, above_network_limit, calculation_alert]
+              message: {type: string}
+              safety: {type: boolean}
     GasCylinder:
       type: object
       required: [id, code, gasType, capacityKg, tareKg, contentKg, requalificationDueOn, expired, status,

@@ -278,3 +278,199 @@
     }
   </div>
 </div>
+
+<div class="card border-0 rounded-10 mt-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-1">Linhas de serviço</h2>
+    <p class="text-muted small mb-3">
+      A pressão de serviço não é escolha livre: ela vem do equilíbrio de carbonatação na temperatura
+      em que a cerveja é servida. O que sobra dela, depois do desnível e da pressão residual da
+      torneira, é o que a linha dissipa. O sistema calcula e recomenda —
+      <strong>nenhuma válvula ou regulador é ajustado automaticamente</strong>.
+    </p>
+
+    @if (canManage) {
+      <form [formGroup]="tubingForm" (ngSubmit)="registerTubing()" class="row g-2 align-items-end mb-3">
+        <div class="col-12"><span class="form-label small fw-medium mb-0">Catálogo de tubos</span>
+          <p class="form-text mt-0">Os números vêm da ficha do fabricante; material e diâmetro identificam o tubo.</p></div>
+        <div class="col-sm-3"><label class="form-label small" for="tmat">Material</label>
+          <input id="tmat" type="text" class="form-control form-control-sm" formControlName="material"
+                 placeholder="vinil"></div>
+        <div class="col-sm-2"><label class="form-label small" for="tdiam">Ø interno (mm)</label>
+          <input id="tdiam" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="internalDiameterMm"></div>
+        <div class="col-sm-3"><label class="form-label small" for="tres">Resistência (bar/m)</label>
+          <input id="tres" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="resistanceBarPerMeter"></div>
+        <div class="col-sm-2"><label class="form-label small" for="tflow">Vazão de ref. (L/min)</label>
+          <input id="tflow" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="referenceFlowLpm"></div>
+        <div class="col-sm-2 d-grid">
+          <button type="submit" class="btn btn-outline-primary btn-sm" [disabled]="tubingForm.invalid">
+            Salvar tubo
+          </button>
+        </div>
+      </form>
+
+      <form [formGroup]="lineForm" (ngSubmit)="registerLine()" class="row g-2 align-items-end mb-3">
+        <div class="col-sm-3"><label class="form-label small" for="lcode">Código da linha</label>
+          <input id="lcode" type="text" class="form-control form-control-sm" formControlName="code"
+                 placeholder="LN-01"></div>
+        <div class="col-sm-4"><label class="form-label small" for="lname">Nome</label>
+          <input id="lname" type="text" class="form-control form-control-sm" formControlName="name"
+                 placeholder="Torneira 1"></div>
+        <div class="col-sm-3"><label class="form-label small" for="lpoint">Ponto de uso</label>
+          <select id="lpoint" class="form-select form-select-sm" formControlName="pointOfUseEquipmentId">
+            <option value="">Selecione…</option>
+            @for (e of store.equipment(); track e.id) {
+              <option [value]="e.id">{{ e.code }} — {{ e.name }}</option>
+            }
+          </select></div>
+        <div class="col-sm-2 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm"
+                  [disabled]="lineForm.invalid || store.submitting()">Cadastrar linha</button>
+        </div>
+      </form>
+      @if (store.lineError(); as lineError) {
+        <div class="alert alert-danger" role="alert">{{ lineError }}</div>
+      }
+    }
+
+    @if (store.serviceLines().length === 0) {
+      <app-empty-state icon="ri-git-branch-line" message="Nenhuma linha de serviço."
+                       hint="Cadastre uma linha para calcular o balanceamento." />
+    } @else {
+      <ul class="list-unstyled mb-0">
+        @for (l of store.serviceLines(); track l.id) {
+          <li class="border rounded-10 p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+              <div>
+                <span class="fw-medium">{{ l.code }}</span>
+                <span class="text-muted small">
+                  · {{ l.name }} · {{ equipmentName(l.pointOfUseEquipmentId) }}
+                  · {{ l.everApplied ? 'revisão ' + l.currentRevision : 'sem montagem aplicada' }}
+                </span>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="toggleLine(l)">
+                {{ store.openLineOf() === l.id ? 'Fechar' : 'Balancear' }}
+              </button>
+            </div>
+
+            @if (store.openLineOf() === l.id) {
+              <div class="border-top mt-3 pt-3">
+                <form [formGroup]="balanceForm" class="row g-2 align-items-end mb-3">
+                  <div class="col-sm-4"><label class="form-label small" for="btube">Tubo</label>
+                    <select id="btube" class="form-select form-select-sm" formControlName="resistanceId">
+                      <option value="">Selecione…</option>
+                      @for (t of store.tubing(); track t.id) {
+                        <option [value]="t.id">
+                          {{ t.material }} Ø{{ t.internalDiameterMm }} mm — {{ t.resistanceBarPerMeter }} bar/m
+                        </option>
+                      }
+                    </select>
+                    @if (store.tubing().length === 0) {
+                      <span class="form-text">Cadastre um tubo no catálogo primeiro.</span>
+                    }
+                  </div>
+                  <div class="col-sm-2"><label class="form-label small" for="bvol">CO₂ alvo (vol)</label>
+                    <input id="bvol" type="number" step="any" class="form-control form-control-sm"
+                           formControlName="targetCo2Volumes"></div>
+                  <div class="col-sm-2"><label class="form-label small" for="btemp">Serviço (°C)</label>
+                    <input id="btemp" type="number" step="any" class="form-control form-control-sm"
+                           formControlName="servingTempC"></div>
+                  <div class="col-sm-2"><label class="form-label small" for="belev">Desnível (m)</label>
+                    <input id="belev" type="number" step="any" class="form-control form-control-sm"
+                           formControlName="elevationMeters"></div>
+                  <div class="col-sm-2"><label class="form-label small" for="bres">Residual (bar)</label>
+                    <input id="bres" type="number" step="any" class="form-control form-control-sm"
+                           formControlName="residualPressureBar"></div>
+                  <div class="col-sm-2"><label class="form-label small" for="bflow">Vazão (L/min)</label>
+                    <input id="bflow" type="number" step="any" class="form-control form-control-sm"
+                           formControlName="targetFlowLpm"></div>
+                  <div class="col-sm-3 d-grid">
+                    <button type="button" class="btn btn-outline-primary btn-sm"
+                            [disabled]="store.balancing()" (click)="balance(l.id)">
+                      <i class="ri-calculator-line me-1" aria-hidden="true"></i> Calcular
+                    </button>
+                  </div>
+                  @if (canManage) {
+                    <div class="col-sm-3"><label class="form-label small" for="blen">Comprimento montado (m)</label>
+                      <input id="blen" type="number" step="any" class="form-control form-control-sm"
+                             formControlName="appliedLengthMeters"></div>
+                    <div class="col-sm-2"><label class="form-label small" for="bnote">Observação</label>
+                      <input id="bnote" type="text" class="form-control form-control-sm"
+                             formControlName="note"></div>
+                    <div class="col-sm-2 d-grid">
+                      <button type="button" class="btn btn-primary btn-sm"
+                              [disabled]="store.balancing() || !store.lineBalance()"
+                              (click)="applyRevision(l.id)">Aplicar</button>
+                    </div>
+                  }
+                </form>
+
+                @if (store.balancing()) {
+                  <app-loading-indicator text="Calculando…" />
+                }
+
+                @if (store.lineBalance(); as b) {
+                  <div class="border rounded-10 p-3 mb-3">
+                    <p class="mb-1 fw-medium">
+                      Pressão de serviço {{ b.appliedPressureBar | number:'1.0-2' }} bar ·
+                      @if (b.feasible) {
+                        linha recomendada {{ b.recommendedLengthMeters | number:'1.0-2' }} m
+                      } @else {
+                        montagem impossível
+                      }
+                    </p>
+                    <p class="small text-muted mb-2">
+                      {{ b.material }} Ø{{ b.internalDiameterMm }} mm ·
+                      resistência efetiva {{ b.effectiveResistanceBarPerMeter | number:'1.0-3' }} bar/m a
+                      {{ b.targetFlowLpm }} L/min · coluna {{ b.hydrostaticBar | number:'1.0-3' }} bar ·
+                      {{ b.targetCo2Volumes }} vol a {{ b.servingTempC }} °C
+                    </p>
+                    <p class="small text-muted mb-2"><code>{{ b.calculationMethod }}</code></p>
+                    <p class="small text-muted mb-0">Método versão {{ b.calculatorVersion }}</p>
+                    <ul class="small mb-0 mt-2 ps-3">
+                      @for (w of b.warnings; track $index) {
+                        <li [class.text-danger]="w.safety" [class.text-muted]="!w.safety">
+                          <i class="me-1" aria-hidden="true"
+                             [class]="w.safety ? 'ri-alert-line' : 'ri-information-line'"></i>{{ w.message }}
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                }
+
+                @if (store.lineDetail(); as detail) {
+                  @if (detail.revisions.length === 0) {
+                    <p class="small text-muted mb-0">Nenhuma montagem aplicada ainda.</p>
+                  } @else {
+                    <p class="small fw-medium mb-2">Histórico de montagens</p>
+                    <ul class="list-unstyled small mb-0">
+                      @for (r of detail.revisions; track r.revision) {
+                        <li class="border-start ps-3 mb-2">
+                          <span class="fw-medium">Revisão {{ r.revision }}</span>
+                          <span class="text-muted">
+                            · {{ r.material }} Ø{{ r.internalDiameterMm }} mm ·
+                            montado {{ r.appliedLengthMeters | number:'1.0-2' }} m
+                            (recomendado {{ r.recommendedLengthMeters | number:'1.0-2' }} m,
+                            desvio {{ r.lengthDeviationMeters | number:'1.0-2' }} m) ·
+                            {{ r.appliedPressureBar | number:'1.0-2' }} bar ·
+                            {{ r.appliedAt | date:'short' }}
+                          </span>
+                          @if (r.note) {
+                            <p class="text-muted mb-0">{{ r.note }}</p>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  }
+                }
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</div>

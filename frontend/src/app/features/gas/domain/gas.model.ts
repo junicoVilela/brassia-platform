@@ -139,3 +139,91 @@ export interface ConnectGasRequest {
   pointOfUseEquipmentId: string;
   workingPressureBar: number;
 }
+
+/** Tubo do catálogo (GAS-002); os números vêm da ficha do fabricante. */
+export interface GasTubing {
+  id: string;
+  material: string;
+  internalDiameterMm: number;
+  resistanceBarPerMeter: number;
+  /** Vazão em que a resistência foi medida; base do escalonamento para outra vazão. */
+  referenceFlowLpm: number;
+}
+
+export interface ServiceLine {
+  id: string;
+  code: string;
+  name: string;
+  pointOfUseEquipmentId: string;
+  currentRevision: number;
+  everApplied: boolean;
+}
+
+export interface ServiceLineRevision {
+  revision: number;
+  material: string;
+  internalDiameterMm: number;
+  appliedLengthMeters: number;
+  recommendedLengthMeters: number;
+  /** Montado − recomendado: o desvio é registrado, não corrigido. */
+  lengthDeviationMeters: number;
+  appliedPressureBar: number;
+  elevationMeters: number;
+  residualPressureBar: number;
+  targetFlowLpm: number;
+  servingTempC: number;
+  targetCo2Volumes: number;
+  calculationMethod: string;
+  calculatorVersion: string;
+  note: string | null;
+  appliedBy: string;
+  appliedAt: string;
+}
+
+export interface ServiceLineDetail {
+  line: ServiceLine;
+  revisions: ServiceLineRevision[];
+}
+
+export type LineWarningCode =
+  | 'manual_adjustment_only'
+  | 'no_balance_possible'
+  | 'above_network_limit'
+  | 'calculation_alert';
+
+export interface LineWarning {
+  code: LineWarningCode;
+  message: string;
+  safety: boolean;
+}
+
+/** Recomendação de balanceamento: método, limites e avisos de segurança. */
+export interface LineBalance {
+  appliedPressureBar: number;
+  recommendedLengthMeters: number;
+  hydrostaticBar: number;
+  effectiveResistanceBarPerMeter: number;
+  targetFlowLpm: number;
+  servingTempC: number;
+  targetCo2Volumes: number;
+  material: string;
+  internalDiameterMm: number;
+  calculationMethod: string;
+  calculatorVersion: string;
+  feasible: boolean;
+  warnings: LineWarning[];
+}
+
+export interface BalanceInput {
+  targetCo2Volumes: number;
+  servingTempC: number;
+  elevationMeters: number;
+  residualPressureBar: number;
+  targetFlowLpm: number;
+  resistanceId: string;
+}
+
+export interface ApplyRevisionRequest extends BalanceInput {
+  appliedLengthMeters: number;
+  note: string | null;
+}

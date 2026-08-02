@@ -1,18 +1,22 @@
 package br.com.brew.brassia.gas.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.calculator.CalculatorEngine;
 import br.com.brew.brassia.equipment.EquipmentProfileLookup;
 import br.com.brew.brassia.gas.application.port.inbound.ComponentCommands;
 import br.com.brew.brassia.gas.application.port.inbound.ConnectionCommands;
 import br.com.brew.brassia.gas.application.port.inbound.CylinderCommands;
 import br.com.brew.brassia.gas.application.port.inbound.GasQueries;
+import br.com.brew.brassia.gas.application.port.inbound.ServiceLineCommands;
 import br.com.brew.brassia.gas.application.port.outbound.GasConnectionRepository;
 import br.com.brew.brassia.gas.application.port.outbound.GasCylinderRepository;
 import br.com.brew.brassia.gas.application.port.outbound.GasNetworkComponentRepository;
+import br.com.brew.brassia.gas.application.port.outbound.ServiceLineRepository;
 import br.com.brew.brassia.gas.application.service.ComponentHandlers;
 import br.com.brew.brassia.gas.application.service.ConnectionHandlers;
 import br.com.brew.brassia.gas.application.service.CylinderHandlers;
 import br.com.brew.brassia.gas.application.service.GasQueriesHandler;
+import br.com.brew.brassia.gas.application.service.ServiceLineHandlers;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -130,5 +134,44 @@ class GasConfiguration {
     GasQueries gasQueries(GasCylinderRepository cylinders, GasNetworkComponentRepository components,
             GasConnectionRepository connections) {
         return new GasQueriesHandler(cylinders, components, connections);
+    }
+
+    @Bean
+    ServiceLineCommands.RegisterLine registerServiceLineUseCase(ServiceLineRepository lines,
+            EquipmentProfileLookup equipment, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ServiceLineHandlers.RegisterLine(lines, equipment, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ServiceLineCommands.RegisterTubing registerTubingUseCase(ServiceLineRepository lines, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ServiceLineHandlers.RegisterTubing(lines, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    /** Calcular não aplica nada: é consulta, sem transação de escrita. */
+    @Bean
+    ServiceLineCommands.Balance balanceServiceLineUseCase(ServiceLineRepository lines,
+            GasConnectionRepository connections, CalculatorEngine calculator) {
+        return new ServiceLineHandlers.Balance(lines, connections, calculator);
+    }
+
+    /** Aplicar gera revisão nova e preserva a anterior, num commit só. */
+    @Bean
+    ServiceLineCommands.ApplyRevision applyServiceLineRevisionUseCase(ServiceLineRepository lines,
+            GasConnectionRepository connections, CalculatorEngine calculator, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ServiceLineHandlers.ApplyRevision(lines, connections, calculator, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ServiceLineCommands.Queries serviceLineQueries(ServiceLineRepository lines) {
+        return new ServiceLineHandlers.Queries(lines);
     }
 }

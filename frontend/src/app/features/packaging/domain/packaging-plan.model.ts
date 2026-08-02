@@ -177,3 +177,69 @@ export interface BatchVolumeExceeded {
   remainingLiters: number;
   requestedLiters: number;
 }
+
+/** Faixas de TPO e os dias que sustentam; os números são da cervejaria (FSL-001). */
+export interface ShelfLifeTier {
+  maxTpoPpb: number;
+  shelfLifeDays: number;
+}
+
+export interface ShelfLifePolicy {
+  tiers: ShelfLifeTier[];
+  fallbackDays: number;
+}
+
+export interface ShelfLifeFactor {
+  name: 'tpo' | 'dissolvedOxygen' | 'purge' | 'seal';
+  trustworthy: boolean;
+  explanation: string;
+}
+
+/** Recomendação de validade explicada pela evidência de oxigênio. */
+export interface ShelfLifeRecommendation {
+  shelfLifeDays: number;
+  bestBefore: string;
+  totalPackageOxygenPpb: number;
+  matchedTierMaxTpoPpb: number | null;
+  withinPolicyTiers: boolean;
+  factors: ShelfLifeFactor[];
+  /** Ressalvas reduzem a confiança no número, não o número. */
+  caveats: string[];
+}
+
+export interface Freshness {
+  packagedOn: string;
+  dissolvedOxygenPpb: number;
+  totalPackageOxygenPpb: number;
+  headspaceOxygenPpb: number;
+  purgeMethod: string;
+  purgeVerified: boolean;
+  sealCheckMethod: string;
+  sealCheckPassed: boolean;
+  evidenceComplete: boolean;
+  recommendedShelfLifeDays: number | null;
+  recommendedBestBefore: string | null;
+  overrideShelfLifeDays: number | null;
+  overrideBestBefore: string | null;
+  overrideReason: string | null;
+  overriddenBy: string | null;
+  overriddenAt: string | null;
+  extendsBeyondRecommendation: boolean;
+  effectiveShelfLifeDays: number | null;
+  effectiveBestBefore: string | null;
+}
+
+export interface RecordFreshnessRequest {
+  dissolvedOxygenPpb: number;
+  totalPackageOxygenPpb: number;
+  purgeMethod: string;
+  purgeVerified: boolean;
+  sealCheckMethod: string;
+  sealCheckPassed: boolean;
+}
+
+export interface RecordedFreshness {
+  freshness: Freshness;
+  /** Nulo quando a cervejaria não tem política de vida útil. */
+  recommendation: ShelfLifeRecommendation | null;
+}

@@ -6,10 +6,14 @@ import {
   CarbonationRecommendation,
   ChecklistItemCode,
   ExecutePackagingRequest,
+  Freshness,
   PackagingPlan,
   PackagingRun,
   PlanPackagingRequest,
+  RecordFreshnessRequest,
+  RecordedFreshness,
   ReserveResult,
+  ShelfLifePolicy,
 } from '../domain/packaging-plan.model';
 
 /** Opção de lote para o formulário; o backend publica mais campos, usamos só estes. */
@@ -76,6 +80,24 @@ export class PackagingApi {
 
   equipment() {
     return this.http.get<EquipmentOption[]>('/api/v1/equipment');
+  }
+
+  /** Registra DO/TPO, purga e vedação, e devolve a validade recomendada (FSL-001). */
+  recordFreshness(planId: string, request: RecordFreshnessRequest) {
+    return this.http.put<RecordedFreshness>(`${this.baseUrl}/${planId}/freshness`, request);
+  }
+
+  freshness(planId: string) {
+    return this.http.get<Freshness>(`${this.baseUrl}/${planId}/freshness`);
+  }
+
+  /** O motivo é obrigatório: é ele que explica uma data que a evidência não sustentava. */
+  overrideShelfLife(planId: string, shelfLifeDays: number, reason: string) {
+    return this.http.post<void>(`${this.baseUrl}/${planId}/freshness/override`, { shelfLifeDays, reason });
+  }
+
+  shelfLifePolicy() {
+    return this.http.get<ShelfLifePolicy>('/api/v1/packaging/shelf-life-policy');
   }
 
   /** Registra o envase executado; a perda é derivada pelo backend (PKG-003). */

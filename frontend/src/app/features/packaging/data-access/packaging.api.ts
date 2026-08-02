@@ -7,6 +7,10 @@ import {
   ChecklistItemCode,
   ExecutePackagingRequest,
   Freshness,
+  LabelFieldCode,
+  LabelPreview,
+  LabelPrint,
+  LabelTemplate,
   PackagingPlan,
   PackagingRun,
   PlanPackagingRequest,
@@ -98,6 +102,32 @@ export class PackagingApi {
 
   shelfLifePolicy() {
     return this.http.get<ShelfLifePolicy>('/api/v1/packaging/shelf-life-policy');
+  }
+
+  // --- rótulo (PKG-004) ---
+
+  labelTemplates() {
+    return this.http.get<LabelTemplate[]>('/api/v1/packaging/label-templates');
+  }
+
+  labelRule() {
+    return this.http.get<{ requiredFields: LabelFieldCode[] }>('/api/v1/packaging/label-rule');
+  }
+
+  /** Prévia: valores, origens e o que falta — sem imprimir nada. */
+  labelPreview(planId: string, templateId: string) {
+    return this.http.get<LabelPreview>(`${this.baseUrl}/${planId}/label/preview`,
+      { params: new HttpParams().set('templateId', templateId) });
+  }
+
+  labelPrints(planId: string) {
+    return this.http.get<LabelPrint[]>(`${this.baseUrl}/${planId}/label/prints`);
+  }
+
+  /** A partir da segunda tiragem o backend exige o motivo. */
+  printLabel(planId: string, templateId: string, quantity: number, reason: string | null) {
+    return this.http.post<{ printId: string; reprint: boolean; quantity: number }>(
+      `${this.baseUrl}/${planId}/label/prints`, { templateId, quantity, reason });
   }
 
   /** Registra o envase executado; a perda é derivada pelo backend (PKG-003). */

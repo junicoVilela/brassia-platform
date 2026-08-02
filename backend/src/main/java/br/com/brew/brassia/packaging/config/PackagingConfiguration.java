@@ -11,20 +11,24 @@ import br.com.brew.brassia.packaging.application.port.inbound.ConfirmChecklistIt
 import br.com.brew.brassia.packaging.application.port.inbound.ExecutePackagingUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.FreshnessCommands;
 import br.com.brew.brassia.packaging.application.port.inbound.GetPackagingRunUseCase;
+import br.com.brew.brassia.packaging.application.port.inbound.LabelCommands;
 import br.com.brew.brassia.packaging.application.port.inbound.PackagingPlanQueries;
 import br.com.brew.brassia.packaging.application.port.inbound.PlanPackagingUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.ReservePackagingPlanUseCase;
 import br.com.brew.brassia.packaging.application.port.outbound.CarbonationRepository;
 import br.com.brew.brassia.packaging.application.port.outbound.FreshnessRepository;
+import br.com.brew.brassia.packaging.application.port.outbound.LabelRepository;
 import br.com.brew.brassia.packaging.application.port.outbound.PackagingPlanRepository;
 import br.com.brew.brassia.packaging.application.port.outbound.PackagingRunRepository;
 import br.com.brew.brassia.packaging.application.service.CarbonationHandlers;
 import br.com.brew.brassia.packaging.application.service.ExecutePackagingHandler;
 import br.com.brew.brassia.packaging.application.service.FreshnessHandlers;
+import br.com.brew.brassia.packaging.application.service.LabelHandlers;
 import br.com.brew.brassia.packaging.application.service.PackagingPlanHandlers;
 import br.com.brew.brassia.packaging.application.service.PlanPackagingHandler;
 import br.com.brew.brassia.packaging.application.service.ReservePackagingPlanHandler;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.recipe.RecipeLookup;
 import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -141,5 +145,43 @@ class PackagingConfiguration {
     @Bean
     FreshnessCommands.Policy shelfLifePolicyUseCase(FreshnessRepository freshness, AuditTrail audit) {
         return new FreshnessHandlers.Policy(freshness, audit);
+    }
+
+    @Bean
+    LabelCommands.SaveTemplate saveLabelTemplateUseCase(LabelRepository labels, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new LabelHandlers.SaveTemplate(labels, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    LabelCommands.SaveRule saveLabelRuleUseCase(LabelRepository labels, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new LabelHandlers.SaveRule(labels, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return (actorId, breweryId, rule) ->
+                transaction.executeWithoutResult(status -> handler.handle(actorId, breweryId, rule));
+    }
+
+    /** Prévia é consulta: monta os campos das fontes e não grava nada. */
+    @Bean
+    LabelCommands.Preview previewLabelUseCase(LabelRepository labels, PackagingPlanRepository plans,
+            FreshnessRepository freshness, BatchLookup batches, RecipeLookup recipes) {
+        return new LabelHandlers.Preview(labels, plans, freshness, batches, recipes);
+    }
+
+    @Bean
+    LabelCommands.Print printLabelUseCase(LabelRepository labels, PackagingPlanRepository plans,
+            FreshnessRepository freshness, BatchLookup batches, RecipeLookup recipes, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new LabelHandlers.Print(labels, plans, freshness, batches, recipes, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    LabelCommands.Queries labelQueries(LabelRepository labels) {
+        return new LabelHandlers.Queries(labels);
     }
 }

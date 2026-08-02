@@ -10,6 +10,11 @@ import {
   ChecklistItemCode,
   ExecutePackagingRequest,
   Freshness,
+  LabelFieldCode,
+  LabelNotPrintable,
+  LabelPreview,
+  LabelPrint,
+  LabelTemplate,
   OverCarbonation,
   PackagingBlocker,
   PackagingPlan,
@@ -32,6 +37,12 @@ interface ReserveError {
 interface CarbonationError {
   status?: number;
   error?: { code?: string; carbonation?: OverCarbonation };
+}
+
+/** Corpo Problem Details do rótulo incompleto. */
+interface LabelError {
+  status?: number;
+  error?: { code?: string; label?: LabelNotPrintable };
 }
 
 /** Corpo Problem Details da recusa de execução; a extensão depende do código. */
@@ -75,6 +86,16 @@ export class PackagingStore {
    */
   readonly blockers = signal<Record<string, PackagingBlocker[]>>({});
   readonly shortfall = signal<Record<string, PackagingShortfall>>({});
+
+  /** Rótulo (PKG-004): prévia e impressão são passos separados. */
+  readonly labelPlanId = signal<string | null>(null);
+  readonly labelTemplates = signal<LabelTemplate[]>([]);
+  readonly labelRule = signal<LabelFieldCode[] | null>(null);
+  readonly labelPreview = signal<LabelPreview | null>(null);
+  readonly labelPrints = signal<LabelPrint[]>([]);
+  readonly labelBlocked = signal<LabelNotPrintable | null>(null);
+  readonly printing = signal(false);
+  readonly labelError = signal<string | null>(null);
 
   /** Frescor (FSL-001): a recomendação e o registro gravado vivem separados. */
   readonly freshnessPlanId = signal<string | null>(null);
@@ -188,6 +209,77 @@ export class PackagingStore {
             ? 'Plano já cancelado; o cancelamento é definitivo.'
             : 'Não foi possível cancelar o plano.'),
       });
+  }
+
+  // --- rótulo (PKG-004) ---
+
+  loadLabelReferences(): void {
+    this.api.labelTemplates()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: t => this.labelTemplates.set(t), error: () => this.labelTemplates.set([]) });
+    this.api.labelRule()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      // Sem regra configurada não há obrigatoriedade definida; a tela avisa em vez de falhar.
+      .subscribe({ next: r => this.labelRule.set(r.requiredFields), error: () => this.labelRule.set(null) });
+  }
+
+  openLabelOf(planId: string): void {
+    if (this.labelPlanId() === planId) {
+      this.labelPlanId.set(null);
+      this.labelPreview.set(null);
+      this.labelPrints.set([]);
+      this.labelError.set(null);
+      return;
+    }
+    this.labelPlanId.set(planId);
+    this.labelPreview.set(null);
+    this.labelError.set(null);
+    this.loadLabelPrints(planId);
+  }
+
+  previewLabel(planId: string, templateId: string): void {
+    this.labelError.set(null);
+    this.api.labelPreview(planId, templateId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: preview => this.labelPreview.set(preview),
+        error: (err: { status?: number }) =>
+          this.labelError.set(err?.status === 409
+            ? 'Configure a regra regulatória do rótulo antes de gerar rótulos.'
+            : 'Não foi possível gerar a prévia.'),
+      });
+  }
+
+  printLabel(planId: string, templateId: string, quantity: number, reason: string | null): void {
+    this.printing.set(true);
+    this.labelError.set(null);
+    this.api.printLabel(planId, templateId, quantity, reason)
+      .pipe(finalize(() => this.printing.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: result => {
+          this.toast.success(result.reprint
+            ? `Reimpressão de ${result.quantity} rótulos registrada com o motivo.`
+            : `Impressão de ${result.quantity} rótulos registrada.`);
+          this.loadLabelPrints(planId);
+          this.previewLabel(planId, templateId);
+        },
+        error: (err: LabelError) => {
+          if (err?.error?.code === 'label_not_printable' && err.error.label) {
+            this.labelBlocked.set(err.error.label);
+            return;
+          }
+          this.labelError.set(err?.status === 409
+            ? 'Configure a regra regulatória do rótulo antes de imprimir.'
+            : 'Não foi possível registrar a impressão (a reimpressão exige motivo).');
+        },
+      });
+  }
+
+  private loadLabelPrints(planId: string): void {
+    this.labelBlocked.set(null);
+    this.api.labelPrints(planId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: prints => this.labelPrints.set(prints), error: () => this.labelPrints.set([]) });
   }
 
   /** Oxigênio e vida útil (FSL-001). */

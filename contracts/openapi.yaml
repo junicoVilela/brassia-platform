@@ -1821,6 +1821,168 @@ paths:
               schema: {$ref: '#/components/schemas/CarbonationRecommendation'}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /packaging/label-templates:
+    get:
+      operationId: listLabelTemplates
+      summary: "Templates de rótulo (versão vigente de cada código)"
+      responses:
+        '200':
+          description: Templates vigentes
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/LabelTemplate'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: saveLabelTemplate
+      summary: "Salva o template, criando uma versão nova"
+      description: >
+        Salvar ACRESCENTA uma versão e preserva a anterior — o rótulo impresso mês passado precisa
+        continuar explicável. A ordem dos campos é o layout e é preservada. O template não decide
+        obrigatoriedade: isso é a regra regulatória, que vive à parte.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SaveLabelTemplate'}
+      responses:
+        '200':
+          description: Versão criada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [templateId, version]
+                properties:
+                  templateId: {type: string, format: uuid}
+                  version: {type: integer}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /packaging/label-templates/{code}/versions:
+    get:
+      operationId: listLabelTemplateVersions
+      summary: Histórico de versões de um template
+      parameters:
+        - {name: code, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Versões, da mais recente para a mais antiga
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/LabelTemplate'}}
+        '403': {$ref: '#/components/responses/Problem'}
+  /packaging/label-rule:
+    get:
+      operationId: getLabelRule
+      summary: Regra regulatória do rótulo
+      responses:
+        '200':
+          description: Campos obrigatórios
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [requiredFields]
+                properties:
+                  requiredFields: {type: array, items: {$ref: '#/components/schemas/LabelFieldCode'}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: saveLabelRule
+      summary: Define quais campos do rótulo são obrigatórios
+      description: >
+        Vive SEPARADA do template de propósito: o layout muda quando o designer quer outra arte, mas
+        a obrigatoriedade é lei e não pode sumir junto. Quais campos a lei exige depende do país e
+        da categoria, então a lista é da cervejaria. Exige `packaging.policy.manage`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [requiredFields]
+              properties:
+                requiredFields:
+                  type: array
+                  minItems: 1
+                  items: {$ref: '#/components/schemas/LabelFieldCode'}
+      responses:
+        '200': {description: Regra salva}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /packaging/plans/{id}/label/preview:
+    get:
+      operationId: previewLabel
+      summary: "Prévia do rótulo: valores, origens e o que falta"
+      description: >
+        Nada no rótulo é digitado — cada campo é resolvido de uma fonte rastreável (lote de produção,
+        plano de envase, receita publicada, controle de frescor) e cada linha traz a origem do valor.
+        Campo obrigatório sem valor entra em `missingRequired`; campo obrigatório que o layout sequer
+        desenha entra em `requiredNotDrawn`. Qualquer um dos dois deixa `printable` falso.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: templateId, in: query, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Prévia
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LabelPreview'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /packaging/plans/{id}/label/prints:
+    get:
+      operationId: listLabelPrints
+      summary: Impressões do plano
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Impressões, da mais recente para a mais antiga
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/LabelPrint'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: printLabel
+      summary: Registra uma impressão de rótulos
+      description: >
+        A prévia é reavaliada na impressão: rótulo incompleto responde 409 `label_not_printable`.
+        **Reimpressão não é escolha de quem chama** — já existindo impressão para o plano, a próxima
+        é reimpressão e o motivo passa a ser obrigatório (400 sem ele). Cada tiragem guarda a versão
+        do template usada, para o rótulo antigo continuar explicável depois do layout mudar.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [templateId, quantity]
+              properties:
+                templateId: {type: string, format: uuid}
+                quantity: {type: integer, minimum: 1}
+                reason: {type: string, maxLength: 200, description: Obrigatório a partir da segunda tiragem}
+      responses:
+        '200':
+          description: Impressão registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [printId, reprint, quantity]
+                properties:
+                  printId: {type: string, format: uuid}
+                  reprint: {type: boolean}
+                  quantity: {type: integer}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "Rótulo incompleto (`label`) ou regra regulatória ausente"
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/LabelNotPrintableProblem'}
   /packaging/shelf-life-policy:
     get:
       operationId: getShelfLifePolicy
@@ -3440,6 +3602,97 @@ components:
           properties:
             targetVolumes: {type: number}
             residualVolumes: {type: number}
+    LabelFieldCode:
+      type: string
+      description: >
+        Campos que um rótulo pode carregar. O conjunto é do sistema; quais deles são obrigatórios é
+        regra regulatória, definida pela cervejaria.
+      enum: [BEER_NAME, BATCH_CODE, VOLUME_ML, ABV, ALLERGENS, BEST_BEFORE, QR_PAYLOAD]
+    SaveLabelTemplate:
+      type: object
+      required: [code, name, fields]
+      properties:
+        code: {type: string, maxLength: 40}
+        name: {type: string, maxLength: 120}
+        fields:
+          type: array
+          minItems: 1
+          description: "A ordem é o layout e é preservada; campo repetido é recusado"
+          items: {$ref: '#/components/schemas/LabelFieldCode'}
+        note: {type: string, maxLength: 200}
+    LabelTemplate:
+      type: object
+      required: [id, code, name, version, fields, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+        version: {type: integer, minimum: 1}
+        fields:
+          type: array
+          items: {$ref: '#/components/schemas/LabelFieldCode'}
+        note: {type: string, nullable: true}
+        createdAt: {type: string, format: date-time}
+    LabelPreview:
+      type: object
+      required: [templateCode, templateVersion, printable, lines, missingRequired, missingOptional,
+                 requiredNotDrawn]
+      properties:
+        templateCode: {type: string}
+        templateVersion: {type: integer}
+        printable: {type: boolean}
+        lines:
+          type: array
+          items:
+            type: object
+            required: [field, required, present]
+            properties:
+              field: {$ref: '#/components/schemas/LabelFieldCode'}
+              value: {type: string, nullable: true}
+              source:
+                type: string
+                nullable: true
+                description: "Origem rastreável do valor; nula quando não há fonte"
+              required: {type: boolean}
+              present: {type: boolean}
+        missingRequired:
+          type: array
+          description: "Obrigatórios desenhados no layout, mas sem valor resolvido"
+          items: {$ref: '#/components/schemas/LabelFieldCode'}
+        missingOptional:
+          type: array
+          description: "Sem valor, mas não exigidos: apenas aviso"
+          items: {$ref: '#/components/schemas/LabelFieldCode'}
+        requiredNotDrawn:
+          type: array
+          description: "Exigidos pela regra que o layout sequer desenha: o template precisa mudar"
+          items: {$ref: '#/components/schemas/LabelFieldCode'}
+    LabelPrint:
+      type: object
+      required: [id, templateCode, templateVersion, quantity, reprint, printedBy, printedAt]
+      properties:
+        id: {type: string, format: uuid}
+        templateCode: {type: string}
+        templateVersion: {type: integer, description: "Versão usada; congelada na impressão"}
+        quantity: {type: integer}
+        reprint: {type: boolean}
+        reason: {type: string, nullable: true}
+        printedBy: {type: string, format: uuid}
+        printedAt: {type: string, format: date-time}
+    LabelNotPrintableProblem:
+      type: object
+      description: "Problem Details do rótulo incompleto; a correção difere por causa."
+      properties:
+        code: {type: string, enum: [label_not_printable]}
+        label:
+          type: object
+          properties:
+            missingRequired:
+              type: array
+              items: {$ref: '#/components/schemas/LabelFieldCode'}
+            requiredNotDrawn:
+              type: array
+              items: {$ref: '#/components/schemas/LabelFieldCode'}
     ShelfLifePolicy:
       type: object
       required: [tiers, fallbackDays]

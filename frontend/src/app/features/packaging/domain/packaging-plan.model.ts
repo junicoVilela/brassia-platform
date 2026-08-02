@@ -243,3 +243,70 @@ export interface RecordedFreshness {
   /** Nulo quando a cervejaria não tem política de vida útil. */
   recommendation: ShelfLifeRecommendation | null;
 }
+
+/** Campos que um rótulo pode carregar (PKG-004); a obrigatoriedade é regra à parte. */
+export type LabelFieldCode =
+  | 'BEER_NAME'
+  | 'BATCH_CODE'
+  | 'VOLUME_ML'
+  | 'ABV'
+  | 'ALLERGENS'
+  | 'BEST_BEFORE'
+  | 'QR_PAYLOAD';
+
+export const LABEL_FIELD_LABELS: Record<LabelFieldCode, string> = {
+  BEER_NAME: 'Nome da cerveja',
+  BATCH_CODE: 'Código do lote',
+  VOLUME_ML: 'Volume (ml)',
+  ABV: 'Teor alcoólico',
+  ALLERGENS: 'Alergênicos',
+  BEST_BEFORE: 'Validade',
+  QR_PAYLOAD: 'QR de rastreabilidade',
+};
+
+export interface LabelTemplate {
+  id: string;
+  code: string;
+  name: string;
+  version: number;
+  /** A ordem é o layout. */
+  fields: LabelFieldCode[];
+  note: string | null;
+  createdAt: string;
+}
+
+export interface LabelPreviewLine {
+  field: LabelFieldCode;
+  value: string | null;
+  /** Origem rastreável do valor; nula quando não há fonte. */
+  source: string | null;
+  required: boolean;
+  present: boolean;
+}
+
+export interface LabelPreview {
+  templateCode: string;
+  templateVersion: number;
+  printable: boolean;
+  lines: LabelPreviewLine[];
+  missingRequired: LabelFieldCode[];
+  missingOptional: LabelFieldCode[];
+  /** Exigidos pela regra que o layout sequer desenha. */
+  requiredNotDrawn: LabelFieldCode[];
+}
+
+export interface LabelPrint {
+  id: string;
+  templateCode: string;
+  templateVersion: number;
+  quantity: number;
+  reprint: boolean;
+  reason: string | null;
+  printedBy: string;
+  printedAt: string;
+}
+
+export interface LabelNotPrintable {
+  missingRequired: LabelFieldCode[];
+  requiredNotDrawn: LabelFieldCode[];
+}

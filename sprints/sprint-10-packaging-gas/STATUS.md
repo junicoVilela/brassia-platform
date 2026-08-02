@@ -1,6 +1,6 @@
 # Status — Sprint 10
 
-Estado: EM ANDAMENTO
+Estado: HISTÓRIAS CONCLUÍDAS — AGUARDANDO ACEITE
 
 ## Controle das histórias
 
@@ -12,7 +12,7 @@ Estado: EM ANDAMENTO
 | PKG-003 | Concluída | — | V70 + `PackagingRunIT` (12 testes) | Perda derivada; consumo vira movimento |
 | FSL-001 | Concluída | — | V71 + `FreshnessIT` (13 testes) | Política de vida útil é da cervejaria |
 | GAS-002 | Concluída | — | V72 + `ServiceLineIT` (12 testes) | Recomendação; nada é ajustado |
-| PKG-004 | A fazer | — | — | — |
+| PKG-004 | Concluída | — | V73 + `LabelIT` (14 testes) | Template versionado ≠ regra regulatória |
 
 ## Decisões e bloqueios
 
@@ -159,3 +159,57 @@ Estado: EM ANDAMENTO
   ficar abaixo do barril, e aí a coluna devolve pressão em vez de consumir.
 - Dataset dourado do balanceamento confere com a regra clássica de campo (3,5 pés para 12 psi em
   tubo 3/16" com 1 pé de subida), o que valida o modelo métrico contra a prática conhecida.
+
+### PKG-004
+
+- **Template e regra regulatória são coisas separadas, e essa é a decisão central da história.**
+  O template é layout (quais campos, em que ordem) e muda quando o designer quer outra arte. A
+  obrigatoriedade é lei. Se as duas vivessem juntas, uma troca de layout derrubaria silenciosamente
+  um campo exigido e sairia um lote inteiro de rótulos irregulares. Separadas, a prévia acusa
+  `requiredNotDrawn` — exigido pela regra e não desenhado pelo layout — como caso distinto de
+  `missingRequired`, porque a correção é diferente em cada um.
+- **Nada no rótulo é digitado:** cada campo é resolvido de uma fonte rastreável e a prévia mostra
+  qual — nome e código do lote vêm do lote de produção, volume do plano de envase, ABV da receita
+  publicada (com a versão), validade do controle de frescor (dizendo se foi recomendada pela
+  evidência ou sobreposta, e por quê), e o QR aponta para lote e plano.
+- **Reimpressão não é escolha de quem chama:** já existindo impressão para o plano, a próxima é
+  reimpressão e o motivo passa a ser obrigatório. Assim ninguém escapa da justificativa marcando a
+  segunda tiragem como se fosse a primeira. Cada tiragem congela a versão do template usada.
+- **Quais campos a lei exige é da cervejaria**, não do sistema: depende do país e da categoria da
+  bebida. Configurar a regra é alçada própria (`packaging.policy.manage`).
+- Salvar o template acrescenta versão e preserva a anterior; a ordem dos campos é o layout e é
+  preservada na ida e volta do banco (há teste para isso).
+- **PKG-004-A — alergênicos não têm fonte no sistema.** O catálogo de ingredientes não guarda
+  declaração de alergênico, e derivá-la do tipo do ingrediente seria inventar classificação
+  regulatória. O campo existe no rótulo e sai como ausente: se a regra da casa o exigir, a prévia
+  barra a impressão — que é o comportamento correto até o dado existir. Critério de remoção:
+  cadastrar alergênicos declarados no catálogo e ligar a fonte.
+- **PKG-004-B — o ABV é calculado, não medido.** Vem das métricas da receita publicada (fonte
+  rastreável, com versão), não de OG/FG reais do lote. A origem diz isso em voz alta no rótulo
+  ("calculado, não medido"). Critério de remoção: expor OG medido (transferência) e FG estável
+  (FER-003) como fonte e recalcular o ABV do lote.
+
+## Evidências de encerramento
+
+- **Build/commit:** sete PRs empilhados, um por história — #118 (PKG-001, base em `main`), #119
+  (GAS-001), #120 (PKG-002), #121 (PKG-003), #122 (FSL-001), #123 (GAS-002), #124 (PKG-004, topo).
+  Cada PR tem como base o anterior, então a ordem de merge é de baixo para cima: GAS-002 usa as
+  fórmulas de PKG-002 e PKG-004 lê FSL-001.
+- **Testes executados:** `mvn verify` completo no topo da pilha (JDK 25) — 513 unitários e 376 de
+  integração, zero falhas, incluindo `ModularityTest`. Cada branch intermediária compila e passa a
+  suíte unitária isoladamente (438 / 457 / 465 / 482 / 502) mais `PackagingPlanIT`. Frontend: 229
+  testes em 48 arquivos, build de produção limpo e ESLint sem warnings.
+- **Migration aplicada:** V67 `packaging_plan`, V68 `gas_network`, V69 `packaging_carbonation`,
+  V70 `packaging_run`, V71 `packaging_freshness`, V72 `gas_service_line`, V73 `packaging_label`.
+  Sequência contínua, sem alteração de migration já publicada.
+- **Contratos atualizados:** `contracts/openapi.yaml` de 94 para 129 paths (+35), cobrindo planos de
+  envase, carbonatação, execução, frescor, rótulos, cilindros/rede de gás e linhas de serviço. Cinco
+  cálculos novos publicados no hub: três em PKG-002 (`co2-residual`, `priming-sugar`,
+  `forced-carbonation-pressure`) e dois em GAS-002 (`line-balance`, `beer-column-pressure`).
+- **Riscos remanescentes:** seis débitos registrados, todos com critério de remoção e nenhum
+  bloqueando o uso das histórias entregues — PKG-001-A (validade do CIP por tempo), PKG-002-A
+  (pressão máxima por embalagem), GAS-001-A (custo/estoque do gás), GAS-001-B (periodicidade da
+  requalificação), PKG-004-A (alergênicos sem fonte no catálogo), PKG-004-B (ABV calculado, não
+  medido). Os dois de PKG-004 têm efeito visível no rótulo: alergênico exigido pela regra da casa
+  barra a impressão, e o ABV sai marcado como calculado.
+- **Aceite:**

@@ -158,7 +158,8 @@ class ProductionConfiguration {
                         transfers.findByBatch(breweryId, batchId)
                                 .map(transfer -> transfer.volumeLiters())
                                 .orElse(batch.volumeLiters()),
-                        batch.status().name()));
+                        batch.status().name(), batch.recipeId(), batch.recipeVersion(),
+                        batch.recipeName()));
     }
 
     /**

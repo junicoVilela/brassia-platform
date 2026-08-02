@@ -17,7 +17,9 @@ public interface IngredientSpecLookup {
      * @param colorEbc          cor do fermentável, em EBC
      * @param alphaAcidPercent  alfa-ácido do lúpulo, em %
      * @param attenuationPercent atenuação aparente da levedura, em %
+     * @param volumeMl          volume nominal da embalagem, em ml
+     * @param useUnit           unidade de uso do ingrediente
      */
     record Spec(String type, BigDecimal potentialSg, BigDecimal colorEbc, BigDecimal alphaAcidPercent,
-            BigDecimal attenuationPercent) {}
+            BigDecimal attenuationPercent, BigDecimal volumeMl, String useUnit) {}
 }

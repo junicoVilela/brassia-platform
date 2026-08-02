@@ -2,6 +2,7 @@ package br.com.brew.brassia.sanitation.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.equipment.EquipmentProfileLookup;
+import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
 import br.com.brew.brassia.sanitation.application.port.inbound.CompleteCycleUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.ConsumptionSummaryUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.CreateProcedureUseCase;
@@ -192,5 +193,14 @@ class SanitationConfiguration {
     @Bean
     ListCyclesUseCase listCyclesUseCase(CleaningCycleRepository cycles) {
         return new ListCyclesHandler(cycles);
+    }
+
+    /**
+     * Última liberação de limpeza publicada, para outros módulos condicionarem o uso do
+     * equipamento à evidência de sanitização — ex.: a linha de envase (PKG-001).
+     */
+    @Bean
+    CleaningReleaseLookup cleaningReleaseLookup(CleaningCycleRepository cycles) {
+        return cycles::findLastRelease;
     }
 }

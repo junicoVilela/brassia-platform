@@ -1569,6 +1569,139 @@ paths:
               schema: {type: array, items: {$ref: '#/components/schemas/MaterialLine'}}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /packaging/plans:
+    get:
+      operationId: listPackagingPlans
+      summary: Lista planos de envase
+      parameters:
+        - name: batchId
+          in: query
+          required: false
+          description: Restringe aos planos de um lote
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Planos de envase
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/PackagingPlan'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: planPackaging
+      summary: "Abre um plano de envase (embalagem, quantidade, linha e janela)"
+      description: >
+        O volume planejado é derivado de unidades × volume da embalagem e nunca informado;
+        planejar mais do que o lote comporta responde 400. Só lote em fermentação aceita plano
+        (409); a embalagem precisa ser ingrediente do tipo PACKAGING com `volumeMl` declarado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PlanPackaging'}
+      responses:
+        '201':
+          description: "Plano aberto em PLANNED, com o checklist pendente"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, plannedVolumeLiters]
+                properties:
+                  id: {type: string, format: uuid}
+                  plannedVolumeLiters: {type: number}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /packaging/plans/{id}:
+    get:
+      operationId: getPackagingPlan
+      summary: Plano de envase com o checklist completo
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Plano de envase
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PackagingPlan'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /packaging/plans/{id}/checklist:
+    post:
+      operationId: confirmPackagingChecklistItem
+      summary: Confirma um item do checklist de envase
+      description: >
+        Repetir é inócuo: a primeira confirmação é preservada, porque ela é a evidência de
+        quem conferiu e quando. Plano fora de PLANNED responde 409.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [item]
+              properties:
+                item: {type: string, enum: [CONTAINER_INSPECTED, SEAL_TEST, GAS_SUPPLY]}
+      responses:
+        '200': {description: Item confirmado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /packaging/plans/{id}/reserve:
+    post:
+      operationId: reservePackagingPlan
+      summary: "Verifica linha e limpeza e reserva a embalagem"
+      description: >
+        Todos os bloqueios vêm juntos na extensão `blockers` (checklist pendente, linha
+        desativada, manutenção agendada, conflito de agenda, linha sem limpeza liberada), para
+        o operador resolver tudo de uma vez. Falta de embalagem responde 409 com a extensão
+        `shortfall` e nada é reservado. Tudo num commit: recusa não deixa efeito parcial.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Plano reservado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [planId, reservedUnits, unit]
+                properties:
+                  planId: {type: string, format: uuid}
+                  reservedUnits: {type: number}
+                  unit: {type: string}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "Bloqueado (`blockers`) ou embalagem insuficiente (`shortfall`)"
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/PackagingReserveProblem'}
+  /packaging/plans/{id}/cancel:
+    post:
+      operationId: cancelPackagingPlan
+      summary: "Cancela o plano e devolve a embalagem reservada"
+      description: >
+        Terminal: cancelar de novo responde 409. O motivo é obrigatório porque a devolução
+        ao estoque é auditada. A linha volta a ficar livre para outro plano na mesma janela.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, maxLength: 200}
+      responses:
+        '200': {description: Plano cancelado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
     RegisterBrewery:
@@ -2421,6 +2554,72 @@ components:
             deadSpaceLiters: {type: number}
             mashEfficiencyPercent: {type: number}
             boilOffLitersPerHour: {type: number}
+    PackagingPlan:
+      type: object
+      required: [id, code, batchId, containerId, containerVolumeMl, plannedUnits, plannedVolumeLiters,
+                 lineEquipmentId, plannedStart, plannedEnd, status, checklist, checklistComplete]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        batchId: {type: string, format: uuid}
+        containerId: {type: string, format: uuid, description: "Ingrediente do tipo PACKAGING"}
+        containerVolumeMl: {type: number, description: "Volume da embalagem congelado no plano"}
+        plannedUnits: {type: integer, minimum: 1}
+        plannedVolumeLiters: {type: number, description: "Derivado de unidades × volume; nunca informado"}
+        lineEquipmentId: {type: string, format: uuid}
+        plannedStart: {type: string, format: date-time}
+        plannedEnd: {type: string, format: date-time}
+        status: {type: string, enum: [PLANNED, RESERVED, CANCELLED]}
+        checklist:
+          type: array
+          description: "Todos os itens, inclusive os pendentes (confirmed = false)"
+          items:
+            type: object
+            required: [item, confirmed]
+            properties:
+              item: {type: string, enum: [CONTAINER_INSPECTED, SEAL_TEST, GAS_SUPPLY]}
+              confirmed: {type: boolean}
+              confirmedBy: {type: string, format: uuid, nullable: true}
+              confirmedAt: {type: string, format: date-time, nullable: true}
+        checklistComplete: {type: boolean}
+        reservedAt: {type: string, format: date-time, nullable: true}
+        cancelReason: {type: string, nullable: true}
+    PlanPackaging:
+      type: object
+      required: [code, batchId, containerId, plannedUnits, lineEquipmentId, plannedStart, plannedEnd]
+      properties:
+        code: {type: string, maxLength: 40}
+        batchId: {type: string, format: uuid}
+        containerId: {type: string, format: uuid}
+        plannedUnits: {type: integer, minimum: 1}
+        lineEquipmentId: {type: string, format: uuid}
+        plannedStart: {type: string, format: date-time}
+        plannedEnd: {type: string, format: date-time}
+    PackagingReserveProblem:
+      type: object
+      description: >
+        Problem Details da recusa de reserva. `blockers` acompanha packaging_blocked;
+        `shortfall` acompanha insufficient_packaging_stock.
+      properties:
+        code: {type: string, enum: [packaging_blocked, insufficient_packaging_stock]}
+        blockers:
+          type: array
+          items:
+            type: object
+            required: [code, message]
+            properties:
+              code:
+                type: string
+                enum: [checklist_pending, line_unknown, line_inactive, line_under_maintenance,
+                       line_conflict, line_not_clean]
+              message: {type: string}
+        shortfall:
+          type: object
+          properties:
+            containerId: {type: string, format: uuid}
+            requested: {type: number}
+            available: {type: number}
+            unit: {type: string}
   responses:
     Problem:
       description: Problem Details

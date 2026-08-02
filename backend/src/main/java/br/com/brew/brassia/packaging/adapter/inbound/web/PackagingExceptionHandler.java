@@ -1,0 +1,43 @@
+package br.com.brew.brassia.packaging.adapter.inbound.web;
+
+import br.com.brew.brassia.packaging.domain.PackagingBlockedException;
+import br.com.brew.brassia.packaging.domain.PackagingStockShortfallException;
+import br.com.brew.brassia.shared.web.ProblemDetails;
+import java.util.List;
+import java.util.Map;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+/**
+ * Traduz as recusas de reserva de envase (PKG-001) em 409 Problem Details: a lista completa
+ * de bloqueios vai na extensão {@code blockers} e a falta de embalagem na extensão
+ * {@code shortfall}, para o operador resolver tudo sem tentativa e erro.
+ */
+@RestControllerAdvice
+class PackagingExceptionHandler {
+
+    @ExceptionHandler(PackagingBlockedException.class)
+    ProblemDetail handleBlocked(PackagingBlockedException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "packaging_blocked",
+                "O envase não pôde ser reservado; há bloqueios.");
+        List<Map<String, String>> blockers = ex.blockers().stream()
+                .map(b -> Map.of("code", b.code(), "message", b.message()))
+                .toList();
+        problem.setProperty("blockers", blockers);
+        return problem;
+    }
+
+    @ExceptionHandler(PackagingStockShortfallException.class)
+    ProblemDetail handleShortfall(PackagingStockShortfallException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "insufficient_packaging_stock",
+                "Embalagem insuficiente para o plano; nada foi reservado.");
+        problem.setProperty("shortfall", Map.<String, Object>of(
+                "containerId", ex.containerId().toString(),
+                "requested", ex.requested(),
+                "available", ex.available(),
+                "unit", ex.unit()));
+        return problem;
+    }
+}

@@ -1,0 +1,69 @@
+package br.com.brew.brassia.packaging.config;
+
+import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.catalog.IngredientSpecLookup;
+import br.com.brew.brassia.equipment.EquipmentAvailabilityLookup;
+import br.com.brew.brassia.packaging.PackagingStockGateway;
+import br.com.brew.brassia.packaging.application.port.inbound.CancelPackagingPlanUseCase;
+import br.com.brew.brassia.packaging.application.port.inbound.ConfirmChecklistItemUseCase;
+import br.com.brew.brassia.packaging.application.port.inbound.PackagingPlanQueries;
+import br.com.brew.brassia.packaging.application.port.inbound.PlanPackagingUseCase;
+import br.com.brew.brassia.packaging.application.port.inbound.ReservePackagingPlanUseCase;
+import br.com.brew.brassia.packaging.application.port.outbound.PackagingPlanRepository;
+import br.com.brew.brassia.packaging.application.service.PackagingPlanHandlers;
+import br.com.brew.brassia.packaging.application.service.PlanPackagingHandler;
+import br.com.brew.brassia.packaging.application.service.ReservePackagingPlanHandler;
+import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
+import java.util.Objects;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+@Configuration(proxyBeanMethods = false)
+class PackagingConfiguration {
+
+    @Bean
+    PlanPackagingUseCase planPackagingUseCase(PackagingPlanRepository plans, BatchLookup batches,
+            IngredientSpecLookup ingredients, EquipmentAvailabilityLookup lines, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new PlanPackagingHandler(plans, batches, ingredients, lines, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ConfirmChecklistItemUseCase confirmChecklistItemUseCase(PackagingPlanRepository plans, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new PackagingPlanHandlers.ConfirmItem(plans, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    /**
+     * A reserva verifica linha, agenda, limpeza e estoque no mesmo commit: qualquer recusa
+     * reverte tudo, então não sobra reserva sem plano reservado nem o contrário.
+     */
+    @Bean
+    ReservePackagingPlanUseCase reservePackagingPlanUseCase(PackagingPlanRepository plans,
+            EquipmentAvailabilityLookup lines, CleaningReleaseLookup cleanings, IngredientSpecLookup ingredients,
+            PackagingStockGateway stock, AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new ReservePackagingPlanHandler(plans, lines, cleanings, ingredients, stock, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    CancelPackagingPlanUseCase cancelPackagingPlanUseCase(PackagingPlanRepository plans,
+            PackagingStockGateway stock, AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new PackagingPlanHandlers.Cancel(plans, stock, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    PackagingPlanQueries packagingPlanQueries(PackagingPlanRepository plans) {
+        return new PackagingPlanHandlers.Queries(plans);
+    }
+}

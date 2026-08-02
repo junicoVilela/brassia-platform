@@ -1,6 +1,7 @@
 package br.com.brew.brassia.equipment.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.equipment.EquipmentAvailabilityLookup;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
 import br.com.brew.brassia.equipment.EquipmentProfileLookup;
 import br.com.brew.brassia.equipment.application.port.inbound.CancelMaintenanceUseCase;
@@ -64,6 +65,30 @@ class EquipmentConfiguration {
         return (breweryId, equipmentId) -> repository.findById(breweryId, equipmentId)
                 .map(e -> new EquipmentProfileLookup.Profile(e.capacityLiters(), e.deadSpaceLiters(),
                         e.mashEfficiencyPercent(), e.boilOffLitersPerHour()));
+    }
+
+    /**
+     * Disponibilidade publicada (cadastro ativo + agenda de manutenção), para outros módulos
+     * agendarem uso do equipamento — ex.: a linha de envase (PKG-001).
+     */
+    @Bean
+    EquipmentAvailabilityLookup equipmentAvailabilityLookup(EquipmentRepository equipment,
+            MaintenanceRepository maintenance) {
+        return (breweryId, equipmentId, from, to) -> {
+            if (from == null || to == null || !to.isAfter(from)) {
+                throw new IllegalArgumentException("intervalo inválido");
+            }
+            var found = equipment.findById(breweryId, equipmentId);
+            if (found.isEmpty()) {
+                return EquipmentAvailabilityLookup.Availability.UNKNOWN;
+            }
+            if (!found.get().active()) {
+                return EquipmentAvailabilityLookup.Availability.INACTIVE;
+            }
+            return maintenance.hasScheduledOverlap(breweryId, equipmentId, from, to)
+                    ? EquipmentAvailabilityLookup.Availability.UNDER_MAINTENANCE
+                    : EquipmentAvailabilityLookup.Availability.AVAILABLE;
+        };
     }
 
     @Bean

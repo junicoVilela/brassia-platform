@@ -1,5 +1,6 @@
 package br.com.brew.brassia.sanitation.adapter.outbound.persistence;
 
+import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
 import br.com.brew.brassia.sanitation.application.port.outbound.CleaningCycleRepository;
 import br.com.brew.brassia.sanitation.domain.CleaningCycle;
 import br.com.brew.brassia.sanitation.domain.CleaningCycleStatus;
@@ -225,6 +226,26 @@ class JdbcCleaningCycleRepository implements CleaningCycleRepository {
                             rs.getBigDecimal("avg_product"), rs.getBigDecimal("min_product"), rs.getBigDecimal("max_product"));
                 })
                 .single();
+    }
+
+    @Override
+    public Optional<CleaningReleaseLookup.Release> findLastRelease(UUID breweryId, UUID equipmentId) {
+        // Só RELEASED conta: ciclo concluído sem verificação aprovada não libera o equipamento.
+        return jdbc.sql("""
+                SELECT id, procedure_code, procedure_version, decided_at
+                FROM sanitation_cleaning_cycle
+                WHERE brewery_id = :brewery AND equipment_id = :equipment
+                  AND status = 'RELEASED' AND decided_at IS NOT NULL
+                ORDER BY decided_at DESC
+                LIMIT 1
+                """)
+                .param("brewery", breweryId).param("equipment", equipmentId)
+                .query((rs, n) -> new CleaningReleaseLookup.Release(
+                        rs.getObject("id", UUID.class),
+                        rs.getString("procedure_code"),
+                        rs.getInt("procedure_version"),
+                        rs.getTimestamp("decided_at").toInstant()))
+                .optional();
     }
 
     private Verification verification(ResultSet rs) throws SQLException {

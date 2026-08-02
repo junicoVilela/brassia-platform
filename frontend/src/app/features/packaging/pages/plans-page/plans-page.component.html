@@ -1,0 +1,152 @@
+<app-page-header title="Planos de envase"
+                 subtitle="Embalagem, quantidade, linha e checklist antes de comprometer o lote" />
+
+@if (canManage) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-1">Novo plano</h2>
+      <p class="text-muted small mb-3">
+        O volume é derivado de unidades × volume da embalagem e não pode passar do volume do lote.
+        Planejar não reserva nada: a embalagem só é comprometida no passo de reserva.
+      </p>
+      <form [formGroup]="form" (ngSubmit)="plan()" class="row g-2 align-items-end">
+        <div class="col-sm-3"><label class="form-label small" for="pcode">Código</label>
+          <input id="pcode" type="text" class="form-control form-control-sm" formControlName="code"
+                 placeholder="ENV-001"></div>
+        <div class="col-sm-5"><label class="form-label small" for="pbatch">Lote</label>
+          <select id="pbatch" class="form-select form-select-sm" formControlName="batchId">
+            <option value="">Selecione…</option>
+            @for (b of store.packageableBatches(); track b.id) {
+              <option [value]="b.id">{{ b.code }} — {{ b.recipeName }}</option>
+            }
+          </select>
+          @if (store.packageableBatches().length === 0) {
+            <span class="form-text">Só lote em fermentação pode ser envasado.</span>
+          }
+        </div>
+        <div class="col-sm-4"><label class="form-label small" for="pcontainer">Embalagem</label>
+          <select id="pcontainer" class="form-select form-select-sm" formControlName="containerId">
+            <option value="">Selecione…</option>
+            @for (c of store.containers(); track c.id) {
+              <option [value]="c.id">{{ c.code }} — {{ c.name }}</option>
+            }
+          </select>
+          @if (store.containers().length === 0) {
+            <span class="form-text">Cadastre um ingrediente do tipo embalagem com volume em ml.</span>
+          }
+        </div>
+        <div class="col-sm-3"><label class="form-label small" for="punits">Unidades</label>
+          <input id="punits" type="number" min="1" class="form-control form-control-sm"
+                 formControlName="plannedUnits"></div>
+        <div class="col-sm-5"><label class="form-label small" for="pline">Linha de envase</label>
+          <select id="pline" class="form-select form-select-sm" formControlName="lineEquipmentId">
+            <option value="">Selecione…</option>
+            @for (l of store.lines(); track l.id) {
+              <option [value]="l.id">{{ l.code }} — {{ l.name }}</option>
+            }
+          </select></div>
+        <div class="col-sm-2"><label class="form-label small" for="pstart">Início</label>
+          <input id="pstart" type="datetime-local" class="form-control form-control-sm"
+                 formControlName="plannedStart"></div>
+        <div class="col-sm-2"><label class="form-label small" for="pend">Fim</label>
+          <input id="pend" type="datetime-local" class="form-control form-control-sm"
+                 formControlName="plannedEnd"></div>
+        <div class="col-sm-3 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm" [disabled]="form.invalid || store.submitting()">
+            <i class="ri-archive-line me-1" aria-hidden="true"></i> Abrir plano
+          </button>
+        </div>
+      </form>
+      @if (store.actionError(); as actionError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+      }
+    </div>
+  </div>
+}
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+      <h2 class="h6 fw-semibold mb-0">Planos</h2>
+      <div>
+        <label class="form-label small mb-1" for="pfilter">Filtrar por lote</label>
+        <select id="pfilter" class="form-select form-select-sm" [value]="store.batchFilter()"
+                (change)="store.filterByBatch($any($event.target).value)">
+          <option value="">Todos os lotes</option>
+          @for (b of store.batches(); track b.id) {
+            <option [value]="b.id">{{ b.code }} — {{ b.recipeName }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">
+        {{ error }}
+        <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">Tentar de novo</button>
+      </div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-archive-line" message="Nenhum plano de envase."
+                       hint="Abra um plano para um lote em fermentação." />
+    } @else {
+      <ul class="list-unstyled mb-0">
+        @for (p of store.items(); track p.id) {
+          <li class="border rounded-10 p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+              <div>
+                <span class="badge me-2"
+                      [class]="p.status === 'RESERVED' ? 'text-bg-success'
+                               : p.status === 'CANCELLED' ? 'text-bg-secondary' : 'text-bg-info'">
+                  {{ statusLabels[p.status] }}
+                </span>
+                <span class="fw-medium">{{ p.code }}</span>
+                <span class="text-muted small">
+                  · {{ p.plannedUnits }} un. de {{ p.containerVolumeMl | number:'1.0-0' }} ml
+                  · {{ p.plannedVolumeLiters | number:'1.0-3' }} L
+                  · {{ p.plannedStart | date:'short' }} até {{ p.plannedEnd | date:'short' }}
+                </span>
+                @if (p.cancelReason) {
+                  <p class="small text-muted mb-0 mt-1">Cancelado: {{ p.cancelReason }}</p>
+                }
+              </div>
+              @if (canManage && p.status === 'PLANNED') {
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-sm btn-outline-success text-nowrap"
+                          [disabled]="!p.checklistComplete" (click)="reserve(p)">
+                    <i class="ri-lock-line me-1" aria-hidden="true"></i> Reservar
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap" (click)="cancel(p)">
+                    Cancelar
+                  </button>
+                </div>
+              } @else if (canManage && p.status === 'RESERVED') {
+                <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap" (click)="cancel(p)">
+                  Cancelar e devolver embalagem
+                </button>
+              }
+            </div>
+
+            @if (blockersOf(p.id).length > 0) {
+              <div class="alert alert-warning mt-3 mb-0" role="alert">
+                <p class="mb-1 fw-medium">A reserva foi recusada. Resolva antes de tentar de novo:</p>
+                <ul class="mb-0 ps-3 small">
+                  @for (b of blockersOf(p.id); track $index) {
+                    <li>{{ b.message }}</li>
+                  }
+                </ul>
+              </div>
+            }
+            @if (shortfallOf(p.id); as shortfall) {
+              <div class="alert alert-warning mt-3 mb-0" role="alert">
+                Embalagem insuficiente: pedidas {{ shortfall.requested | number:'1.0-3' }} {{ shortfall.unit }},
+                disponíveis {{ shortfall.available | number:'1.0-3' }} {{ shortfall.unit }}. Nada foi reservado.
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</div>

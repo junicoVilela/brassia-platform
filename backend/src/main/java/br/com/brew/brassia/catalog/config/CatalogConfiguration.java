@@ -58,7 +58,9 @@ class CatalogConfiguration {
                     number(attributes.get("potentialSg")),
                     number(attributes.get("colorEbc")),
                     number(attributes.get("alphaAcid")),
-                    number(attributes.get("attenuation")));
+                    number(attributes.get("attenuation")),
+                    number(attributes.get("volumeMl")),
+                    ingredient.useUnit().name());
         });
     }
 

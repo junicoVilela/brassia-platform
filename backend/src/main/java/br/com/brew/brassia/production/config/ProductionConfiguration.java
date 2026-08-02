@@ -152,8 +152,13 @@ class ProductionConfiguration {
 
     /** Existência de lote publicada para outros módulos (ex.: leituras de fermentação, FER-002). */
     @Bean
-    BatchLookup batchLookup(BatchRepository batches) {
-        return (breweryId, batchId) -> batches.findById(breweryId, batchId).isPresent();
+    BatchLookup batchLookup(BatchRepository batches, TransferRepository transfers) {
+        return (breweryId, batchId) -> batches.findById(breweryId, batchId)
+                .map(batch -> new BatchLookup.Snapshot(batch.id().value(), batch.code(), batch.volumeLiters(),
+                        transfers.findByBatch(breweryId, batchId)
+                                .map(transfer -> transfer.volumeLiters())
+                                .orElse(batch.volumeLiters()),
+                        batch.status().name()));
     }
 
     /**

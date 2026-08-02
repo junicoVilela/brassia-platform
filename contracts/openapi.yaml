@@ -1821,6 +1821,109 @@ paths:
               schema: {$ref: '#/components/schemas/CarbonationRecommendation'}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /packaging/shelf-life-policy:
+    get:
+      operationId: getShelfLifePolicy
+      summary: Política de vida útil da cervejaria
+      responses:
+        '200':
+          description: Faixas de TPO e os dias que sustentam
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ShelfLifePolicy'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: saveShelfLifePolicy
+      summary: Configura as faixas de TPO e a validade que cada uma sustenta
+      description: >
+        Os números vêm da cervejaria, não do sistema: TPO é o que mais empurra o envelhecimento,
+        mas traduzir ppb em dias depende do estilo, da estocagem e do padrão de frescor da casa.
+        Uma faixa mais suja não pode prometer mais dias que uma mais limpa (400), e o pior caso
+        não pode render mais que a última faixa. Exige `packaging.policy.manage`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ShelfLifePolicy'}
+      responses:
+        '200': {description: Política salva}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /packaging/plans/{id}/freshness:
+    get:
+      operationId: getFreshness
+      summary: Oxigênio e validade do envase
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Evidência, recomendação e override lado a lado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Freshness'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: recordFreshness
+      summary: "Registra DO/TPO, purga e vedação, e recomenda a validade"
+      description: >
+        O TPO medido é confrontado com as faixas da política da casa, e a recomendação sai
+        explicada — qual faixa pegou, quanto do oxigênio veio do espaço livre, se a purga foi
+        conferida e se a vedação passou. Purga não conferida e vedação reprovada NÃO mudam o
+        número: viram ressalvas (`caveats`), porque evidência incompleta reduz a confiança, não a
+        validade. Sem política configurada a medição é gravada e `recommendation` vem nulo.
+        Só plano com envase executado aceita medição (409); TPO abaixo do DO responde 400.
+        Remedir substitui o registro e derruba um override anterior — a evidência mudou.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RecordFreshness'}
+      responses:
+        '200':
+          description: Evidência gravada e recomendação explicada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [freshness]
+                properties:
+                  freshness: {$ref: '#/components/schemas/Freshness'}
+                  recommendation:
+                    allOf: [{$ref: '#/components/schemas/ShelfLifeRecommendation'}]
+                    nullable: true
+                    description: Nulo quando a cervejaria não tem política de vida útil
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /packaging/plans/{id}/freshness/override:
+    post:
+      operationId: overrideShelfLife
+      summary: Sobrepõe a validade recomendada
+      description: >
+        O motivo é obrigatório: é ele que explica, depois, uma data que a evidência não sustentava.
+        O recomendado NUNCA é apagado — os dois ficam lado a lado, e o override é auditado com
+        quem, quando, por quê e se estende além do recomendado.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shelfLifeDays, reason]
+              properties:
+                shelfLifeDays: {type: integer, minimum: 1}
+                reason: {type: string, maxLength: 200}
+      responses:
+        '200': {description: Validade sobreposta}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /gas/cylinders:
     get:
       operationId: listGasCylinders
@@ -3194,6 +3297,87 @@ components:
           properties:
             targetVolumes: {type: number}
             residualVolumes: {type: number}
+    ShelfLifePolicy:
+      type: object
+      required: [tiers, fallbackDays]
+      properties:
+        tiers:
+          type: array
+          minItems: 1
+          description: Faixas por TPO máximo, aplicadas da mais limpa para a mais suja
+          items:
+            type: object
+            required: [maxTpoPpb, shelfLifeDays]
+            properties:
+              maxTpoPpb: {type: number, exclusiveMinimum: 0}
+              shelfLifeDays: {type: integer, minimum: 1}
+        fallbackDays:
+          type: integer
+          minimum: 1
+          description: Validade quando o TPO medido passa de todas as faixas (pior caso da casa)
+    RecordFreshness:
+      type: object
+      required: [dissolvedOxygenPpb, totalPackageOxygenPpb, purgeMethod, purgeVerified, sealCheckMethod,
+                 sealCheckPassed]
+      properties:
+        dissolvedOxygenPpb: {type: number, minimum: 0, description: "Oxigênio dissolvido na cerveja (DO)"}
+        totalPackageOxygenPpb:
+          type: number
+          minimum: 0
+          description: "Oxigênio total da embalagem (TPO); inclui o dissolvido, então TPO ≥ DO"
+        purgeMethod: {type: string, maxLength: 120}
+        purgeVerified: {type: boolean}
+        sealCheckMethod: {type: string, maxLength: 120}
+        sealCheckPassed: {type: boolean}
+    ShelfLifeRecommendation:
+      type: object
+      required: [shelfLifeDays, bestBefore, totalPackageOxygenPpb, withinPolicyTiers, factors, caveats]
+      properties:
+        shelfLifeDays: {type: integer}
+        bestBefore: {type: string, format: date}
+        totalPackageOxygenPpb: {type: number}
+        matchedTierMaxTpoPpb: {type: number, nullable: true}
+        withinPolicyTiers: {type: boolean, description: Falso quando caiu no pior caso}
+        factors:
+          type: array
+          description: Evidência que sustenta o número, fator a fator
+          items:
+            type: object
+            required: [name, trustworthy, explanation]
+            properties:
+              name: {type: string, enum: [tpo, dissolvedOxygen, purge, seal]}
+              trustworthy: {type: boolean}
+              explanation: {type: string}
+        caveats:
+          type: array
+          items: {type: string}
+          description: Ressalvas que reduzem a confiança na recomendação, sem mudar o número
+    Freshness:
+      type: object
+      required: [packagedOn, dissolvedOxygenPpb, totalPackageOxygenPpb, headspaceOxygenPpb, purgeMethod,
+                 purgeVerified, sealCheckMethod, sealCheckPassed, evidenceComplete]
+      properties:
+        packagedOn: {type: string, format: date}
+        dissolvedOxygenPpb: {type: number}
+        totalPackageOxygenPpb: {type: number}
+        headspaceOxygenPpb: {type: number, description: "O que o TPO tem além do já dissolvido"}
+        purgeMethod: {type: string}
+        purgeVerified: {type: boolean}
+        sealCheckMethod: {type: string}
+        sealCheckPassed: {type: boolean}
+        evidenceComplete: {type: boolean, description: "Purga conferida e vedação aprovada"}
+        recommendedShelfLifeDays: {type: integer, nullable: true}
+        recommendedBestBefore: {type: string, format: date, nullable: true}
+        overrideShelfLifeDays: {type: integer, nullable: true}
+        overrideBestBefore: {type: string, format: date, nullable: true}
+        overrideReason: {type: string, nullable: true}
+        overriddenBy: {type: string, format: uuid, nullable: true}
+        overriddenAt: {type: string, format: date-time, nullable: true}
+        extendsBeyondRecommendation:
+          type: boolean
+          description: Override que estende a validade além do que a evidência sustentava
+        effectiveShelfLifeDays: {type: integer, nullable: true, description: "A sobreposta, senão a recomendada"}
+        effectiveBestBefore: {type: string, format: date, nullable: true}
     GasCylinder:
       type: object
       required: [id, code, gasType, capacityKg, tareKg, contentKg, requalificationDueOn, expired, status,

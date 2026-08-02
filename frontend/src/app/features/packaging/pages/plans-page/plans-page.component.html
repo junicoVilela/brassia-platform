@@ -138,6 +138,11 @@
                     {{ store.runPlanId() === p.id ? 'Fechar envase' : 'Envase' }}
                   </button>
                 }
+                @if (p.status === 'EXECUTED') {
+                  <button type="button" class="btn btn-link btn-sm p-0" (click)="openFreshness(p)">
+                    {{ store.freshnessPlanId() === p.id ? 'Fechar oxigênio' : 'Oxigênio e validade' }}
+                  </button>
+                }
               </div>
             }
 
@@ -225,6 +230,122 @@
                 }
                 @if (store.runError(); as runError) {
                   <div class="alert alert-danger mt-3 mb-0" role="alert">{{ runError }}</div>
+                }
+              </div>
+            }
+
+            @if (store.freshnessPlanId() === p.id) {
+              <div class="border-top mt-3 pt-3">
+                <h3 class="h6 fw-semibold mb-1">Oxigênio e validade</h3>
+                <p class="text-muted small mb-3">
+                  A validade é recomendada a partir do oxigênio total da embalagem, contra as faixas
+                  que a cervejaria configurou. Purga e vedação não mudam o número — mudam a
+                  confiança nele.
+                </p>
+
+                <form [formGroup]="freshnessForm" class="row g-2 align-items-end mb-3">
+                  <div class="col-sm-3"><label class="form-label small" for="fdo">O₂ dissolvido (ppb)</label>
+                    <input id="fdo" type="number" step="any" class="form-control form-control-sm"
+                           formControlName="dissolvedOxygenPpb"></div>
+                  <div class="col-sm-3"><label class="form-label small" for="ftpo">TPO total (ppb)</label>
+                    <input id="ftpo" type="number" step="any" class="form-control form-control-sm"
+                           formControlName="totalPackageOxygenPpb"></div>
+                  <div class="col-sm-6"><label class="form-label small" for="fpurge">Método de purga</label>
+                    <input id="fpurge" type="text" class="form-control form-control-sm"
+                           formControlName="purgeMethod"></div>
+                  <div class="col-sm-6"><label class="form-label small" for="fseal">Verificação da vedação</label>
+                    <input id="fseal" type="text" class="form-control form-control-sm"
+                           formControlName="sealCheckMethod"></div>
+                  <div class="col-sm-3">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="fpurgeok"
+                             formControlName="purgeVerified">
+                      <label class="form-check-label small" for="fpurgeok">Purga conferida</label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="fsealok"
+                             formControlName="sealCheckPassed">
+                      <label class="form-check-label small" for="fsealok">Vedação aprovada</label>
+                    </div>
+                  </div>
+                  <div class="col-sm-3 d-grid">
+                    <button type="button" class="btn btn-primary btn-sm"
+                            [disabled]="freshnessForm.invalid || store.measuring()"
+                            (click)="recordFreshness(p.id)">
+                      <i class="ri-test-tube-line me-1" aria-hidden="true"></i> Registrar medição
+                    </button>
+                  </div>
+                </form>
+
+                @if (store.measuring()) {
+                  <app-loading-indicator text="Registrando…" />
+                }
+                @if (store.freshnessError(); as freshnessError) {
+                  <div class="alert alert-danger" role="alert">{{ freshnessError }}</div>
+                }
+
+                @if (store.recommendedShelfLife(); as r) {
+                  <div class="border rounded-10 p-3 mb-3">
+                    <p class="mb-1 fw-medium">
+                      Validade recomendada: {{ r.shelfLifeDays }} dias — até {{ r.bestBefore }}
+                    </p>
+                    @if (!r.withinPolicyTiers) {
+                      <p class="small text-danger mb-2">
+                        TPO acima de todas as faixas da política: aplicado o pior caso.
+                      </p>
+                    }
+                    <ul class="small text-muted mb-0 ps-3">
+                      @for (f of r.factors; track f.name) {
+                        <li [class.text-danger]="!f.trustworthy">
+                          <i class="me-1" aria-hidden="true"
+                             [class]="f.trustworthy ? 'ri-check-line' : 'ri-alert-line'"></i>{{ f.explanation }}
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                }
+
+                @if (store.freshness(); as f) {
+                  <div class="border rounded-10 p-3 mb-3">
+                    <p class="small mb-1">
+                      O₂ dissolvido {{ f.dissolvedOxygenPpb | number:'1.0-2' }} ppb · TPO
+                      {{ f.totalPackageOxygenPpb | number:'1.0-2' }} ppb · espaço livre
+                      {{ f.headspaceOxygenPpb | number:'1.0-2' }} ppb
+                    </p>
+                    <p class="small text-muted mb-2">
+                      Purga: {{ f.purgeMethod }} ({{ f.purgeVerified ? 'conferida' : 'não conferida' }}) ·
+                      Vedação: {{ f.sealCheckMethod }}
+                      ({{ f.sealCheckPassed ? 'aprovada' : 'reprovada' }})
+                    </p>
+                    @if (f.recommendedBestBefore) {
+                      <p class="small mb-1">
+                        Recomendada: {{ f.recommendedShelfLifeDays }} dias, até {{ f.recommendedBestBefore }}
+                      </p>
+                    } @else {
+                      <p class="small text-muted mb-1">
+                        Sem política de vida útil configurada: a validade é decisão sua.
+                      </p>
+                    }
+                    @if (f.overrideBestBefore) {
+                      <div class="alert mb-0 mt-2"
+                           [class]="f.extendsBeyondRecommendation ? 'alert-warning' : 'alert-info'"
+                           role="alert">
+                        <p class="mb-1 fw-medium">
+                          Validade sobreposta: {{ f.overrideShelfLifeDays }} dias, até
+                          {{ f.overrideBestBefore }}
+                          @if (f.extendsBeyondRecommendation) {
+                            — além do que a evidência sustentava
+                          }
+                        </p>
+                        <p class="small mb-0">Motivo: {{ f.overrideReason }}</p>
+                      </div>
+                    } @else if (canManage) {
+                      <button type="button" class="btn btn-outline-secondary btn-sm mt-2"
+                              (click)="overrideShelfLife(p.id)">
+                        Sobrepor validade
+                      </button>
+                    }
+                  </div>
                 }
               </div>
             }

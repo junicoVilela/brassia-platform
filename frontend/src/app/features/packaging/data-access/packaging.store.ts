@@ -9,12 +9,15 @@ import {
   CarbonationRecommendation,
   ChecklistItemCode,
   ExecutePackagingRequest,
+  Freshness,
   OverCarbonation,
   PackagingBlocker,
   PackagingPlan,
   PackagingRun,
   PackagingShortfall,
   PlanPackagingRequest,
+  RecordFreshnessRequest,
+  ShelfLifeRecommendation,
   VolumeBalance,
 } from '../domain/packaging-plan.model';
 import { BatchOption, EquipmentOption, IngredientOption, PackagingApi } from './packaging.api';
@@ -72,6 +75,13 @@ export class PackagingStore {
    */
   readonly blockers = signal<Record<string, PackagingBlocker[]>>({});
   readonly shortfall = signal<Record<string, PackagingShortfall>>({});
+
+  /** Frescor (FSL-001): a recomendação e o registro gravado vivem separados. */
+  readonly freshnessPlanId = signal<string | null>(null);
+  readonly freshness = signal<Freshness | null>(null);
+  readonly recommendedShelfLife = signal<ShelfLifeRecommendation | null>(null);
+  readonly measuring = signal(false);
+  readonly freshnessError = signal<string | null>(null);
 
   /** Execução (PKG-003): cada motivo de recusa tem números próprios. */
   readonly runPlanId = signal<string | null>(null);
@@ -177,6 +187,66 @@ export class PackagingStore {
           this.toast.error(err?.status === 409
             ? 'Plano já cancelado; o cancelamento é definitivo.'
             : 'Não foi possível cancelar o plano.'),
+      });
+  }
+
+  /** Oxigênio e vida útil (FSL-001). */
+  openFreshnessOf(planId: string): void {
+    if (this.freshnessPlanId() === planId) {
+      this.freshnessPlanId.set(null);
+      this.freshness.set(null);
+      this.recommendedShelfLife.set(null);
+      this.freshnessError.set(null);
+      return;
+    }
+    this.freshnessPlanId.set(planId);
+    this.recommendedShelfLife.set(null);
+    this.freshnessError.set(null);
+    this.loadFreshness(planId);
+  }
+
+  recordFreshness(planId: string, request: RecordFreshnessRequest): void {
+    this.measuring.set(true);
+    this.freshnessError.set(null);
+    this.api.recordFreshness(planId, request)
+      .pipe(finalize(() => this.measuring.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: result => {
+          this.freshness.set(result.freshness);
+          this.recommendedShelfLife.set(result.recommendation);
+          this.toast.success(result.recommendation
+            ? `Validade recomendada: ${result.recommendation.shelfLifeDays} dias.`
+            : 'Medição registrada. Configure a política de vida útil para receber a recomendação.');
+        },
+        error: (err: { status?: number }) =>
+          this.freshnessError.set(err?.status === 409
+            ? 'Registre o envase antes de medir o oxigênio da embalagem.'
+            : 'Não foi possível registrar (o TPO não pode ser menor que o oxigênio dissolvido).'),
+      });
+  }
+
+  /** Sobrepor é decisão humana: o motivo é obrigatório e o override é auditado. */
+  overrideShelfLife(planId: string, shelfLifeDays: number, reason: string): void {
+    this.measuring.set(true);
+    this.freshnessError.set(null);
+    this.api.overrideShelfLife(planId, shelfLifeDays, reason)
+      .pipe(finalize(() => this.measuring.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success('Validade sobreposta e registrada com o motivo.');
+          this.loadFreshness(planId);
+        },
+        error: () => this.freshnessError.set('Não foi possível sobrepor a validade (motivo é obrigatório).'),
+      });
+  }
+
+  private loadFreshness(planId: string): void {
+    this.api.freshness(planId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        // 400 aqui significa "ainda não medido", não erro de operação.
+        next: freshness => this.freshness.set(freshness),
+        error: () => this.freshness.set(null),
       });
   }
 

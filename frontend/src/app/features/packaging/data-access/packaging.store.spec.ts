@@ -6,8 +6,10 @@ import {
   Carbonation,
   CarbonationInput,
   CarbonationRecommendation,
+  Freshness,
   PackagingPlan,
   PackagingRun,
+  ShelfLifeRecommendation,
 } from '../domain/packaging-plan.model';
 import { PackagingApi } from './packaging.api';
 import { PackagingStore } from './packaging.store';
@@ -24,6 +26,26 @@ function plan(overrides: Partial<PackagingPlan> = {}): PackagingPlan {
       { item: 'GAS_SUPPLY', confirmed: false, confirmedBy: null, confirmedAt: null },
     ],
     checklistComplete: false, reservedAt: null, cancelReason: null, ...overrides,
+  };
+}
+
+function freshness(overrides: Partial<Freshness> = {}): Freshness {
+  return {
+    packagedOn: '2026-08-20', dissolvedOxygenPpb: 30, totalPackageOxygenPpb: 80, headspaceOxygenPpb: 50,
+    purgeMethod: 'purga com CO₂', purgeVerified: true, sealCheckMethod: 'recravação medida',
+    sealCheckPassed: true, evidenceComplete: true, recommendedShelfLifeDays: 120,
+    recommendedBestBefore: '2026-12-18', overrideShelfLifeDays: null, overrideBestBefore: null,
+    overrideReason: null, overriddenBy: null, overriddenAt: null, extendsBeyondRecommendation: false,
+    effectiveShelfLifeDays: 120, effectiveBestBefore: '2026-12-18', ...overrides,
+  };
+}
+
+function recommendedShelfLife(): ShelfLifeRecommendation {
+  return {
+    shelfLifeDays: 120, bestBefore: '2026-12-18', totalPackageOxygenPpb: 80, matchedTierMaxTpoPpb: 100,
+    withinPolicyTiers: true,
+    factors: [{ name: 'tpo', trustworthy: true, explanation: 'TPO de 80 ppb dentro da faixa de até 100 ppb' }],
+    caveats: [],
   };
 }
 
@@ -171,6 +193,81 @@ describe('PackagingStore', () => {
 
     expect(store.actionError()).toBe('Código já usado ou o lote não está em fermentação.');
     expect(store.submitting()).toBe(false);
+  });
+
+  // --- oxigênio e validade (FSL-001) ---
+
+  it('guarda a recomendação explicada junto da medição', () => {
+    const { store, toast } = setup({
+      recordFreshness: () => of({ freshness: freshness(), recommendation: recommendedShelfLife() }),
+    });
+
+    store.recordFreshness('p1', {
+      dissolvedOxygenPpb: 30, totalPackageOxygenPpb: 80, purgeMethod: 'CO₂', purgeVerified: true,
+      sealCheckMethod: 'recravação', sealCheckPassed: true,
+    });
+
+    expect(store.recommendedShelfLife()?.shelfLifeDays).toBe(120);
+    expect(store.recommendedShelfLife()?.factors).toHaveLength(1);
+    expect(store.freshness()?.headspaceOxygenPpb).toBe(50);
+    expect(toast.success).toHaveBeenCalledWith('Validade recomendada: 120 dias.');
+  });
+
+  it('sem política, a medição vale e a validade fica em aberto', () => {
+    const { store, toast } = setup({
+      recordFreshness: () => of({
+        freshness: freshness({ recommendedShelfLifeDays: null, recommendedBestBefore: null,
+          effectiveShelfLifeDays: null, effectiveBestBefore: null }),
+        recommendation: null,
+      }),
+    });
+
+    store.recordFreshness('p1', {
+      dissolvedOxygenPpb: 30, totalPackageOxygenPpb: 80, purgeMethod: 'CO₂', purgeVerified: true,
+      sealCheckMethod: 'recravação', sealCheckPassed: true,
+    });
+
+    expect(store.recommendedShelfLife()).toBeNull();
+    expect(store.freshness()?.totalPackageOxygenPpb).toBe(80);
+    expect(toast.success).toHaveBeenCalledWith(
+      'Medição registrada. Configure a política de vida útil para receber a recomendação.');
+  });
+
+  it('explica que o oxigênio só é medido depois do envase', () => {
+    const { store } = setup({ recordFreshness: () => throwError(() => ({ status: 409 })) });
+
+    store.recordFreshness('p1', {
+      dissolvedOxygenPpb: 30, totalPackageOxygenPpb: 80, purgeMethod: 'CO₂', purgeVerified: true,
+      sealCheckMethod: 'recravação', sealCheckPassed: true,
+    });
+
+    expect(store.freshnessError()).toBe('Registre o envase antes de medir o oxigênio da embalagem.');
+  });
+
+  it('recarrega o registro após sobrepor a validade', () => {
+    const overridden = freshness({ overrideShelfLifeDays: 180, overrideBestBefore: '2027-02-16',
+      overrideReason: 'estoque refrigerado', extendsBeyondRecommendation: true });
+    const { store, toast } = setup({
+      overrideShelfLife: () => of(undefined),
+      freshness: () => of(overridden),
+    });
+
+    store.overrideShelfLife('p1', 180, 'estoque refrigerado');
+
+    expect(toast.success).toHaveBeenCalledWith('Validade sobreposta e registrada com o motivo.');
+    // O recomendado continua ao lado do sobreposto.
+    expect(store.freshness()?.recommendedShelfLifeDays).toBe(120);
+    expect(store.freshness()?.overrideShelfLifeDays).toBe(180);
+  });
+
+  it('plano ainda não medido não é erro: apenas não há registro', () => {
+    const { store, toast } = setup({ freshness: () => throwError(() => ({ status: 400 })) });
+
+    store.openFreshnessOf('p1');
+
+    expect(store.freshnessPlanId()).toBe('p1');
+    expect(store.freshness()).toBeNull();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   // --- execução (PKG-003) ---

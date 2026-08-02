@@ -93,6 +93,48 @@ export class PlansPageComponent implements OnInit {
     this.store.reserve(plan.id);
   }
 
+  // --- oxigênio e validade (FSL-001) ---
+
+  protected readonly freshnessForm = this.fb.nonNullable.group({
+    dissolvedOxygenPpb: this.fb.control<number | null>(null, [Validators.required, Validators.min(0)]),
+    totalPackageOxygenPpb: this.fb.control<number | null>(null, [Validators.required, Validators.min(0)]),
+    purgeMethod: ['purga com CO₂ pré-enchimento', [Validators.required, Validators.maxLength(120)]],
+    purgeVerified: [true],
+    sealCheckMethod: ['recravação medida', [Validators.required, Validators.maxLength(120)]],
+    sealCheckPassed: [true],
+  });
+
+  protected openFreshness(plan: PackagingPlan): void {
+    this.store.openFreshnessOf(plan.id);
+  }
+
+  protected recordFreshness(planId: string): void {
+    if (this.freshnessForm.invalid) {
+      return;
+    }
+    const v = this.freshnessForm.getRawValue();
+    this.store.recordFreshness(planId, {
+      dissolvedOxygenPpb: v.dissolvedOxygenPpb!,
+      totalPackageOxygenPpb: v.totalPackageOxygenPpb!,
+      purgeMethod: v.purgeMethod,
+      purgeVerified: v.purgeVerified,
+      sealCheckMethod: v.sealCheckMethod,
+      sealCheckPassed: v.sealCheckPassed,
+    });
+  }
+
+  /** O motivo é exigido aqui porque é ele que explica uma data que a evidência não sustentava. */
+  protected overrideShelfLife(planId: string): void {
+    const days = Number(window.prompt('Nova validade, em dias a partir do envase:'));
+    if (Number.isNaN(days) || days < 1) {
+      return;
+    }
+    const reason = window.prompt('Motivo do override (obrigatório):');
+    if (reason && reason.trim()) {
+      this.store.overrideShelfLife(planId, days, reason.trim());
+    }
+  }
+
   // --- execução (PKG-003) ---
 
   /** A perda não é um campo: ela é derivada do que saiu do tanque menos o que foi envasado. */

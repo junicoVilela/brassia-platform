@@ -10,7 +10,7 @@ Estado: EM ANDAMENTO
 | GAS-001 | Concluída | — | V68 + `GasNetworkIT` (16 testes) | Novo módulo `gas` |
 | PKG-002 | Concluída | — | V69 + `CarbonationIT` (13 testes) | Fórmulas no hub `calculator` |
 | PKG-003 | Concluída | — | V70 + `PackagingRunIT` (12 testes) | Perda derivada; consumo vira movimento |
-| FSL-001 | A fazer | — | — | — |
+| FSL-001 | Concluída | — | V71 + `FreshnessIT` (13 testes) | Política de vida útil é da cervejaria |
 | GAS-002 | A fazer | — | — | — |
 | PKG-004 | A fazer | — | — | — |
 
@@ -109,3 +109,27 @@ Estado: EM ANDAMENTO
   execuções não passa do que existiu no tanque — 409 `batch_volume_exceeded` com os números.
 - **Executar é terminal e não é cancelável:** os dois estados terminais não se equivalem —
   cancelado devolve a embalagem, executado a consumiu. Desfazer produção não é cancelar plano.
+
+### FSL-001
+
+- **A tabela que traduz ppb em dias é da cervejaria, não do sistema.** TPO é o que mais empurra o
+  envelhecimento, mas converter oxigênio em validade depende do estilo, da temperatura de estocagem
+  e do padrão de frescor da casa — embutir uma tabela aqui seria dar precisão a um palpite. A
+  política (`packaging_shelf_life_policy`) tem faixas de TPO e os dias que cada uma sustenta, no
+  mesmo padrão de `YeastPolicy` (YST-002), mas **sem valor padrão**: sem política não há
+  recomendação, a medição continua sendo gravada e a validade vira decisão humana registrada.
+- **A recomendação sai explicada, fator a fator:** qual faixa pegou, quanto do oxigênio veio do
+  espaço livre, se a purga foi conferida e se a vedação passou. É o que a torna auditável.
+- **Purga não conferida e vedação reprovada não mudam o número — mudam a confiança nele.** Entram
+  como ressalvas (`caveats`), porque evidência incompleta não justifica inventar outra validade.
+- **O override nunca apaga o recomendado:** os dois ficam lado a lado, com motivo obrigatório, quem
+  e quando, mais a marca `extendsBeyondRecommendation` quando a data vai além do que a evidência
+  sustentava. É isso que permite, meses depois, saber de onde veio a data impressa.
+- **Invariante de leitura: TPO ≥ DO.** O oxigênio total inclui o dissolvido; um TPO abaixo do DO é
+  erro de leitura ou de unidade, não uma embalagem melhor que a cerveja. Guardado no domínio e no
+  banco.
+- Remedir substitui o registro e **derruba um override anterior** — a evidência mudou, então a
+  decisão tomada sobre a evidência antiga não vale mais.
+- Configurar a política é alçada própria (`packaging.policy.manage`): gerir plano não basta.
+- A política curva só desce: uma faixa mais suja não pode prometer mais dias que uma mais limpa, e
+  o pior caso não pode render mais que a última faixa.

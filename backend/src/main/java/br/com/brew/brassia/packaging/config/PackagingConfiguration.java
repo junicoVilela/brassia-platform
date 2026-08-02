@@ -9,15 +9,18 @@ import br.com.brew.brassia.packaging.application.port.inbound.CancelPackagingPla
 import br.com.brew.brassia.packaging.application.port.inbound.CarbonationCommands;
 import br.com.brew.brassia.packaging.application.port.inbound.ConfirmChecklistItemUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.ExecutePackagingUseCase;
+import br.com.brew.brassia.packaging.application.port.inbound.FreshnessCommands;
 import br.com.brew.brassia.packaging.application.port.inbound.GetPackagingRunUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.PackagingPlanQueries;
 import br.com.brew.brassia.packaging.application.port.inbound.PlanPackagingUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.ReservePackagingPlanUseCase;
 import br.com.brew.brassia.packaging.application.port.outbound.CarbonationRepository;
+import br.com.brew.brassia.packaging.application.port.outbound.FreshnessRepository;
 import br.com.brew.brassia.packaging.application.port.outbound.PackagingPlanRepository;
 import br.com.brew.brassia.packaging.application.port.outbound.PackagingRunRepository;
 import br.com.brew.brassia.packaging.application.service.CarbonationHandlers;
 import br.com.brew.brassia.packaging.application.service.ExecutePackagingHandler;
+import br.com.brew.brassia.packaging.application.service.FreshnessHandlers;
 import br.com.brew.brassia.packaging.application.service.PackagingPlanHandlers;
 import br.com.brew.brassia.packaging.application.service.PlanPackagingHandler;
 import br.com.brew.brassia.packaging.application.service.ReservePackagingPlanHandler;
@@ -112,5 +115,31 @@ class PackagingConfiguration {
     @Bean
     CarbonationCommands.Get getCarbonationUseCase(CarbonationRepository carbonations) {
         return new CarbonationHandlers.Get(carbonations);
+    }
+
+    @Bean
+    FreshnessCommands.Record recordFreshnessUseCase(FreshnessRepository freshness, PackagingRunRepository runs,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new FreshnessHandlers.Record(freshness, runs, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    FreshnessCommands.OverrideShelfLife overrideShelfLifeUseCase(FreshnessRepository freshness, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new FreshnessHandlers.OverrideShelfLife(freshness, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    FreshnessCommands.Get getFreshnessUseCase(FreshnessRepository freshness) {
+        return new FreshnessHandlers.Get(freshness);
+    }
+
+    @Bean
+    FreshnessCommands.Policy shelfLifePolicyUseCase(FreshnessRepository freshness, AuditTrail audit) {
+        return new FreshnessHandlers.Policy(freshness, audit);
     }
 }

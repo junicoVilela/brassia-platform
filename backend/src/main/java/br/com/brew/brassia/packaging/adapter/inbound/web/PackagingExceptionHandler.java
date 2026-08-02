@@ -1,6 +1,7 @@
 package br.com.brew.brassia.packaging.adapter.inbound.web;
 
 import br.com.brew.brassia.packaging.domain.BatchVolumeExceededException;
+import br.com.brew.brassia.packaging.domain.LabelNotPrintableException;
 import br.com.brew.brassia.packaging.domain.OverCarbonationException;
 import br.com.brew.brassia.packaging.domain.PackagingBlockedException;
 import br.com.brew.brassia.packaging.domain.PackagingStockShortfallException;
@@ -73,6 +74,20 @@ class PackagingExceptionHandler {
                 "alreadyPackagedLiters", ex.alreadyPackagedLiters(),
                 "remainingLiters", ex.remainingLiters(),
                 "requestedLiters", ex.requestedLiters()));
+        return problem;
+    }
+
+    /**
+     * Rótulo incompleto (PKG-004): os campos faltantes vão separados por causa, porque a correção é
+     * diferente — resolver a fonte do valor, ou acrescentar o campo ao layout.
+     */
+    @ExceptionHandler(LabelNotPrintableException.class)
+    ProblemDetail handleLabelNotPrintable(LabelNotPrintableException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "label_not_printable",
+                "O rótulo não pode ser impresso: há campo obrigatório faltando.");
+        problem.setProperty("label", Map.<String, Object>of(
+                "missingRequired", ex.missingRequired().stream().map(Enum::name).toList(),
+                "requiredNotDrawn", ex.requiredNotDrawn().stream().map(Enum::name).toList()));
         return problem;
     }
 

@@ -142,6 +142,9 @@
                   <button type="button" class="btn btn-link btn-sm p-0" (click)="openFreshness(p)">
                     {{ store.freshnessPlanId() === p.id ? 'Fechar oxigênio' : 'Oxigênio e validade' }}
                   </button>
+                  <button type="button" class="btn btn-link btn-sm p-0" (click)="openLabel(p)">
+                    {{ store.labelPlanId() === p.id ? 'Fechar rótulo' : 'Rótulo' }}
+                  </button>
                 }
               </div>
             }
@@ -230,6 +233,136 @@
                 }
                 @if (store.runError(); as runError) {
                   <div class="alert alert-danger mt-3 mb-0" role="alert">{{ runError }}</div>
+                }
+              </div>
+            }
+
+            @if (store.labelPlanId() === p.id) {
+              <div class="border-top mt-3 pt-3">
+                <h3 class="h6 fw-semibold mb-1">Rótulo</h3>
+                <p class="text-muted small mb-3">
+                  Nada aqui é digitado: cada campo vem de uma fonte rastreável e a prévia mostra de
+                  onde. Campo obrigatório faltando bloqueia a impressão.
+                </p>
+
+                @if (store.labelRule(); as required) {
+                  <p class="small text-muted mb-3">
+                    Obrigatórios pela regra da casa:
+                    {{ required.length ? '' : 'nenhum' }}
+                    @for (f of required; track f) {
+                      <span class="badge text-bg-light me-1">{{ labelFieldLabels[f] }}</span>
+                    }
+                  </p>
+                } @else {
+                  <div class="alert alert-warning" role="alert">
+                    A cervejaria ainda não configurou a regra regulatória do rótulo. Sem ela o
+                    sistema não sabe quais campos são obrigatórios e não gera rótulo.
+                  </div>
+                }
+
+                <form [formGroup]="labelForm" class="row g-2 align-items-end mb-3">
+                  <div class="col-sm-5"><label class="form-label small" for="ltpl">Template</label>
+                    <select id="ltpl" class="form-select form-select-sm" formControlName="templateId">
+                      <option value="">Selecione…</option>
+                      @for (t of store.labelTemplates(); track t.id) {
+                        <option [value]="t.id">{{ t.code }} — {{ t.name }} (v{{ t.version }})</option>
+                      }
+                    </select>
+                    @if (store.labelTemplates().length === 0) {
+                      <span class="form-text">Nenhum template cadastrado.</span>
+                    }
+                  </div>
+                  <div class="col-sm-3"><label class="form-label small" for="lqty">Quantidade</label>
+                    <input id="lqty" type="number" min="1" class="form-control form-control-sm"
+                           formControlName="quantity"></div>
+                  <div class="col-sm-2 d-grid">
+                    <button type="button" class="btn btn-outline-primary btn-sm"
+                            [disabled]="!labelForm.controls.templateId.value"
+                            (click)="previewLabel(p.id)">Prévia</button>
+                  </div>
+                  @if (canManage) {
+                    <div class="col-sm-2 d-grid">
+                      <button type="button" class="btn btn-primary btn-sm"
+                              [disabled]="labelForm.invalid || store.printing()
+                                          || !store.labelPreview()?.printable"
+                              (click)="printLabel(p.id)">Imprimir</button>
+                    </div>
+                  }
+                </form>
+
+                @if (store.labelError(); as labelError) {
+                  <div class="alert alert-danger" role="alert">{{ labelError }}</div>
+                }
+                @if (store.labelBlocked(); as blocked) {
+                  <div class="alert alert-warning" role="alert">
+                    <p class="mb-1 fw-medium">O rótulo não pode ser impresso.</p>
+                    <ul class="small mb-0 ps-3">
+                      @for (f of blocked.missingRequired; track f) {
+                        <li>{{ labelFieldLabels[f] }}: obrigatório e sem valor de nenhuma fonte.</li>
+                      }
+                      @for (f of blocked.requiredNotDrawn; track f) {
+                        <li>{{ labelFieldLabels[f] }}: obrigatório, mas o template não o desenha.</li>
+                      }
+                    </ul>
+                  </div>
+                }
+
+                @if (store.labelPreview(); as preview) {
+                  <div class="border rounded-10 p-3 mb-3">
+                    <p class="mb-2 fw-medium">
+                      {{ preview.templateCode }} v{{ preview.templateVersion }} —
+                      <span [class.text-success]="preview.printable" [class.text-danger]="!preview.printable">
+                        {{ preview.printable ? 'pronto para imprimir' : 'incompleto' }}
+                      </span>
+                    </p>
+                    <ul class="list-unstyled small mb-0">
+                      @for (line of preview.lines; track line.field) {
+                        <li class="mb-1">
+                          <i class="me-1" aria-hidden="true"
+                             [class]="line.present ? 'ri-check-line text-success'
+                                      : line.required ? 'ri-close-line text-danger' : 'ri-subtract-line'"></i>
+                          <span class="fw-medium">{{ labelFieldLabels[line.field] }}:</span>
+                          @if (line.present) {
+                            {{ line.value }}
+                            <span class="text-muted">— {{ line.source }}</span>
+                          } @else {
+                            <span [class.text-danger]="line.required" [class.text-muted]="!line.required">
+                              sem fonte disponível{{ line.required ? ' (obrigatório)' : '' }}
+                            </span>
+                          }
+                        </li>
+                      }
+                    </ul>
+                    @if (preview.requiredNotDrawn.length > 0) {
+                      <p class="small text-danger mb-0 mt-2">
+                        O template não desenha campos exigidos pela regra:
+                        @for (f of preview.requiredNotDrawn; track f) {
+                          {{ labelFieldLabels[f] }}
+                        }
+                      </p>
+                    }
+                  </div>
+                }
+
+                @if (store.labelPrints().length > 0) {
+                  <p class="small fw-medium mb-2">Impressões</p>
+                  <ul class="list-unstyled small mb-0">
+                    @for (print of store.labelPrints(); track print.id) {
+                      <li class="border-start ps-3 mb-2">
+                        <span class="fw-medium">
+                          {{ print.quantity | number }} rótulos
+                          @if (print.reprint) { <span class="badge text-bg-warning ms-1">reimpressão</span> }
+                        </span>
+                        <span class="text-muted">
+                          · {{ print.templateCode }} v{{ print.templateVersion }}
+                          · {{ print.printedAt | date:'short' }}
+                        </span>
+                        @if (print.reason) {
+                          <p class="text-muted mb-0">Motivo: {{ print.reason }}</p>
+                        }
+                      </li>
+                    }
+                  </ul>
                 }
               </div>
             }

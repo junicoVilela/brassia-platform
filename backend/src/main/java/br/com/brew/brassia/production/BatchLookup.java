@@ -26,5 +26,5 @@ public interface BatchLookup {
      *                                contra o planejado inventaria cerveja que não está no tanque.
      */
     record Snapshot(UUID batchId, String code, BigDecimal volumeLiters, BigDecimal packageableVolumeLiters,
-            String status) {}
+            String status, UUID recipeId, int recipeVersion, String recipeName) {}
 }

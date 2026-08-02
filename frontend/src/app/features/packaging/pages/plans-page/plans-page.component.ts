@@ -12,6 +12,7 @@ import {
   CarbonationInput,
   CarbonationMethod,
   ChecklistItemCode,
+  LABEL_FIELD_LABELS,
   PACKAGING_STATUS_LABELS,
   PRIMING_SUGAR_LABELS,
   PackagingPlan,
@@ -55,6 +56,7 @@ export class PlansPageComponent implements OnInit {
   ngOnInit(): void {
     this.store.load();
     this.store.loadReferences();
+    this.store.loadLabelReferences();
   }
 
   protected plan(): void {
@@ -91,6 +93,44 @@ export class PlansPageComponent implements OnInit {
 
   protected reserve(plan: PackagingPlan): void {
     this.store.reserve(plan.id);
+  }
+
+  // --- rótulo (PKG-004) ---
+
+  protected readonly labelFieldLabels = LABEL_FIELD_LABELS;
+
+  protected readonly labelForm = this.fb.nonNullable.group({
+    templateId: ['', Validators.required],
+    quantity: this.fb.control<number | null>(null, [Validators.required, Validators.min(1)]),
+  });
+
+  protected openLabel(plan: PackagingPlan): void {
+    this.store.openLabelOf(plan.id);
+  }
+
+  protected previewLabel(planId: string): void {
+    const templateId = this.labelForm.controls.templateId.value;
+    if (templateId) {
+      this.store.previewLabel(planId, templateId);
+    }
+  }
+
+  /** A partir da segunda tiragem o motivo é exigido; pedimos aqui e o backend confere. */
+  protected printLabel(planId: string): void {
+    if (this.labelForm.invalid) {
+      return;
+    }
+    const v = this.labelForm.getRawValue();
+    const reprint = this.store.labelPrints().length > 0;
+    let reason: string | null = null;
+    if (reprint) {
+      reason = window.prompt('Motivo da reimpressão (obrigatório):');
+      if (!reason || !reason.trim()) {
+        return;
+      }
+      reason = reason.trim();
+    }
+    this.store.printLabel(planId, v.templateId, v.quantity!, reason);
   }
 
   // --- oxigênio e validade (FSL-001) ---

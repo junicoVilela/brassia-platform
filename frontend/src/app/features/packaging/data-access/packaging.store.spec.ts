@@ -7,6 +7,7 @@ import {
   CarbonationInput,
   CarbonationRecommendation,
   Freshness,
+  LabelPreview,
   PackagingPlan,
   PackagingRun,
   ShelfLifeRecommendation,
@@ -26,6 +27,17 @@ function plan(overrides: Partial<PackagingPlan> = {}): PackagingPlan {
       { item: 'GAS_SUPPLY', confirmed: false, confirmedBy: null, confirmedAt: null },
     ],
     checklistComplete: false, reservedAt: null, cancelReason: null, ...overrides,
+  };
+}
+
+function labelPreview(): LabelPreview {
+  return {
+    templateCode: 'RTL-01', templateVersion: 1, printable: true,
+    lines: [
+      { field: 'BEER_NAME', value: 'IPA da Casa', source: 'lote L-2026-014', required: true, present: true },
+      { field: 'ABV', value: '6.2', source: 'receita publicada v3', required: false, present: true },
+    ],
+    missingRequired: [], missingOptional: [], requiredNotDrawn: [],
   };
 }
 
@@ -193,6 +205,69 @@ describe('PackagingStore', () => {
 
     expect(store.actionError()).toBe('Código já usado ou o lote não está em fermentação.');
     expect(store.submitting()).toBe(false);
+  });
+
+  // --- rótulo (PKG-004) ---
+
+  it('a prévia mostra a origem de cada campo', () => {
+    const { store } = setup({ labelPreview: () => of(labelPreview()) });
+
+    store.previewLabel('p1', 't1');
+
+    expect(store.labelPreview()?.printable).toBe(true);
+    expect(store.labelPreview()?.lines[0].source).toContain('lote');
+  });
+
+  it('campo obrigatório faltando bloqueia a impressão com a causa', () => {
+    const blocked = { missingRequired: ['ALLERGENS' as const], requiredNotDrawn: [] };
+    const { store, toast } = setup({
+      printLabel: () => throwError(() => ({
+        status: 409, error: { code: 'label_not_printable', label: blocked },
+      })),
+      labelPrints: () => of([]),
+    });
+
+    store.printLabel('p1', 't1', 800, null);
+
+    expect(store.labelBlocked()).toEqual(blocked);
+    // Campo faltando é informação acionável na tela, não um toast que some.
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('distingue impressão de reimpressão na confirmação', () => {
+    const { store, toast } = setup({
+      printLabel: () => of({ printId: 'pr1', reprint: true, quantity: 40 }),
+      labelPrints: () => of([]),
+      labelPreview: () => of(labelPreview()),
+    });
+
+    store.printLabel('p1', 't1', 40, 'impressora borrou');
+
+    expect(toast.success).toHaveBeenCalledWith('Reimpressão de 40 rótulos registrada com o motivo.');
+  });
+
+  it('sem regra regulatória a tela avisa em vez de falhar', () => {
+    const { store, toast } = setup({
+      labelTemplates: () => of([]),
+      labelRule: () => throwError(() => ({ status: 400 })),
+    });
+
+    store.loadLabelReferences();
+
+    expect(store.labelRule()).toBeNull();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('fechar o rótulo limpa prévia e impressões', () => {
+    const { store } = setup({ labelPrints: () => of([]) });
+
+    store.openLabelOf('p1');
+    expect(store.labelPlanId()).toBe('p1');
+
+    store.openLabelOf('p1');
+    expect(store.labelPlanId()).toBeNull();
+    expect(store.labelPreview()).toBeNull();
+    expect(store.labelPrints()).toEqual([]);
   });
 
   // --- oxigênio e validade (FSL-001) ---

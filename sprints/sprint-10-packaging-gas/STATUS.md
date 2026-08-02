@@ -9,7 +9,7 @@ Estado: EM ANDAMENTO
 | PKG-001 | Concluída | — | V67 + `PackagingPlanIT` (16 testes) | Novo módulo `packaging` |
 | GAS-001 | Concluída | — | V68 + `GasNetworkIT` (16 testes) | Novo módulo `gas` |
 | PKG-002 | Concluída | — | V69 + `CarbonationIT` (13 testes) | Fórmulas no hub `calculator` |
-| PKG-003 | A fazer | — | — | — |
+| PKG-003 | Concluída | — | V70 + `PackagingRunIT` (12 testes) | Perda derivada; consumo vira movimento |
 | FSL-001 | A fazer | — | — | — |
 | GAS-002 | A fazer | — | — | — |
 | PKG-004 | A fazer | — | — | — |
@@ -91,3 +91,21 @@ Estado: EM ANDAMENTO
   (priming sem espaço para o alvo), mas não sabe quanta pressão cada embalagem suporta: lata, long
   neck e garrafa de champanhe têm limites diferentes, e esse dado não está no catálogo. Critério de
   remoção: cadastrar pressão máxima por embalagem no catálogo e validar o alvo contra ela.
+
+### PKG-003
+
+- **A perda é derivada, não digitada.** O operador declara o que mediu — volume que saiu do tanque,
+  unidades boas e rejeitadas — e a perda é o resto. Aceitar perda digitada ao lado dos outros três
+  números permitiria um balanço que não fecha, que é justamente o que esta história impede. O
+  balanço fecha por construção, e o banco também o guarda (`ck_packaging_run_balance`).
+- **Rejeito consome embalagem igual:** uma lata cheia e descartada é uma lata gasta. O consumo é
+  boas + rejeitadas, e o rejeito também pesa no balanço de volume.
+- **Consumo de embalagem vira movimento de verdade:** a reserva do plano é convertida em RELEASE +
+  CONSUMPTION no ledger, o excedente sai do saldo livre em FEFO e a sobra da reserva é devolvida —
+  plano executado não fica segurando estoque.
+- **O teto da execução é o mesmo do planejamento:** `packageableVolumeLiters`, o volume de fato
+  transferido ao fermentador (regra estabelecida em PKG-001).
+- Um lote pode ser dividido em vários envases (latas e barris, por exemplo), mas a soma das
+  execuções não passa do que existiu no tanque — 409 `batch_volume_exceeded` com os números.
+- **Executar é terminal e não é cancelável:** os dois estados terminais não se equivalem —
+  cancelado devolve a embalagem, executado a consumiu. Desfazer produção não é cancelar plano.

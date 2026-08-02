@@ -1,8 +1,10 @@
 package br.com.brew.brassia.packaging.adapter.inbound.web;
 
+import br.com.brew.brassia.packaging.domain.BatchVolumeExceededException;
 import br.com.brew.brassia.packaging.domain.OverCarbonationException;
 import br.com.brew.brassia.packaging.domain.PackagingBlockedException;
 import br.com.brew.brassia.packaging.domain.PackagingStockShortfallException;
+import br.com.brew.brassia.packaging.domain.VolumeBalanceException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +43,36 @@ class PackagingExceptionHandler {
         problem.setProperty("carbonation", Map.<String, Object>of(
                 "targetVolumes", ex.targetVolumes(),
                 "residualVolumes", ex.residualVolumes()));
+        return problem;
+    }
+
+    /**
+     * O balanço de volume não fecha (PKG-003): as unidades declaradas contêm mais cerveja do que a
+     * que saiu do tanque. Os três números vão no erro — adivinhar qual está errado seria inventar
+     * produção.
+     */
+    @ExceptionHandler(VolumeBalanceException.class)
+    ProblemDetail handleVolumeBalance(VolumeBalanceException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "volume_balance",
+                "O balanço de volume não fecha: as unidades declaradas contêm mais cerveja do que saiu do tanque.");
+        problem.setProperty("balance", Map.<String, Object>of(
+                "inputVolumeLiters", ex.inputVolumeLiters(),
+                "packagedVolumeLiters", ex.packagedVolumeLiters(),
+                "rejectedVolumeLiters", ex.rejectedVolumeLiters(),
+                "shortfallLiters", ex.shortfallLiters()));
+        return problem;
+    }
+
+    /** A soma das execuções do lote não pode passar do que existiu no tanque (PKG-003). */
+    @ExceptionHandler(BatchVolumeExceededException.class)
+    ProblemDetail handleBatchVolume(BatchVolumeExceededException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "batch_volume_exceeded",
+                "O envase tiraria do lote mais cerveja do que ele ainda tem.");
+        problem.setProperty("batchVolume", Map.<String, Object>of(
+                "batchVolumeLiters", ex.batchVolumeLiters(),
+                "alreadyPackagedLiters", ex.alreadyPackagedLiters(),
+                "remainingLiters", ex.remainingLiters(),
+                "requestedLiters", ex.requestedLiters()));
         return problem;
     }
 

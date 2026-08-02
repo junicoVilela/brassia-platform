@@ -3,9 +3,12 @@ package br.com.brew.brassia.packaging.adapter.inbound.web;
 import br.com.brew.brassia.packaging.adapter.inbound.web.dto.CancelPackagingPlanRequest;
 import br.com.brew.brassia.packaging.adapter.inbound.web.dto.ConfirmChecklistItemRequest;
 import br.com.brew.brassia.packaging.adapter.inbound.web.dto.PackagingPlanView;
+import br.com.brew.brassia.packaging.adapter.inbound.web.dto.PackagingRunDtos;
 import br.com.brew.brassia.packaging.adapter.inbound.web.dto.PlanPackagingRequest;
 import br.com.brew.brassia.packaging.application.port.inbound.CancelPackagingPlanUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.ConfirmChecklistItemUseCase;
+import br.com.brew.brassia.packaging.application.port.inbound.ExecutePackagingUseCase;
+import br.com.brew.brassia.packaging.application.port.inbound.GetPackagingRunUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.PackagingPlanQueries;
 import br.com.brew.brassia.packaging.application.port.inbound.PlanPackagingUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.ReservePackagingPlanUseCase;
@@ -34,15 +37,19 @@ final class PackagingPlanController {
     private final ConfirmChecklistItemUseCase confirm;
     private final ReservePackagingPlanUseCase reserve;
     private final CancelPackagingPlanUseCase cancel;
+    private final ExecutePackagingUseCase execute;
+    private final GetPackagingRunUseCase run;
     private final PackagingPlanQueries queries;
 
     PackagingPlanController(PlanPackagingUseCase plan, ConfirmChecklistItemUseCase confirm,
             ReservePackagingPlanUseCase reserve, CancelPackagingPlanUseCase cancel,
-            PackagingPlanQueries queries) {
+            ExecutePackagingUseCase execute, GetPackagingRunUseCase run, PackagingPlanQueries queries) {
         this.plan = plan;
         this.confirm = confirm;
         this.reserve = reserve;
         this.cancel = cancel;
+        this.execute = execute;
+        this.run = run;
         this.queries = queries;
     }
 
@@ -90,6 +97,26 @@ final class PackagingPlanController {
         principal.requirePermission("packaging.plan.manage");
         return reserve.handle(new ReservePackagingPlanUseCase.Command(
                 principal.userId(), principal.requireBrewery(), id));
+    }
+
+    /** Registra o envase executado; a perda é derivada e o balanço fecha por construção. */
+    @PostMapping("/{id}/execution")
+    ExecutePackagingUseCase.Result execute(@PathVariable UUID id,
+            @Valid @RequestBody PackagingRunDtos.ExecutePackagingRequest request,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("packaging.plan.manage");
+        return execute.handle(new ExecutePackagingUseCase.Command(
+                principal.userId(), principal.requireBrewery(), id, request.inputVolumeLiters(),
+                request.producedUnits(), request.rejectedUnits(), request.note()));
+    }
+
+    @GetMapping("/{id}/execution")
+    PackagingRunDtos.PackagingRunView execution(@PathVariable UUID id,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("packaging.plan.read");
+        return run.handle(principal.requireBrewery(), id)
+                .map(PackagingRunDtos.PackagingRunView::from)
+                .orElseThrow(() -> new IllegalArgumentException("plano sem execução registrada"));
     }
 
     @PostMapping("/{id}/cancel")

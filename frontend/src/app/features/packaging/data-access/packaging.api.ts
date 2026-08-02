@@ -5,7 +5,9 @@ import {
   CarbonationInput,
   CarbonationRecommendation,
   ChecklistItemCode,
+  ExecutePackagingRequest,
   PackagingPlan,
+  PackagingRun,
   PlanPackagingRequest,
   ReserveResult,
 } from '../domain/packaging-plan.model';
@@ -74,6 +76,20 @@ export class PackagingApi {
 
   equipment() {
     return this.http.get<EquipmentOption[]>('/api/v1/equipment');
+  }
+
+  /** Registra o envase executado; a perda é derivada pelo backend (PKG-003). */
+  execute(planId: string, request: ExecutePackagingRequest) {
+    return this.http.post<{
+      runId: string;
+      packagedVolumeLiters: number;
+      lossesLiters: number;
+      containersConsumed: number;
+    }>(`${this.baseUrl}/${planId}/execution`, request);
+  }
+
+  run(planId: string) {
+    return this.http.get<PackagingRun>(`${this.baseUrl}/${planId}/execution`);
   }
 
   /** Prévia de carbonatação: calcula e explica sem gravar nada (PKG-002). */

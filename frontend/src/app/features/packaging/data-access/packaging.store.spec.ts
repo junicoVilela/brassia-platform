@@ -7,6 +7,7 @@ import {
   CarbonationInput,
   CarbonationRecommendation,
   PackagingPlan,
+  PackagingRun,
 } from '../domain/packaging-plan.model';
 import { PackagingApi } from './packaging.api';
 import { PackagingStore } from './packaging.store';
@@ -23,6 +24,14 @@ function plan(overrides: Partial<PackagingPlan> = {}): PackagingPlan {
       { item: 'GAS_SUPPLY', confirmed: false, confirmedBy: null, confirmedAt: null },
     ],
     checklistComplete: false, reservedAt: null, cancelReason: null, ...overrides,
+  };
+}
+
+function packagingRun(): PackagingRun {
+  return {
+    id: 'r1', batchId: 'b1', inputVolumeLiters: 284, producedUnits: 780, rejectedUnits: 12,
+    packagedVolumeLiters: 276.9, rejectedVolumeLiters: 4.26, lossesLiters: 2.84, lossPercent: 1,
+    containersConsumed: 792, note: null, executedAt: '2026-08-20T15:00:00Z', executedBy: 'u1',
   };
 }
 
@@ -162,6 +171,77 @@ describe('PackagingStore', () => {
 
     expect(store.actionError()).toBe('Código já usado ou o lote não está em fermentação.');
     expect(store.submitting()).toBe(false);
+  });
+
+  // --- execução (PKG-003) ---
+
+  it('registra o envase e recarrega a execução', () => {
+    const { store, toast } = setup({
+      list: () => of([]),
+      execute: () => of({ runId: 'r1', packagedVolumeLiters: 276.9, lossesLiters: 2.84,
+        containersConsumed: 792 }),
+      run: () => of(packagingRun()),
+    });
+
+    store.execute('p1', { inputVolumeLiters: 284, producedUnits: 780, rejectedUnits: 12, note: null });
+
+    expect(toast.success).toHaveBeenCalledWith('Envase registrado: 792 embalagens consumidas.');
+    expect(store.run()?.lossesLiters).toBe(2.84);
+    expect(store.executing()).toBe(false);
+  });
+
+  it('mostra os três números quando o balanço de volume não fecha', () => {
+    const balance = { inputVolumeLiters: 280, packagedVolumeLiters: 284, rejectedVolumeLiters: 0,
+      shortfallLiters: 4 };
+    const { store, toast } = setup({
+      list: () => of([]),
+      execute: () => throwError(() => ({ status: 409, error: { code: 'volume_balance', balance } })),
+      run: () => throwError(() => ({ status: 400 })),
+    });
+
+    store.execute('p1', { inputVolumeLiters: 280, producedUnits: 800, rejectedUnits: 0, note: null });
+
+    expect(store.volumeBalance()).toEqual(balance);
+    // O operador precisa dos números na tela para achar qual medida está errada.
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('distingue estouro do lote de falta de embalagem', () => {
+    const batchVolume = { batchVolumeLiters: 390, alreadyPackagedLiters: 355, remainingLiters: 35,
+      requestedLiters: 100 };
+    const { store } = setup({
+      list: () => of([]),
+      execute: () => throwError(() => ({ status: 409, error: { code: 'batch_volume_exceeded', batchVolume } })),
+      run: () => throwError(() => ({ status: 400 })),
+    });
+
+    store.execute('p1', { inputVolumeLiters: 100, producedUnits: 280, rejectedUnits: 0, note: null });
+
+    expect(store.batchVolumeExceeded()).toEqual(batchVolume);
+    expect(store.volumeBalance()).toBeNull();
+    expect(store.runShortfall()).toBeNull();
+  });
+
+  it('explica que o envase acontece uma vez só', () => {
+    const { store } = setup({
+      list: () => of([]),
+      execute: () => throwError(() => ({ status: 409, error: {} })),
+      run: () => throwError(() => ({ status: 400 })),
+    });
+
+    store.execute('p1', { inputVolumeLiters: 284, producedUnits: 780, rejectedUnits: 12, note: null });
+
+    expect(store.runError()).toBe('Só plano reservado é executado, e o envase acontece uma vez só.');
+  });
+
+  it('plano ainda não executado não é erro: apenas não há execução', () => {
+    const { store, toast } = setup({ run: () => throwError(() => ({ status: 400 })) });
+
+    store.openRunOf('p1');
+
+    expect(store.runPlanId()).toBe('p1');
+    expect(store.run()).toBeNull();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   // --- carbonatação (PKG-002) ---

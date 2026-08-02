@@ -93,6 +93,42 @@ export class PlansPageComponent implements OnInit {
     this.store.reserve(plan.id);
   }
 
+  // --- execução (PKG-003) ---
+
+  /** A perda não é um campo: ela é derivada do que saiu do tanque menos o que foi envasado. */
+  protected readonly runForm = this.fb.nonNullable.group({
+    inputVolumeLiters: this.fb.control<number | null>(null, [Validators.required, Validators.min(0.001)]),
+    producedUnits: this.fb.control<number | null>(null, [Validators.required, Validators.min(0)]),
+    rejectedUnits: this.fb.control<number | null>(0, [Validators.required, Validators.min(0)]),
+    note: [''],
+  });
+
+  protected openRun(plan: PackagingPlan): void {
+    this.store.openRunOf(plan.id);
+  }
+
+  protected execute(plan: PackagingPlan): void {
+    if (this.runForm.invalid) {
+      return;
+    }
+    const v = this.runForm.getRawValue();
+    const produced = v.producedUnits ?? 0;
+    const rejected = v.rejectedUnits ?? 0;
+    const total = produced + rejected;
+    if (total <= 0) {
+      return;
+    }
+    if (window.confirm(`Registrar o envase de ${plan.code}? ${total} embalagens serão consumidas do`
+        + ' estoque e o plano será encerrado.')) {
+      this.store.execute(plan.id, {
+        inputVolumeLiters: v.inputVolumeLiters!,
+        producedUnits: produced,
+        rejectedUnits: rejected,
+        note: v.note.trim() || null,
+      });
+    }
+  }
+
   // --- carbonatação (PKG-002) ---
 
   protected readonly carbonationForm = this.fb.nonNullable.group({

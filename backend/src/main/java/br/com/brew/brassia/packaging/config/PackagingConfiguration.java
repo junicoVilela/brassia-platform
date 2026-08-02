@@ -8,12 +8,16 @@ import br.com.brew.brassia.packaging.PackagingStockGateway;
 import br.com.brew.brassia.packaging.application.port.inbound.CancelPackagingPlanUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.CarbonationCommands;
 import br.com.brew.brassia.packaging.application.port.inbound.ConfirmChecklistItemUseCase;
+import br.com.brew.brassia.packaging.application.port.inbound.ExecutePackagingUseCase;
+import br.com.brew.brassia.packaging.application.port.inbound.GetPackagingRunUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.PackagingPlanQueries;
 import br.com.brew.brassia.packaging.application.port.inbound.PlanPackagingUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.ReservePackagingPlanUseCase;
 import br.com.brew.brassia.packaging.application.port.outbound.CarbonationRepository;
 import br.com.brew.brassia.packaging.application.port.outbound.PackagingPlanRepository;
+import br.com.brew.brassia.packaging.application.port.outbound.PackagingRunRepository;
 import br.com.brew.brassia.packaging.application.service.CarbonationHandlers;
+import br.com.brew.brassia.packaging.application.service.ExecutePackagingHandler;
 import br.com.brew.brassia.packaging.application.service.PackagingPlanHandlers;
 import br.com.brew.brassia.packaging.application.service.PlanPackagingHandler;
 import br.com.brew.brassia.packaging.application.service.ReservePackagingPlanHandler;
@@ -64,6 +68,24 @@ class PackagingConfiguration {
         var handler = new PackagingPlanHandlers.Cancel(plans, stock, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    /**
+     * Balanço, consumo de embalagem e transição do plano no mesmo commit: não sobra embalagem
+     * consumida sem envase registrado nem envase registrado sem embalagem baixada.
+     */
+    @Bean
+    ExecutePackagingUseCase executePackagingUseCase(PackagingPlanRepository plans, PackagingRunRepository runs,
+            BatchLookup batches, IngredientSpecLookup ingredients, PackagingStockGateway stock, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ExecutePackagingHandler(plans, runs, batches, ingredients, stock, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    GetPackagingRunUseCase getPackagingRunUseCase(PackagingRunRepository runs) {
+        return runs::findByPlan;
     }
 
     @Bean

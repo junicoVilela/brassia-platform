@@ -19,6 +19,14 @@ public interface PackagingStockGateway {
     void release(UUID breweryId, UUID planId, UUID actorId);
 
     /**
+     * Converte a reserva do plano em consumo real (PKG-003): a embalagem que virou lata cheia sai
+     * do estoque. Consome primeiro os lotes que o plano já segurava — é a embalagem que foi de fato
+     * para a linha — e só recorre ao saldo livre quando o envase gastou mais do que o planejado.
+     * A sobra da reserva é devolvida: plano executado não fica segurando estoque.
+     */
+    Outcome consume(UUID breweryId, UUID planId, UUID actorId, UUID containerId, BigDecimal units, String unit);
+
+    /**
      * @param reserved falso quando não havia embalagem suficiente; nada foi reservado
      * @param available o quanto existia disponível, na mesma unidade pedida
      */

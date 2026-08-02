@@ -1,8 +1,9 @@
-export type PackagingPlanStatus = 'PLANNED' | 'RESERVED' | 'CANCELLED';
+export type PackagingPlanStatus = 'PLANNED' | 'RESERVED' | 'EXECUTED' | 'CANCELLED';
 
 export const PACKAGING_STATUS_LABELS: Record<PackagingPlanStatus, string> = {
   PLANNED: 'Planejado',
   RESERVED: 'Reservado',
+  EXECUTED: 'Envasado',
   CANCELLED: 'Cancelado',
 };
 
@@ -136,4 +137,43 @@ export interface CarbonationInput {
 export interface OverCarbonation {
   targetVolumes: number;
   residualVolumes: number;
+}
+
+/** Execução do envase (PKG-003). A perda é derivada pelo backend, nunca digitada. */
+export interface PackagingRun {
+  id: string;
+  batchId: string;
+  inputVolumeLiters: number;
+  producedUnits: number;
+  rejectedUnits: number;
+  packagedVolumeLiters: number;
+  rejectedVolumeLiters: number;
+  lossesLiters: number;
+  lossPercent: number;
+  /** Boas + rejeitadas: uma lata cheia e descartada é uma lata gasta. */
+  containersConsumed: number;
+  note: string | null;
+  executedAt: string;
+  executedBy: string;
+}
+
+export interface ExecutePackagingRequest {
+  inputVolumeLiters: number;
+  producedUnits: number;
+  rejectedUnits: number;
+  note: string | null;
+}
+
+export interface VolumeBalance {
+  inputVolumeLiters: number;
+  packagedVolumeLiters: number;
+  rejectedVolumeLiters: number;
+  shortfallLiters: number;
+}
+
+export interface BatchVolumeExceeded {
+  batchVolumeLiters: number;
+  alreadyPackagedLiters: number;
+  remainingLiters: number;
+  requestedLiters: number;
 }

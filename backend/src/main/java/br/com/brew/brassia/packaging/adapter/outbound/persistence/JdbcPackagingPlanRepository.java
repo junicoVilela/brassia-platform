@@ -158,7 +158,7 @@ class JdbcPackagingPlanRepository implements PackagingPlanRepository {
         return jdbc.sql("""
                 SELECT MAX(planned_start) AS last_use FROM packaging_plan
                 WHERE brewery_id = :brewery AND line_equipment_id = :line AND id <> :exclude
-                  AND status = 'RESERVED' AND planned_start < :before
+                  AND status IN ('RESERVED', 'EXECUTED') AND planned_start < :before
                 """)
                 .param("brewery", breweryId).param("line", lineEquipmentId).param("exclude", excludePlanId)
                 .param("before", Timestamp.from(before))

@@ -3,15 +3,19 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
 import {
+  BatchVolumeExceeded,
   Carbonation,
   CarbonationInput,
   CarbonationRecommendation,
   ChecklistItemCode,
+  ExecutePackagingRequest,
   OverCarbonation,
   PackagingBlocker,
   PackagingPlan,
+  PackagingRun,
   PackagingShortfall,
   PlanPackagingRequest,
+  VolumeBalance,
 } from '../domain/packaging-plan.model';
 import { BatchOption, EquipmentOption, IngredientOption, PackagingApi } from './packaging.api';
 
@@ -25,6 +29,17 @@ interface ReserveError {
 interface CarbonationError {
   status?: number;
   error?: { code?: string; carbonation?: OverCarbonation };
+}
+
+/** Corpo Problem Details da recusa de execução; a extensão depende do código. */
+interface RunError {
+  status?: number;
+  error?: {
+    code?: string;
+    balance?: VolumeBalance;
+    batchVolume?: BatchVolumeExceeded;
+    shortfall?: PackagingShortfall;
+  };
 }
 
 /** Estado dos planos de envase (PKG-001). */
@@ -57,6 +72,15 @@ export class PackagingStore {
    */
   readonly blockers = signal<Record<string, PackagingBlocker[]>>({});
   readonly shortfall = signal<Record<string, PackagingShortfall>>({});
+
+  /** Execução (PKG-003): cada motivo de recusa tem números próprios. */
+  readonly runPlanId = signal<string | null>(null);
+  readonly run = signal<PackagingRun | null>(null);
+  readonly volumeBalance = signal<VolumeBalance | null>(null);
+  readonly batchVolumeExceeded = signal<BatchVolumeExceeded | null>(null);
+  readonly runShortfall = signal<PackagingShortfall | null>(null);
+  readonly executing = signal(false);
+  readonly runError = signal<string | null>(null);
 
   /** Carbonatação (PKG-002): prévia e decisão vivem separadas, como no backend. */
   readonly carbonationPlanId = signal<string | null>(null);
@@ -153,6 +177,74 @@ export class PackagingStore {
           this.toast.error(err?.status === 409
             ? 'Plano já cancelado; o cancelamento é definitivo.'
             : 'Não foi possível cancelar o plano.'),
+      });
+  }
+
+  /** Execução do envase (PKG-003). */
+  openRunOf(planId: string): void {
+    if (this.runPlanId() === planId) {
+      this.runPlanId.set(null);
+      this.run.set(null);
+      this.clearRunRefusal();
+      return;
+    }
+    this.runPlanId.set(planId);
+    this.clearRunRefusal();
+    this.loadRun(planId);
+  }
+
+  execute(planId: string, request: ExecutePackagingRequest): void {
+    this.executing.set(true);
+    this.clearRunRefusal();
+    this.api.execute(planId, request)
+      .pipe(finalize(() => this.executing.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: result => {
+          this.toast.success(`Envase registrado: ${result.containersConsumed} embalagens consumidas.`);
+          this.loadRun(planId);
+          this.load();
+        },
+        error: (err: RunError) => this.showRunRefusal(err),
+      });
+  }
+
+  /**
+   * A recusa da execução é informação acionável: cada motivo tem números próprios, e mostrá-los é
+   * o que permite ao operador achar qual das três medidas está errada.
+   */
+  private showRunRefusal(err: RunError): void {
+    const body = err?.error;
+    if (body?.code === 'volume_balance' && body.balance) {
+      this.volumeBalance.set(body.balance);
+      return;
+    }
+    if (body?.code === 'batch_volume_exceeded' && body.batchVolume) {
+      this.batchVolumeExceeded.set(body.batchVolume);
+      return;
+    }
+    if (body?.code === 'insufficient_packaging_stock' && body.shortfall) {
+      this.runShortfall.set(body.shortfall);
+      return;
+    }
+    this.runError.set(err?.status === 409
+      ? 'Só plano reservado é executado, e o envase acontece uma vez só.'
+      : 'Não foi possível registrar o envase (verifique volume e unidades).');
+  }
+
+  private clearRunRefusal(): void {
+    this.volumeBalance.set(null);
+    this.batchVolumeExceeded.set(null);
+    this.runShortfall.set(null);
+    this.runError.set(null);
+  }
+
+  private loadRun(planId: string): void {
+    this.api.run(planId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        // 400 aqui significa "ainda não executado", não erro de operação.
+        next: run => this.run.set(run),
+        error: () => this.run.set(null),
       });
   }
 

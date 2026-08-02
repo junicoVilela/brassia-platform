@@ -145,6 +145,18 @@ public final class PackagingPlan {
         this.reservedAt = Objects.requireNonNull(at, "instante da reserva é obrigatório");
     }
 
+    /**
+     * Marca o plano como executado (PKG-003). Só de {@code RESERVED}: executar sem a embalagem
+     * reservada e a linha verificada é justamente o que a reserva existe para impedir.
+     */
+    public void execute(Instant at) {
+        if (status != PackagingPlanStatus.RESERVED) {
+            throw new IllegalStateException("só plano reservado é executado: " + status);
+        }
+        Objects.requireNonNull(at, "instante da execução é obrigatório");
+        this.status = PackagingPlanStatus.EXECUTED;
+    }
+
     /** Cancela o plano (terminal); o motivo é obrigatório porque a reserva devolvida é auditada. */
     public void cancel(String reason, Instant at) {
         requireOpen();
@@ -159,6 +171,9 @@ public final class PackagingPlan {
     }
 
     private void requireOpen() {
+        if (status == PackagingPlanStatus.EXECUTED) {
+            throw new IllegalStateException("plano executado não aceita alteração");
+        }
         if (status.terminal()) {
             throw new IllegalStateException("plano cancelado não aceita alteração");
         }

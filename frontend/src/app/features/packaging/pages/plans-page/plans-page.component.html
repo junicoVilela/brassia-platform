@@ -129,9 +129,104 @@
             </div>
 
             @if (p.status !== 'CANCELLED') {
-              <button type="button" class="btn btn-link btn-sm p-0 mt-2" (click)="openCarbonation(p)">
-                {{ store.carbonationPlanId() === p.id ? 'Fechar carbonatação' : 'Carbonatação' }}
-              </button>
+              <div class="d-flex gap-3 mt-2">
+                <button type="button" class="btn btn-link btn-sm p-0" (click)="openCarbonation(p)">
+                  {{ store.carbonationPlanId() === p.id ? 'Fechar carbonatação' : 'Carbonatação' }}
+                </button>
+                @if (p.status === 'RESERVED' || p.status === 'EXECUTED') {
+                  <button type="button" class="btn btn-link btn-sm p-0" (click)="openRun(p)">
+                    {{ store.runPlanId() === p.id ? 'Fechar envase' : 'Envase' }}
+                  </button>
+                }
+              </div>
+            }
+
+            @if (store.runPlanId() === p.id) {
+              <div class="border-top mt-3 pt-3">
+                <h3 class="h6 fw-semibold mb-1">Envase executado</h3>
+                <p class="text-muted small mb-3">
+                  A perda não é digitada: ela é o que sobra entre o volume que saiu do tanque e o
+                  que foi para as embalagens. Rejeito consome embalagem igual às unidades boas.
+                </p>
+
+                @if (store.run(); as run) {
+                  <div class="alert alert-success mb-0" role="alert">
+                    <p class="mb-1 fw-medium">
+                      {{ run.producedUnits | number }} unidades boas
+                      @if (run.rejectedUnits > 0) {
+                        · {{ run.rejectedUnits | number }} rejeitadas
+                      }
+                      · {{ run.containersConsumed | number }} embalagens consumidas
+                    </p>
+                    <p class="small mb-0">
+                      Saíram {{ run.inputVolumeLiters | number:'1.0-3' }} L do tanque ·
+                      envasados {{ run.packagedVolumeLiters | number:'1.0-3' }} L ·
+                      rejeitados {{ run.rejectedVolumeLiters | number:'1.0-3' }} L ·
+                      perdas {{ run.lossesLiters | number:'1.0-3' }} L
+                      ({{ run.lossPercent | number:'1.0-2' }}%)
+                    </p>
+                    @if (run.note) {
+                      <p class="small mb-0 mt-1">{{ run.note }}</p>
+                    }
+                    <p class="small mb-0 mt-1 text-muted">
+                      Registrado em {{ run.executedAt | date:'short' }}
+                    </p>
+                  </div>
+                } @else if (p.status === 'RESERVED') {
+                  <form [formGroup]="runForm" class="row g-2 align-items-end">
+                    <div class="col-sm-3">
+                      <label class="form-label small" for="rinput">Volume que saiu do tanque (L)</label>
+                      <input id="rinput" type="number" step="any" class="form-control form-control-sm"
+                             formControlName="inputVolumeLiters"></div>
+                    <div class="col-sm-3"><label class="form-label small" for="rproduced">Unidades boas</label>
+                      <input id="rproduced" type="number" min="0" class="form-control form-control-sm"
+                             formControlName="producedUnits"></div>
+                    <div class="col-sm-3"><label class="form-label small" for="rrejected">Rejeitos</label>
+                      <input id="rrejected" type="number" min="0" class="form-control form-control-sm"
+                             formControlName="rejectedUnits"></div>
+                    <div class="col-sm-3"><label class="form-label small" for="rnote">Observação</label>
+                      <input id="rnote" type="text" class="form-control form-control-sm"
+                             formControlName="note"></div>
+                    <div class="col-sm-4 d-grid">
+                      <button type="button" class="btn btn-primary btn-sm"
+                              [disabled]="runForm.invalid || store.executing()" (click)="execute(p)">
+                        <i class="ri-inbox-archive-line me-1" aria-hidden="true"></i> Registrar envase
+                      </button>
+                    </div>
+                  </form>
+                }
+
+                @if (store.volumeBalance(); as balance) {
+                  <div class="alert alert-warning mt-3 mb-0" role="alert">
+                    <p class="mb-1 fw-medium">O balanço de volume não fecha.</p>
+                    <p class="small mb-0">
+                      As unidades declaradas contêm
+                      {{ balance.packagedVolumeLiters + balance.rejectedVolumeLiters | number:'1.0-3' }} L,
+                      mas só saíram {{ balance.inputVolumeLiters | number:'1.0-3' }} L do tanque —
+                      faltam {{ balance.shortfallLiters | number:'1.0-3' }} L. Confira o volume, as
+                      unidades boas e os rejeitos.
+                    </p>
+                  </div>
+                }
+                @if (store.batchVolumeExceeded(); as batch) {
+                  <div class="alert alert-warning mt-3 mb-0" role="alert">
+                    O lote já teve {{ batch.alreadyPackagedLiters | number:'1.0-3' }} L envasados de
+                    {{ batch.batchVolumeLiters | number:'1.0-3' }} L; restam
+                    {{ batch.remainingLiters | number:'1.0-3' }} L e o envase pediu
+                    {{ batch.requestedLiters | number:'1.0-3' }} L.
+                  </div>
+                }
+                @if (store.runShortfall(); as shortfall) {
+                  <div class="alert alert-warning mt-3 mb-0" role="alert">
+                    Embalagem insuficiente para o envase: pedidas
+                    {{ shortfall.requested | number:'1.0-0' }} {{ shortfall.unit }}, disponíveis
+                    {{ shortfall.available | number:'1.0-0' }}. Nada foi consumido.
+                  </div>
+                }
+                @if (store.runError(); as runError) {
+                  <div class="alert alert-danger mt-3 mb-0" role="alert">{{ runError }}</div>
+                }
+              </div>
             }
 
             @if (store.carbonationPlanId() === p.id) {

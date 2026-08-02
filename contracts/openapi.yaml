@@ -1702,6 +1702,56 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /packaging/plans/{id}/execution:
+    get:
+      operationId: getPackagingRun
+      summary: Execução registrada do envase
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Execução
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PackagingRun'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: executePackaging
+      summary: "Registra o envase executado (unidades, volume e rejeitos)"
+      description: >
+        A perda NÃO é enviada: ela é derivada de `inputVolumeLiters − envasado − rejeitado`, e é
+        assim que o balanço fecha por construção. Unidades que contêm mais cerveja do que saiu do
+        tanque respondem 409 `volume_balance`; a soma das execuções acima do que o lote tem
+        responde 409 `batch_volume_exceeded`. Rejeito consome embalagem igual às unidades boas.
+        Só plano RESERVED executa, e executar é terminal — plano executado não é cancelável.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExecutePackaging'}
+      responses:
+        '200':
+          description: Envase registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [runId, packagedVolumeLiters, lossesLiters, containersConsumed]
+                properties:
+                  runId: {type: string, format: uuid}
+                  packagedVolumeLiters: {type: number}
+                  lossesLiters: {type: number}
+                  containersConsumed: {type: integer}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "Balanço, volume do lote, estado do plano ou embalagem insuficiente"
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/PackagingRunProblem'}
   /packaging/plans/{id}/carbonation:
     get:
       operationId: getCarbonation
@@ -2971,7 +3021,12 @@ components:
         lineEquipmentId: {type: string, format: uuid}
         plannedStart: {type: string, format: date-time}
         plannedEnd: {type: string, format: date-time}
-        status: {type: string, enum: [PLANNED, RESERVED, CANCELLED]}
+        status:
+          type: string
+          enum: [PLANNED, RESERVED, EXECUTED, CANCELLED]
+          description: >
+            Os dois estados terminais não se equivalem: CANCELLED devolve a embalagem reservada,
+            EXECUTED a consumiu. Plano executado não é cancelável.
         checklist:
           type: array
           description: "Todos os itens, inclusive os pendentes (confirmed = false)"
@@ -3017,6 +3072,63 @@ components:
               message: {type: string}
         shortfall:
           type: object
+          properties:
+            containerId: {type: string, format: uuid}
+            requested: {type: number}
+            available: {type: number}
+            unit: {type: string}
+    ExecutePackaging:
+      type: object
+      required: [inputVolumeLiters, producedUnits, rejectedUnits]
+      properties:
+        inputVolumeLiters: {type: number, exclusiveMinimum: 0, description: "Volume que saiu do tanque"}
+        producedUnits: {type: integer, minimum: 0}
+        rejectedUnits: {type: integer, minimum: 0, description: "Rejeito consome embalagem igual"}
+        note: {type: string, maxLength: 200}
+    PackagingRun:
+      type: object
+      required: [id, batchId, inputVolumeLiters, producedUnits, rejectedUnits, packagedVolumeLiters,
+                 rejectedVolumeLiters, lossesLiters, lossPercent, containersConsumed, executedAt, executedBy]
+      properties:
+        id: {type: string, format: uuid}
+        batchId: {type: string, format: uuid}
+        inputVolumeLiters: {type: number}
+        producedUnits: {type: integer}
+        rejectedUnits: {type: integer}
+        packagedVolumeLiters: {type: number}
+        rejectedVolumeLiters: {type: number}
+        lossesLiters: {type: number, description: "Derivada; entrada − envasado − rejeitado"}
+        lossPercent: {type: number}
+        containersConsumed: {type: integer, description: "Boas + rejeitadas"}
+        note: {type: string, nullable: true}
+        executedAt: {type: string, format: date-time}
+        executedBy: {type: string, format: uuid}
+    PackagingRunProblem:
+      type: object
+      description: "Problem Details da recusa de execução; a extensão depende do `code`."
+      properties:
+        code:
+          type: string
+          enum: [volume_balance, batch_volume_exceeded, insufficient_packaging_stock, conflict]
+        balance:
+          type: object
+          description: Acompanha volume_balance
+          properties:
+            inputVolumeLiters: {type: number}
+            packagedVolumeLiters: {type: number}
+            rejectedVolumeLiters: {type: number}
+            shortfallLiters: {type: number}
+        batchVolume:
+          type: object
+          description: Acompanha batch_volume_exceeded
+          properties:
+            batchVolumeLiters: {type: number}
+            alreadyPackagedLiters: {type: number}
+            remainingLiters: {type: number}
+            requestedLiters: {type: number}
+        shortfall:
+          type: object
+          description: Acompanha insufficient_packaging_stock
           properties:
             containerId: {type: string, format: uuid}
             requested: {type: number}

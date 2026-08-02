@@ -1702,6 +1702,339 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /gas/cylinders:
+    get:
+      operationId: listGasCylinders
+      summary: Lista cilindros de gás
+      responses:
+        '200':
+          description: Cilindros
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/GasCylinder'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: registerGasCylinder
+      summary: Cadastra um cilindro
+      description: >
+        O conteúdo é rastreado por massa, não por pressão: em cilindro de CO₂ com fase líquida o
+        manômetro fica praticamente constante enquanto houver líquido. Cilindro cadastrado sem
+        gás nasce vazio.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterGasCylinder'}
+      responses:
+        '201': {description: Cilindro cadastrado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /gas/cylinders/{id}:
+    get:
+      operationId: getGasCylinder
+      summary: Cilindro com aptidão para alocação
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Cilindro
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GasCylinder'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /gas/cylinders/{id}/block:
+    post:
+      operationId: setGasCylinderBlock
+      summary: Bloqueia ou desbloqueia o cilindro
+      description: >
+        Bloquear exige motivo e o cilindro precisa estar desconectado (409). Desbloquear NÃO
+        requalifica: um cilindro com requalificação vencida continua sem poder ser alocado.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [blocked]
+              properties:
+                blocked: {type: boolean}
+                reason: {type: string, maxLength: 200, description: "Obrigatório ao bloquear"}
+      responses:
+        '200': {description: Situação atualizada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /gas/cylinders/{id}/requalification:
+    post:
+      operationId: requalifyGasCylinder
+      summary: Registra nova requalificação do cilindro
+      description: "O vencimento precisa ser futuro (400); não altera bloqueio nem conteúdo."
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dueOn]
+              properties:
+                dueOn: {type: string, format: date}
+      responses:
+        '200': {description: Requalificação registrada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /gas/cylinders/{id}/refill:
+    post:
+      operationId: refillGasCylinder
+      summary: Recarrega o cilindro com a massa aferida
+      description: "Cilindro conectado ou bloqueado não é recarregado (409); a massa não passa da capacidade (400)."
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contentKg]
+              properties:
+                contentKg: {type: number, minimum: 0}
+      responses:
+        '200': {description: Cilindro recarregado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /gas/components:
+    get:
+      operationId: listGasComponents
+      summary: Lista reguladores e manifolds
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema: {type: string, enum: [REGULATOR, MANIFOLD]}
+      responses:
+        '200':
+          description: Componentes da rede
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/GasComponent'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: registerGasComponent
+      summary: Cadastra regulador ou manifold
+      description: >
+        Regulador nunca é ajustado acima da própria pressão máxima; manifold não tem pressão
+        ajustada (400 nos dois casos).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterGasComponent'}
+      responses:
+        '201': {description: Componente cadastrado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /gas/components/{id}:
+    put:
+      operationId: updateGasComponent
+      summary: Atualiza nome e pressões do componente
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, maxPressureBar]
+              properties:
+                name: {type: string, maxLength: 120}
+                maxPressureBar: {type: number, exclusiveMinimum: 0}
+                setPressureBar: {type: number, nullable: true}
+      responses:
+        '200': {description: Componente atualizado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /gas/components/{id}/active:
+    post:
+      operationId: setGasComponentActive
+      summary: Ativa ou desativa o componente
+      description: "Componente desativado vira impedimento na conexão, não erro silencioso."
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active: {type: boolean}
+      responses:
+        '200': {description: Situação atualizada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /gas/connections:
+    get:
+      operationId: listGasConnections
+      summary: Lista conexões de gás
+      parameters:
+        - name: onlyOpen
+          in: query
+          required: false
+          description: "true exclui as desconectadas"
+          schema: {type: boolean, default: false}
+      responses:
+        '200':
+          description: Conexões
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/GasConnection'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: connectGas
+      summary: "Monta a linha: cilindro → regulador → (manifold) → ponto de uso"
+      description: >
+        A recusa lista todos os impedimentos na extensão `blockers` (cilindro vencido, bloqueado,
+        vazio ou em uso; regulador/manifold inexistente ou desativado; ponto ocupado; pressão de
+        trabalho acima do teto da rede). O teto da rede é o menor limite entre os componentes e
+        fica congelado na conexão. A linha nasce em PENDING_TEST e não serve antes do teste
+        de vazamento aprovado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ConnectGas'}
+      responses:
+        '201': {description: "Linha montada, pendente de teste de vazamento"}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "Impedimentos da conexão (`blockers`)"
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/GasConnectionProblem'}
+  /gas/connections/{id}:
+    get:
+      operationId: getGasConnection
+      summary: Conexão com leituras de pressão e consumo
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Conexão detalhada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GasConnectionDetail'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /gas/connections/{id}/leak-test:
+    post:
+      operationId: recordGasLeakTest
+      summary: Registra o teste de vazamento da linha
+      description: >
+        É o teste aprovado que libera a linha para servir; reprovado a bloqueia e exige
+        observação (400 sem ela). Linha bloqueada só volta a servir com um novo teste aprovado.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GasLeakTest'}
+      responses:
+        '200': {description: Teste registrado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /gas/connections/{id}/pressure:
+    post:
+      operationId: recordGasPressure
+      summary: Registra a pressão medida na linha
+      description: >
+        A medição é evidência e é preservada mesmo quando denuncia sobrepressão. Leitura acima do
+        teto da rede marca `overPressure` e leva a conexão para BLOCKED — só um novo teste de
+        vazamento aprovado devolve a linha ao serviço. Conexão que não está servindo responde 409.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bar]
+              properties:
+                bar: {type: number, exclusiveMinimum: 0}
+                tempC: {type: number, nullable: true}
+      responses:
+        '200':
+          description: Leitura registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [readingId, overPressure, status]
+                properties:
+                  readingId: {type: string, format: uuid}
+                  overPressure: {type: boolean}
+                  status: {type: string, enum: [SERVING, BLOCKED]}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /gas/connections/{id}/consumption:
+    post:
+      operationId: recordGasConsumption
+      summary: Registra consumo de gás da linha
+      description: >
+        Só linha servindo consome (409). Consumir mais do que há no cilindro é erro de registro
+        (400), não saldo negativo.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kg]
+              properties:
+                kg: {type: number, exclusiveMinimum: 0}
+                reason: {type: string, maxLength: 200}
+      responses:
+        '200': {description: Consumo registrado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /gas/connections/{id}/disconnect:
+    post:
+      operationId: disconnectGas
+      summary: Desconecta a linha e devolve o cilindro
+      description: "Terminal (409 ao repetir). O cilindro volta a AVAILABLE, ou EMPTY se acabou o gás."
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, maxLength: 200}
+      responses:
+        '200': {description: Linha desconectada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
     RegisterBrewery:
@@ -2620,6 +2953,145 @@ components:
             requested: {type: number}
             available: {type: number}
             unit: {type: string}
+    GasCylinder:
+      type: object
+      required: [id, code, gasType, capacityKg, tareKg, contentKg, requalificationDueOn, expired, status,
+                 allocatable, location]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        gasType: {type: string, enum: [CO2, N2, MIX]}
+        capacityKg: {type: number}
+        tareKg: {type: number}
+        contentKg: {type: number, description: "Massa restante; o gás não é medido por pressão"}
+        requalificationDueOn: {type: string, format: date}
+        expired: {type: boolean, description: "Requalificação vencida hoje"}
+        status: {type: string, enum: [AVAILABLE, CONNECTED, EMPTY, BLOCKED]}
+        allocatable:
+          type: boolean
+          description: "Sem impedimento para ser conectado; a tela não reimplementa a regra"
+        blockReason: {type: string, nullable: true}
+        location: {type: string}
+    RegisterGasCylinder:
+      type: object
+      required: [code, gasType, capacityKg, tareKg, contentKg, requalificationDueOn, location]
+      properties:
+        code: {type: string, maxLength: 40}
+        gasType: {type: string, enum: [CO2, N2, MIX]}
+        capacityKg: {type: number, exclusiveMinimum: 0}
+        tareKg: {type: number, exclusiveMinimum: 0}
+        contentKg: {type: number, minimum: 0}
+        requalificationDueOn: {type: string, format: date}
+        location: {type: string, maxLength: 120}
+    GasComponent:
+      type: object
+      required: [id, kind, code, name, maxPressureBar, active]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [REGULATOR, MANIFOLD]}
+        code: {type: string}
+        name: {type: string}
+        maxPressureBar: {type: number}
+        setPressureBar: {type: number, nullable: true, description: "Só regulador tem ajuste"}
+        active: {type: boolean}
+    RegisterGasComponent:
+      type: object
+      required: [kind, code, name, maxPressureBar]
+      properties:
+        kind: {type: string, enum: [REGULATOR, MANIFOLD]}
+        code: {type: string, maxLength: 40}
+        name: {type: string, maxLength: 120}
+        maxPressureBar: {type: number, exclusiveMinimum: 0}
+        setPressureBar:
+          type: number
+          nullable: true
+          description: "Obrigatório no regulador (≤ maxPressureBar); proibido no manifold"
+    ConnectGas:
+      type: object
+      required: [cylinderId, regulatorId, pointOfUseEquipmentId, workingPressureBar]
+      properties:
+        cylinderId: {type: string, format: uuid}
+        regulatorId: {type: string, format: uuid}
+        manifoldId: {type: string, format: uuid, nullable: true}
+        pointOfUseEquipmentId: {type: string, format: uuid}
+        workingPressureBar: {type: number, exclusiveMinimum: 0}
+    GasLeakTest:
+      type: object
+      required: [passed, method, pressureDropBar]
+      properties:
+        passed: {type: boolean}
+        method: {type: string, maxLength: 120}
+        pressureDropBar: {type: number, minimum: 0}
+        note: {type: string, maxLength: 200, description: "Obrigatório quando reprovado"}
+    GasConnection:
+      type: object
+      required: [id, cylinderId, regulatorId, pointOfUseEquipmentId, workingPressureBar,
+                 networkMaxPressureBar, status, connectedAt]
+      properties:
+        id: {type: string, format: uuid}
+        cylinderId: {type: string, format: uuid}
+        regulatorId: {type: string, format: uuid}
+        manifoldId: {type: string, format: uuid, nullable: true}
+        pointOfUseEquipmentId: {type: string, format: uuid}
+        workingPressureBar: {type: number}
+        networkMaxPressureBar:
+          type: number
+          description: "Menor limite entre os componentes, congelado na montagem da linha"
+        status: {type: string, enum: [PENDING_TEST, SERVING, BLOCKED, DISCONNECTED]}
+        connectedAt: {type: string, format: date-time}
+        leakTest:
+          type: object
+          nullable: true
+          properties:
+            passed: {type: boolean}
+            method: {type: string}
+            pressureDropBar: {type: number}
+            note: {type: string, nullable: true}
+            testedAt: {type: string, format: date-time}
+        disconnectedAt: {type: string, format: date-time, nullable: true}
+        disconnectReason: {type: string, nullable: true}
+    GasConnectionDetail:
+      type: object
+      required: [connection, pressureReadings, consumption, consumedKg]
+      properties:
+        connection: {$ref: '#/components/schemas/GasConnection'}
+        pressureReadings:
+          type: array
+          items:
+            type: object
+            properties:
+              id: {type: string, format: uuid}
+              bar: {type: number}
+              tempC: {type: number, nullable: true}
+              overPressure: {type: boolean}
+              at: {type: string, format: date-time}
+        consumption:
+          type: array
+          items:
+            type: object
+            properties:
+              id: {type: string, format: uuid}
+              kg: {type: number}
+              reason: {type: string, nullable: true}
+              at: {type: string, format: date-time}
+        consumedKg: {type: number, description: "Soma do consumo registrado nesta linha"}
+    GasConnectionProblem:
+      type: object
+      description: "Problem Details da recusa de conexão; `blockers` acompanha gas_connection_blocked."
+      properties:
+        code: {type: string, enum: [gas_connection_blocked]}
+        blockers:
+          type: array
+          items:
+            type: object
+            required: [code, message]
+            properties:
+              code:
+                type: string
+                enum: [cylinder_blocked, cylinder_in_use, cylinder_empty, cylinder_expired,
+                       regulator_unknown, regulator_inactive, manifold_unknown, manifold_inactive,
+                       point_of_use_occupied, working_pressure_above_network]
+              message: {type: string}
   responses:
     Problem:
       description: Problem Details

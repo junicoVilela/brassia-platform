@@ -110,6 +110,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/packaging/packaging.routes').then(m => m.PACKAGING_ROUTES),
       },
       {
+        path: 'gas',
+        canActivate: [permissionGuard],
+        data: { permission: 'gas.read' },
+        loadChildren: () => import('./features/gas/gas.routes').then(m => m.GAS_ROUTES),
+      },
+      {
         path: 'sanitation/matrix',
         canActivate: [permissionGuard],
         data: { permission: 'sanitation.matrix.read' },

@@ -1,0 +1,280 @@
+<app-page-header title="Gases e rede de CO₂"
+                 subtitle="Cilindros, reguladores, manifolds, pressão e consumo" />
+
+<div class="card border-0 rounded-10 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-1">Cilindros</h2>
+    <p class="text-muted small mb-3">
+      O conteúdo é acompanhado por massa, não por pressão: em cilindro de CO₂ o manômetro fica
+      praticamente constante enquanto houver fase líquida.
+    </p>
+
+    @if (store.expiredCylinders().length > 0) {
+      <div class="alert alert-warning" role="alert">
+        {{ store.expiredCylinders().length }} cilindro(s) com requalificação vencida — não podem ser conectados.
+      </div>
+    }
+
+    @if (canManage) {
+      <form [formGroup]="cylinderForm" (ngSubmit)="registerCylinder()" class="row g-2 align-items-end mb-3">
+        <div class="col-sm-3"><label class="form-label small" for="gcode">Código</label>
+          <input id="gcode" type="text" class="form-control form-control-sm" formControlName="code"
+                 placeholder="CIL-001"></div>
+        <div class="col-sm-2"><label class="form-label small" for="ggas">Gás</label>
+          <select id="ggas" class="form-select form-select-sm" formControlName="gasType">
+            <option value="CO2">CO₂</option>
+            <option value="N2">N₂</option>
+            <option value="MIX">Mistura</option>
+          </select></div>
+        <div class="col-sm-2"><label class="form-label small" for="gcap">Capacidade (kg)</label>
+          <input id="gcap" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="capacityKg"></div>
+        <div class="col-sm-2"><label class="form-label small" for="gtare">Tara (kg)</label>
+          <input id="gtare" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="tareKg"></div>
+        <div class="col-sm-3"><label class="form-label small" for="gcontent">Conteúdo (kg)</label>
+          <input id="gcontent" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="contentKg"></div>
+        <div class="col-sm-3"><label class="form-label small" for="gdue">Requalificação vence em</label>
+          <input id="gdue" type="date" class="form-control form-control-sm"
+                 formControlName="requalificationDueOn"></div>
+        <div class="col-sm-6"><label class="form-label small" for="gloc">Localização</label>
+          <input id="gloc" type="text" class="form-control form-control-sm" formControlName="location"
+                 placeholder="Casa de gases"></div>
+        <div class="col-sm-3 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm"
+                  [disabled]="cylinderForm.invalid || store.submitting()">
+            <i class="ri-add-line me-1" aria-hidden="true"></i> Cadastrar cilindro
+          </button>
+        </div>
+      </form>
+      @if (store.actionError(); as actionError) {
+        <div class="alert alert-danger mb-3" role="alert">{{ actionError }}</div>
+      }
+    }
+
+    @if (store.cylinders().length === 0) {
+      <app-empty-state icon="ri-fire-line" message="Nenhum cilindro cadastrado."
+                       hint="Cadastre um cilindro para montar a rede de gás." />
+    } @else {
+      <ul class="list-unstyled mb-0">
+        @for (c of store.cylinders(); track c.id) {
+          <li class="border rounded-10 p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+              <div>
+                <span class="badge me-2"
+                      [class]="c.status === 'BLOCKED' ? 'text-bg-danger'
+                               : c.status === 'CONNECTED' ? 'text-bg-success'
+                               : c.status === 'EMPTY' ? 'text-bg-secondary' : 'text-bg-info'">
+                  {{ cylinderLabels[c.status] }}
+                </span>
+                <span class="fw-medium">{{ c.code }}</span>
+                <span class="text-muted small">
+                  · {{ c.gasType }} · {{ c.contentKg | number:'1.0-3' }} de
+                  {{ c.capacityKg | number:'1.0-3' }} kg · {{ c.location }}
+                </span>
+                <p class="small mb-0 mt-1" [class.text-danger]="c.expired" [class.text-muted]="!c.expired">
+                  Requalificação vence em {{ c.requalificationDueOn }}{{ c.expired ? ' — vencida' : '' }}
+                </p>
+                @if (c.blockReason) {
+                  <p class="small text-danger mb-0">Bloqueado: {{ c.blockReason }}</p>
+                }
+              </div>
+              @if (canManage) {
+                <div class="d-flex gap-2 flex-wrap">
+                  @if (c.status === 'BLOCKED') {
+                    <button type="button" class="btn btn-sm btn-outline-secondary" (click)="unblock(c)">
+                      Desbloquear
+                    </button>
+                  } @else if (c.status !== 'CONNECTED') {
+                    <button type="button" class="btn btn-sm btn-outline-danger" (click)="block(c)">Bloquear</button>
+                  }
+                  @if (c.expired) {
+                    <button type="button" class="btn btn-sm btn-outline-primary" (click)="requalify(c)">
+                      Requalificar
+                    </button>
+                  }
+                  @if (c.status === 'EMPTY' || c.status === 'AVAILABLE') {
+                    <button type="button" class="btn btn-sm btn-outline-primary" (click)="refill(c)">Recarregar</button>
+                  }
+                </div>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</div>
+
+@if (canManage) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-1">Montar linha</h2>
+      <p class="text-muted small mb-3">
+        A linha nasce pendente e só serve depois de um teste de vazamento aprovado. O teto de
+        pressão é o menor limite entre regulador e manifold.
+      </p>
+      <form [formGroup]="connectForm" (ngSubmit)="connect()" class="row g-2 align-items-end">
+        <div class="col-sm-4"><label class="form-label small" for="ccyl">Cilindro</label>
+          <select id="ccyl" class="form-select form-select-sm" formControlName="cylinderId">
+            <option value="">Selecione…</option>
+            @for (c of store.allocatableCylinders(); track c.id) {
+              <option [value]="c.id">{{ c.code }} — {{ c.contentKg | number:'1.0-1' }} kg</option>
+            }
+          </select>
+          @if (store.allocatableCylinders().length === 0) {
+            <span class="form-text">Nenhum cilindro apto: verifique bloqueio, vazio ou requalificação.</span>
+          }
+        </div>
+        <div class="col-sm-4"><label class="form-label small" for="creg">Regulador</label>
+          <select id="creg" class="form-select form-select-sm" formControlName="regulatorId">
+            <option value="">Selecione…</option>
+            @for (r of store.regulators(); track r.id) {
+              <option [value]="r.id">{{ r.code }} — até {{ r.maxPressureBar }} bar</option>
+            }
+          </select></div>
+        <div class="col-sm-4"><label class="form-label small" for="cman">Manifold (opcional)</label>
+          <select id="cman" class="form-select form-select-sm" formControlName="manifoldId">
+            <option value="">Sem manifold</option>
+            @for (m of store.manifolds(); track m.id) {
+              <option [value]="m.id">{{ m.code }} — até {{ m.maxPressureBar }} bar</option>
+            }
+          </select></div>
+        <div class="col-sm-5"><label class="form-label small" for="cpoint">Ponto de uso</label>
+          <select id="cpoint" class="form-select form-select-sm" formControlName="pointOfUseEquipmentId">
+            <option value="">Selecione…</option>
+            @for (e of store.equipment(); track e.id) {
+              <option [value]="e.id">{{ e.code }} — {{ e.name }}</option>
+            }
+          </select></div>
+        <div class="col-sm-4"><label class="form-label small" for="cbar">Pressão de trabalho (bar)</label>
+          <input id="cbar" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="workingPressureBar"></div>
+        <div class="col-sm-3 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm"
+                  [disabled]="connectForm.invalid || store.submitting()">
+            <i class="ri-link me-1" aria-hidden="true"></i> Conectar
+          </button>
+        </div>
+      </form>
+
+      @if (store.connectBlockers().length > 0) {
+        <div class="alert alert-warning mt-3 mb-0" role="alert">
+          <p class="mb-1 fw-medium">A conexão foi recusada. Resolva antes de tentar de novo:</p>
+          <ul class="mb-0 ps-3 small">
+            @for (b of store.connectBlockers(); track $index) {
+              <li>{{ b.message }}</li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+      <h2 class="h6 fw-semibold mb-0">Linhas de gás</h2>
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="gopen" [checked]="store.onlyOpen()"
+               (change)="store.toggleOnlyOpen($any($event.target).checked)">
+        <label class="form-check-label small" for="gopen">Só linhas abertas</label>
+      </div>
+    </div>
+
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">
+        {{ error }}
+        <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">Tentar de novo</button>
+      </div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-link" message="Nenhuma linha de gás."
+                       hint="Monte uma linha ligando um cilindro a um ponto de uso." />
+    } @else {
+      <ul class="list-unstyled mb-0">
+        @for (c of store.connections(); track c.id) {
+          <li class="border rounded-10 p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+              <div>
+                <span class="badge me-2"
+                      [class]="c.status === 'SERVING' ? 'text-bg-success'
+                               : c.status === 'BLOCKED' ? 'text-bg-danger'
+                               : c.status === 'DISCONNECTED' ? 'text-bg-secondary' : 'text-bg-warning'">
+                  {{ connectionLabels[c.status] }}
+                </span>
+                <span class="fw-medium">{{ cylinderCode(c.cylinderId) }}</span>
+                <span class="text-muted small">
+                  → {{ componentCode(c.regulatorId) }}
+                  @if (c.manifoldId) { → {{ componentCode(c.manifoldId) }} }
+                  → {{ equipmentCode(c.pointOfUseEquipmentId) }}
+                  · {{ c.workingPressureBar }} bar (teto {{ c.networkMaxPressureBar }})
+                </span>
+                @if (c.leakTest; as test) {
+                  <p class="small mb-0 mt-1" [class.text-danger]="!test.passed" [class.text-muted]="test.passed">
+                    Teste de vazamento {{ test.passed ? 'aprovado' : 'reprovado' }} —
+                    {{ test.method }}, queda {{ test.pressureDropBar }} bar
+                    ({{ test.testedAt | date:'short' }}){{ test.note ? ' · ' + test.note : '' }}
+                  </p>
+                } @else {
+                  <p class="small text-muted mb-0 mt-1">Sem teste de vazamento: a linha ainda não serve.</p>
+                }
+                @if (c.disconnectReason) {
+                  <p class="small text-muted mb-0">Desconectada: {{ c.disconnectReason }}</p>
+                }
+              </div>
+              <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-sm btn-outline-secondary" (click)="store.toggleDetail(c.id)">
+                  {{ store.openDetailOf() === c.id ? 'Ocultar histórico' : 'Histórico' }}
+                </button>
+                @if (canManage && c.status !== 'DISCONNECTED') {
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="leakTest(c, true)">
+                    Teste aprovado
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-danger" (click)="leakTest(c, false)">
+                    Teste reprovado
+                  </button>
+                  @if (c.status === 'SERVING') {
+                    <button type="button" class="btn btn-sm btn-outline-primary" (click)="pressure(c)">Pressão</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" (click)="consumption(c)">
+                      Consumo
+                    </button>
+                  }
+                  <button type="button" class="btn btn-sm btn-outline-secondary" (click)="disconnect(c)">
+                    Desconectar
+                  </button>
+                }
+              </div>
+            </div>
+
+            @if (store.openDetailOf() === c.id && store.detail(); as detail) {
+              <div class="mt-3 pt-3 border-top">
+                <p class="small mb-2">
+                  Consumo acumulado nesta linha: <strong>{{ detail.consumedKg | number:'1.0-3' }} kg</strong>
+                </p>
+                @if (detail.pressureReadings.length === 0) {
+                  <p class="small text-muted mb-0">Nenhuma leitura de pressão registrada.</p>
+                } @else {
+                  <ul class="list-unstyled small mb-0">
+                    @for (r of detail.pressureReadings; track r.id) {
+                      <li [class.text-danger]="r.overPressure">
+                        <i class="me-1" aria-hidden="true"
+                           [class]="r.overPressure ? 'ri-alert-line' : 'ri-dashboard-3-line'"></i>
+                        {{ r.bar }} bar
+                        @if (r.tempC !== null) { · {{ r.tempC }} °C }
+                        · {{ r.at | date:'short' }}{{ r.overPressure ? ' — sobrepressão' : '' }}
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</div>

@@ -161,6 +161,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('gas.read')) {
+            <li class="menu-item">
+              <a routerLink="/gas" routerLinkActive="active" class="menu-link">
+                <i class="ri-fire-line menu-icon"></i>
+                <span class="title">Gases e CO₂</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('inventory.lot.read')) {
             <li class="menu-item">
               <a routerLink="/inventory" routerLinkActive="active" class="menu-link" [routerLinkActiveOptions]="{ exact: true }">

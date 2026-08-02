@@ -1,15 +1,19 @@
 package br.com.brew.brassia.packaging.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.calculator.CalculatorEngine;
 import br.com.brew.brassia.catalog.IngredientSpecLookup;
 import br.com.brew.brassia.equipment.EquipmentAvailabilityLookup;
 import br.com.brew.brassia.packaging.PackagingStockGateway;
 import br.com.brew.brassia.packaging.application.port.inbound.CancelPackagingPlanUseCase;
+import br.com.brew.brassia.packaging.application.port.inbound.CarbonationCommands;
 import br.com.brew.brassia.packaging.application.port.inbound.ConfirmChecklistItemUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.PackagingPlanQueries;
 import br.com.brew.brassia.packaging.application.port.inbound.PlanPackagingUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.ReservePackagingPlanUseCase;
+import br.com.brew.brassia.packaging.application.port.outbound.CarbonationRepository;
 import br.com.brew.brassia.packaging.application.port.outbound.PackagingPlanRepository;
+import br.com.brew.brassia.packaging.application.service.CarbonationHandlers;
 import br.com.brew.brassia.packaging.application.service.PackagingPlanHandlers;
 import br.com.brew.brassia.packaging.application.service.PlanPackagingHandler;
 import br.com.brew.brassia.packaging.application.service.ReservePackagingPlanHandler;
@@ -65,5 +69,26 @@ class PackagingConfiguration {
     @Bean
     PackagingPlanQueries packagingPlanQueries(PackagingPlanRepository plans) {
         return new PackagingPlanHandlers.Queries(plans);
+    }
+
+    /** Prévia de carbonatação: calcula e explica, sem gravar nada. */
+    @Bean
+    CarbonationCommands.Preview previewCarbonationUseCase(PackagingPlanRepository plans,
+            CalculatorEngine calculator) {
+        return new CarbonationHandlers.Preview(plans, calculator);
+    }
+
+    @Bean
+    CarbonationCommands.Record recordCarbonationUseCase(PackagingPlanRepository plans,
+            CarbonationRepository carbonations, CalculatorEngine calculator, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new CarbonationHandlers.Record(plans, carbonations, calculator, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    CarbonationCommands.Get getCarbonationUseCase(CarbonationRepository carbonations) {
+        return new CarbonationHandlers.Get(carbonations);
     }
 }

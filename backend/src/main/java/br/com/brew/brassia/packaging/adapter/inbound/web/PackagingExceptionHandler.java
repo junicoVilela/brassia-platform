@@ -1,5 +1,6 @@
 package br.com.brew.brassia.packaging.adapter.inbound.web;
 
+import br.com.brew.brassia.packaging.domain.OverCarbonationException;
 import br.com.brew.brassia.packaging.domain.PackagingBlockedException;
 import br.com.brew.brassia.packaging.domain.PackagingStockShortfallException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
@@ -26,6 +27,20 @@ class PackagingExceptionHandler {
                 .map(b -> Map.of("code", b.code(), "message", b.message()))
                 .toList();
         problem.setProperty("blockers", blockers);
+        return problem;
+    }
+
+    /**
+     * Priming sobre CO₂ que já atinge o alvo (PKG-002): o alvo e o residual acompanham o erro para
+     * o cervejeiro decidir entre elevar o alvo, resfriar antes ou trocar de método.
+     */
+    @ExceptionHandler(OverCarbonationException.class)
+    ProblemDetail handleOverCarbonation(OverCarbonationException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "over_carbonation",
+                "A cerveja já tem o CO₂ alvo dissolvido; adicionar açúcar causaria sobrepressão.");
+        problem.setProperty("carbonation", Map.<String, Object>of(
+                "targetVolumes", ex.targetVolumes(),
+                "residualVolumes", ex.residualVolumes()));
         return problem;
     }
 

@@ -37,7 +37,15 @@ public final class Calculators {
                         List.of("currentVolume", "targetVolume"), "L",
                         "Água a adicionar para atingir o volume alvo."),
                 new CalculatorSpec("ibu-tinseth", "IBU (Tinseth)", List.of("alphaAcid", "weightGrams", "timeMinutes",
-                        "volumeLiters", "boilGravity"), "IBU", "Amargor de uma adição de lúpulo (Tinseth)."));
+                        "volumeLiters", "boilGravity"), "IBU", "Amargor de uma adição de lúpulo (Tinseth)."),
+                new CalculatorSpec("co2-residual", "CO₂ residual", List.of("tempC"), "vol",
+                        "CO₂ ainda dissolvido na cerveja pela temperatura mais alta que ela atingiu."),
+                new CalculatorSpec("priming-sugar", "Açúcar de priming",
+                        List.of("targetVolumes", "residualVolumes", "beerVolumeLiters", "sugarYield"), "g",
+                        "Massa de açúcar para completar do CO₂ residual até os volumes alvo."),
+                new CalculatorSpec("forced-carbonation-pressure", "Pressão de carbonatação forçada",
+                        List.of("targetVolumes", "tempC"), "bar",
+                        "Pressão de equilíbrio para atingir os volumes alvo na temperatura informada."));
     }
 
     public CalculationResult compute(String id, Map<String, BigDecimal> inputs) {
@@ -52,6 +60,9 @@ public final class Calculators {
             case "hydrometer-temp-correction" -> hydrometerTempCorrection(inputs);
             case "volume-topup" -> volumeTopUp(inputs);
             case "ibu-tinseth" -> ibuTinseth(inputs);
+            case "co2-residual" -> co2Residual(inputs);
+            case "priming-sugar" -> primingSugar(inputs);
+            case "forced-carbonation-pressure" -> forcedCarbonationPressure(inputs);
             default -> throw new IllegalArgumentException("calculadora desconhecida: " + id);
         };
     }
@@ -189,6 +200,79 @@ public final class Calculators {
         return result("ibu-tinseth", in, round(ibu, 1), "IBU",
                 "Tinseth: mgAA × 1.65·0.000125^(G−1) × (1−e^(−0.04·t))/4.15",
                 List.of("uma adição", "densidade de fervura em SG"), alerts);
+    }
+
+    /** Densidade do CO₂ a 0 °C e 1 atm: 1 "volume" equivale a 1,96 g de CO₂ por litro de cerveja. */
+    private static final double CO2_GRAMS_PER_VOLUME_LITER = 1.96;
+
+    private static final double PSI_TO_BAR = 0.0689476;
+
+    /**
+     * CO₂ ainda dissolvido na cerveja (PKG-002). Depende da <strong>maior</strong> temperatura que
+     * a cerveja atingiu depois da fermentação primária: é ela que definiu quanto CO₂ escapou.
+     * Ignorar esse residual superestima o priming e leva a sobrepressão na embalagem.
+     */
+    private CalculationResult co2Residual(Map<String, BigDecimal> in) {
+        double tempF = require(in, "tempC").doubleValue() * 9.0 / 5.0 + 32.0;
+        double volumes = 3.0378 - 0.050062 * tempF + 0.00026555 * tempF * tempF;
+        var alerts = new ArrayList<String>();
+        if (volumes < 0) {
+            volumes = 0;
+            alerts.add("Temperatura fora da faixa da fórmula; residual tratado como zero.");
+        }
+        return result("co2-residual", in, round(volumes, 3), "vol",
+                "vol = 3.0378 − 0.050062·T + 0.00026555·T² (T em °F)",
+                List.of("temperatura é a mais alta atingida após a fermentação primária"), alerts);
+    }
+
+    /**
+     * Açúcar de priming (PKG-002). Só o que falta entre o residual e o alvo é açucarado, e o
+     * rendimento em CO₂ é entrada explícita — cada açúcar rende diferente, e escondê-lo num número
+     * fixo esconderia a hipótese do cálculo.
+     */
+    private CalculationResult primingSugar(Map<String, BigDecimal> in) {
+        double target = require(in, "targetVolumes").doubleValue();
+        double residual = require(in, "residualVolumes").doubleValue();
+        double volume = require(in, "beerVolumeLiters").doubleValue();
+        double yield = require(in, "sugarYield").doubleValue();
+        var alerts = new ArrayList<String>();
+        if (yield <= 0) {
+            return result("priming-sugar", in, BigDecimal.ZERO, "g", "priming", List.of(),
+                    List.of("rendimento do açúcar deve ser positivo"));
+        }
+        if (volume <= 0) {
+            return result("priming-sugar", in, BigDecimal.ZERO, "g", "priming", List.of(),
+                    List.of("volume de cerveja deve ser positivo"));
+        }
+        double missing = target - residual;
+        if (missing <= 0) {
+            alerts.add("A cerveja já tem o CO₂ alvo dissolvido; priming adicional causaria sobrepressão.");
+            missing = 0;
+        }
+        double grams = missing * volume * CO2_GRAMS_PER_VOLUME_LITER / yield;
+        return result("priming-sugar", in, round(grams, 1), "g",
+                "g = (vol_alvo − vol_residual) × V × 1,96 / rendimento",
+                List.of("1 volume = 1,96 g de CO₂ por litro", "fermentação completa do açúcar adicionado"),
+                alerts);
+    }
+
+    /**
+     * Pressão de equilíbrio para carbonatação forçada (PKG-002). Temperatura é a variável dominante:
+     * a mesma pressão carbonata muito menos numa cerveja quente do que numa fria.
+     */
+    private CalculationResult forcedCarbonationPressure(Map<String, BigDecimal> in) {
+        double target = require(in, "targetVolumes").doubleValue();
+        double tempF = require(in, "tempC").doubleValue() * 9.0 / 5.0 + 32.0;
+        double henry = 0.01821 + 0.09011 * Math.exp(-(tempF - 32.0) / 43.11);
+        double psi = (target + 0.003342) / henry - 14.695;
+        var alerts = new ArrayList<String>();
+        if (psi < 0) {
+            alerts.add("Nessa temperatura a cerveja já passa dos volumes alvo sem pressão aplicada.");
+            psi = 0;
+        }
+        return result("forced-carbonation-pressure", in, round(psi * PSI_TO_BAR, 2), "bar",
+                "P(psig) = (vol + 0.003342) / (0.01821 + 0.09011·e^(−(T−32)/43.11)) − 14.695 (T em °F)",
+                List.of("equilíbrio atingido", "pressão manométrica convertida a bar"), alerts);
     }
 
     private static final BigDecimal HUNDRED = new BigDecimal("100");

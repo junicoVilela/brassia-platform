@@ -3,7 +3,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
 import {
+  Carbonation,
+  CarbonationInput,
+  CarbonationRecommendation,
   ChecklistItemCode,
+  OverCarbonation,
   PackagingBlocker,
   PackagingPlan,
   PackagingShortfall,
@@ -15,6 +19,12 @@ import { BatchOption, EquipmentOption, IngredientOption, PackagingApi } from './
 interface ReserveError {
   status?: number;
   error?: { code?: string; blockers?: PackagingBlocker[]; shortfall?: PackagingShortfall };
+}
+
+/** Corpo Problem Details da recusa de carbonatação. */
+interface CarbonationError {
+  status?: number;
+  error?: { code?: string; carbonation?: OverCarbonation };
 }
 
 /** Estado dos planos de envase (PKG-001). */
@@ -47,6 +57,14 @@ export class PackagingStore {
    */
   readonly blockers = signal<Record<string, PackagingBlocker[]>>({});
   readonly shortfall = signal<Record<string, PackagingShortfall>>({});
+
+  /** Carbonatação (PKG-002): prévia e decisão vivem separadas, como no backend. */
+  readonly carbonationPlanId = signal<string | null>(null);
+  readonly recommendation = signal<CarbonationRecommendation | null>(null);
+  readonly carbonation = signal<Carbonation | null>(null);
+  readonly overCarbonation = signal<OverCarbonation | null>(null);
+  readonly calculating = signal(false);
+  readonly carbonationError = signal<string | null>(null);
 
   load(): void {
     this.loading.set(true);
@@ -135,6 +153,75 @@ export class PackagingStore {
           this.toast.error(err?.status === 409
             ? 'Plano já cancelado; o cancelamento é definitivo.'
             : 'Não foi possível cancelar o plano.'),
+      });
+  }
+
+  /**
+   * Carbonatação do plano aberto (PKG-002). A prévia é recomendação e fica separada da decisão:
+   * só o comando explícito de confirmar grava.
+   */
+  openCarbonationOf(planId: string): void {
+    if (this.carbonationPlanId() === planId) {
+      this.closeCarbonation();
+      return;
+    }
+    this.carbonationPlanId.set(planId);
+    this.recommendation.set(null);
+    this.overCarbonation.set(null);
+    this.loadCarbonation(planId);
+  }
+
+  closeCarbonation(): void {
+    this.carbonationPlanId.set(null);
+    this.recommendation.set(null);
+    this.carbonation.set(null);
+    this.overCarbonation.set(null);
+  }
+
+  preview(planId: string, input: CarbonationInput): void {
+    this.calculating.set(true);
+    this.overCarbonation.set(null);
+    this.carbonationError.set(null);
+    this.api.previewCarbonation(planId, input)
+      .pipe(finalize(() => this.calculating.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: recommendation => this.recommendation.set(recommendation),
+        error: () => this.carbonationError.set(
+          'Não foi possível calcular (verifique método, alvo, temperatura e açúcar).'),
+      });
+  }
+
+  /** Confirmar é ato explícito do cervejeiro; a prévia nunca grava sozinha. */
+  confirmCarbonation(planId: string, input: CarbonationInput): void {
+    this.calculating.set(true);
+    this.overCarbonation.set(null);
+    this.carbonationError.set(null);
+    this.api.recordCarbonation(planId, input)
+      .pipe(finalize(() => this.calculating.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success('Carbonatação confirmada e registrada no plano.');
+          this.loadCarbonation(planId);
+        },
+        error: (err: CarbonationError) => {
+          if (err?.error?.code === 'over_carbonation' && err.error.carbonation) {
+            this.overCarbonation.set(err.error.carbonation);
+            return;
+          }
+          this.carbonationError.set(err?.status === 409
+            ? 'O plano foi cancelado e não aceita carbonatação.'
+            : 'Não foi possível confirmar a carbonatação.');
+        },
+      });
+  }
+
+  private loadCarbonation(planId: string): void {
+    this.api.carbonation(planId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        // 400 aqui significa "ainda não há decisão", não erro de operação.
+        next: carbonation => this.carbonation.set(carbonation),
+        error: () => this.carbonation.set(null),
       });
   }
 

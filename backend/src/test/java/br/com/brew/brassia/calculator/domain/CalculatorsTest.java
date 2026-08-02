@@ -2,6 +2,7 @@ package br.com.brew.brassia.calculator.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.data.Offset.offset;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -24,7 +25,107 @@ class CalculatorsTest {
         assertThat(calculators.catalog()).extracting(CalculatorSpec::id)
                 .contains("abv", "apparent-attenuation", "sg-to-plato", "srm-to-ebc", "celsius-to-fahrenheit",
                         "dilution-water", "concentration-boiloff", "hydrometer-temp-correction", "volume-topup",
-                        "ibu-tinseth");
+                        "ibu-tinseth", "co2-residual", "priming-sugar", "forced-carbonation-pressure");
+    }
+
+    // --- carbonatação (PKG-002) ---
+
+    @Test
+    void co2ResidualGolden() {
+        // Dataset dourado: valores de referência da tabela de CO₂ residual por temperatura.
+        assertThat(calculators.compute("co2-residual", in("tempC", "20")).value().doubleValue())
+                .isCloseTo(0.86, offset(0.03));
+        assertThat(calculators.compute("co2-residual", in("tempC", "4")).value().doubleValue())
+                .isCloseTo(1.48, offset(0.03));
+        assertThat(calculators.compute("co2-residual", in("tempC", "18")).value().doubleValue())
+                .isCloseTo(0.92, offset(0.03));
+    }
+
+    @Test
+    void co2ResidualFallsAsTemperatureRises() {
+        var cold = calculators.compute("co2-residual", in("tempC", "4")).value();
+        var warm = calculators.compute("co2-residual", in("tempC", "22")).value();
+
+        assertThat(cold).isGreaterThan(warm);
+        assertThat(calculators.compute("co2-residual", in("tempC", "20")).unit()).isEqualTo("vol");
+    }
+
+    @Test
+    void primingSugarGolden() {
+        // 20 L, alvo 2.4 vol, residual 0.86 vol, sacarose (0.514 g CO₂/g):
+        // (2.4 − 0.86) × 20 × 1.96 / 0.514 ≈ 117.4 g
+        var r = calculators.compute("priming-sugar", in("targetVolumes", "2.4", "residualVolumes", "0.86",
+                "beerVolumeLiters", "20", "sugarYield", "0.514"));
+
+        assertThat(r.value().doubleValue()).isCloseTo(117.4, offset(0.5));
+        assertThat(r.unit()).isEqualTo("g");
+    }
+
+    @Test
+    void primingSugarUsesResidualInsteadOfTheWholeTarget() {
+        var withResidual = calculators.compute("priming-sugar", in("targetVolumes", "2.4",
+                "residualVolumes", "0.86", "beerVolumeLiters", "20", "sugarYield", "0.514")).value();
+        var ignoringResidual = calculators.compute("priming-sugar", in("targetVolumes", "2.4",
+                "residualVolumes", "0", "beerVolumeLiters", "20", "sugarYield", "0.514")).value();
+
+        // Ignorar o residual pediria muito mais açúcar — é assim que se estoura a garrafa.
+        assertThat(ignoringResidual).isGreaterThan(withResidual);
+    }
+
+    @Test
+    void primingSugarWarnsWhenBeerAlreadyHasTheTarget() {
+        var r = calculators.compute("priming-sugar", in("targetVolumes", "1.5", "residualVolumes", "2.0",
+                "beerVolumeLiters", "20", "sugarYield", "0.514"));
+
+        assertThat(r.value()).isEqualByComparingTo("0.0");
+        assertThat(r.alerts()).anyMatch(a -> a.contains("sobrepressão"));
+    }
+
+    @Test
+    void primingSugarRejectsNonPositiveYieldAndVolume() {
+        assertThat(calculators.compute("priming-sugar", in("targetVolumes", "2.4", "residualVolumes", "0.86",
+                "beerVolumeLiters", "20", "sugarYield", "0")).alerts()).isNotEmpty();
+        assertThat(calculators.compute("priming-sugar", in("targetVolumes", "2.4", "residualVolumes", "0.86",
+                "beerVolumeLiters", "0", "sugarYield", "0.514")).alerts()).isNotEmpty();
+    }
+
+    @Test
+    void forcedCarbonationPressureGolden() {
+        // Tabela de carbonatação: 2.5 vol a 4 °C ≈ 12 psi (0.81 bar); a 12 °C ≈ 20 psi (1.36 bar).
+        assertThat(calculators.compute("forced-carbonation-pressure",
+                in("targetVolumes", "2.5", "tempC", "4")).value().doubleValue())
+                .isCloseTo(0.81, offset(0.05));
+        assertThat(calculators.compute("forced-carbonation-pressure",
+                in("targetVolumes", "2.5", "tempC", "12")).value().doubleValue())
+                .isCloseTo(1.36, offset(0.05));
+    }
+
+    @Test
+    void forcedCarbonationNeedsMorePressureWhenWarmer() {
+        var cold = calculators.compute("forced-carbonation-pressure", in("targetVolumes", "2.5", "tempC", "2"))
+                .value();
+        var warm = calculators.compute("forced-carbonation-pressure", in("targetVolumes", "2.5", "tempC", "18"))
+                .value();
+
+        assertThat(warm).isGreaterThan(cold);
+    }
+
+    @Test
+    void forcedCarbonationAlertsWhenNoPressureIsNeeded() {
+        // Muito frio e alvo baixo: a cerveja já passa do alvo sem pressão aplicada.
+        var r = calculators.compute("forced-carbonation-pressure", in("targetVolumes", "0.5", "tempC", "0"));
+
+        assertThat(r.value()).isEqualByComparingTo("0.00");
+        assertThat(r.alerts()).isNotEmpty();
+    }
+
+    @Test
+    void carbonationResultsCarryMethodAndVersion() {
+        var r = calculators.compute("forced-carbonation-pressure", in("targetVolumes", "2.5", "tempC", "4"));
+
+        assertThat(r.method()).isNotBlank();
+        assertThat(r.version()).isNotBlank();
+        assertThat(r.assumptions()).isNotEmpty();
     }
 
     @Test

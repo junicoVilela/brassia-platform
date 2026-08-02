@@ -8,7 +8,7 @@ Estado: EM ANDAMENTO
 |---|---|---|---|---|
 | PKG-001 | Concluída | — | V67 + `PackagingPlanIT` (16 testes) | Novo módulo `packaging` |
 | GAS-001 | Concluída | — | V68 + `GasNetworkIT` (16 testes) | Novo módulo `gas` |
-| PKG-002 | A fazer | — | — | — |
+| PKG-002 | Concluída | — | V69 + `CarbonationIT` (13 testes) | Fórmulas no hub `calculator` |
 | PKG-003 | A fazer | — | — | — |
 | FSL-001 | A fazer | — | — | — |
 | GAS-002 | A fazer | — | — | — |
@@ -67,3 +67,27 @@ Estado: EM ANDAMENTO
 - O ponto de uso é um equipamento (`equipment.EquipmentProfileLookup` valida existência); um ponto
   recebe um cilindro por vez e um cilindro serve um ponto por vez, garantido por índice parcial
   único além da checagem no comando.
+
+### PKG-002
+
+- **As fórmulas foram para o hub `calculator`, não para `packaging`.** `docs/05_CALCULATION_ENGINE.md`
+  manda não espalhar fórmula, e o hub já é determinístico e versionado. Três calculadoras novas:
+  `co2-residual`, `priming-sugar` e `forced-carbonation-pressure`. O módulo `packaging` compõe a
+  decisão e guarda a confirmação; quem calcula é o hub.
+- **Confirmação humana é obrigatória**, no mesmo padrão de YST-002: `confirmed: false` é recusado
+  com 400. A prévia (`GET .../carbonation/preview`) calcula e explica sem gravar nada — entradas,
+  CO₂ residual, o que falta dissolver, fórmula, versão, hipóteses e alertas.
+- **Priming sobre CO₂ que já atinge o alvo é bloqueado** (409 `over_carbonation`, com alvo e
+  residual): adicionar açúcar ali não carbonata mais, só gera pressão que a embalagem não comporta.
+  Na carbonatação forçada o mesmo caso é apenas "não aplique pressão" — nada é adicionado à cerveja,
+  então não há risco equivalente.
+- **Rendimento dos açúcares:** sacarose (0,514) e dextrose mono-hidratada (0,444) vêm da
+  estequiometria da fermentação e são exatos. O extrato seco de malte (0,400) é estimado — depende
+  da fermentabilidade do extrato, que varia por fabricante e lote — e sai com aviso de confiança
+  junto do resultado, em vez de um número com precisão que ele não tem.
+- Recalcular substitui a decisão inteira (1:1 com o plano): trocar de método não deixa resíduo do
+  anterior, então entrada e resultado nunca divergem.
+- **PKG-002-A — não existe limite de pressão por embalagem.** O sistema bloqueia o caso claro
+  (priming sem espaço para o alvo), mas não sabe quanta pressão cada embalagem suporta: lata, long
+  neck e garrafa de champanhe têm limites diferentes, e esse dado não está no catálogo. Critério de
+  remoção: cadastrar pressão máxima por embalagem no catálogo e validar o alvo contra ela.

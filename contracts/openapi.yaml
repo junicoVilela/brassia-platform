@@ -1702,6 +1702,75 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /packaging/plans/{id}/carbonation:
+    get:
+      operationId: getCarbonation
+      summary: Carbonatação decidida do plano
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Decisão vigente
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Carbonation'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: recordCarbonation
+      summary: "Grava a carbonatação do plano (exige confirmação humana)"
+      description: >
+        `confirmed` falso é recusado com 400: nenhum número calculado vira decisão sozinho.
+        Recalcular substitui a decisão inteira — trocar de método não deixa resíduo do anterior.
+        Priming sobre CO₂ que já atinge o alvo responde 409 `over_carbonation`, porque adicionar
+        açúcar ali só gera pressão que a embalagem não comporta.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RecordCarbonation'}
+      responses:
+        '200': {description: Decisão gravada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "Plano cancelado, ou CO₂ residual já atinge o alvo (`carbonation`)"
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/OverCarbonationProblem'}
+  /packaging/plans/{id}/carbonation/preview:
+    get:
+      operationId: previewCarbonation
+      summary: "Calcula e explica a carbonatação sem gravar"
+      description: >
+        Recomendação com entradas normalizadas, CO₂ residual, o que falta dissolver, método,
+        versão da fórmula, hipóteses e alertas. O volume de cerveja vem do próprio plano.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: method, in: query, required: true, schema: {type: string, enum: [PRIMING, FORCED]}}
+        - {name: targetVolumes, in: query, required: true, schema: {type: number, exclusiveMinimum: 0}}
+        - name: referenceTempC
+          in: query
+          required: true
+          description: >
+            No priming, a maior temperatura que a cerveja atingiu após a fermentação primária;
+            na forçada, a temperatura em que o CO₂ será aplicado.
+          schema: {type: number}
+        - name: primingSugar
+          in: query
+          required: false
+          description: Obrigatório quando o método é PRIMING
+          schema: {type: string, enum: [SUCROSE, DEXTROSE_MONOHYDRATE, DRY_MALT_EXTRACT]}
+      responses:
+        '200':
+          description: Recomendação
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CarbonationRecommendation'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /gas/cylinders:
     get:
       operationId: listGasCylinders
@@ -2953,6 +3022,66 @@ components:
             requested: {type: number}
             available: {type: number}
             unit: {type: string}
+    RecordCarbonation:
+      type: object
+      required: [method, targetVolumes, referenceTempC, confirmed]
+      properties:
+        method: {type: string, enum: [PRIMING, FORCED]}
+        targetVolumes: {type: number, exclusiveMinimum: 0}
+        referenceTempC: {type: number}
+        primingSugar:
+          type: string
+          enum: [SUCROSE, DEXTROSE_MONOHYDRATE, DRY_MALT_EXTRACT]
+          description: Obrigatório quando o método é PRIMING
+        confirmed:
+          type: boolean
+          description: "Confirmação humana explícita; falso é recusado com 400"
+    CarbonationRecommendation:
+      type: object
+      required: [method, targetVolumes, referenceTempC, residualVolumes, missingVolumes, beerVolumeLiters,
+                 calculationMethod, calculatorVersion, assumptions, alerts]
+      properties:
+        method: {type: string, enum: [PRIMING, FORCED]}
+        targetVolumes: {type: number}
+        referenceTempC: {type: number}
+        residualVolumes: {type: number, description: "CO₂ ainda dissolvido na temperatura de referência"}
+        missingVolumes: {type: number, description: "O que falta dissolver para chegar ao alvo"}
+        beerVolumeLiters: {type: number, description: "Volume planejado do envase, vindo do plano"}
+        primingSugar: {type: string, nullable: true}
+        primingSugarGrams: {type: number, nullable: true}
+        pressureBar: {type: number, nullable: true}
+        calculationMethod: {type: string, description: "Fórmula aplicada, legível"}
+        calculatorVersion: {type: string}
+        assumptions: {type: array, items: {type: string}}
+        alerts: {type: array, items: {type: string}}
+    Carbonation:
+      type: object
+      required: [method, targetVolumes, referenceTempC, residualVolumes, missingVolumes, calculationMethod,
+                 calculatorVersion, alerts, confirmedBy, confirmedAt]
+      properties:
+        method: {type: string, enum: [PRIMING, FORCED]}
+        targetVolumes: {type: number}
+        referenceTempC: {type: number}
+        residualVolumes: {type: number}
+        missingVolumes: {type: number}
+        primingSugar: {type: string, nullable: true}
+        primingSugarGrams: {type: number, nullable: true}
+        pressureBar: {type: number, nullable: true}
+        calculationMethod: {type: string}
+        calculatorVersion: {type: string}
+        alerts: {type: array, items: {type: string}}
+        confirmedBy: {type: string, format: uuid}
+        confirmedAt: {type: string, format: date-time}
+    OverCarbonationProblem:
+      type: object
+      description: "Problem Details do priming sobre CO₂ que já atinge o alvo."
+      properties:
+        code: {type: string, enum: [over_carbonation]}
+        carbonation:
+          type: object
+          properties:
+            targetVolumes: {type: number}
+            residualVolumes: {type: number}
     GasCylinder:
       type: object
       required: [id, code, gasType, capacityKg, tareKg, contentKg, requalificationDueOn, expired, status,

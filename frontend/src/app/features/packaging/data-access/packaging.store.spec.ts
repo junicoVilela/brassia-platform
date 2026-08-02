@@ -3,6 +3,9 @@ import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { ToastService } from '../../../core/notifications/toast.service';
 import {
+  Carbonation,
+  CarbonationInput,
+  CarbonationRecommendation,
   PackagingPlan,
 } from '../domain/packaging-plan.model';
 import { PackagingApi } from './packaging.api';
@@ -20,6 +23,28 @@ function plan(overrides: Partial<PackagingPlan> = {}): PackagingPlan {
       { item: 'GAS_SUPPLY', confirmed: false, confirmedBy: null, confirmedAt: null },
     ],
     checklistComplete: false, reservedAt: null, cancelReason: null, ...overrides,
+  };
+}
+
+function primingInput(): CarbonationInput {
+  return { method: 'PRIMING', targetVolumes: 2.4, referenceTempC: 20, primingSugar: 'SUCROSE' };
+}
+
+function recommendation(): CarbonationRecommendation {
+  return {
+    method: 'PRIMING', targetVolumes: 2.4, referenceTempC: 20, residualVolumes: 0.86, missingVolumes: 1.54,
+    beerVolumeLiters: 284, primingSugar: 'SUCROSE', primingSugarGrams: 1667, pressureBar: null,
+    calculationMethod: 'g = (vol_alvo − vol_residual) × V × 1,96 / rendimento', calculatorVersion: '1.0',
+    assumptions: ['1 volume = 1,96 g de CO₂ por litro'], alerts: [],
+  };
+}
+
+function confirmed(): Carbonation {
+  return {
+    method: 'PRIMING', targetVolumes: 2.4, referenceTempC: 20, residualVolumes: 0.86, missingVolumes: 1.54,
+    primingSugar: 'SUCROSE', primingSugarGrams: 1667, pressureBar: null,
+    calculationMethod: 'g = (vol_alvo − vol_residual) × V × 1,96 / rendimento', calculatorVersion: '1.0',
+    alerts: [], confirmedBy: 'u1', confirmedAt: '2026-08-05T10:00:00Z',
   };
 }
 
@@ -137,6 +162,85 @@ describe('PackagingStore', () => {
 
     expect(store.actionError()).toBe('Código já usado ou o lote não está em fermentação.');
     expect(store.submitting()).toBe(false);
+  });
+
+  // --- carbonatação (PKG-002) ---
+
+  it('a prévia não grava nada, só guarda a recomendação', () => {
+    const recordSpy = vi.fn();
+    const { store } = setup({
+      previewCarbonation: () => of(recommendation()),
+      recordCarbonation: recordSpy,
+      carbonation: () => throwError(() => ({ status: 400 })),
+    });
+
+    store.preview('p1', primingInput());
+
+    expect(store.recommendation()?.primingSugarGrams).toBe(1667);
+    expect(recordSpy).not.toHaveBeenCalled();
+    expect(store.calculating()).toBe(false);
+  });
+
+  it('confirma a carbonatação e recarrega a decisão gravada', () => {
+    const { store, toast } = setup({
+      recordCarbonation: () => of(undefined),
+      carbonation: () => of(confirmed()),
+    });
+
+    store.confirmCarbonation('p1', primingInput());
+
+    expect(toast.success).toHaveBeenCalledWith('Carbonatação confirmada e registrada no plano.');
+    expect(store.carbonation()?.method).toBe('PRIMING');
+  });
+
+  it('mostra alvo e residual quando o priming causaria sobrepressão', () => {
+    const carbonationDetail = { targetVolumes: 1.2, residualVolumes: 1.48 };
+    const { store, toast } = setup({
+      recordCarbonation: () => throwError(() => ({
+        status: 409, error: { code: 'over_carbonation', carbonation: carbonationDetail },
+      })),
+      carbonation: () => throwError(() => ({ status: 400 })),
+    });
+
+    store.confirmCarbonation('p1', { ...primingInput(), targetVolumes: 1.2, referenceTempC: 4 });
+
+    expect(store.overCarbonation()).toEqual(carbonationDetail);
+    // Sobrepressão é informação acionável na tela, não um toast que some.
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('explica a recusa quando o plano foi cancelado', () => {
+    const { store } = setup({
+      recordCarbonation: () => throwError(() => ({ status: 409, error: {} })),
+      carbonation: () => throwError(() => ({ status: 400 })),
+    });
+
+    store.confirmCarbonation('p1', primingInput());
+
+    expect(store.carbonationError()).toBe('O plano foi cancelado e não aceita carbonatação.');
+    expect(store.overCarbonation()).toBeNull();
+  });
+
+  it('plano sem carbonatação não é erro: apenas não há decisão', () => {
+    const { store, toast } = setup({ carbonation: () => throwError(() => ({ status: 400 })) });
+
+    store.openCarbonationOf('p1');
+
+    expect(store.carbonationPlanId()).toBe('p1');
+    expect(store.carbonation()).toBeNull();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('fechar a carbonatação limpa prévia e decisão', () => {
+    const { store } = setup({ carbonation: () => of(confirmed()) });
+
+    store.openCarbonationOf('p1');
+    expect(store.carbonation()).not.toBeNull();
+
+    store.openCarbonationOf('p1');
+    expect(store.carbonationPlanId()).toBeNull();
+    expect(store.carbonation()).toBeNull();
+    expect(store.recommendation()).toBeNull();
   });
 
   it('avisa que o cancelamento é definitivo', () => {

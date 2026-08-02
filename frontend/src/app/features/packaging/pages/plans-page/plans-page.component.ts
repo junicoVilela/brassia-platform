@@ -7,10 +7,15 @@ import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicat
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
 import { PackagingStore } from '../../data-access/packaging.store';
 import {
+  CARBONATION_METHOD_LABELS,
   CHECKLIST_LABELS,
+  CarbonationInput,
+  CarbonationMethod,
   ChecklistItemCode,
   PACKAGING_STATUS_LABELS,
+  PRIMING_SUGAR_LABELS,
   PackagingPlan,
+  PrimingSugarCode,
 } from '../../domain/packaging-plan.model';
 
 @Component({
@@ -86,6 +91,60 @@ export class PlansPageComponent implements OnInit {
 
   protected reserve(plan: PackagingPlan): void {
     this.store.reserve(plan.id);
+  }
+
+  // --- carbonatação (PKG-002) ---
+
+  protected readonly carbonationForm = this.fb.nonNullable.group({
+    method: ['PRIMING' as CarbonationMethod, Validators.required],
+    targetVolumes: this.fb.control<number | null>(null, [Validators.required, Validators.min(0.01)]),
+    // No priming é a maior temperatura atingida após a fermentação; na forçada, a de aplicação do CO₂.
+    referenceTempC: this.fb.control<number | null>(null, Validators.required),
+    primingSugar: ['SUCROSE' as PrimingSugarCode],
+  });
+
+  protected readonly methodLabels = CARBONATION_METHOD_LABELS;
+  protected readonly sugarLabels = PRIMING_SUGAR_LABELS;
+  protected readonly sugarOptions = Object.keys(PRIMING_SUGAR_LABELS) as PrimingSugarCode[];
+  protected readonly methodOptions = Object.keys(CARBONATION_METHOD_LABELS) as CarbonationMethod[];
+
+  protected openCarbonation(plan: PackagingPlan): void {
+    this.store.openCarbonationOf(plan.id);
+  }
+
+  protected preview(planId: string): void {
+    const input = this.carbonationInput();
+    if (input) {
+      this.store.preview(planId, input);
+    }
+  }
+
+  /** Confirmar é ato explícito: a prévia precisa ter sido calculada e revista antes. */
+  protected confirmCarbonation(planId: string): void {
+    const input = this.carbonationInput();
+    if (!input) {
+      return;
+    }
+    const recommendation = this.store.recommendation();
+    const summary = recommendation?.primingSugarGrams != null
+      ? `${recommendation.primingSugarGrams} g de açúcar`
+      : `${recommendation?.pressureBar} bar`;
+    if (window.confirm(`Confirmar a carbonatação (${summary}) para ${input.targetVolumes} volumes de CO₂?`)) {
+      this.store.confirmCarbonation(planId, input);
+    }
+  }
+
+  private carbonationInput(): CarbonationInput | null {
+    if (this.carbonationForm.invalid) {
+      return null;
+    }
+    const v = this.carbonationForm.getRawValue();
+    return {
+      method: v.method,
+      targetVolumes: v.targetVolumes!,
+      referenceTempC: v.referenceTempC!,
+      primingSugar: v.method === 'PRIMING' ? v.primingSugar : null,
+    };
   }
 
   protected blockersOf(planId: string) {

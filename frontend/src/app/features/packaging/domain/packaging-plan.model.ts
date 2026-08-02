@@ -76,3 +76,64 @@ export interface ReserveResult {
   reservedUnits: number;
   unit: string;
 }
+
+export type CarbonationMethod = 'PRIMING' | 'FORCED';
+
+export const CARBONATION_METHOD_LABELS: Record<CarbonationMethod, string> = {
+  PRIMING: 'Priming (açúcar na embalagem)',
+  FORCED: 'Carbonatação forçada (pressão)',
+};
+
+export type PrimingSugarCode = 'SUCROSE' | 'DEXTROSE_MONOHYDRATE' | 'DRY_MALT_EXTRACT';
+
+export const PRIMING_SUGAR_LABELS: Record<PrimingSugarCode, string> = {
+  SUCROSE: 'Sacarose (açúcar refinado)',
+  DEXTROSE_MONOHYDRATE: 'Dextrose mono-hidratada',
+  DRY_MALT_EXTRACT: 'Extrato seco de malte (rendimento estimado)',
+};
+
+/** Recomendação de carbonatação: entradas, método, resultado e alertas — nada gravado. */
+export interface CarbonationRecommendation {
+  method: CarbonationMethod;
+  targetVolumes: number;
+  referenceTempC: number;
+  residualVolumes: number;
+  missingVolumes: number;
+  beerVolumeLiters: number;
+  primingSugar: PrimingSugarCode | null;
+  primingSugarGrams: number | null;
+  pressureBar: number | null;
+  calculationMethod: string;
+  calculatorVersion: string;
+  assumptions: string[];
+  alerts: string[];
+}
+
+/** Decisão confirmada: o que a prévia mostrava, mais quem confirmou e quando. */
+export interface Carbonation {
+  method: CarbonationMethod;
+  targetVolumes: number;
+  referenceTempC: number;
+  residualVolumes: number;
+  missingVolumes: number;
+  primingSugar: PrimingSugarCode | null;
+  primingSugarGrams: number | null;
+  pressureBar: number | null;
+  calculationMethod: string;
+  calculatorVersion: string;
+  alerts: string[];
+  confirmedBy: string;
+  confirmedAt: string;
+}
+
+export interface CarbonationInput {
+  method: CarbonationMethod;
+  targetVolumes: number;
+  referenceTempC: number;
+  primingSugar: PrimingSugarCode | null;
+}
+
+export interface OverCarbonation {
+  targetVolumes: number;
+  residualVolumes: number;
+}

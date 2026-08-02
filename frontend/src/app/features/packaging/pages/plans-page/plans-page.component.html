@@ -128,6 +128,148 @@
               }
             </div>
 
+            @if (p.status !== 'CANCELLED') {
+              <button type="button" class="btn btn-link btn-sm p-0 mt-2" (click)="openCarbonation(p)">
+                {{ store.carbonationPlanId() === p.id ? 'Fechar carbonatação' : 'Carbonatação' }}
+              </button>
+            }
+
+            @if (store.carbonationPlanId() === p.id) {
+              <div class="border-top mt-3 pt-3">
+                <h3 class="h6 fw-semibold mb-1">Carbonatação</h3>
+                <p class="text-muted small mb-3">
+                  A temperatura de referência e o CO₂ já dissolvido entram no cálculo. Calcular é
+                  recomendação; nada é gravado sem a sua confirmação.
+                </p>
+
+                <form [formGroup]="carbonationForm" class="row g-2 align-items-end mb-3">
+                  <div class="col-sm-5"><label class="form-label small" for="cmethod">Método</label>
+                    <select id="cmethod" class="form-select form-select-sm" formControlName="method">
+                      @for (m of methodOptions; track m) {
+                        <option [value]="m">{{ methodLabels[m] }}</option>
+                      }
+                    </select></div>
+                  <div class="col-sm-3"><label class="form-label small" for="ctarget">Volumes de CO₂ alvo</label>
+                    <input id="ctarget" type="number" step="any" class="form-control form-control-sm"
+                           formControlName="targetVolumes"></div>
+                  <div class="col-sm-4">
+                    <label class="form-label small" for="ctemp">
+                      {{ carbonationForm.controls.method.value === 'PRIMING'
+                        ? 'Maior temperatura após a fermentação (°C)'
+                        : 'Temperatura de aplicação do CO₂ (°C)' }}
+                    </label>
+                    <input id="ctemp" type="number" step="any" class="form-control form-control-sm"
+                           formControlName="referenceTempC"></div>
+                  @if (carbonationForm.controls.method.value === 'PRIMING') {
+                    <div class="col-sm-6"><label class="form-label small" for="csugar">Açúcar de priming</label>
+                      <select id="csugar" class="form-select form-select-sm" formControlName="primingSugar">
+                        @for (s of sugarOptions; track s) {
+                          <option [value]="s">{{ sugarLabels[s] }}</option>
+                        }
+                      </select></div>
+                  }
+                  <div class="col-sm-3 d-grid">
+                    <button type="button" class="btn btn-outline-primary btn-sm"
+                            [disabled]="carbonationForm.invalid || store.calculating()"
+                            (click)="preview(p.id)">
+                      <i class="ri-calculator-line me-1" aria-hidden="true"></i> Calcular
+                    </button>
+                  </div>
+                  <div class="col-sm-3 d-grid">
+                    <button type="button" class="btn btn-primary btn-sm"
+                            [disabled]="carbonationForm.invalid || store.calculating() || !store.recommendation()"
+                            (click)="confirmCarbonation(p.id)">
+                      <i class="ri-check-line me-1" aria-hidden="true"></i> Confirmar
+                    </button>
+                  </div>
+                </form>
+
+                @if (store.calculating()) {
+                  <app-loading-indicator text="Calculando…" />
+                }
+
+                @if (store.carbonationError(); as carbonationError) {
+                  <div class="alert alert-danger" role="alert">{{ carbonationError }}</div>
+                }
+
+                @if (store.overCarbonation(); as over) {
+                  <div class="alert alert-warning" role="alert">
+                    A cerveja já tem {{ over.residualVolumes | number:'1.0-2' }} volumes de CO₂ dissolvidos,
+                    acima do alvo de {{ over.targetVolumes | number:'1.0-2' }}. Adicionar açúcar aqui
+                    causaria sobrepressão — eleve o alvo, resfrie antes ou use carbonatação forçada.
+                  </div>
+                }
+
+                @if (store.recommendation(); as r) {
+                  <div class="border rounded-10 p-3 mb-3">
+                    <p class="mb-1 fw-medium">
+                      @if (r.primingSugarGrams !== null) {
+                        {{ r.primingSugarGrams | number:'1.0-1' }} g de {{ sugarLabels[r.primingSugar!] }}
+                      } @else {
+                        {{ r.pressureBar | number:'1.0-2' }} bar
+                      }
+                    </p>
+                    <p class="small text-muted mb-2">
+                      CO₂ residual {{ r.residualVolumes | number:'1.0-2' }} vol a
+                      {{ r.referenceTempC }} °C · faltam {{ r.missingVolumes | number:'1.0-2' }} vol ·
+                      {{ r.beerVolumeLiters | number:'1.0-1' }} L de cerveja
+                    </p>
+                    <p class="small text-muted mb-1"><code>{{ r.calculationMethod }}</code></p>
+                    <p class="small text-muted mb-0">Método versão {{ r.calculatorVersion }}</p>
+                    <ul class="small text-muted mb-0 mt-2 ps-3">
+                      @for (a of r.assumptions; track $index) {
+                        <li>{{ a }}</li>
+                      }
+                    </ul>
+                    @if (r.alerts.length > 0) {
+                      <ul class="small text-danger mb-0 mt-2 ps-3">
+                        @for (a of r.alerts; track $index) {
+                          <li>{{ a }}</li>
+                        }
+                      </ul>
+                    }
+                  </div>
+                }
+
+                @if (store.carbonation(); as c) {
+                  <div class="alert alert-success mb-0" role="alert">
+                    <p class="mb-1 fw-medium">
+                      Confirmada: {{ methodLabels[c.method] }} —
+                      @if (c.primingSugarGrams !== null) {
+                        {{ c.primingSugarGrams | number:'1.0-1' }} g de {{ sugarLabels[c.primingSugar!] }}
+                      } @else {
+                        {{ c.pressureBar | number:'1.0-2' }} bar
+                      }
+                    </p>
+                    <p class="small mb-0">
+                      Alvo {{ c.targetVolumes | number:'1.0-2' }} vol · residual
+                      {{ c.residualVolumes | number:'1.0-2' }} vol a {{ c.referenceTempC }} °C ·
+                      versão {{ c.calculatorVersion }} · confirmada em {{ c.confirmedAt | date:'short' }}
+                    </p>
+                  </div>
+                } @else {
+                  <p class="small text-muted mb-0">Nenhuma carbonatação confirmada para este plano.</p>
+                }
+              </div>
+            }
+
+            <ul class="list-unstyled small mb-0 mt-3 d-flex flex-wrap gap-3">
+              @for (item of p.checklist; track item.item) {
+                <li>
+                  <i class="me-1" aria-hidden="true"
+                     [class]="item.confirmed ? 'ri-checkbox-circle-line text-success' : 'ri-checkbox-blank-circle-line'"
+                  ></i>
+                  <span [class.text-muted]="!item.confirmed">{{ checklistLabels[item.item] }}</span>
+                  @if (item.confirmed) {
+                    <span class="text-muted"> ({{ item.confirmedAt | date:'short' }})</span>
+                  } @else if (canManage && p.status === 'PLANNED') {
+                    <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline"
+                            (click)="confirm(p.id, item.item)">confirmar</button>
+                  }
+                </li>
+              }
+            </ul>
+
             @if (blockersOf(p.id).length > 0) {
               <div class="alert alert-warning mt-3 mb-0" role="alert">
                 <p class="mb-1 fw-medium">A reserva foi recusada. Resolva antes de tentar de novo:</p>

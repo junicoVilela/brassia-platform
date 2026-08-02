@@ -1,6 +1,9 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import {
+  Carbonation,
+  CarbonationInput,
+  CarbonationRecommendation,
   ChecklistItemCode,
   PackagingPlan,
   PlanPackagingRequest,
@@ -71,5 +74,26 @@ export class PackagingApi {
 
   equipment() {
     return this.http.get<EquipmentOption[]>('/api/v1/equipment');
+  }
+
+  /** Prévia de carbonatação: calcula e explica sem gravar nada (PKG-002). */
+  previewCarbonation(planId: string, input: CarbonationInput) {
+    let params = new HttpParams()
+      .set('method', input.method)
+      .set('targetVolumes', input.targetVolumes)
+      .set('referenceTempC', input.referenceTempC);
+    if (input.primingSugar) {
+      params = params.set('primingSugar', input.primingSugar);
+    }
+    return this.http.get<CarbonationRecommendation>(`${this.baseUrl}/${planId}/carbonation/preview`, { params });
+  }
+
+  carbonation(planId: string) {
+    return this.http.get<Carbonation>(`${this.baseUrl}/${planId}/carbonation`);
+  }
+
+  /** A confirmação nunca é implícita: o backend recusa `confirmed: false`. */
+  recordCarbonation(planId: string, input: CarbonationInput) {
+    return this.http.put<void>(`${this.baseUrl}/${planId}/carbonation`, { ...input, confirmed: true });
   }
 }

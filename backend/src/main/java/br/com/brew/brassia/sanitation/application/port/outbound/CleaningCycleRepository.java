@@ -1,5 +1,6 @@
 package br.com.brew.brassia.sanitation.application.port.outbound;
 
+import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
 import br.com.brew.brassia.sanitation.domain.CleaningCycle;
 import br.com.brew.brassia.sanitation.domain.ConsumptionSummary;
 import java.util.List;
@@ -21,4 +22,7 @@ public interface CleaningCycleRepository {
 
     /** Resumo consultivo de consumo por código de POP (CLN-005). */
     ConsumptionSummary summarizeConsumption(UUID breweryId, String procedureCode);
+
+    /** Última liberação (RELEASED) do equipamento, para outros módulos exigirem evidência de limpeza. */
+    Optional<CleaningReleaseLookup.Release> findLastRelease(UUID breweryId, UUID equipmentId);
 }

@@ -104,6 +104,12 @@ export const routes: Routes = [
           import('./features/fermentation/fermentation.routes').then(m => m.FERMENTATION_READING_ROUTES),
       },
       {
+        path: 'packaging/plans',
+        canActivate: [permissionGuard],
+        data: { permission: 'packaging.plan.read' },
+        loadChildren: () => import('./features/packaging/packaging.routes').then(m => m.PACKAGING_ROUTES),
+      },
+      {
         path: 'sanitation/matrix',
         canActivate: [permissionGuard],
         data: { permission: 'sanitation.matrix.read' },

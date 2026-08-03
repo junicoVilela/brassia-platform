@@ -1,12 +1,12 @@
 # Status — Sprint 11
 
-Estado: NÃO INICIADA
+Estado: EM ANDAMENTO
 
 ## Controle das histórias
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| MTR-001 | A fazer | — | — | — |
+| MTR-001 | Concluída | IA | V74 + `MetrologyIT` (18 testes) | Novo módulo `metrology`; porta publicada `InstrumentStatusLookup` |
 | MTR-002 | A fazer | — | — | — |
 | QLT-001 | A fazer | — | — | — |
 | QLT-002 | A fazer | — | — | — |
@@ -16,6 +16,38 @@ Estado: NÃO INICIADA
 ## Decisões e bloqueios
 
 Registre aqui somente decisões temporárias, bloqueios e dependências. Decisão arquitetural permanente deve virar ADR; débito técnico deve ter identificador e critério de remoção.
+
+### MTR-001
+
+- **A aptidão do instrumento é derivada, nunca armazenada.** `FIT`, `EXPIRED`, `UNCALIBRATED`,
+  `REJECTED`, `BLOCKED` e `RETIRED` saem do estado cadastral + última calibração + data da
+  consulta. Uma coluna "apto" envelheceria sozinha e passaria a mentir no dia seguinte ao
+  vencimento — é o mesmo princípio do volume derivado em PKG-001.
+- **Bloqueio e baixa precedem o vencimento na aptidão.** Instrumento bloqueado não vira "vencido"
+  ao passar do prazo: continua bloqueado, porque alguém o tirou de circulação de propósito e a
+  tela precisa dizer isso.
+- **A última calibração decide, inclusive quando reprova.** Uma reprovação derruba a aptidão
+  mesmo que a aprovação anterior ainda estivesse no prazo: o instrumento falhou na verificação.
+- **Padrão vencido não calibra.** Calibrar contra padrão fora da validade produz um número com
+  aparência de rastreável e sem rastreabilidade nenhuma — pior que não calibrar, porque passa a
+  impressão de evidência. Recusado com 409 `standard_expired`.
+- **A periodicidade não é calculada pelo sistema.** O vencimento vem do certificado; o prazo
+  depende da norma, do tipo de instrumento e da criticidade, e derivá-lo de regra fixa de meses
+  criaria regra de negócio sem fonte. Mesma postura de `GAS-001-B`.
+- **O certificado permanece.** Histórico imutável: registrar calibração nova não reescreve a
+  anterior, e vencer não apaga nada. É o critério da história, e tem teste de domínio e de
+  integração.
+- **MTR-001-A — "ponto crítico" aqui é designação do instrumento, não vínculo com plano de
+  controle.** O critério da história diz que instrumento vencido bloqueia ponto crítico, mas o
+  ponto de controle nasce na QLT-001. Nesta história o instrumento carrega a designação de uso
+  crítico (designar exige estar apto; a designação cai sozinha quando vence) e a porta publicada
+  `InstrumentStatusLookup` responde `fitForCritical`. Critério de remoção: ao modelar QLT-001,
+  ligar instrumento ↔ ponto de controle e mover a verificação para o momento da medição.
+- **MTR-001-B — "aprovado com restrição" não estreita a faixa automaticamente.** A restrição é
+  texto obrigatório e viaja junto da aptidão para quem consulta, mas o sistema não a interpreta:
+  interpretar "faixa útil de 0 a 60 °C" exigiria parsear texto livre e inventar semântica.
+  Critério de remoção: dar estrutura à restrição (faixa reduzida tipada) e validar a medição
+  contra ela.
 
 ### Antes de começar
 

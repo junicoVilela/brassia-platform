@@ -1,0 +1,306 @@
+<app-page-header title="Instrumentos e calibração"
+                 subtitle="Faixa, resolução, precisão, certificados e padrões de referência" />
+
+@if (store.criticalAtRisk().length > 0) {
+  <div class="alert alert-danger" role="alert">
+    <p class="mb-1 fw-medium">
+      {{ store.criticalAtRisk().length }} instrumento(s) de ponto crítico deixaram de servir.
+    </p>
+    <p class="small mb-0">
+      Continuam designados, mas a calibração não sustenta mais o uso — recalibre ou remova a
+      designação antes da próxima medição crítica.
+    </p>
+  </div>
+}
+
+@if (canManageStandards) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-1">Padrão de referência</h2>
+      <p class="text-muted small mb-3">
+        É o padrão que sustenta a rastreabilidade da calibração. Padrão vencido não calibra: o
+        certificado sairia com aparência de rastreável e sem rastreabilidade nenhuma.
+      </p>
+      <form [formGroup]="standardForm" (ngSubmit)="registerStandard()" class="row g-2 align-items-end">
+        <div class="col-sm-2"><label class="form-label small" for="scode">Código</label>
+          <input id="scode" type="text" class="form-control form-control-sm" formControlName="code"
+                 placeholder="PAD-01"></div>
+        <div class="col-sm-4"><label class="form-label small" for="sdesc">Descrição</label>
+          <input id="sdesc" type="text" class="form-control form-control-sm" formControlName="description"
+                 placeholder="Banho térmico de referência"></div>
+        <div class="col-sm-3"><label class="form-label small" for="scert">Certificado</label>
+          <input id="scert" type="text" class="form-control form-control-sm"
+                 formControlName="certificateNumber"></div>
+        <div class="col-sm-3"><label class="form-label small" for="sissuer">Emissor</label>
+          <input id="sissuer" type="text" class="form-control form-control-sm" formControlName="issuer"></div>
+        <div class="col-sm-3"><label class="form-label small" for="strace">Rastreabilidade</label>
+          <input id="strace" type="text" class="form-control form-control-sm" formControlName="traceability"
+                 placeholder="RBC / INMETRO"></div>
+        <div class="col-sm-3"><label class="form-label small" for="svalid">Válido até</label>
+          <input id="svalid" type="date" class="form-control form-control-sm" formControlName="validUntil"></div>
+        <div class="col-sm-3 d-grid">
+          <button type="submit" class="btn btn-outline-primary btn-sm"
+                  [disabled]="standardForm.invalid || store.submitting()">
+            <i class="ri-award-line me-1" aria-hidden="true"></i> Cadastrar padrão
+          </button>
+        </div>
+      </form>
+
+      @if (store.standards().length > 0) {
+        <ul class="list-unstyled small mb-0 mt-3 d-flex flex-wrap gap-3">
+          @for (s of store.standards(); track s.id) {
+            <li>
+              <span class="badge me-1" [class]="s.expired ? 'text-bg-danger' : 'text-bg-success'">
+                {{ s.expired ? 'vencido' : 'válido' }}
+              </span>
+              <span class="fw-medium">{{ s.code }}</span>
+              <span class="text-muted">
+                · {{ s.description }} · {{ s.traceability }} · até {{ s.validUntil | date:'shortDate' }}
+              </span>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </div>
+}
+
+@if (canManage) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-1">Novo instrumento</h2>
+      <p class="text-muted small mb-3">
+        Faixa, resolução e precisão são o que dá sentido a uma leitura. A aptidão não é escolhida
+        aqui: ela sai do estado e da última calibração.
+      </p>
+      <form [formGroup]="form" (ngSubmit)="register()" class="row g-2 align-items-end">
+        <div class="col-sm-2"><label class="form-label small" for="icode">Código</label>
+          <input id="icode" type="text" class="form-control form-control-sm" formControlName="code"
+                 placeholder="TERM-01"></div>
+        <div class="col-sm-4"><label class="form-label small" for="iname">Nome</label>
+          <input id="iname" type="text" class="form-control form-control-sm" formControlName="name"></div>
+        <div class="col-sm-3"><label class="form-label small" for="itype">Tipo</label>
+          <select id="itype" class="form-select form-select-sm" formControlName="type">
+            @for (t of typeOptions; track t) {
+              <option [value]="t">{{ typeLabels[t] }}</option>
+            }
+          </select></div>
+        <div class="col-sm-3"><label class="form-label small" for="iloc">Localização</label>
+          <input id="iloc" type="text" class="form-control form-control-sm" formControlName="location"></div>
+        <div class="col-sm-2"><label class="form-label small" for="imin">Faixa mín.</label>
+          <input id="imin" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="rangeMin"></div>
+        <div class="col-sm-2"><label class="form-label small" for="imax">Faixa máx.</label>
+          <input id="imax" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="rangeMax"></div>
+        <div class="col-sm-2"><label class="form-label small" for="ires">Resolução</label>
+          <input id="ires" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="resolution"></div>
+        <div class="col-sm-2"><label class="form-label small" for="iacc">Precisão (±)</label>
+          <input id="iacc" type="number" step="any" class="form-control form-control-sm"
+                 formControlName="accuracy"></div>
+        <div class="col-sm-2"><label class="form-label small" for="iunit">Unidade</label>
+          <input id="iunit" type="text" class="form-control form-control-sm" formControlName="unit"></div>
+        <div class="col-sm-2 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm" [disabled]="form.invalid || store.submitting()">
+            <i class="ri-ruler-line me-1" aria-hidden="true"></i> Cadastrar
+          </button>
+        </div>
+      </form>
+
+      @if (store.actionError(); as actionError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+      }
+      @if (store.notFit(); as notFit) {
+        <div class="alert alert-warning mt-3 mb-0" role="alert">
+          <p class="mb-1 fw-medium">O instrumento {{ notFit.code }} não pode ser designado para ponto crítico.</p>
+          <p class="small mb-0">
+            Aptidão atual: {{ fitnessLabels[notFit.fitness] }}.
+            @if (notFit.calibrationDueOn) {
+              A última calibração valia até {{ notFit.calibrationDueOn | date:'shortDate' }}.
+            }
+          </p>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Instrumentos</h2>
+
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">
+        {{ error }}
+        <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">Tentar de novo</button>
+      </div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-ruler-line" message="Nenhum instrumento cadastrado."
+                       hint="Cadastre um instrumento para registrar calibrações." />
+    } @else {
+      <ul class="list-unstyled mb-0">
+        @for (i of store.instruments(); track i.id) {
+          <li class="border rounded-10 p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+              <div>
+                <span class="badge me-2" [class]="fitnessClass(i)">{{ fitnessLabels[i.fitness] }}</span>
+                @if (i.criticalUse) {
+                  <span class="badge me-2"
+                        [class]="i.fitForCriticalUse ? 'text-bg-info' : 'text-bg-danger'">ponto crítico</span>
+                }
+                <span class="fw-medium">{{ i.code }}</span>
+                <span class="text-muted small">
+                  · {{ i.name }} · {{ i.typeLabel }}
+                  · {{ i.rangeMin | number:'1.0-4' }} a {{ i.rangeMax | number:'1.0-4' }} {{ i.unit }}
+                  · resolução {{ i.resolution | number:'1.0-4' }} · ± {{ i.accuracy | number:'1.0-4' }}
+                  · {{ i.location }}
+                </span>
+                @if (i.calibrationDueOn) {
+                  <p class="small mb-0 mt-1"
+                     [class.text-danger]="i.fitness === 'EXPIRED'" [class.text-muted]="i.fitness !== 'EXPIRED'">
+                    Calibração válida até {{ i.calibrationDueOn | date:'shortDate' }}
+                    @if (i.lastCalibration) {
+                      · certificado {{ i.lastCalibration.certificateNumber }}
+                      · padrão {{ i.lastCalibration.standardCode }}
+                    }
+                  </p>
+                } @else {
+                  <p class="small text-muted mb-0 mt-1">Nunca calibrado.</p>
+                }
+                @if (i.lastCalibration?.restriction; as restriction) {
+                  <p class="small text-warning-emphasis mb-0">Restrição do certificado: {{ restriction }}</p>
+                }
+                @if (i.blockReason) {
+                  <p class="small text-danger mb-0">{{ i.blockReason }}</p>
+                }
+              </div>
+              @if (canManage && i.state !== 'RETIRED') {
+                <div class="d-flex gap-2 flex-wrap">
+                  <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap"
+                          (click)="toggleCritical(i)">
+                    {{ i.criticalUse ? 'Remover ponto crítico' : 'Designar ponto crítico' }}
+                  </button>
+                  @if (i.state === 'BLOCKED') {
+                    <button type="button" class="btn btn-sm btn-outline-secondary" (click)="unblock(i)">
+                      Desbloquear
+                    </button>
+                  } @else {
+                    <button type="button" class="btn btn-sm btn-outline-danger" (click)="block(i)">Bloquear</button>
+                  }
+                  <button type="button" class="btn btn-sm btn-outline-secondary" (click)="retire(i)">Baixar</button>
+                </div>
+              }
+            </div>
+
+            <div class="d-flex gap-3 mt-2">
+              <button type="button" class="btn btn-link btn-sm p-0" (click)="store.toggleHistory(i)">
+                {{ store.openHistoryOf() === i.id ? 'Fechar histórico' : 'Histórico de calibração' }}
+              </button>
+            </div>
+
+            @if (store.openHistoryOf() === i.id) {
+              <div class="border-top mt-3 pt-3">
+                @if (canManage && i.state !== 'RETIRED') {
+                  <h3 class="h6 fw-semibold mb-1">Registrar calibração</h3>
+                  <p class="text-muted small mb-3">
+                    O vencimento vem do certificado, não de uma regra fixa de meses: o prazo depende da
+                    norma e do tipo de instrumento.
+                  </p>
+                  <form [formGroup]="calibrationForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-sm-4"><label class="form-label small" for="cstd">Padrão</label>
+                      <select id="cstd" class="form-select form-select-sm" formControlName="standardId">
+                        <option value="">Selecione…</option>
+                        @for (s of store.validStandards(); track s.id) {
+                          <option [value]="s.id">{{ s.code }} — {{ s.description }}</option>
+                        }
+                      </select>
+                      @if (store.validStandards().length === 0) {
+                        <span class="form-text">Nenhum padrão válido: cadastre ou renove um antes.</span>
+                      }
+                    </div>
+                    <div class="col-sm-2"><label class="form-label small" for="cperf">Executada em</label>
+                      <input id="cperf" type="date" class="form-control form-control-sm"
+                             formControlName="performedOn"></div>
+                    <div class="col-sm-2"><label class="form-label small" for="cdue">Vence em</label>
+                      <input id="cdue" type="date" class="form-control form-control-sm"
+                             formControlName="dueOn"></div>
+                    <div class="col-sm-4"><label class="form-label small" for="cby">Executante</label>
+                      <input id="cby" type="text" class="form-control form-control-sm"
+                             formControlName="performedBy"></div>
+                    <div class="col-sm-3"><label class="form-label small" for="ccert">Certificado</label>
+                      <input id="ccert" type="text" class="form-control form-control-sm"
+                             formControlName="certificateNumber"></div>
+                    <div class="col-sm-3"><label class="form-label small" for="cres">Resultado</label>
+                      <select id="cres" class="form-select form-select-sm" formControlName="result">
+                        @for (r of resultOptions; track r) {
+                          <option [value]="r">{{ resultLabels[r] }}</option>
+                        }
+                      </select></div>
+                    <div class="col-sm-2"><label class="form-label small" for="cdev">Desvio máx.</label>
+                      <input id="cdev" type="number" step="any" class="form-control form-control-sm"
+                             formControlName="maxDeviation"></div>
+                    @if (calibrationForm.controls.result.value === 'APPROVED_WITH_RESTRICTION') {
+                      <div class="col-sm-4"><label class="form-label small" for="crest">Restrição</label>
+                        <input id="crest" type="text" class="form-control form-control-sm"
+                               formControlName="restriction" placeholder="faixa útil de 0 a 60 °C"></div>
+                    }
+                    <div class="col-sm-4"><label class="form-label small" for="cnote">Observação</label>
+                      <input id="cnote" type="text" class="form-control form-control-sm"
+                             formControlName="note"></div>
+                    <div class="col-sm-3 d-grid">
+                      <button type="button" class="btn btn-primary btn-sm"
+                              [disabled]="calibrationForm.invalid || store.submitting()"
+                              (click)="calibrate(i)">
+                        <i class="ri-check-line me-1" aria-hidden="true"></i> Registrar
+                      </button>
+                    </div>
+                  </form>
+                }
+
+                @if (store.standardExpired(); as expired) {
+                  <div class="alert alert-warning" role="alert">
+                    O padrão {{ expired.code }} venceu em {{ expired.validUntil | date:'shortDate' }} e não
+                    pode calibrar em {{ expired.performedOn | date:'shortDate' }}. Renove o padrão ou use
+                    outro dentro da validade.
+                  </div>
+                }
+                @if (store.calibrationError(); as calibrationError) {
+                  <div class="alert alert-danger" role="alert">{{ calibrationError }}</div>
+                }
+
+                @if (store.calibrations().length > 0) {
+                  <p class="small fw-medium mb-2">Certificados</p>
+                  <ul class="list-unstyled small mb-0">
+                    @for (c of store.calibrations(); track c.id) {
+                      <li class="border-start ps-3 mb-2">
+                        <span class="fw-medium">{{ c.resultLabel }}</span>
+                        <span class="text-muted">
+                          · {{ c.certificateNumber }} · padrão {{ c.standardCode }}
+                          · executada {{ c.performedOn | date:'shortDate' }}
+                          · válida até {{ c.dueOn | date:'shortDate' }}
+                          · desvio máx. {{ c.maxDeviation | number:'1.0-4' }}
+                          · {{ c.performedBy }}
+                        </span>
+                        @if (c.restriction) {
+                          <p class="text-muted mb-0">Restrição: {{ c.restriction }}</p>
+                        }
+                        @if (c.note) {
+                          <p class="text-muted mb-0">{{ c.note }}</p>
+                        }
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="small text-muted mb-0">Nenhum certificado registrado.</p>
+                }
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</div>

@@ -42,6 +42,19 @@ test.describe('jornada crítica', () => {
     await expect(page.getByText('Nenhum cilindro cadastrado.')).toBeVisible();
   });
 
+  test('navega até instrumentos e a tela responde com dados da API', async ({ page }) => {
+    const listagem = page.waitForResponse(
+      r => r.url().includes('/api/v1/metrology/instruments') && r.request().method() === 'GET',
+    );
+    await page.getByRole('link', { name: 'Instrumentos' }).click();
+    expect((await listagem).status()).toBe(200);
+
+    await expect(page.getByRole('heading', { name: 'Instrumentos e calibração' })).toBeVisible();
+    await expect(page.getByText('Nenhum instrumento cadastrado.')).toBeVisible();
+    // Os selects de referência do formulário vêm da mesma API: se a lista quebrar, ficam vazios.
+    await expect(page.getByLabel('Tipo')).toBeVisible();
+  });
+
   test('receitas carrega e a sessão sobrevive a recarregar a página', async ({ page }) => {
     await page.getByRole('link', { name: 'Receitas' }).click();
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

@@ -116,6 +116,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/gas/gas.routes').then(m => m.GAS_ROUTES),
       },
       {
+        path: 'metrology/instruments',
+        canActivate: [permissionGuard],
+        data: { permission: 'metrology.instrument.read' },
+        loadChildren: () => import('./features/metrology/metrology.routes').then(m => m.METROLOGY_ROUTES),
+      },
+      {
         path: 'sanitation/matrix',
         canActivate: [permissionGuard],
         data: { permission: 'sanitation.matrix.read' },

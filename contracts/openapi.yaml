@@ -2562,8 +2562,368 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /metrology/instruments:
+    get:
+      tags: [Metrologia]
+      summary: Lista instrumentos com a aptidão derivada na data da consulta (MTR-001)
+      responses:
+        '200':
+          description: Instrumentos
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Instrument'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Metrologia]
+      summary: Cadastra instrumento com faixa, resolução e precisão
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterInstrument'}
+      responses:
+        '201':
+          description: Instrumento cadastrado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Instrument'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /metrology/instruments/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Metrologia]
+      summary: Instrumento
+      responses:
+        '200':
+          description: Instrumento
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Instrument'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Metrologia]
+      summary: Corrige o cadastro; mudar a faixa de instrumento crítico é recusado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AmendInstrument'}
+      responses:
+        '200':
+          description: Instrumento atualizado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Instrument'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /metrology/instruments/{id}/block:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Metrologia]
+      summary: Bloqueia o instrumento; exige motivo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, maxLength: 200}
+      responses:
+        '200':
+          description: Instrumento bloqueado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Instrument'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /metrology/instruments/{id}/unblock:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Metrologia]
+      summary: Desbloqueia o instrumento
+      responses:
+        '200':
+          description: Instrumento desbloqueado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Instrument'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /metrology/instruments/{id}/retire:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Metrologia]
+      summary: Baixa do parque; estado terminal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, maxLength: 200}
+      responses:
+        '200':
+          description: Instrumento baixado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Instrument'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /metrology/instruments/{id}/critical-use:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    put:
+      tags: [Metrologia]
+      summary: Designa uso em ponto crítico; designar exige instrumento apto
+      description: >-
+        Instrumento vencido, reprovado, bloqueado ou sem calibração é recusado com 409
+        `instrument_not_fit`, trazendo a aptidão e o vencimento na extensão `instrument`.
+        Remover a designação é sempre permitido.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [criticalUse]
+              properties:
+                criticalUse: {type: boolean}
+      responses:
+        '200':
+          description: Designação alterada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Instrument'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /metrology/instruments/{id}/calibrations:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Metrologia]
+      summary: Histórico de certificados, do mais recente ao mais antigo
+      description: Histórico imutável — vencer não apaga certificado.
+      responses:
+        '200':
+          description: Certificados
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Calibration'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Metrologia]
+      summary: Registra certificado de calibração
+      description: >-
+        O vencimento vem do certificado, não de regra fixa de meses. Padrão fora da validade na
+        data de execução é recusado com 409 `standard_expired`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RecordCalibration'}
+      responses:
+        '201':
+          description: Calibração registrada; devolve o instrumento com a aptidão recalculada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Instrument'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /metrology/standards:
+    get:
+      tags: [Metrologia]
+      summary: Padrões de referência, marcando os vencidos
+      responses:
+        '200':
+          description: Padrões
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/CalibrationStandard'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Metrologia]
+      summary: Cadastra padrão de referência
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterStandard'}
+      responses:
+        '201':
+          description: Padrão cadastrado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CalibrationStandard'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /metrology/standards/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    put:
+      tags: [Metrologia]
+      summary: Renova o certificado do padrão
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RenewStandard'}
+      responses:
+        '200':
+          description: Padrão renovado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CalibrationStandard'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    RegisterInstrument:
+      type: object
+      required: [code, name, type, rangeMin, rangeMax, resolution, accuracy, unit, location]
+      properties:
+        code: {type: string, maxLength: 40}
+        name: {type: string, maxLength: 120}
+        type: {$ref: '#/components/schemas/InstrumentType'}
+        rangeMin: {type: number}
+        rangeMax: {type: number}
+        resolution: {type: number, description: Menor divisão que o instrumento mostra}
+        accuracy: {type: number, description: Erro máximo admitido pelo certificado}
+        unit: {type: string, maxLength: 20}
+        location: {type: string, maxLength: 120}
+    AmendInstrument:
+      type: object
+      required: [name, rangeMin, rangeMax, resolution, accuracy, unit, location]
+      properties:
+        name: {type: string, maxLength: 120}
+        rangeMin: {type: number}
+        rangeMax: {type: number}
+        resolution: {type: number}
+        accuracy: {type: number}
+        unit: {type: string, maxLength: 20}
+        location: {type: string, maxLength: 120}
+    InstrumentType:
+      type: string
+      enum: [THERMOMETER, HYDROMETER, PH_METER, SCALE, PRESSURE_GAUGE, OXYGEN_METER, FLOW_METER]
+    Fitness:
+      type: string
+      description: >-
+        Aptidão derivada do estado cadastral, da última calibração e da data — nunca armazenada.
+        Bloqueio e baixa precedem o vencimento.
+      enum: [FIT, EXPIRED, UNCALIBRATED, REJECTED, BLOCKED, RETIRED]
+    Instrument:
+      type: object
+      required: [id, code, name, type, typeLabel, rangeMin, rangeMax, resolution, accuracy, unit,
+                 location, state, criticalUse, fitness, fitForCriticalUse]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+        type: {$ref: '#/components/schemas/InstrumentType'}
+        typeLabel: {type: string}
+        rangeMin: {type: number}
+        rangeMax: {type: number}
+        resolution: {type: number}
+        accuracy: {type: number}
+        unit: {type: string}
+        location: {type: string}
+        state: {type: string, enum: [ACTIVE, BLOCKED, RETIRED]}
+        blockReason: {type: string, nullable: true}
+        criticalUse: {type: boolean, description: Designado para ponto crítico de controle}
+        fitness: {$ref: '#/components/schemas/Fitness'}
+        fitForCriticalUse:
+          type: boolean
+          description: Serve para medir em ponto crítico na data da consulta
+        calibrationDueOn: {type: string, format: date, nullable: true}
+        lastCalibration:
+          allOf: [{$ref: '#/components/schemas/Calibration'}]
+          nullable: true
+    RecordCalibration:
+      type: object
+      required: [standardId, performedOn, dueOn, performedBy, certificateNumber, result, maxDeviation]
+      properties:
+        standardId: {type: string, format: uuid}
+        performedOn: {type: string, format: date}
+        dueOn: {type: string, format: date, description: Vem do certificado, não de regra fixa}
+        performedBy: {type: string, maxLength: 120}
+        certificateNumber: {type: string, maxLength: 60}
+        result: {$ref: '#/components/schemas/CalibrationResult'}
+        maxDeviation: {type: number, minimum: 0}
+        restriction:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: Obrigatória quando o resultado é APPROVED_WITH_RESTRICTION, proibida no resto
+        note: {type: string, maxLength: 500, nullable: true}
+    CalibrationResult:
+      type: string
+      enum: [APPROVED, APPROVED_WITH_RESTRICTION, REJECTED]
+    Calibration:
+      type: object
+      required: [id, standardId, standardCode, performedOn, dueOn, performedBy, certificateNumber,
+                 result, resultLabel, maxDeviation]
+      properties:
+        id: {type: string, format: uuid}
+        standardId: {type: string, format: uuid}
+        standardCode: {type: string}
+        performedOn: {type: string, format: date}
+        dueOn: {type: string, format: date}
+        performedBy: {type: string}
+        certificateNumber: {type: string}
+        result: {$ref: '#/components/schemas/CalibrationResult'}
+        resultLabel: {type: string}
+        maxDeviation: {type: number}
+        restriction: {type: string, nullable: true}
+        note: {type: string, nullable: true}
+    RegisterStandard:
+      type: object
+      required: [code, description, certificateNumber, issuer, traceability, validUntil]
+      properties:
+        code: {type: string, maxLength: 40}
+        description: {type: string, maxLength: 200}
+        certificateNumber: {type: string, maxLength: 60}
+        issuer: {type: string, maxLength: 120}
+        traceability:
+          type: string
+          maxLength: 120
+          description: Órgão ou rede que sustenta a rastreabilidade (RBC, INMETRO)
+        validUntil: {type: string, format: date}
+    RenewStandard:
+      type: object
+      required: [certificateNumber, issuer, validUntil, issuedOn]
+      properties:
+        certificateNumber: {type: string, maxLength: 60}
+        issuer: {type: string, maxLength: 120}
+        validUntil: {type: string, format: date}
+        issuedOn: {type: string, format: date}
+    CalibrationStandard:
+      type: object
+      required: [id, code, description, certificateNumber, issuer, traceability, validUntil, expired]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        description: {type: string}
+        certificateNumber: {type: string}
+        issuer: {type: string}
+        traceability: {type: string}
+        validUntil: {type: string, format: date}
+        expired: {type: boolean}
     RegisterBrewery:
       type: object
       required: [code, name, timezone]

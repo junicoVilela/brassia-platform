@@ -169,6 +169,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('metrology.instrument.read')) {
+            <li class="menu-item">
+              <a routerLink="/metrology/instruments" routerLinkActive="active" class="menu-link">
+                <i class="ri-ruler-line menu-icon"></i>
+                <span class="title">Instrumentos</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('inventory.lot.read')) {
             <li class="menu-item">
               <a routerLink="/inventory" routerLinkActive="active" class="menu-link" [routerLinkActiveOptions]="{ exact: true }">

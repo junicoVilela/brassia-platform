@@ -3005,8 +3005,292 @@ paths:
             application/json:
               schema: {type: array, items: {$ref: '#/components/schemas/Deviation'}}
         '403': {$ref: '#/components/responses/Problem'}
+  /quality/non-conformities:
+    get:
+      tags: [Qualidade]
+      summary: Não conformidades e o tratamento (QLT-002)
+      responses:
+        '200':
+          description: Não conformidades
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/NonConformity'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Qualidade]
+      summary: Abre não conformidade
+      description: >-
+        Desvio é só uma das origens — NC também nasce de reclamação, auditoria e fornecedor.
+        Origem `DEVIATION` exige apontar um desvio existente. Os prazos seguem a ordem das fases.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OpenNonConformity'}
+      responses:
+        '201':
+          description: Não conformidade aberta
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NonConformity'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /quality/non-conformities/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Qualidade]
+      summary: Não conformidade
+      responses:
+        '200':
+          description: Não conformidade
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NonConformity'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /quality/non-conformities/{id}/containment:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Qualidade]
+      summary: Registra a contenção — o que se fez de imediato
+      description: Primeira fase; fora de ordem responde 409 `nc_phase_out_of_order`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [description]
+              properties:
+                description: {type: string, maxLength: 1000}
+      responses:
+        '200':
+          description: Contida
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NonConformity'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /quality/non-conformities/{id}/investigation:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Qualidade]
+      summary: Registra causa raiz e método
+      description: Exige contenção registrada. O método é obrigatório junto da causa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rootCause, method]
+              properties:
+                rootCause: {type: string, maxLength: 1000}
+                method: {type: string, maxLength: 200}
+      responses:
+        '200':
+          description: Investigada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NonConformity'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /quality/non-conformities/{id}/actions:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Qualidade]
+      summary: Planeja ação corretiva ou preventiva
+      description: >-
+        Exige investigação registrada. Corretiva trata a ocorrência; preventiva trata a causa.
+        Aceito também depois de uma verificação ineficaz, que é quando ação nova precisa existir.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PlanCapaAction'}
+      responses:
+        '201':
+          description: Ação planejada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NonConformity'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /quality/non-conformities/{id}/actions/{actionId}/complete:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      - {name: actionId, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Qualidade]
+      summary: Conclui uma ação
+      responses:
+        '200':
+          description: Ação concluída
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NonConformity'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /quality/non-conformities/{id}/verification:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Qualidade]
+      summary: Verifica a eficácia da ação
+      description: >-
+        Exige ao menos uma ação concluída. Resultado **ineficaz devolve à fase de ação** em vez de
+        permitir encerrar: fechar com verificação negativa registraria uma solução que não existiu.
+        A evidência é obrigatória nos dois resultados.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [effective, evidence]
+              properties:
+                effective: {type: boolean}
+                evidence: {type: string, maxLength: 1000}
+      responses:
+        '200':
+          description: Verificação registrada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NonConformity'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /quality/non-conformities/{id}/close:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Qualidade]
+      summary: Encerra a não conformidade
+      description: >-
+        Exige verificação eficaz (409 `verification_required`). Encerra também o desvio que a
+        originou, fechando o ciclo aberto em QLT-001. Alçada própria (`quality.nc.close`).
+      responses:
+        '200':
+          description: Encerrada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NonConformity'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    NonConformitySource:
+      type: string
+      enum: [DEVIATION, COMPLAINT, AUDIT, SUPPLIER, OTHER]
+    NonConformityStatus:
+      type: string
+      description: Fases em ordem; pular etapa responde 409 `nc_phase_out_of_order`
+      enum: [OPEN, CONTAINED, INVESTIGATED, ACTION_PLANNED, VERIFIED, CLOSED]
+    CapaActionKind:
+      type: string
+      description: Corretiva trata a ocorrência; preventiva trata a causa
+      enum: [CORRECTIVE, PREVENTIVE]
+    OpenNonConformity:
+      type: object
+      required: [code, title, description, source, severity, containmentDueOn, investigationDueOn,
+                 verificationDueOn]
+      properties:
+        code: {type: string, maxLength: 40}
+        title: {type: string, maxLength: 200}
+        description: {type: string, maxLength: 2000}
+        source: {$ref: '#/components/schemas/NonConformitySource'}
+        deviationId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Obrigatório quando a origem é DEVIATION
+        severity: {$ref: '#/components/schemas/QualitySeverity'}
+        containmentDueOn: {type: string, format: date}
+        investigationDueOn: {type: string, format: date}
+        verificationDueOn: {type: string, format: date}
+    PlanCapaAction:
+      type: object
+      required: [kind, description, owner, dueOn]
+      properties:
+        kind: {$ref: '#/components/schemas/CapaActionKind'}
+        description: {type: string, maxLength: 1000}
+        owner: {type: string, maxLength: 120}
+        dueOn: {type: string, format: date}
+    CapaAction:
+      type: object
+      required: [id, kind, kindLabel, description, owner, dueOn, completed, overdue]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {$ref: '#/components/schemas/CapaActionKind'}
+        kindLabel: {type: string}
+        description: {type: string}
+        owner: {type: string}
+        dueOn: {type: string, format: date}
+        completedAt: {type: string, format: date-time, nullable: true}
+        completed: {type: boolean}
+        overdue: {type: boolean, description: Derivado do prazo e da data da consulta}
+    NcVerification:
+      type: object
+      required: [effective, evidence, verifiedAt]
+      properties:
+        effective: {type: boolean}
+        evidence: {type: string}
+        verifiedAt: {type: string, format: date-time}
+    NonConformity:
+      type: object
+      required: [id, code, title, description, source, sourceLabel, severity, severityLabel, status,
+                 statusLabel, containmentDueOn, investigationDueOn, verificationDueOn, overduePhases,
+                 overdue, closable, actions, verifications, openedAt]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        title: {type: string}
+        description: {type: string}
+        source: {$ref: '#/components/schemas/NonConformitySource'}
+        sourceLabel: {type: string}
+        deviationId: {type: string, format: uuid, nullable: true}
+        severity: {$ref: '#/components/schemas/QualitySeverity'}
+        severityLabel: {type: string}
+        status: {$ref: '#/components/schemas/NonConformityStatus'}
+        statusLabel: {type: string}
+        containmentDueOn: {type: string, format: date}
+        investigationDueOn: {type: string, format: date}
+        verificationDueOn: {type: string, format: date}
+        overduePhases:
+          type: array
+          description: Fases vencidas, derivadas na data da consulta
+          items: {type: string}
+        overdue: {type: boolean}
+        closable: {type: boolean, description: Verdadeiro só após verificação eficaz}
+        containment:
+          type: object
+          nullable: true
+          properties:
+            description: {type: string}
+            takenAt: {type: string, format: date-time}
+        investigation:
+          type: object
+          nullable: true
+          properties:
+            rootCause: {type: string}
+            method: {type: string}
+            investigatedAt: {type: string, format: date-time}
+        actions: {type: array, items: {$ref: '#/components/schemas/CapaAction'}}
+        verifications:
+          type: array
+          description: Histórico completo; a negativa fica como evidência
+          items: {$ref: '#/components/schemas/NcVerification'}
+        openedAt: {type: string, format: date-time}
+        closedAt: {type: string, format: date-time, nullable: true}
     ProcessStage:
       type: string
       enum: [BREWING, FERMENTATION, MATURATION, PACKAGING, STORAGE]

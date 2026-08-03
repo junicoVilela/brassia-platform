@@ -136,3 +136,95 @@ export interface CriticalPointRefusal {
   instrument: string;
   fitness: string;
 }
+
+// --- não conformidade e CAPA (QLT-002) ---
+
+export type NcSourceCode = 'DEVIATION' | 'COMPLAINT' | 'AUDIT' | 'SUPPLIER' | 'OTHER';
+
+export const NC_SOURCE_LABELS: Record<NcSourceCode, string> = {
+  DEVIATION: 'Desvio de medição',
+  COMPLAINT: 'Reclamação de cliente',
+  AUDIT: 'Auditoria',
+  SUPPLIER: 'Fornecedor',
+  OTHER: 'Outra',
+};
+
+export type NcStatusCode =
+  | 'OPEN'
+  | 'CONTAINED'
+  | 'INVESTIGATED'
+  | 'ACTION_PLANNED'
+  | 'VERIFIED'
+  | 'CLOSED';
+
+export type CapaActionKindCode = 'CORRECTIVE' | 'PREVENTIVE';
+
+export const CAPA_KIND_LABELS: Record<CapaActionKindCode, string> = {
+  CORRECTIVE: 'Corretiva',
+  PREVENTIVE: 'Preventiva',
+};
+
+export interface CapaAction {
+  id: string;
+  kind: CapaActionKindCode;
+  kindLabel: string;
+  description: string;
+  owner: string;
+  dueOn: string;
+  completedAt: string | null;
+  completed: boolean;
+  overdue: boolean;
+}
+
+export interface NcVerification {
+  effective: boolean;
+  evidence: string;
+  verifiedAt: string;
+}
+
+export interface NonConformity {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  source: NcSourceCode;
+  sourceLabel: string;
+  deviationId: string | null;
+  severity: SeverityCode;
+  severityLabel: string;
+  status: NcStatusCode;
+  statusLabel: string;
+  containmentDueOn: string;
+  investigationDueOn: string;
+  verificationDueOn: string;
+  /** Derivado na consulta — não há coluna de "atrasado" que envelhece sozinha. */
+  overduePhases: string[];
+  overdue: boolean;
+  /** Só depois de verificação eficaz. */
+  closable: boolean;
+  containment: { description: string; takenAt: string } | null;
+  investigation: { rootCause: string; method: string; investigatedAt: string } | null;
+  actions: CapaAction[];
+  verifications: NcVerification[];
+  openedAt: string;
+  closedAt: string | null;
+}
+
+export interface OpenNcRequest {
+  code: string;
+  title: string;
+  description: string;
+  source: NcSourceCode;
+  deviationId: string | null;
+  severity: SeverityCode;
+  containmentDueOn: string;
+  investigationDueOn: string;
+  verificationDueOn: string;
+}
+
+/** Corpo do Problem Details quando se tenta pular uma fase do tratamento. */
+export interface PhaseOutOfOrder {
+  code: string;
+  status: NcStatusCode;
+  attempted: string;
+}

@@ -3,6 +3,7 @@ package br.com.brew.brassia.quality.application.port.outbound;
 import br.com.brew.brassia.quality.domain.Deviation;
 import br.com.brew.brassia.quality.domain.Measurement;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface MeasurementRepository {
@@ -14,4 +15,8 @@ public interface MeasurementRepository {
     List<Measurement> findByPlan(UUID breweryId, UUID planId);
 
     List<Deviation> findOpenDeviations(UUID breweryId);
+
+    Optional<Deviation> findDeviation(UUID breweryId, UUID deviationId);
+
+    void updateDeviation(Deviation deviation);
 }

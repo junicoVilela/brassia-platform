@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { ControlPlan, Deviation } from '../domain/quality.model';
+import { ControlPlan, Deviation, NonConformity } from '../domain/quality.model';
 import { QualityApi } from './quality.api';
 import { QualityStore } from './quality.store';
 
@@ -43,6 +43,35 @@ function deviation(over: Partial<Deviation> = {}): Deviation {
   };
 }
 
+function nc(over: Partial<NonConformity> = {}): NonConformity {
+  return {
+    id: 'nc1',
+    code: 'NC-001',
+    title: 'pH fora da faixa',
+    description: 'd',
+    source: 'DEVIATION',
+    sourceLabel: 'Desvio de medição',
+    deviationId: 'd1',
+    severity: 'MAJOR',
+    severityLabel: 'Grave',
+    status: 'ACTION_PLANNED',
+    statusLabel: 'Ação planejada',
+    containmentDueOn: '2026-08-04',
+    investigationDueOn: '2026-08-08',
+    verificationDueOn: '2026-09-02',
+    overduePhases: [],
+    overdue: false,
+    closable: false,
+    containment: null,
+    investigation: null,
+    actions: [],
+    verifications: [],
+    openedAt: '2026-08-03T12:00:00Z',
+    closedAt: null,
+    ...over,
+  };
+}
+
 function setup(api: Partial<QualityApi>, toast = { success: vi.fn(), error: vi.fn() }): QualityStore {
   TestBed.configureTestingModule({
     providers: [
@@ -56,7 +85,11 @@ function setup(api: Partial<QualityApi>, toast = { success: vi.fn(), error: vi.f
 
 describe('QualityStore', () => {
   it('carrega planos e desvios', () => {
-    const store = setup({ plans: () => of([plan()]), deviations: () => of([deviation()]) });
+    const store = setup({
+      plans: () => of([plan()]),
+      deviations: () => of([deviation()]),
+      nonConformities: () => of([]),
+    });
 
     store.load();
 
@@ -69,6 +102,7 @@ describe('QualityStore', () => {
     const store = setup({
       plans: () => of([plan(), plan({ id: 'p2', code: 'PC-002', status: 'DRAFT' })]),
       deviations: () => of([]),
+      nonConformities: () => of([]),
     });
 
     store.load();
@@ -81,6 +115,7 @@ describe('QualityStore', () => {
       plans: () => of([]),
       deviations: () =>
         of([deviation(), deviation({ id: 'd2', severity: 'MINOR', severityLabel: 'Leve' })]),
+      nonConformities: () => of([]),
     });
 
     store.load();
@@ -95,6 +130,7 @@ describe('QualityStore', () => {
       {
         plans: () => of([]),
         deviations: () => of([]),
+        nonConformities: () => of([]),
         measure: () =>
           of({ measurementId: 'm1', withinSpec: false, deviationId: 'd1', deviation: deviation() }),
       },
@@ -120,6 +156,7 @@ describe('QualityStore', () => {
     const store = setup({
       plans: () => of([]),
       deviations: () => of([]),
+      nonConformities: () => of([]),
       measure: () =>
         throwError(() => ({
           status: 409,
@@ -145,7 +182,12 @@ describe('QualityStore', () => {
   });
 
   it('abre e fecha o mesmo plano', () => {
-    const store = setup({ plans: () => of([]), deviations: () => of([]), measurements: () => of([]) });
+    const store = setup({
+      plans: () => of([]),
+      deviations: () => of([]),
+      nonConformities: () => of([]),
+      measurements: () => of([]),
+    });
 
     store.togglePlan(plan());
     expect(store.openPlanOf()).toBe('p1');
@@ -154,8 +196,68 @@ describe('QualityStore', () => {
     expect(store.openPlanOf()).toBeNull();
   });
 
+  it('separa as não conformidades vencidas e as prontas para encerrar', () => {
+    const store = setup({
+      plans: () => of([]),
+      deviations: () => of([]),
+      nonConformities: () =>
+        of([
+          nc(),
+          nc({ id: 'nc2', code: 'NC-002', overdue: true, overduePhases: ['containment'] }),
+          nc({ id: 'nc3', code: 'NC-003', status: 'VERIFIED', closable: true }),
+        ]),
+    });
+
+    store.load();
+
+    expect(store.overdueNcs().map(n => n.code)).toEqual(['NC-002']);
+    expect(store.closableNcs().map(n => n.code)).toEqual(['NC-003']);
+  });
+
+  it('avisa que a verificação ineficaz continua o tratamento em vez de encerrar', () => {
+    const toast = { success: vi.fn(), error: vi.fn() };
+    const store = setup(
+      {
+        plans: () => of([]),
+        deviations: () => of([]),
+        nonConformities: () => of([]),
+        verify: () => of(nc({ status: 'INVESTIGATED' })),
+      },
+      toast,
+    );
+
+    store.verify('nc1', false, 'o lote seguinte repetiu');
+
+    expect(toast.success.mock.calls[0][0]).toContain('planeje uma ação nova');
+  });
+
+  it('guarda a recusa de fase separada do erro genérico', () => {
+    const store = setup({
+      plans: () => of([]),
+      deviations: () => of([]),
+      nonConformities: () => of([]),
+      investigate: () =>
+        throwError(() => ({
+          status: 409,
+          error: {
+            code: 'nc_phase_out_of_order',
+            nonConformity: { code: 'NC-001', status: 'OPEN', attempted: 'investigação' },
+          },
+        })),
+    });
+
+    store.investigate('nc1', 'causa', '5 porquês');
+
+    expect(store.phaseRefusal()?.attempted).toBe('investigação');
+    expect(store.ncError()).toBeNull();
+  });
+
   it('reporta erro de carregamento sem apagar a tela', () => {
-    const store = setup({ plans: () => throwError(() => ({ status: 500 })), deviations: () => of([]) });
+    const store = setup({
+      plans: () => throwError(() => ({ status: 500 })),
+      deviations: () => of([]),
+      nonConformities: () => of([]),
+    });
 
     store.load();
 

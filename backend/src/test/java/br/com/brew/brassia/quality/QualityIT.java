@@ -1,5 +1,7 @@
 package br.com.brew.brassia.quality;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -44,6 +46,7 @@ class QualityIT {
     private static final String PLANS = "/api/v1/quality/control-plans";
     private static final String MEASUREMENTS = "/api/v1/quality/measurements";
     private static final String DEVIATIONS = "/api/v1/quality/deviations";
+    private static final String NON_CONFORMITIES = "/api/v1/quality/non-conformities";
     private static final String INSTRUMENTS = "/api/v1/metrology/instruments";
     private static final String STANDARDS = "/api/v1/metrology/standards";
 
@@ -251,6 +254,158 @@ class QualityIT {
                 .andExpect(jsonPath("$[0].instrumentQuestionable", is(true)));
     }
 
+    // --- não conformidade e CAPA (QLT-002) ---
+
+    @Test
+    void asFasesTemOrdem() throws Exception {
+        var session = login();
+        var nc = openNonConformity(session, null, "OTHER");
+
+        // Investigar sem conter.
+        mockMvc.perform(post(NON_CONFORMITIES + "/" + nc + "/investigation").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"rootCause\":\"causa\",\"method\":\"5 porquês\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("nc_phase_out_of_order")))
+                .andExpect(jsonPath("$.nonConformity.status", is("OPEN")));
+
+        contain(session, nc).andExpect(status().isOk()).andExpect(jsonPath("$.status", is("CONTAINED")));
+
+        // Agir sem causa raiz.
+        planAction(session, nc, "CORRECTIVE").andExpect(status().isConflict());
+    }
+
+    @Test
+    void encerrarExigeVerificacaoEficaz() throws Exception {
+        var session = login();
+        var nc = openNonConformity(session, null, "OTHER");
+        var action = untilActionCompleted(session, nc);
+
+        // Sem verificação nenhuma.
+        mockMvc.perform(post(NON_CONFORMITIES + "/" + nc + "/close").session(session).with(csrf()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("verification_required")));
+
+        verify(session, nc, true).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("VERIFIED")))
+                .andExpect(jsonPath("$.closable", is(true)));
+
+        mockMvc.perform(post(NON_CONFORMITIES + "/" + nc + "/close").session(session).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("CLOSED")));
+        assertThat(action).isNotBlank();
+    }
+
+    @Test
+    void verificacaoIneficazDevolveAFaseDeAcaoENaoEncerra() throws Exception {
+        var session = login();
+        var nc = openNonConformity(session, null, "OTHER");
+        untilActionCompleted(session, nc);
+
+        verify(session, nc, false).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("INVESTIGATED")))
+                .andExpect(jsonPath("$.closable", is(false)))
+                .andExpect(jsonPath("$.verifications.length()", is(1)))
+                .andExpect(jsonPath("$.verifications[0].effective", is(false)));
+
+        mockMvc.perform(post(NON_CONFORMITIES + "/" + nc + "/close").session(session).with(csrf()))
+                .andExpect(status().isConflict());
+
+        // E aceita ação nova, que é o que a verificação negativa exige.
+        planAction(session, nc, "PREVENTIVE").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status", is("ACTION_PLANNED")))
+                .andExpect(jsonPath("$.actions.length()", is(2)));
+    }
+
+    @Test
+    void naoVerificaEficaciaSemConcluirAcao() throws Exception {
+        var session = login();
+        var nc = openNonConformity(session, null, "OTHER");
+        contain(session, nc);
+        investigate(session, nc);
+        planAction(session, nc, "CORRECTIVE");
+
+        verify(session, nc, true)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("verification_required")));
+    }
+
+    @Test
+    void encerrarANaoConformidadeFechaODesvioDeOrigem() throws Exception {
+        var session = login();
+        var plan = publishedPlan(session, false);
+        var point = firstPoint(session, plan);
+        var body = measure(session, plan, point, "6.2", null)
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        var deviation = JSON.readTree(body).get("deviationId").asText();
+
+        // O desvio está aberto e aparece na lista.
+        mockMvc.perform(get(DEVIATIONS).session(session))
+                .andExpect(jsonPath("$[?(@.id == '" + deviation + "')]").exists());
+
+        var nc = openNonConformity(session, deviation, "DEVIATION");
+        untilActionCompleted(session, nc);
+        verify(session, nc, true);
+        mockMvc.perform(post(NON_CONFORMITIES + "/" + nc + "/close").session(session).with(csrf()))
+                .andExpect(status().isOk());
+
+        // Encerrada a NC, o desvio sai da lista de abertos: o ciclo da QLT-001 se fecha.
+        mockMvc.perform(get(DEVIATIONS).session(session))
+                .andExpect(jsonPath("$[?(@.id == '" + deviation + "')]").doesNotExist());
+    }
+
+    @Test
+    void origemDesvioExigeDesvioExistente() throws Exception {
+        var session = login();
+
+        mockMvc.perform(post(NON_CONFORMITIES).session(session).with(csrf())
+                        .contentType("application/json")
+                        .content(ncBody("NC-" + suffix(), UUID.randomUUID().toString(), "DEVIATION")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void oPrazoVencidoVemDerivadoNaConsulta() throws Exception {
+        var session = login();
+        // Prazo de contenção já vencido: a NC nasce atrasada, sem ninguém ter marcado nada.
+        var body = mockMvc.perform(post(NON_CONFORMITIES).session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("""
+                                {"code":"NC-%s","title":"Atrasada","description":"d","source":"AUDIT",
+                                 "deviationId":null,"severity":"MAJOR","containmentDueOn":"%s",
+                                 "investigationDueOn":"%s","verificationDueOn":"%s"}
+                                """.formatted(suffix(), TODAY.minusDays(3), TODAY.minusDays(2),
+                                TODAY.minusDays(1))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        var nc = JSON.readTree(body).get("id").asText();
+
+        mockMvc.perform(get(NON_CONFORMITIES + "/" + nc).session(session))
+                .andExpect(jsonPath("$.overdue", is(true)))
+                .andExpect(jsonPath("$.overduePhases", hasItem("containment")));
+    }
+
+    @Test
+    void encerrarEhAlcadaPropria() throws Exception {
+        var brewery = UUID.randomUUID();
+
+        mockMvc.perform(post(NON_CONFORMITIES + "/" + UUID.randomUUID() + "/close").with(csrf())
+                        .with(authentication(principal(brewery,
+                                Set.of("quality.nc.read", "quality.nc.manage")))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void naoEnxergaNaoConformidadeDeOutraCervejaria() throws Exception {
+        var session = login();
+        var nc = openNonConformity(session, null, "OTHER");
+
+        mockMvc.perform(get(NON_CONFORMITIES + "/" + nc)
+                        .with(authentication(principal(UUID.randomUUID(), Set.of("quality.nc.read")))))
+                .andExpect(status().isBadRequest());
+    }
+
     // --- autorização e tenant ---
 
     @Test
@@ -280,6 +435,69 @@ class QualityIT {
         mockMvc.perform(get(PLANS).with(authentication(principal(outra, Set.of("quality.plan.read")))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()", is(0)));
+    }
+
+    // --- helpers de não conformidade ---
+
+    private static String ncBody(String code, String deviationId, String source) {
+        var deviation = deviationId == null ? "null" : "\"" + deviationId + "\"";
+        return """
+                {"code":"%s","title":"pH fora da faixa","description":"Medição acusou 6,2","source":"%s",
+                 "deviationId":%s,"severity":"MAJOR","containmentDueOn":"%s","investigationDueOn":"%s",
+                 "verificationDueOn":"%s"}
+                """.formatted(code, source, deviation, TODAY.plusDays(1), TODAY.plusDays(5),
+                TODAY.plusDays(30));
+    }
+
+    private String openNonConformity(MockHttpSession session, String deviationId, String source)
+            throws Exception {
+        var body = mockMvc.perform(post(NON_CONFORMITIES).session(session).with(csrf())
+                        .contentType("application/json")
+                        .content(ncBody("NC-" + suffix(), deviationId, source)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return JSON.readTree(body).get("id").asText();
+    }
+
+    private ResultActions contain(MockHttpSession session, String nc) throws Exception {
+        return mockMvc.perform(post(NON_CONFORMITIES + "/" + nc + "/containment").session(session)
+                .with(csrf()).contentType("application/json")
+                .content("{\"description\":\"Lote segregado no FV-03\"}"));
+    }
+
+    private ResultActions investigate(MockHttpSession session, String nc) throws Exception {
+        return mockMvc.perform(post(NON_CONFORMITIES + "/" + nc + "/investigation").session(session)
+                .with(csrf()).contentType("application/json")
+                .content("{\"rootCause\":\"Água com alcalinidade alta\",\"method\":\"5 porquês\"}"));
+    }
+
+    private ResultActions planAction(MockHttpSession session, String nc, String kind) throws Exception {
+        return mockMvc.perform(post(NON_CONFORMITIES + "/" + nc + "/actions").session(session).with(csrf())
+                .contentType("application/json")
+                .content("""
+                        {"kind":"%s","description":"Ajustar o pH","owner":"Brassista","dueOn":"%s"}
+                        """.formatted(kind, TODAY.plusDays(2))));
+    }
+
+    private ResultActions verify(MockHttpSession session, String nc, boolean effective) throws Exception {
+        return mockMvc.perform(post(NON_CONFORMITIES + "/" + nc + "/verification").session(session)
+                .with(csrf()).contentType("application/json")
+                .content("""
+                        {"effective":%s,"evidence":"Três lotes seguintes dentro da faixa"}
+                        """.formatted(effective)));
+    }
+
+    /** Leva a NC até ter uma ação concluída — o estado mínimo para verificar eficácia. */
+    private String untilActionCompleted(MockHttpSession session, String nc) throws Exception {
+        contain(session, nc).andExpect(status().isOk());
+        investigate(session, nc).andExpect(status().isOk());
+        var body = planAction(session, nc, "CORRECTIVE").andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        var action = JSON.readTree(body).get("actions").get(0).get("id").asText();
+        mockMvc.perform(post(NON_CONFORMITIES + "/" + nc + "/actions/" + action + "/complete")
+                        .session(session).with(csrf()))
+                .andExpect(status().isOk());
+        return action;
     }
 
     // --- helpers ---

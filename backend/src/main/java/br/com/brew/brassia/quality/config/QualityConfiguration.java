@@ -5,11 +5,14 @@ import br.com.brew.brassia.metrology.InstrumentStatusLookup;
 import br.com.brew.brassia.production.BatchAlertPublisher;
 import br.com.brew.brassia.quality.application.port.inbound.ControlPlanCommands;
 import br.com.brew.brassia.quality.application.port.inbound.MeasurementCommands;
+import br.com.brew.brassia.quality.application.port.inbound.NonConformityCommands;
 import br.com.brew.brassia.quality.application.port.inbound.QualityQueries;
 import br.com.brew.brassia.quality.application.port.outbound.ControlPlanRepository;
 import br.com.brew.brassia.quality.application.port.outbound.MeasurementRepository;
+import br.com.brew.brassia.quality.application.port.outbound.NonConformityRepository;
 import br.com.brew.brassia.quality.application.service.ControlPlanHandlers;
 import br.com.brew.brassia.quality.application.service.MeasurementHandler;
+import br.com.brew.brassia.quality.application.service.NonConformityHandlers;
 import br.com.brew.brassia.quality.application.service.QualityQueriesHandler;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -89,8 +92,71 @@ class QualityConfiguration {
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }
 
+    // --- não conformidade e CAPA (QLT-002) ---
+
     @Bean
-    QualityQueries qualityQueries(ControlPlanRepository plans, MeasurementRepository measurements) {
-        return new QualityQueriesHandler(plans, measurements);
+    NonConformityCommands.Open openNonConformityUseCase(NonConformityRepository nonConformities,
+            MeasurementRepository measurements, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new NonConformityHandlers.Open(nonConformities, measurements, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    NonConformityCommands.Contain containNonConformityUseCase(NonConformityRepository nonConformities,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new NonConformityHandlers.Contain(nonConformities, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    NonConformityCommands.Investigate investigateNonConformityUseCase(
+            NonConformityRepository nonConformities, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new NonConformityHandlers.Investigate(nonConformities, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    NonConformityCommands.PlanAction planCapaActionUseCase(NonConformityRepository nonConformities,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new NonConformityHandlers.PlanAction(nonConformities, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    NonConformityCommands.CompleteAction completeCapaActionUseCase(NonConformityRepository nonConformities,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new NonConformityHandlers.CompleteAction(nonConformities, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    NonConformityCommands.Verify verifyNonConformityUseCase(NonConformityRepository nonConformities,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new NonConformityHandlers.Verify(nonConformities, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    /** Encerrar a NC e o desvio de origem vai num commit só: um sem o outro mente no painel. */
+    @Bean
+    NonConformityCommands.Close closeNonConformityUseCase(NonConformityRepository nonConformities,
+            MeasurementRepository measurements, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new NonConformityHandlers.Close(nonConformities, measurements, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    QualityQueries qualityQueries(ControlPlanRepository plans, MeasurementRepository measurements,
+            NonConformityRepository nonConformities) {
+        return new QualityQueriesHandler(plans, measurements, nonConformities);
     }
 }

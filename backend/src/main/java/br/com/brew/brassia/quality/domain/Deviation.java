@@ -65,6 +65,18 @@ public final class Deviation {
                 limitValue, measuredValue, unit, action, status, openedAt, openedBy);
     }
 
+    /**
+     * Encerra o desvio. Só a não conformidade fecha (QLT-002), e só depois de uma verificação de
+     * eficácia bem-sucedida: um desvio que se fecha sozinho seria um problema que sumiu do painel
+     * sem que nada tenha sido feito.
+     */
+    public void close() {
+        if (status == DeviationStatus.CLOSED) {
+            throw new IllegalStateException("desvio já encerrado");
+        }
+        this.status = DeviationStatus.CLOSED;
+    }
+
     /** O quanto passou do limite — o tamanho do problema, não só a sua existência. */
     public BigDecimal excess() {
         return bound == SpecLimits.Bound.ABOVE_MAX

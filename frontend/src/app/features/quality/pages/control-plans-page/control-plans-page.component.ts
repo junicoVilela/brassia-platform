@@ -7,11 +7,16 @@ import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicat
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
 import { QualityStore } from '../../data-access/quality.store';
 import {
+  CAPA_KIND_LABELS,
+  CapaActionKindCode,
   ControlPlan,
   ControlPoint,
   FREQUENCY_LABELS,
   FrequencyKindCode,
   ProcessStageCode,
+  NC_SOURCE_LABELS,
+  NcSourceCode,
+  NonConformity,
   SEVERITY_LABELS,
   STAGE_LABELS,
   SeverityCode,
@@ -65,6 +70,44 @@ export class ControlPlansPageComponent implements OnInit {
     critical: [false],
   });
 
+  protected readonly canManageNc = this.auth.hasPermission('quality.nc.manage');
+  protected readonly canCloseNc = this.auth.hasPermission('quality.nc.close');
+
+  protected readonly sourceLabels = NC_SOURCE_LABELS;
+  protected readonly capaKindLabels = CAPA_KIND_LABELS;
+  protected readonly sourceOptions = Object.keys(NC_SOURCE_LABELS) as NcSourceCode[];
+  protected readonly capaKindOptions = Object.keys(CAPA_KIND_LABELS) as CapaActionKindCode[];
+
+  protected readonly ncForm = this.fb.nonNullable.group({
+    code: ['', Validators.required],
+    title: ['', Validators.required],
+    description: ['', Validators.required],
+    source: ['OTHER' as NcSourceCode, Validators.required],
+    severity: ['MAJOR' as SeverityCode, Validators.required],
+    containmentDueOn: ['', Validators.required],
+    investigationDueOn: ['', Validators.required],
+    verificationDueOn: ['', Validators.required],
+  });
+
+  protected readonly containForm = this.fb.nonNullable.group({ description: ['', Validators.required] });
+
+  protected readonly investigateForm = this.fb.nonNullable.group({
+    rootCause: ['', Validators.required],
+    method: ['', Validators.required],
+  });
+
+  protected readonly capaForm = this.fb.nonNullable.group({
+    kind: ['CORRECTIVE' as CapaActionKindCode, Validators.required],
+    description: ['', Validators.required],
+    owner: ['', Validators.required],
+    dueOn: ['', Validators.required],
+  });
+
+  protected readonly verifyForm = this.fb.nonNullable.group({
+    effective: [true],
+    evidence: ['', Validators.required],
+  });
+
   protected readonly measurementForm = this.fb.nonNullable.group({
     pointId: ['', Validators.required],
     value: [0, Validators.required],
@@ -113,6 +156,50 @@ export class ControlPlansPageComponent implements OnInit {
 
   protected removePoint(plan: ControlPlan, point: ControlPoint): void {
     this.store.removePoint(plan.id, point.id);
+  }
+
+  protected openNc(): void {
+    if (this.ncForm.invalid) {
+      return;
+    }
+    this.store.openNonConformity({ ...this.ncForm.getRawValue(), deviationId: null }, () =>
+      this.ncForm.reset({ source: 'OTHER', severity: 'MAJOR' }),
+    );
+  }
+
+  protected contain(nc: NonConformity): void {
+    if (this.containForm.invalid) {
+      return;
+    }
+    this.store.contain(nc.id, this.containForm.getRawValue().description);
+    this.containForm.reset();
+  }
+
+  protected investigate(nc: NonConformity): void {
+    if (this.investigateForm.invalid) {
+      return;
+    }
+    const value = this.investigateForm.getRawValue();
+    this.store.investigate(nc.id, value.rootCause, value.method);
+    this.investigateForm.reset();
+  }
+
+  protected planCapa(nc: NonConformity): void {
+    if (this.capaForm.invalid) {
+      return;
+    }
+    this.store.planAction(nc.id, this.capaForm.getRawValue(), () =>
+      this.capaForm.reset({ kind: 'CORRECTIVE' }),
+    );
+  }
+
+  protected verify(nc: NonConformity): void {
+    if (this.verifyForm.invalid) {
+      return;
+    }
+    const value = this.verifyForm.getRawValue();
+    this.store.verify(nc.id, value.effective, value.evidence);
+    this.verifyForm.reset({ effective: true });
   }
 
   /** Badge da severidade: crítica e grave pedem destaque; leve é informativa. */

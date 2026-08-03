@@ -7,6 +7,8 @@ import {
   Deviation,
   Measurement,
   MeasurementOutcome,
+  NonConformity,
+  OpenNcRequest,
   RecordMeasurementRequest,
 } from '../domain/quality.model';
 
@@ -14,6 +16,7 @@ import {
 export class QualityApi {
   private readonly http = inject(HttpClient);
   private readonly plansUrl = '/api/v1/quality/control-plans';
+  private readonly ncUrl = '/api/v1/quality/non-conformities';
 
   plans() {
     return this.http.get<ControlPlan[]>(this.plansUrl);
@@ -49,5 +52,39 @@ export class QualityApi {
 
   deviations() {
     return this.http.get<Deviation[]>('/api/v1/quality/deviations');
+  }
+
+  // --- não conformidade e CAPA (QLT-002) ---
+
+  nonConformities() {
+    return this.http.get<NonConformity[]>(this.ncUrl);
+  }
+
+  openNc(request: OpenNcRequest) {
+    return this.http.post<NonConformity>(this.ncUrl, request);
+  }
+
+  contain(ncId: string, description: string) {
+    return this.http.post<NonConformity>(`${this.ncUrl}/${ncId}/containment`, { description });
+  }
+
+  investigate(ncId: string, rootCause: string, method: string) {
+    return this.http.post<NonConformity>(`${this.ncUrl}/${ncId}/investigation`, { rootCause, method });
+  }
+
+  planAction(ncId: string, request: { kind: string; description: string; owner: string; dueOn: string }) {
+    return this.http.post<NonConformity>(`${this.ncUrl}/${ncId}/actions`, request);
+  }
+
+  completeAction(ncId: string, actionId: string) {
+    return this.http.post<NonConformity>(`${this.ncUrl}/${ncId}/actions/${actionId}/complete`, {});
+  }
+
+  verify(ncId: string, effective: boolean, evidence: string) {
+    return this.http.post<NonConformity>(`${this.ncUrl}/${ncId}/verification`, { effective, evidence });
+  }
+
+  closeNc(ncId: string) {
+    return this.http.post<NonConformity>(`${this.ncUrl}/${ncId}/close`, {});
   }
 }

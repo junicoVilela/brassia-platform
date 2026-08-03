@@ -3,6 +3,7 @@ package br.com.brew.brassia.metrology.application.port.inbound;
 import br.com.brew.brassia.metrology.domain.Calibration;
 import br.com.brew.brassia.metrology.domain.CalibrationStandard;
 import br.com.brew.brassia.metrology.domain.Instrument;
+import br.com.brew.brassia.metrology.domain.ReadingCorrection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,4 +19,7 @@ public interface MetrologyQueries {
     List<Calibration> calibrations(UUID breweryId, UUID instrumentId);
 
     List<CalibrationStandard> standards(UUID breweryId);
+
+    /** Correções do instrumento, da mais recente para a mais antiga (MTR-002). */
+    List<ReadingCorrection> corrections(UUID breweryId, UUID instrumentId);
 }

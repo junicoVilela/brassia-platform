@@ -7,7 +7,7 @@ Estado: EM ANDAMENTO
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
 | MTR-001 | Concluída | IA | V74 + `MetrologyIT` (18 testes) | Novo módulo `metrology`; porta publicada `InstrumentStatusLookup` |
-| MTR-002 | A fazer | — | — | — |
+| MTR-002 | Concluída | IA | V75 + `MetrologyIT` (26 testes) | Temperatura pelo hub; curva no domínio |
 | QLT-001 | A fazer | — | — | — |
 | QLT-002 | A fazer | — | — | — |
 | SEN-001 | A fazer | — | — | — |
@@ -48,6 +48,38 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
   interpretar "faixa útil de 0 a 60 °C" exigiria parsear texto livre e inventar semântica.
   Critério de remoção: dar estrutura à restrição (faixa reduzida tipada) e validar a medição
   contra ela.
+
+### MTR-002
+
+- **A decisão de MTR-001 foi revisada pelo próprio critério que a acompanhava.** Estava escrito
+  que a história usaria o hub `calculator`, "revisar se a curva de calibração não couber no
+  contrato de entradas do hub". Não cabe: `CalculatorEngine.compute` recebe
+  `Map<String, BigDecimal>` — só escalares — e uma curva é lista de pares. Em vez de alargar um
+  contrato publicado que todos os módulos consomem, separamos: **temperatura no hub**
+  (`hydrometer-temp-correction`, fórmula compartilhada e versionada) e **interpolação da curva no
+  domínio de metrologia**. A curva não é fórmula: é dado do certificado daquele instrumento, e
+  colocá-la no hub obrigaria o hub a conhecer certificado de calibração.
+- **A ordem dos passos é temperatura e depois curva.** A curva foi levantada comparando o
+  instrumento ao padrão em condição de referência, então ela se aplica ao valor já compensado por
+  temperatura.
+- **Fora da faixa conferida, a correção é recusada em vez de extrapolada** (409
+  `outside_curve_range`, com os limites). Extrapolar produziria um número com aparência de
+  corrigido sobre uma região que ninguém verificou.
+- **Curva não monótona é recusada:** se uma leitura maior correspondesse a uma referência menor, a
+  mesma indicação teria dois valores verdadeiros possíveis e a correção viraria adivinhação.
+- **Certificado reprovado não fornece curva** — ela descreveria um instrumento que falhou.
+- **O bruto é imutável e corrigir de novo cria outro registro.** Sobrescrever apagaria o rastro de
+  como um número foi obtido, que é o que permite auditar uma liberação meses depois.
+- **Instrumento não apto não impede corrigir: vira ressalva.** Seguimos o precedente de FSL-001 —
+  purga não conferida e vedação reprovada não mudam o número, mudam a confiança nele. A aptidão do
+  momento fica gravada e `trustworthy` cai. Recusar esconderia a medição; aceitar em silêncio
+  mentiria sobre a evidência.
+- **Não confundir com CAL-002.** `production.AppliedCorrection` é correção *de processo* no dia de
+  brassa; esta é correção *metrológica* do que o instrumento leu. A colisão de nome entre os dois
+  controllers apareceu no contexto do Spring e foi resolvida nomeando o daqui
+  `ReadingCorrectionController`.
+- **Fora de escopo:** ligar a correção às leituras de fermentação (FER-002). A correção referencia
+  a leitura de origem por id opaco, sem acoplar os módulos — integrar seria antecipar escopo.
 
 ### Antes de começar
 

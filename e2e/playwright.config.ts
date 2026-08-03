@@ -6,7 +6,14 @@ import { defineConfig, devices } from '@playwright/test';
  * precisa de banco e migrations, então é pré-requisito do ambiente (compose
  * local ou job da CI). Ver README.md.
  */
-const baseURL = process.env.E2E_BASE_URL || 'http://localhost:4200';
+/**
+ * A porta é configurável porque `reuseExistingServer` reaproveita **qualquer** coisa que já
+ * responda no endereço — inclusive o `ng serve` de outro projeto. Quando isso acontece a suíte
+ * roda contra a aplicação errada e falha de um jeito confuso. Em máquina com outros apps Angular,
+ * use `E2E_PORT` para escapar da 4200.
+ */
+const port = process.env.E2E_PORT || '4200';
+const baseURL = process.env.E2E_BASE_URL || `http://localhost:${port}`;
 
 export default defineConfig({
   testDir: './tests',

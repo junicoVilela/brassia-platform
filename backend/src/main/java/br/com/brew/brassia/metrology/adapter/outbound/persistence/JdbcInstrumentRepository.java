@@ -6,9 +6,17 @@ import br.com.brew.brassia.metrology.domain.CalibrationResult;
 import br.com.brew.brassia.metrology.domain.Instrument;
 import br.com.brew.brassia.metrology.domain.InstrumentState;
 import br.com.brew.brassia.metrology.domain.InstrumentType;
+import br.com.brew.brassia.metrology.domain.CorrectionCurve;
+import br.com.brew.brassia.metrology.domain.CorrectionStep;
+import br.com.brew.brassia.metrology.domain.CurvePoint;
+import br.com.brew.brassia.metrology.domain.Fitness;
 import br.com.brew.brassia.metrology.domain.MeasurementRange;
+import br.com.brew.brassia.metrology.domain.ReadingCorrection;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +31,10 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 class JdbcInstrumentRepository implements InstrumentRepository {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final TypeReference<List<CorrectionStep>> STEPS = new TypeReference<>() {};
+    private static final TypeReference<List<String>> CAVEATS = new TypeReference<>() {};
 
     private static final String COLUMNS = """
             SELECT i.id, i.brewery_id, i.code, i.name, i.type, i.range_min, i.range_max, i.resolution,
@@ -131,6 +143,92 @@ class JdbcInstrumentRepository implements InstrumentRepository {
                 .param("result", c.result().name()).param("deviation", c.maxDeviation())
                 .param("restriction", c.restriction()).param("note", c.note())
                 .update();
+
+        // A curva é parte do certificado: entra junto e nunca é reescrita depois.
+        c.curve().ifPresent(curve -> curve.points().forEach(point -> jdbc.sql("""
+                INSERT INTO metrology_calibration_point (id, brewery_id, calibration_id, reference, measured)
+                VALUES (:id, :brewery, :calibration, :reference, :measured)
+                """)
+                .param("id", UUID.randomUUID()).param("brewery", c.breweryId())
+                .param("calibration", c.id())
+                .param("reference", point.reference()).param("measured", point.measured())
+                .update()));
+    }
+
+    @Override
+    public void insertCorrection(ReadingCorrection c) {
+        jdbc.sql("""
+                INSERT INTO metrology_reading_correction (id, brewery_id, instrument_id, source_reading_id,
+                    raw_value, corrected_value, unit, sample_temp_c, calibration_temp_c, steps,
+                    instrument_fitness, caveats, applied_at, applied_by)
+                VALUES (:id, :brewery, :instrument, :source, :raw, :corrected, :unit, :sampleTemp,
+                    :calibrationTemp, CAST(:steps AS jsonb), :fitness, CAST(:caveats AS jsonb), :at, :by)
+                """)
+                .param("id", c.id()).param("brewery", c.breweryId()).param("instrument", c.instrumentId())
+                .param("source", c.sourceReadingId())
+                .param("raw", c.rawValue()).param("corrected", c.correctedValue()).param("unit", c.unit())
+                .param("sampleTemp", c.sampleTempC()).param("calibrationTemp", c.calibrationTempC())
+                .param("steps", toJson(c.steps())).param("fitness", c.instrumentFitness().name())
+                .param("caveats", toJson(c.caveats()))
+                .param("at", Timestamp.from(c.appliedAt())).param("by", c.appliedBy())
+                .update();
+    }
+
+    @Override
+    public List<ReadingCorrection> findCorrections(UUID breweryId, UUID instrumentId) {
+        return jdbc.sql("""
+                SELECT id, brewery_id, instrument_id, source_reading_id, raw_value, corrected_value, unit,
+                       sample_temp_c, calibration_temp_c, steps, instrument_fitness, caveats, applied_at,
+                       applied_by
+                FROM metrology_reading_correction
+                WHERE brewery_id = :brewery AND instrument_id = :instrument
+                ORDER BY applied_at DESC, id
+                """)
+                .param("brewery", breweryId).param("instrument", instrumentId)
+                .query((rs, n) -> ReadingCorrection.reconstitute(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("brewery_id", UUID.class),
+                        rs.getObject("instrument_id", UUID.class),
+                        rs.getObject("source_reading_id", UUID.class),
+                        rs.getBigDecimal("raw_value"),
+                        rs.getBigDecimal("corrected_value"),
+                        rs.getString("unit"),
+                        rs.getBigDecimal("sample_temp_c"),
+                        rs.getBigDecimal("calibration_temp_c"),
+                        fromJson(rs.getString("steps"), STEPS),
+                        Fitness.valueOf(rs.getString("instrument_fitness")),
+                        fromJson(rs.getString("caveats"), CAVEATS),
+                        rs.getTimestamp("applied_at").toInstant(),
+                        rs.getObject("applied_by", UUID.class)))
+                .list();
+    }
+
+    private static String toJson(Object value) {
+        try {
+            return JSON.writeValueAsString(value);
+        } catch (Exception e) {
+            throw new IllegalStateException("falha ao serializar dados da correção", e);
+        }
+    }
+
+    private static <T> T fromJson(String json, TypeReference<T> type) {
+        try {
+            return JSON.readValue(json, type);
+        } catch (Exception e) {
+            throw new IllegalStateException("falha ao ler dados da correção", e);
+        }
+    }
+
+    /** Pontos conferidos pelo certificado; ausentes quando ele só declara o desvio máximo. */
+    private CorrectionCurve loadCurve(UUID calibrationId) {
+        var points = jdbc.sql("""
+                SELECT reference, measured FROM metrology_calibration_point
+                WHERE calibration_id = :calibration ORDER BY measured
+                """)
+                .param("calibration", calibrationId)
+                .query((rs, n) -> new CurvePoint(rs.getBigDecimal("reference"), rs.getBigDecimal("measured")))
+                .list();
+        return points.isEmpty() ? null : CorrectionCurve.of(points);
     }
 
     @Override
@@ -183,6 +281,7 @@ class JdbcInstrumentRepository implements InstrumentRepository {
                 CalibrationResult.valueOf(rs.getString("cal_result")),
                 rs.getBigDecimal("cal_deviation"),
                 rs.getString("cal_restriction"),
-                rs.getString("cal_note"));
+                rs.getString("cal_note"),
+                loadCurve(rs.getObject("cal_id", UUID.class)));
     }
 }

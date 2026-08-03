@@ -2,9 +2,14 @@ package br.com.brew.brassia.metrology.adapter.inbound.web.dto;
 
 import br.com.brew.brassia.metrology.domain.Calibration;
 import br.com.brew.brassia.metrology.domain.CalibrationStandard;
+import br.com.brew.brassia.metrology.domain.CorrectionStep;
+import br.com.brew.brassia.metrology.domain.CurvePoint;
 import br.com.brew.brassia.metrology.domain.Instrument;
+import br.com.brew.brassia.metrology.domain.ReadingCorrection;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 /** Respostas da metrologia (MTR-001). */
@@ -33,12 +38,37 @@ public final class MetrologyViews {
 
     public record CalibrationView(UUID id, UUID standardId, String standardCode, LocalDate performedOn,
             LocalDate dueOn, String performedBy, String certificateNumber, String result, String resultLabel,
-            BigDecimal maxDeviation, String restriction, String note) {
+            BigDecimal maxDeviation, String restriction, String note, List<CurvePointView> curve) {
 
         public static CalibrationView from(Calibration c) {
             return new CalibrationView(c.id(), c.standardId(), c.standardCode(), c.performedOn(), c.dueOn(),
                     c.performedBy(), c.certificateNumber(), c.result().name(), c.result().label(),
-                    c.maxDeviation(), c.restriction(), c.note());
+                    c.maxDeviation(), c.restriction(), c.note(),
+                    c.curve().map(curve -> curve.points().stream().map(CurvePointView::from).toList())
+                            .orElse(List.of()));
+        }
+    }
+
+    /**
+     * Correção de leitura (MTR-002). O bruto viaja junto do corrigido — nunca no lugar dele — e os
+     * passos dizem por qual fórmula e versão o número passou.
+     */
+    public record CorrectionView(UUID id, UUID instrumentId, UUID sourceReadingId, BigDecimal rawValue,
+            BigDecimal correctedValue, BigDecimal delta, String unit, BigDecimal sampleTempC,
+            BigDecimal calibrationTempC, List<CorrectionStep> steps, String instrumentFitness,
+            boolean trustworthy, List<String> caveats, Instant appliedAt) {
+
+        public static CorrectionView from(ReadingCorrection c) {
+            return new CorrectionView(c.id(), c.instrumentId(), c.sourceReadingId(), c.rawValue(),
+                    c.correctedValue(), c.delta(), c.unit(), c.sampleTempC(), c.calibrationTempC(),
+                    c.steps(), c.instrumentFitness().name(), c.trustworthy(), c.caveats(), c.appliedAt());
+        }
+    }
+
+    public record CurvePointView(BigDecimal reference, BigDecimal measured) {
+
+        public static CurvePointView from(CurvePoint p) {
+            return new CurvePointView(p.reference(), p.measured());
         }
     }
 

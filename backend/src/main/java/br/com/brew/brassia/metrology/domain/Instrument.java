@@ -2,6 +2,7 @@ package br.com.brew.brassia.metrology.domain;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -88,14 +89,14 @@ public final class Instrument {
     /** Registra calibração e passa a decidir por ela — inclusive quando reprova. */
     public Calibration calibrate(CalibrationStandard standard, LocalDate performedOn, LocalDate dueOn,
             String performedBy, String certificateNumber, CalibrationResult result, BigDecimal maxDeviation,
-            String restriction, String note) {
+            String restriction, String note, List<CurvePoint> curvePoints) {
         requireNotRetired();
         Objects.requireNonNull(standard, "padrão é obrigatório");
         if (!standard.breweryId().equals(breweryId)) {
             throw new IllegalArgumentException("padrão de outra cervejaria");
         }
         var calibration = Calibration.record(breweryId, id, standard, performedOn, dueOn, performedBy,
-                certificateNumber, result, maxDeviation, restriction, note);
+                certificateNumber, result, maxDeviation, restriction, note, curvePoints);
         // Reprovar também é evidência: a última calibração passa a ser esta, e o instrumento cai
         // para REJECTED mesmo que a aprovação anterior ainda estivesse no prazo.
         this.lastCalibration = calibration;

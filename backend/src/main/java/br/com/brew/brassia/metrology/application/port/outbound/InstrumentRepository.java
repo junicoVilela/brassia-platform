@@ -2,6 +2,7 @@ package br.com.brew.brassia.metrology.application.port.outbound;
 
 import br.com.brew.brassia.metrology.domain.Calibration;
 import br.com.brew.brassia.metrology.domain.Instrument;
+import br.com.brew.brassia.metrology.domain.ReadingCorrection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,4 +26,8 @@ public interface InstrumentRepository {
     void insertCalibration(Calibration calibration);
 
     List<Calibration> findCalibrations(UUID breweryId, UUID instrumentId);
+
+    void insertCorrection(ReadingCorrection correction);
+
+    List<ReadingCorrection> findCorrections(UUID breweryId, UUID instrumentId);
 }

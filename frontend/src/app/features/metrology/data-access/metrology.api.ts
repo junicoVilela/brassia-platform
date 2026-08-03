@@ -3,6 +3,8 @@ import { Injectable, inject } from '@angular/core';
 import {
   Calibration,
   CalibrationStandard,
+  CorrectReadingRequest,
+  ReadingCorrection,
   Instrument,
   RecordCalibrationRequest,
   RegisterInstrumentRequest,
@@ -46,6 +48,16 @@ export class MetrologyApi {
 
   calibrate(instrumentId: string, request: RecordCalibrationRequest) {
     return this.http.post<Instrument>(`${this.instrumentsUrl}/${instrumentId}/calibrations`, request);
+  }
+
+  corrections(instrumentId: string) {
+    return this.http.get<ReadingCorrection[]>('/api/v1/metrology/corrections', {
+      params: { instrumentId },
+    });
+  }
+
+  correct(request: CorrectReadingRequest) {
+    return this.http.post<ReadingCorrection>('/api/v1/metrology/corrections', request);
   }
 
   standards() {

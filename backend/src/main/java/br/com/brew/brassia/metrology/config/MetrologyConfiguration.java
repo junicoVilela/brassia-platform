@@ -1,12 +1,14 @@
 package br.com.brew.brassia.metrology.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.calculator.CalculatorEngine;
 import br.com.brew.brassia.metrology.InstrumentStatusLookup;
 import br.com.brew.brassia.metrology.application.port.inbound.InstrumentCommands;
 import br.com.brew.brassia.metrology.application.port.inbound.MetrologyQueries;
 import br.com.brew.brassia.metrology.application.port.inbound.StandardCommands;
 import br.com.brew.brassia.metrology.application.port.outbound.CalibrationStandardRepository;
 import br.com.brew.brassia.metrology.application.port.outbound.InstrumentRepository;
+import br.com.brew.brassia.metrology.application.service.CorrectionHandler;
 import br.com.brew.brassia.metrology.application.service.InstrumentHandlers;
 import br.com.brew.brassia.metrology.application.service.MetrologyQueriesHandler;
 import br.com.brew.brassia.metrology.application.service.StandardHandlers;
@@ -72,6 +74,19 @@ class MetrologyConfiguration {
             CalibrationStandardRepository standards, AuditTrail audit,
             PlatformTransactionManager transactionManager) {
         var handler = new InstrumentHandlers.Calibrate(instruments, standards, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    /**
+     * Correção de leitura (MTR-002): temperatura pelo hub `calculator` e curva pelo certificado.
+     * Roda em transação porque a correção só existe se for gravada — calcular sem persistir
+     * devolveria um número que ninguém pode auditar depois.
+     */
+    @Bean
+    InstrumentCommands.CorrectReading correctReadingUseCase(InstrumentRepository instruments,
+            CalculatorEngine calculator, AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new CorrectionHandler(instruments, calculator, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }

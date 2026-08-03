@@ -2,7 +2,9 @@ package br.com.brew.brassia.metrology.domain;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -33,10 +35,16 @@ public final class Calibration {
     private final BigDecimal maxDeviation;
     private final String restriction;
     private final String note;
+    /**
+     * Curva do certificado (MTR-002), quando ele traz os pontos conferidos. Certificado que só
+     * declara o desvio máximo não permite corrigir leitura — permite saber a incerteza.
+     */
+    private final CorrectionCurve curve;
 
     private Calibration(UUID id, UUID breweryId, UUID instrumentId, UUID standardId, String standardCode,
             LocalDate performedOn, LocalDate dueOn, String performedBy, String certificateNumber,
-            CalibrationResult result, BigDecimal maxDeviation, String restriction, String note) {
+            CalibrationResult result, BigDecimal maxDeviation, String restriction, String note,
+            CorrectionCurve curve) {
         this.id = Objects.requireNonNull(id, "id");
         this.breweryId = Objects.requireNonNull(breweryId, "breweryId");
         this.instrumentId = Objects.requireNonNull(instrumentId, "instrumentId");
@@ -50,6 +58,11 @@ public final class Calibration {
         this.maxDeviation = requireNonNegative(maxDeviation);
         this.restriction = normalizeRestriction(result, restriction);
         this.note = note == null || note.isBlank() ? null : note.trim();
+        // Certificado reprovado não corrige nada: a curva dele descreve um instrumento que falhou.
+        if (curve != null && !result.approves()) {
+            throw new IllegalArgumentException("certificado reprovado não fornece curva de correção");
+        }
+        this.curve = curve;
         if (!this.dueOn.isAfter(this.performedOn)) {
             throw new IllegalArgumentException("o vencimento deve ser posterior à execução");
         }
@@ -57,22 +70,25 @@ public final class Calibration {
 
     public static Calibration record(UUID breweryId, UUID instrumentId, CalibrationStandard standard,
             LocalDate performedOn, LocalDate dueOn, String performedBy, String certificateNumber,
-            CalibrationResult result, BigDecimal maxDeviation, String restriction, String note) {
+            CalibrationResult result, BigDecimal maxDeviation, String restriction, String note,
+            List<CurvePoint> curvePoints) {
         Objects.requireNonNull(standard, "padrão é obrigatório");
         Objects.requireNonNull(performedOn, "data de execução é obrigatória");
         if (standard.expiredOn(performedOn)) {
             throw new ExpiredStandardException(standard.code(), standard.validUntil(), performedOn);
         }
+        var curve = curvePoints == null || curvePoints.isEmpty() ? null : CorrectionCurve.of(curvePoints);
         return new Calibration(UUID.randomUUID(), breweryId, instrumentId, standard.id(), standard.code(),
-                performedOn, dueOn, performedBy, certificateNumber, result, maxDeviation, restriction, note);
+                performedOn, dueOn, performedBy, certificateNumber, result, maxDeviation, restriction, note,
+                curve);
     }
 
     public static Calibration reconstitute(UUID id, UUID breweryId, UUID instrumentId, UUID standardId,
             String standardCode, LocalDate performedOn, LocalDate dueOn, String performedBy,
             String certificateNumber, CalibrationResult result, BigDecimal maxDeviation, String restriction,
-            String note) {
+            String note, CorrectionCurve curve) {
         return new Calibration(id, breweryId, instrumentId, standardId, standardCode, performedOn, dueOn,
-                performedBy, certificateNumber, result, maxDeviation, restriction, note);
+                performedBy, certificateNumber, result, maxDeviation, restriction, note, curve);
     }
 
     /**
@@ -133,6 +149,10 @@ public final class Calibration {
 
     public String note() {
         return note;
+    }
+
+    public Optional<CorrectionCurve> curve() {
+        return Optional.ofNullable(curve);
     }
 
     /** Restrição é obrigatória quando o certificado aprova com restrição, e proibida no resto. */

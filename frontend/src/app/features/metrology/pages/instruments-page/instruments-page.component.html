@@ -250,6 +250,15 @@
                     <div class="col-sm-4"><label class="form-label small" for="cnote">Observação</label>
                       <input id="cnote" type="text" class="form-control form-control-sm"
                              formControlName="note"></div>
+                    <div class="col-sm-8">
+                      <label class="form-label small" for="ccurve">Pontos conferidos (opcional)</label>
+                      <textarea id="ccurve" rows="3" class="form-control form-control-sm"
+                                formControlName="curve"
+                                placeholder="verdadeiro;indicado — um por linha&#10;0;0.5&#10;50;50.5"></textarea>
+                      <span class="form-text">
+                        Sem os pontos, o certificado diz a incerteza mas não permite corrigir leitura.
+                      </span>
+                    </div>
                     <div class="col-sm-3 d-grid">
                       <button type="button" class="btn btn-primary btn-sm"
                               [disabled]="calibrationForm.invalid || store.submitting()"
@@ -271,6 +280,79 @@
                   <div class="alert alert-danger" role="alert">{{ calibrationError }}</div>
                 }
 
+                @if (canManage && i.state !== 'RETIRED') {
+                  <h3 class="h6 fw-semibold mb-1 mt-4">Corrigir leitura</h3>
+                  <p class="text-muted small mb-3">
+                    O valor bruto não é alterado: a correção nasce ao lado dele, com os passos que a
+                    produziram. Corrigir de novo cria outro registro.
+                  </p>
+                  <form [formGroup]="correctionForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-sm-2"><label class="form-label small" for="xraw">Leitura bruta</label>
+                      <input id="xraw" type="number" step="any" class="form-control form-control-sm"
+                             formControlName="rawValue"></div>
+                    <div class="col-sm-2"><label class="form-label small" for="xunit">Unidade</label>
+                      <input id="xunit" type="text" class="form-control form-control-sm"
+                             formControlName="unit"></div>
+                    <div class="col-sm-3"><label class="form-label small" for="xsample">Temp. da amostra (°C)</label>
+                      <input id="xsample" type="number" step="any" class="form-control form-control-sm"
+                             formControlName="sampleTempC"></div>
+                    <div class="col-sm-3"><label class="form-label small" for="xcalib">Temp. de calibração (°C)</label>
+                      <input id="xcalib" type="number" step="any" class="form-control form-control-sm"
+                             formControlName="calibrationTempC"></div>
+                    <div class="col-sm-2">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="xcurve" formControlName="applyCurve">
+                        <label class="form-check-label small" for="xcurve">Aplicar curva</label>
+                      </div>
+                    </div>
+                    <div class="col-sm-3 d-grid">
+                      <button type="button" class="btn btn-primary btn-sm"
+                              [disabled]="correctionForm.invalid || store.submitting()" (click)="correct(i)">
+                        <i class="ri-equalizer-line me-1" aria-hidden="true"></i> Corrigir
+                      </button>
+                    </div>
+                  </form>
+
+                  @if (store.outsideCurve(); as fora) {
+                    <div class="alert alert-warning" role="alert">
+                      A leitura {{ fora.value }} está fora da faixa que o certificado verificou
+                      ({{ fora.min }} a {{ fora.max }}). Extrapolar a curva inventaria exatidão que o
+                      certificado não sustenta — meça dentro da faixa ou recalibre cobrindo essa região.
+                    </div>
+                  }
+                  @if (store.correctionError(); as correctionError) {
+                    <div class="alert alert-danger" role="alert">{{ correctionError }}</div>
+                  }
+                }
+
+                @if (store.corrections().length > 0) {
+                  <p class="small fw-medium mb-2">Correções aplicadas</p>
+                  <ul class="list-unstyled small mb-3">
+                    @for (c of store.corrections(); track c.id) {
+                      <li class="border-start ps-3 mb-2">
+                        <span class="fw-medium">
+                          {{ c.rawValue | number:'1.0-4' }} → {{ c.correctedValue | number:'1.0-4' }} {{ c.unit }}
+                        </span>
+                        <span class="text-muted">
+                          · Δ {{ c.delta | number:'1.0-4' }}
+                          · {{ c.appliedAt | date:'short' }}
+                        </span>
+                        @if (!c.trustworthy) {
+                          <span class="badge text-bg-warning ms-1">confiança reduzida</span>
+                        }
+                        <ul class="list-unstyled text-muted mb-0 ps-3">
+                          @for (s of c.steps; track s.name) {
+                            <li><code>{{ s.method }}</code> — versão {{ s.version }}</li>
+                          }
+                          @for (caveat of c.caveats; track caveat) {
+                            <li class="text-warning-emphasis">{{ caveat }}</li>
+                          }
+                        </ul>
+                      </li>
+                    }
+                  </ul>
+                }
+
                 @if (store.calibrations().length > 0) {
                   <p class="small fw-medium mb-2">Certificados</p>
                   <ul class="list-unstyled small mb-0">
@@ -289,6 +371,13 @@
                         }
                         @if (c.note) {
                           <p class="text-muted mb-0">{{ c.note }}</p>
+                        }
+                        @if (c.curve.length > 0) {
+                          <p class="text-muted mb-0">
+                            Curva com {{ c.curve.length }} pontos conferidos
+                            ({{ c.curve[0].measured | number:'1.0-4' }} a
+                            {{ c.curve[c.curve.length - 1].measured | number:'1.0-4' }}).
+                          </p>
                         }
                       </li>
                     }

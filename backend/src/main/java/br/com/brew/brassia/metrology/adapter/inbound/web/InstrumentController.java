@@ -154,7 +154,11 @@ final class InstrumentController {
         var brewery = principal.requireBrewery();
         var calibrationId = calibrate.handle(new InstrumentCommands.Calibrate.Command(principal.userId(),
                 brewery, id, body.standardId(), body.performedOn(), body.dueOn(), body.performedBy(),
-                body.certificateNumber(), body.result(), body.maxDeviation(), body.restriction(), body.note()));
+                body.certificateNumber(), body.result(), body.maxDeviation(), body.restriction(), body.note(),
+                body.curve() == null ? java.util.List.of()
+                        : body.curve().stream()
+                                .map(p -> new InstrumentCommands.Calibrate.Point(p.reference(), p.measured()))
+                                .toList()));
         return ResponseEntity
                 .created(URI.create("/api/v1/metrology/instruments/" + id + "/calibrations/" + calibrationId))
                 .body(view(brewery, id));

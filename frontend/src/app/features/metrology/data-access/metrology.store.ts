@@ -5,6 +5,9 @@ import { ToastService } from '../../../core/notifications/toast.service';
 import {
   Calibration,
   CalibrationStandard,
+  CorrectReadingRequest,
+  OutsideCurveRange,
+  ReadingCorrection,
   Instrument,
   InstrumentNotFit,
   RecordCalibrationRequest,
@@ -17,7 +20,13 @@ import { MetrologyApi } from './metrology.api';
 /** Corpo Problem Details das recusas de metrologia, como o backend as publica. */
 interface MetrologyError {
   status?: number;
-  error?: { code?: string; detail?: string; instrument?: InstrumentNotFit; standard?: StandardExpired };
+  error?: {
+    code?: string;
+    detail?: string;
+    instrument?: InstrumentNotFit;
+    standard?: StandardExpired;
+    curve?: OutsideCurveRange;
+  };
 }
 
 /** Estado do cadastro metrológico (MTR-001). */
@@ -43,6 +52,11 @@ export class MetrologyStore {
   /** Recusas explicadas: por que o instrumento não serve, por que o padrão não calibra. */
   readonly notFit = signal<InstrumentNotFit | null>(null);
   readonly standardExpired = signal<StandardExpired | null>(null);
+
+  /** Correções do instrumento aberto (MTR-002) e as recusas explicadas. */
+  readonly corrections = signal<ReadingCorrection[]>([]);
+  readonly outsideCurve = signal<OutsideCurveRange | null>(null);
+  readonly correctionError = signal<string | null>(null);
 
   readonly empty = computed(() => !this.loading() && !this.error() && this.instruments().length === 0);
 
@@ -153,13 +167,51 @@ export class MetrologyStore {
       });
   }
 
+  /** Formato do ponto do certificado errado: avisa sem tentar adivinhar o que a pessoa quis. */
+  reportCurveFormat(linha: string): void {
+    this.calibrationError.set(
+      `Ponto da curva em formato inválido: "${linha}". Use "verdadeiro;indicado", um por linha.`,
+    );
+  }
+
+  correct(request: CorrectReadingRequest): void {
+    this.submitting.set(true);
+    this.correctionError.set(null);
+    this.outsideCurve.set(null);
+    this.api
+      .correct(request)
+      .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.submitting.set(false)))
+      .subscribe({
+        next: () => {
+          this.toast.success('Correção registrada.');
+          this.loadCorrections(request.instrumentId);
+        },
+        error: (e: MetrologyError) => {
+          if (e.error?.code === 'outside_curve_range' && e.error.curve) {
+            this.outsideCurve.set(e.error.curve);
+          } else {
+            this.correctionError.set(e.error?.detail ?? 'Não foi possível registrar a correção.');
+          }
+        },
+      });
+  }
+
+  private loadCorrections(instrumentId: string): void {
+    this.api
+      .corrections(instrumentId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: list => this.corrections.set(list), error: () => this.corrections.set([]) });
+  }
+
   toggleHistory(instrument: Instrument): void {
     if (this.openHistoryOf() === instrument.id) {
       this.openHistoryOf.set(null);
       this.calibrations.set([]);
+      this.corrections.set([]);
       return;
     }
     this.openHistoryOf.set(instrument.id);
+    this.loadCorrections(instrument.id);
     this.calibrationError.set(null);
     this.api
       .calibrations(instrument.id)

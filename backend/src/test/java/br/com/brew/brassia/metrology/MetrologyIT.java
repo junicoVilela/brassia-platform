@@ -43,6 +43,7 @@ class MetrologyIT {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String INSTRUMENTS = "/api/v1/metrology/instruments";
     private static final String STANDARDS = "/api/v1/metrology/standards";
+    private static final String CORRECTIONS = "/api/v1/metrology/corrections";
 
     private static final LocalDate TODAY = LocalDate.now(ZoneOffset.UTC);
 
@@ -309,6 +310,123 @@ class MetrologyIT {
                 .andExpect(jsonPath("$.expired", is(false)));
     }
 
+    // --- correção de leitura (MTR-002) ---
+
+    @Test
+    void corrigePelaCurvaSemApagarOValorBruto() throws Exception {
+        var session = login();
+        var instrument = createInstrument(session, "TERM-" + suffix());
+        var standard = createStandard(session, "PAD-" + suffix(), TODAY.plusYears(2));
+        calibrate(session, instrument, standard, TODAY.minusDays(1), TODAY.plusYears(1), "APPROVED", null,
+                CURVA);
+
+        correct(session, instrument, "50.5", true, "null", "null")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.rawValue", is(50.5)))
+                .andExpect(jsonPath("$.correctedValue", is(50.0)))
+                .andExpect(jsonPath("$.trustworthy", is(true)))
+                .andExpect(jsonPath("$.steps.length()", is(1)))
+                .andExpect(jsonPath("$.steps[0].name", is("curve")))
+                .andExpect(jsonPath("$.steps[0].version", notNullValue()));
+    }
+
+    @Test
+    void leituraForaDaFaixaDaCurvaEhRecusadaEmVezDeExtrapolada() throws Exception {
+        var session = login();
+        var instrument = createInstrument(session, "TERM-" + suffix());
+        var standard = createStandard(session, "PAD-" + suffix(), TODAY.plusYears(2));
+        calibrate(session, instrument, standard, TODAY.minusDays(1), TODAY.plusYears(1), "APPROVED", null,
+                CURVA);
+
+        correct(session, instrument, "150", true, "null", "null")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("outside_curve_range")))
+                .andExpect(jsonPath("$.curve.min", is("0.5000")))
+                .andExpect(jsonPath("$.curve.max", is("100.5000")));
+    }
+
+    @Test
+    void certificadoSemPontosNaoTemCurvaParaAplicar() throws Exception {
+        var session = login();
+        var instrument = createInstrument(session, "TERM-" + suffix());
+        var standard = createStandard(session, "PAD-" + suffix(), TODAY.plusYears(2));
+        calibrate(session, instrument, standard, TODAY.minusDays(1), TODAY.plusYears(1), "APPROVED", null);
+
+        correct(session, instrument, "50", true, "null", "null")
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void instrumentoVencidoCorrigeMasComRessalva() throws Exception {
+        var session = login();
+        var instrument = createInstrument(session, "TERM-" + suffix());
+        var standard = createStandard(session, "PAD-" + suffix(), TODAY.plusYears(2));
+        // Certificado antigo e já vencido, mas com os pontos conferidos.
+        calibrate(session, instrument, standard, TODAY.minusYears(2), TODAY.minusYears(1), "APPROVED", null,
+                CURVA);
+
+        correct(session, instrument, "50.5", true, "null", "null")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.correctedValue", is(50.0)))
+                .andExpect(jsonPath("$.instrumentFitness", is("EXPIRED")))
+                .andExpect(jsonPath("$.trustworthy", is(false)))
+                .andExpect(jsonPath("$.caveats.length()", is(1)));
+    }
+
+    @Test
+    void correcaoSemNenhumPassoEhRecusada() throws Exception {
+        var session = login();
+        var instrument = createInstrument(session, "TERM-" + suffix());
+
+        correct(session, instrument, "50", false, "null", "null")
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void corrigirDeNovoCriaOutroRegistroEmVezDeSobrescrever() throws Exception {
+        var session = login();
+        var instrument = createInstrument(session, "TERM-" + suffix());
+        var standard = createStandard(session, "PAD-" + suffix(), TODAY.plusYears(2));
+        calibrate(session, instrument, standard, TODAY.minusDays(1), TODAY.plusYears(1), "APPROVED", null,
+                CURVA);
+
+        correct(session, instrument, "50.5", true, "null", "null").andExpect(status().isCreated());
+        correct(session, instrument, "25.5", true, "null", "null").andExpect(status().isCreated());
+
+        mockMvc.perform(get(CORRECTIONS + "?instrumentId=" + instrument).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()", is(2)));
+    }
+
+    @Test
+    void aCurvaVoltaNoCertificado() throws Exception {
+        var session = login();
+        var instrument = createInstrument(session, "TERM-" + suffix());
+        var standard = createStandard(session, "PAD-" + suffix(), TODAY.plusYears(2));
+        calibrate(session, instrument, standard, TODAY.minusDays(1), TODAY.plusYears(1), "APPROVED", null,
+                CURVA);
+
+        mockMvc.perform(get(INSTRUMENTS + "/" + instrument + "/calibrations").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].curve.length()", is(3)))
+                .andExpect(jsonPath("$[0].curve[0].measured", is(0.5)));
+    }
+
+    @Test
+    void naoCorrigeInstrumentoDeOutraCervejaria() throws Exception {
+        var session = login();
+        var instrument = createInstrument(session, "TERM-" + suffix());
+
+        mockMvc.perform(post(CORRECTIONS).with(csrf())
+                        .with(authentication(principal(UUID.randomUUID(),
+                                Set.of("metrology.instrument.manage"))))
+                        .contentType("application/json")
+                        .content("""
+                                {"instrumentId":"%s","rawValue":50,"unit":"°C","applyCurve":true}
+                                """.formatted(instrument)))
+                .andExpect(status().isBadRequest());
+    }
+
     // --- autorização e tenant ---
 
     @Test
@@ -380,14 +498,39 @@ class MetrologyIT {
     private org.springframework.test.web.servlet.ResultActions calibrate(MockHttpSession session,
             String instrumentId, String standardId, LocalDate performedOn, LocalDate dueOn, String result,
             String restriction) throws Exception {
+        return calibrate(session, instrumentId, standardId, performedOn, dueOn, result, restriction, null);
+    }
+
+    private org.springframework.test.web.servlet.ResultActions calibrate(MockHttpSession session,
+            String instrumentId, String standardId, LocalDate performedOn, LocalDate dueOn, String result,
+            String restriction, String curveJson) throws Exception {
         var restrictionJson = restriction == null ? "null" : "\"" + restriction + "\"";
         return mockMvc.perform(post(INSTRUMENTS + "/" + instrumentId + "/calibrations").session(session)
                 .with(csrf()).contentType("application/json")
                 .content("""
                         {"standardId":"%s","performedOn":"%s","dueOn":"%s","performedBy":"Metrologista",
                          "certificateNumber":"CERT-%s","result":"%s","maxDeviation":0.2,
-                         "restriction":%s,"note":null}
-                        """.formatted(standardId, performedOn, dueOn, suffix(), result, restrictionJson)));
+                         "restriction":%s,"note":null,"curve":%s}
+                        """.formatted(standardId, performedOn, dueOn, suffix(), result, restrictionJson,
+                        curveJson == null ? "null" : curveJson)));
+    }
+
+    /** Curva de um instrumento que lê 0,5 acima do padrão em toda a faixa. */
+    private static final String CURVA =
+            """
+            [{"reference":0,"measured":0.5},{"reference":50,"measured":50.5},
+             {"reference":100,"measured":100.5}]
+            """;
+
+    private org.springframework.test.web.servlet.ResultActions correct(MockHttpSession session,
+            String instrumentId, String rawValue, boolean applyCurve, String sampleTempC,
+            String calibrationTempC) throws Exception {
+        return mockMvc.perform(post(CORRECTIONS).session(session).with(csrf())
+                .contentType("application/json")
+                .content("""
+                        {"instrumentId":"%s","sourceReadingId":null,"rawValue":%s,"unit":"°C",
+                         "sampleTempC":%s,"calibrationTempC":%s,"applyCurve":%s}
+                        """.formatted(instrumentId, rawValue, sampleTempC, calibrationTempC, applyCurve)));
     }
 
     private MockHttpSession login() throws Exception {

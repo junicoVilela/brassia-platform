@@ -144,10 +144,44 @@ describe('MetrologyStore', () => {
       maxDeviation: 0.2,
       restriction: null,
       note: null,
+      curve: null,
     });
 
     expect(store.standardExpired()?.code).toBe('PAD-01');
     expect(store.calibrationError()).toBeNull();
+  });
+
+  it('guarda a recusa de leitura fora da curva separada do erro genérico', () => {
+    const store = setup({
+      instruments: () => of([]),
+      standards: () => of([]),
+      correct: () =>
+        throwError(() => ({
+          status: 409,
+          error: { code: 'outside_curve_range', curve: { value: '150', min: '0.5', max: '100.5' } },
+        })),
+    });
+
+    store.correct({
+      instrumentId: 'i1',
+      sourceReadingId: null,
+      rawValue: 150,
+      unit: '°C',
+      sampleTempC: null,
+      calibrationTempC: null,
+      applyCurve: true,
+    });
+
+    expect(store.outsideCurve()?.max).toBe('100.5');
+    expect(store.correctionError()).toBeNull();
+  });
+
+  it('avisa quando o ponto da curva está em formato inválido', () => {
+    const store = setup({ instruments: () => of([]), standards: () => of([]) });
+
+    store.reportCurveFormat('0 e meio');
+
+    expect(store.calibrationError()).toContain('formato inválido');
   });
 
   it('abre e fecha o histórico do mesmo instrumento', () => {
@@ -155,6 +189,7 @@ describe('MetrologyStore', () => {
       instruments: () => of([]),
       standards: () => of([]),
       calibrations: () => of([]),
+      corrections: () => of([]),
     });
 
     store.toggleHistory(instrument());

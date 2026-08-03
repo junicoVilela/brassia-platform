@@ -43,6 +43,7 @@ reaproveitado se já estiver rodando.
 | Variável | Padrão | Para quê |
 |---|---|---|
 | `E2E_BASE_URL` | `http://localhost:4200` | Onde o frontend responde |
+| `E2E_PORT` | `4200` | Porta do `ng serve` — troque se outro projeto já ocupa a 4200 |
 | `E2E_API_URL` | `http://localhost:8080` | Alvo do proxy `/api` — útil quando a 8080 está ocupada |
 | `E2E_ADMIN_EMAIL` | `admin@brassia.local` | Admin de bootstrap do perfil `local` |
 | `E2E_ADMIN_PASSWORD` | `admin-local-123` | Idem |

@@ -74,16 +74,18 @@ de UI, nenhum TODO/segredo/código morto nos módulos novos, e decisões registr
    o catálogo não tiver o dado, um alvo alto em embalagem frágil passa.
 4. **Modelo de custo do gás (`GAS-001-A`)** e **periodicidade da requalificação (`GAS-001-B`)** —
    ambos dependem de definição de negócio e de norma, e estão fora do que a sprint 10 se propôs.
-5. **Verificação visual feita, com três achados cosméticos que não são desta sprint.** As duas
+5. **Verificação visual feita — três achados cosméticos, todos já corrigidos em #126.** As duas
    telas foram conferidas em tema claro e escuro, a 1440px e a 390px, com dados povoados. Layout,
-   paleta e estados batem com o tema em todas as combinações. O que apareceu:
-   - `btn-outline-secondary` no escuro tem contraste de **2,1:1** (texto `#475569` sobre card
-     `#1b232d`), abaixo do mínimo AA de 4,5:1. Atinge "Cancelar" e "Desbloquear" aqui, mas está
-     em 15 templates do app e não tem override em `styles.scss` — é lacuna do tema.
-   - `datetime-local` em `col-sm-2` trunca o valor no desktop (`05/08/2026, 09:(`), colidindo com
-     o ícone do seletor; no mobile aparece inteiro. Cabe subir para `col-sm-3`.
-   - `<code>` sai em `#d63384` (padrão Bootstrap) ao lado de um resultado de cálculo e parece
-     erro; também aparece em `calculators`, `service-accounts` e `federation`.
+   paleta e estados batem com o tema em todas as combinações. O que apareceu, e como ficou:
+   - `btn-outline-secondary` no escuro tinha contraste de **2,1:1** (texto `#475569` sobre card
+     `#1b232d`), abaixo do mínimo AA de 4,5:1 — "Cancelar" e "Desbloquear" pareciam desabilitadas.
+     Corrigido para `#cbd5e1` (**10,7:1**), o cinza claro que o `styles.scss` já usava em tabelas e
+     `list-group`. Sendo só CSS, alcançou os 15 templates que usam a classe sem tocar em nenhum.
+   - `datetime-local` em `col-sm-2` truncava o valor no desktop (`05/08/2026, 09:(`), colidindo com
+     o ícone do seletor. Subiu para `col-sm-3`, com Unidades `3→2` e Linha de envase `5→4` para a
+     linha continuar fechando em 12. Era a única ocorrência estreita do app.
+   - `<code>` saía em `#d63384` (padrão Bootstrap) ao lado de um resultado de cálculo e era lido
+     como erro; passou a tom neutro por tema, mantendo a monoespaçada.
 
-   Nenhum bloqueia uso e nenhum é regressão da sprint 10, então não foram corrigidos aqui —
-   o contraste do botão toca 15 telas e merece trabalho próprio.
+   Nenhum era regressão da sprint 10 — os três já existiam e alcançavam telas de outras sprints,
+   por isso a correção veio em PR próprio (#126) e não neste encerramento.

@@ -1,6 +1,6 @@
 # Status — Sprint 10
 
-Estado: CONCLUÍDA (aceite pendente do mantenedor)
+Estado: ACEITA
 
 ## Controle das histórias
 
@@ -211,7 +211,7 @@ Estado: CONCLUÍDA (aceite pendente do mantenedor)
   atendido do DoD. Os três achados cosméticos do tema encontrados na verificação visual
   (contraste do `btn-outline-secondary` no escuro, `datetime-local` truncado e `<code>` em
   vermelho) foram corrigidos em #126, fora deste encerramento por não serem regressão da sprint.
-- **Aceite:** **pendente do mantenedor** — ver `ACCEPTANCE.md`.
+- **Aceite:** **Valdemir Vilela Junior, 2026-08-03** — aceita com as ressalvas registradas em `ACCEPTANCE.md`. Os quatro itens de decisão de negócio (PKG-004-A, PKG-004-B, PKG-002-A e PKG-001-A) seguem abertos: o aceite libera a sprint, não os débitos.
 
 ## Débitos abertos ao fim da sprint
 

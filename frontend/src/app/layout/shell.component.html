@@ -169,6 +169,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('quality.plan.read')) {
+            <li class="menu-item">
+              <a routerLink="/quality/control-plans" routerLinkActive="active" class="menu-link">
+                <i class="ri-clipboard-line menu-icon"></i>
+                <span class="title">Planos de controle</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('metrology.instrument.read')) {
             <li class="menu-item">
               <a routerLink="/metrology/instruments" routerLinkActive="active" class="menu-link">

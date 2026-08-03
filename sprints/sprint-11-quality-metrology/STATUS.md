@@ -8,7 +8,7 @@ Estado: EM ANDAMENTO
 |---|---|---|---|---|
 | MTR-001 | Concluída | IA | V74 + `MetrologyIT` (18 testes) | Novo módulo `metrology`; porta publicada `InstrumentStatusLookup` |
 | MTR-002 | Concluída | IA | V75 + `MetrologyIT` (26 testes) | Temperatura pelo hub; curva no domínio |
-| QLT-001 | A fazer | — | — | — |
+| QLT-001 | Concluída | IA | V76 + `QualityIT` (16 testes) | Novo módulo `quality`; fecha MTR-001-A |
 | QLT-002 | A fazer | — | — | — |
 | SEN-001 | A fazer | — | — | — |
 | SEN-002 | A fazer | — | — | — |
@@ -80,6 +80,43 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
   `ReadingCorrectionController`.
 - **Fora de escopo:** ligar a correção às leituras de fermentação (FER-002). A correção referencia
   a leitura de origem por id opaco, sem acoplar os módulos — integrar seria antecipar escopo.
+
+### QLT-001
+
+- **O plano é versionado e publicado**, como perfil de fermentação (FER-001) e modelo de rótulo
+  (PKG-004). A medição grava contra qual versão foi julgada: apertar um limite hoje não
+  transforma em desvio uma medição que estava conforme ontem. Rascunho não julga (409
+  `plan_not_published`) — ele pode ter limite pela metade, e o veredito mudaria ao salvar a edição.
+- **Nova versão copia os pontos com identidade nova.** Reaproveitar os ids faria duas versões
+  apontarem para o mesmo ponto, e uma medição antiga passaria a referenciar o limite da versão
+  nova — o oposto do que o versionamento serve. Encontrado pela IT e coberto por teste de domínio.
+- **Limite unilateral é caso normal, não exceção.** "O₂ ≤ 50 ppb" e "atenuação ≥ 75%" são
+  especificações reais; exigir os dois lados obrigaria a inventar o que falta, e limite inventado
+  vira desvio inventado. Os limites são inclusivos: o valor no limite está conforme.
+- **Ação é obrigatória no ponto.** Ponto sem ação não é controle, é observação — registra-se que
+  algo saiu da faixa e ninguém sabe o que fazer. O desvio copia a ação na abertura, para continuar
+  dizendo o que fazer mesmo que uma versão futura mude a prescrição.
+- **A severidade é do ponto, não da medição.** Quem decide o quanto importa sair da faixa é quem
+  escreveu o plano, antes de qualquer medida existir; deixar para o momento do desvio abriria
+  espaço para minimizar o problema depois de ele acontecer.
+- **Fecha o débito MTR-001-A.** A designação de uso crítico criada em MTR-001 encontra aqui o seu
+  uso: medir num ponto crítico exige instrumento apto, verificado pela porta publicada
+  `InstrumentStatusLookup` no momento da medição — que é quando importa. Em ponto não crítico a
+  medição passa com instrumento vencido, mas grava a aptidão e sinaliza.
+- **Desvio grave avisa na central do lote** (`BatchAlertPublisher`, PRD-006), como FER-004 faz com
+  etapa atrasada, em vez de manter uma segunda central. Alerta é aviso: não muda estado do lote.
+- **QLT-001-A — a frequência é declarada, não fiscalizada.** O plano registra a cadência, mas
+  ninguém é avisado de medição atrasada: isso pede varredura agendada, o mesmo débito aberto desde
+  FER-004. Critério de remoção: existir agendador na plataforma e ligá-lo à cadência do ponto.
+- **Colisões de nome no Spring.** O scan é global por nome simples: `JdbcMeasurementRepository` e o
+  bean `recordMeasurementUseCase` já existiam em `production`. Renomeados aqui para
+  `JdbcQualityMeasurementRepository` e `recordQualityMeasurementUseCase`.
+- **Fora de escopo:** o tratamento do desvio (conter, investigar, agir, verificar eficácia) é
+  QLT-002. Aqui ele só nasce — um fluxo de CAPA pela metade seria pior que nenhum, porque daria a
+  impressão de que o desvio está sendo tratado.
+- **PKG-002-A e PKG-001-A cabem como pontos deste plano** quando os números forem definidos:
+  pressão máxima por embalagem e validade do CIP são parâmetro + faixa + ação, que é exatamente a
+  forma do ponto de controle. Nenhum dos dois foi inventado aqui.
 
 ### Antes de começar
 

@@ -1,0 +1,96 @@
+package br.com.brew.brassia.quality.config;
+
+import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.metrology.InstrumentStatusLookup;
+import br.com.brew.brassia.production.BatchAlertPublisher;
+import br.com.brew.brassia.quality.application.port.inbound.ControlPlanCommands;
+import br.com.brew.brassia.quality.application.port.inbound.MeasurementCommands;
+import br.com.brew.brassia.quality.application.port.inbound.QualityQueries;
+import br.com.brew.brassia.quality.application.port.outbound.ControlPlanRepository;
+import br.com.brew.brassia.quality.application.port.outbound.MeasurementRepository;
+import br.com.brew.brassia.quality.application.service.ControlPlanHandlers;
+import br.com.brew.brassia.quality.application.service.MeasurementHandler;
+import br.com.brew.brassia.quality.application.service.QualityQueriesHandler;
+import java.util.Objects;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/**
+ * Cada comando de qualidade roda num commit só. A medição é o caso que exige: julgar, gravar e
+ * abrir o desvio acontecem juntos — separar permitiria uma medição fora da faixa existir sem o
+ * desvio correspondente, que é o estado que a história existe para impedir.
+ *
+ * <p>{@code @Transactional} em método {@code @Bean} não tem efeito, então a transação é explícita.
+ */
+@Configuration(proxyBeanMethods = false)
+class QualityConfiguration {
+
+    @Bean
+    ControlPlanCommands.Create createControlPlanUseCase(ControlPlanRepository plans, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ControlPlanHandlers.Create(plans, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ControlPlanCommands.Amend amendControlPlanUseCase(ControlPlanRepository plans, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ControlPlanHandlers.Amend(plans, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    ControlPlanCommands.AddPoint addControlPointUseCase(ControlPlanRepository plans, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ControlPlanHandlers.AddPoint(plans, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    ControlPlanCommands.RemovePoint removeControlPointUseCase(ControlPlanRepository plans, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ControlPlanHandlers.RemovePoint(plans, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    ControlPlanCommands.Publish publishControlPlanUseCase(ControlPlanRepository plans, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ControlPlanHandlers.Publish(plans, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> transaction.executeWithoutResult(status -> handler.handle(command));
+    }
+
+    @Bean
+    ControlPlanCommands.NewVersion newControlPlanVersionUseCase(ControlPlanRepository plans, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ControlPlanHandlers.NewVersion(plans, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    /**
+     * O nome carrega {@code quality} porque nome de {@code @Bean} também é global: `production`
+     * já registra um {@code recordMeasurementUseCase} (leitura de processo), e este é a medição
+     * contra o plano de controle.
+     */
+    @Bean
+    MeasurementCommands.Record recordQualityMeasurementUseCase(ControlPlanRepository plans,
+            MeasurementRepository measurements, InstrumentStatusLookup instruments,
+            BatchAlertPublisher alerts, AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new MeasurementHandler(plans, measurements, instruments, alerts, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    @Bean
+    QualityQueries qualityQueries(ControlPlanRepository plans, MeasurementRepository measurements) {
+        return new QualityQueriesHandler(plans, measurements);
+    }
+}

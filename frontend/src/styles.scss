@@ -402,3 +402,37 @@ body {
 [data-theme='dark'] .header-right-item .light-dark .switch-toggle i {
   color: #fff;
 }
+
+/**
+ * Botão `outline-secondary` no escuro. O tema define a cor do texto como #475569,
+ * que sobre o card escuro (#1b232d) dá contraste de 2,1:1 — abaixo do mínimo AA
+ * de 4,5:1, e abaixo até dos 3:1 exigidos para componente de interface. Ações
+ * reais ("Cancelar", "Desbloquear") ficavam apagadas a ponto de parecerem
+ * desabilitadas. Subimos para #cbd5e1, o mesmo cinza claro já usado em tabelas e
+ * list-group no escuro: 10,7:1 sobre o card.
+ */
+[data-theme='dark'] .btn-outline-secondary {
+  --bs-btn-color: #cbd5e1;
+  --bs-btn-border-color: rgba(255, 255, 255, 0.25);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: rgba(255, 255, 255, 0.08);
+  --bs-btn-hover-border-color: rgba(255, 255, 255, 0.35);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: rgba(255, 255, 255, 0.12);
+  --bs-btn-active-border-color: rgba(255, 255, 255, 0.35);
+  --bs-btn-disabled-color: rgba(203, 213, 225, 0.45);
+  --bs-btn-disabled-border-color: rgba(255, 255, 255, 0.12);
+}
+
+/**
+ * `<code>` fora de bloco de código. O padrão do Bootstrap é #d63384 (rosa), e nós
+ * usamos a tag para mostrar qual fórmula gerou um número — ao lado de um resultado
+ * de cálculo o vermelho é lido como erro. Trocamos por um tom neutro em cada tema,
+ * mantendo a monoespaçada que distingue o identificador do texto ao redor.
+ */
+[data-theme='light'] code {
+  color: #475569;
+}
+[data-theme='dark'] code {
+  color: #cbd5e1;
+}

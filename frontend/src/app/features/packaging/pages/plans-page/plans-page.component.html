@@ -35,20 +35,20 @@
             <span class="form-text">Cadastre um ingrediente do tipo embalagem com volume em ml.</span>
           }
         </div>
-        <div class="col-sm-3"><label class="form-label small" for="punits">Unidades</label>
+        <div class="col-sm-2"><label class="form-label small" for="punits">Unidades</label>
           <input id="punits" type="number" min="1" class="form-control form-control-sm"
                  formControlName="plannedUnits"></div>
-        <div class="col-sm-5"><label class="form-label small" for="pline">Linha de envase</label>
+        <div class="col-sm-4"><label class="form-label small" for="pline">Linha de envase</label>
           <select id="pline" class="form-select form-select-sm" formControlName="lineEquipmentId">
             <option value="">Selecione…</option>
             @for (l of store.lines(); track l.id) {
               <option [value]="l.id">{{ l.code }} — {{ l.name }}</option>
             }
           </select></div>
-        <div class="col-sm-2"><label class="form-label small" for="pstart">Início</label>
+        <div class="col-sm-3"><label class="form-label small" for="pstart">Início</label>
           <input id="pstart" type="datetime-local" class="form-control form-control-sm"
                  formControlName="plannedStart"></div>
-        <div class="col-sm-2"><label class="form-label small" for="pend">Fim</label>
+        <div class="col-sm-3"><label class="form-label small" for="pend">Fim</label>
           <input id="pend" type="datetime-local" class="form-control form-control-sm"
                  formControlName="plannedEnd"></div>
         <div class="col-sm-3 d-grid">

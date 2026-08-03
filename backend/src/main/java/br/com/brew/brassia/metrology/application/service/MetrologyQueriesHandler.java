@@ -7,6 +7,7 @@ import br.com.brew.brassia.metrology.application.port.outbound.InstrumentReposit
 import br.com.brew.brassia.metrology.domain.Calibration;
 import br.com.brew.brassia.metrology.domain.CalibrationStandard;
 import br.com.brew.brassia.metrology.domain.Instrument;
+import br.com.brew.brassia.metrology.domain.ReadingCorrection;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
@@ -47,6 +48,11 @@ public final class MetrologyQueriesHandler implements MetrologyQueries, Instrume
     @Override
     public List<CalibrationStandard> standards(UUID breweryId) {
         return standards.findAll(breweryId);
+    }
+
+    @Override
+    public List<ReadingCorrection> corrections(UUID breweryId, UUID instrumentId) {
+        return instruments.findCorrections(breweryId, instrumentId);
     }
 
     @Override

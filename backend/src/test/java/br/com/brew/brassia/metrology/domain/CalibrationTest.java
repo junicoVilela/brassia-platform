@@ -23,7 +23,7 @@ class CalibrationTest {
     private static Calibration calibracao(CalibrationStandard padrao, CalibrationResult resultado,
             String restricao) {
         return Calibration.record(BREWERY, INSTRUMENT, padrao, EXECUCAO, VENCIMENTO, "Metrologista",
-                "CERT-2026-1", resultado, new BigDecimal("0.2"), restricao, null);
+                "CERT-2026-1", resultado, new BigDecimal("0.2"), restricao, null, null);
     }
 
     @Test
@@ -58,7 +58,7 @@ class CalibrationTest {
     void exigeVencimentoPosteriorAExecucao() {
         var padrao = padrao("2027-01-01");
         assertThatThrownBy(() -> Calibration.record(BREWERY, INSTRUMENT, padrao, EXECUCAO, EXECUCAO,
-                "Metrologista", "CERT-1", CalibrationResult.APPROVED, BigDecimal.ZERO, null, null))
+                "Metrologista", "CERT-1", CalibrationResult.APPROVED, BigDecimal.ZERO, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("posterior à execução");
     }
@@ -82,7 +82,7 @@ class CalibrationTest {
     void recusaDesvioNegativo() {
         var padrao = padrao("2027-01-01");
         assertThatThrownBy(() -> Calibration.record(BREWERY, INSTRUMENT, padrao, EXECUCAO, VENCIMENTO,
-                "Metrologista", "CERT-1", CalibrationResult.APPROVED, new BigDecimal("-0.1"), null, null))
+                "Metrologista", "CERT-1", CalibrationResult.APPROVED, new BigDecimal("-0.1"), null, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Jornadas críticas de ponta a ponta (frontend + API real).",
   "scripts": {
-    "serve:app": "cd ../frontend && npx ng serve --port 4200 --proxy-config ../e2e/proxy.e2e.mjs",
+    "serve:app": "cd ../frontend && npx ng serve --port ${E2E_PORT:-4200} --proxy-config ../e2e/proxy.e2e.mjs",
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "report": "playwright show-report"

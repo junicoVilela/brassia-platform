@@ -3,8 +3,10 @@ package br.com.brew.brassia.metrology.adapter.inbound.web.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 /** Payloads de entrada da metrologia (MTR-001). */
@@ -32,7 +34,18 @@ public final class MetrologyDtos {
             @NotNull LocalDate dueOn, @NotBlank @Size(max = 120) String performedBy,
             @NotBlank @Size(max = 60) String certificateNumber, @NotBlank String result,
             @NotNull BigDecimal maxDeviation, @Size(max = 200) String restriction,
-            @Size(max = 500) String note) {}
+            @Size(max = 500) String note, @Valid List<CurvePointInput> curve) {}
+
+    /** Ponto conferido pelo certificado: valor verdadeiro × valor indicado pelo instrumento. */
+    public record CurvePointInput(@NotNull BigDecimal reference, @NotNull BigDecimal measured) {}
+
+    /**
+     * Correção de leitura (MTR-002). O bruto é preservado; temperatura e curva são passos
+     * independentes e ao menos um precisa se aplicar.
+     */
+    public record CorrectReading(@NotNull UUID instrumentId, UUID sourceReadingId,
+            @NotNull BigDecimal rawValue, @NotBlank @Size(max = 20) String unit, BigDecimal sampleTempC,
+            BigDecimal calibrationTempC, boolean applyCurve) {}
 
     public record RegisterStandard(@NotBlank @Size(max = 40) String code,
             @NotBlank @Size(max = 200) String description, @NotBlank @Size(max = 60) String certificateNumber,

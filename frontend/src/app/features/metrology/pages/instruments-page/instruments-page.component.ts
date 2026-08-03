@@ -9,6 +9,7 @@ import { MetrologyStore } from '../../data-access/metrology.store';
 import {
   CALIBRATION_RESULT_LABELS,
   CalibrationResultCode,
+  CurvePoint,
   FITNESS_LABELS,
   INSTRUMENT_TYPE_LABELS,
   Instrument,
@@ -74,6 +75,18 @@ export class InstrumentsPageComponent implements OnInit {
     maxDeviation: [0, Validators.required],
     restriction: [''],
     note: [''],
+    // Pontos do certificado, um por linha, no formato "verdadeiro;indicado". Texto livre porque
+    // é o que o certificado traz — a validação de monotonia e de faixa é do domínio, no backend.
+    curve: [''],
+  });
+
+  /** Correção de leitura (MTR-002): o bruto informado nunca é alterado. */
+  protected readonly correctionForm = this.fb.nonNullable.group({
+    rawValue: [0, Validators.required],
+    unit: ['°C', Validators.required],
+    sampleTempC: [null as number | null],
+    calibrationTempC: [null as number | null],
+    applyCurve: [true],
   });
 
   ngOnInit(): void {
@@ -99,15 +112,50 @@ export class InstrumentsPageComponent implements OnInit {
       return;
     }
     const value = this.calibrationForm.getRawValue();
+    const curve = this.parseCurve(value.curve);
+    if (curve === null) {
+      return;
+    }
     this.store.calibrate(
       instrument.id,
       {
         ...value,
         restriction: value.result === 'APPROVED_WITH_RESTRICTION' ? value.restriction || null : null,
         note: value.note || null,
+        curve: curve.length > 0 ? curve : null,
       },
       () => this.calibrationForm.reset({ result: 'APPROVED', maxDeviation: 0 }),
     );
+  }
+
+  /**
+   * Lê os pontos do certificado. Devolve `null` quando o texto está malformado — aí o formulário
+   * não envia nada, em vez de mandar uma curva pela metade ao backend.
+   */
+  private parseCurve(raw: string): CurvePoint[] | null {
+    const linhas = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const pontos: CurvePoint[] = [];
+    for (const linha of linhas) {
+      const [ref, med] = linha.split(';').map(v => Number(v.trim()));
+      if (Number.isNaN(ref) || Number.isNaN(med)) {
+        this.store.reportCurveFormat(linha);
+        return null;
+      }
+      pontos.push({ reference: ref, measured: med });
+    }
+    return pontos;
+  }
+
+  protected correct(instrument: Instrument): void {
+    if (this.correctionForm.invalid) {
+      return;
+    }
+    const value = this.correctionForm.getRawValue();
+    this.store.correct({
+      instrumentId: instrument.id,
+      sourceReadingId: null,
+      ...value,
+    });
   }
 
   protected block(instrument: Instrument): void {

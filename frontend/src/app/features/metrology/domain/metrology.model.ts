@@ -43,6 +43,12 @@ export const CALIBRATION_RESULT_LABELS: Record<CalibrationResultCode, string> = 
   REJECTED: 'Reprovado',
 };
 
+/** Ponto conferido pelo certificado: valor verdadeiro × valor indicado pelo instrumento. */
+export interface CurvePoint {
+  reference: number;
+  measured: number;
+}
+
 export interface Calibration {
   id: string;
   standardId: string;
@@ -56,6 +62,52 @@ export interface Calibration {
   maxDeviation: number;
   restriction: string | null;
   note: string | null;
+  curve: CurvePoint[];
+}
+
+/** Passo aplicado na correção, com a fórmula e a versão que o produziram (MTR-002). */
+export interface CorrectionStep {
+  name: string;
+  method: string;
+  version: string;
+}
+
+/**
+ * Correção de leitura. O bruto viaja junto do corrigido, nunca no lugar dele — é o que permite
+ * auditar depois como o número foi obtido.
+ */
+export interface ReadingCorrection {
+  id: string;
+  instrumentId: string;
+  sourceReadingId: string | null;
+  rawValue: number;
+  correctedValue: number;
+  delta: number;
+  unit: string;
+  sampleTempC: number | null;
+  calibrationTempC: number | null;
+  steps: CorrectionStep[];
+  instrumentFitness: Fitness;
+  trustworthy: boolean;
+  caveats: string[];
+  appliedAt: string;
+}
+
+export interface CorrectReadingRequest {
+  instrumentId: string;
+  sourceReadingId: string | null;
+  rawValue: number;
+  unit: string;
+  sampleTempC: number | null;
+  calibrationTempC: number | null;
+  applyCurve: boolean;
+}
+
+/** Corpo do Problem Details quando a leitura cai fora da faixa conferida pelo certificado. */
+export interface OutsideCurveRange {
+  value: string;
+  min: string;
+  max: string;
 }
 
 export interface Instrument {
@@ -112,6 +164,7 @@ export interface RecordCalibrationRequest {
   maxDeviation: number;
   restriction: string | null;
   note: string | null;
+  curve: CurvePoint[] | null;
 }
 
 export interface RegisterStandardRequest {

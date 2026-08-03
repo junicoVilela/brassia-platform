@@ -2792,8 +2792,97 @@ paths:
               schema: {$ref: '#/components/schemas/CalibrationStandard'}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /metrology/corrections:
+    get:
+      tags: [Metrologia]
+      summary: Correções aplicadas a um instrumento (MTR-002)
+      parameters:
+        - {name: instrumentId, in: query, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Correções, da mais recente para a mais antiga
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ReadingCorrection'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Metrologia]
+      summary: Corrige uma leitura sem alterar o valor bruto
+      description: >-
+        Dois passos independentes: temperatura, pelo hub `calculator`, e a curva do certificado.
+        Ao menos um precisa se aplicar. Não há endpoint de alteração — corrigir de novo cria outro
+        registro, porque o bruto e o histórico de como o número foi obtido são imutáveis.
+        Leitura fora da faixa conferida pelo certificado é recusada com 409 `outside_curve_range`
+        em vez de extrapolada. Instrumento fora de aptidão não impede a correção: entra como
+        ressalva e derruba `trustworthy`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CorrectReading'}
+      responses:
+        '201':
+          description: Correção registrada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReadingCorrection'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    CurvePoint:
+      type: object
+      required: [reference, measured]
+      properties:
+        reference: {type: number, description: Valor verdadeiro conferido contra o padrão}
+        measured: {type: number, description: Valor que o instrumento indicou}
+    CorrectionStep:
+      type: object
+      required: [name, method, version]
+      properties:
+        name: {type: string, enum: [temperature, curve]}
+        method: {type: string, description: A fórmula aplicada}
+        version: {type: string, description: Versão do cálculo; para a curva, o certificado de origem}
+    CorrectReading:
+      type: object
+      required: [instrumentId, rawValue, unit]
+      properties:
+        instrumentId: {type: string, format: uuid}
+        sourceReadingId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Leitura de origem em outro módulo, como referência opaca
+        rawValue: {type: number}
+        unit: {type: string, maxLength: 20}
+        sampleTempC: {type: number, nullable: true}
+        calibrationTempC: {type: number, nullable: true}
+        applyCurve: {type: boolean, default: false}
+    ReadingCorrection:
+      type: object
+      required: [id, instrumentId, rawValue, correctedValue, delta, unit, steps, instrumentFitness,
+                 trustworthy, caveats, appliedAt]
+      properties:
+        id: {type: string, format: uuid}
+        instrumentId: {type: string, format: uuid}
+        sourceReadingId: {type: string, format: uuid, nullable: true}
+        rawValue: {type: number, description: Imutável — a correção nasce ao lado da medição}
+        correctedValue: {type: number}
+        delta: {type: number, description: Corrigido menos bruto}
+        unit: {type: string}
+        sampleTempC: {type: number, nullable: true}
+        calibrationTempC: {type: number, nullable: true}
+        steps:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/CorrectionStep'}
+        instrumentFitness: {$ref: '#/components/schemas/Fitness'}
+        trustworthy:
+          type: boolean
+          description: Falso quando o instrumento não estava apto ou o certificado tem restrição
+        caveats: {type: array, items: {type: string}}
+        appliedAt: {type: string, format: date-time}
     RegisterInstrument:
       type: object
       required: [code, name, type, rangeMin, rangeMax, resolution, accuracy, unit, location]
@@ -2871,6 +2960,13 @@ components:
           nullable: true
           description: Obrigatória quando o resultado é APPROVED_WITH_RESTRICTION, proibida no resto
         note: {type: string, maxLength: 500, nullable: true}
+        curve:
+          type: array
+          nullable: true
+          description: >-
+            Pontos conferidos pelo certificado. Sem eles o certificado diz a incerteza mas não
+            permite corrigir leitura. Certificado reprovado não aceita curva.
+          items: {$ref: '#/components/schemas/CurvePoint'}
     CalibrationResult:
       type: string
       enum: [APPROVED, APPROVED_WITH_RESTRICTION, REJECTED]
@@ -2891,6 +2987,7 @@ components:
         maxDeviation: {type: number}
         restriction: {type: string, nullable: true}
         note: {type: string, nullable: true}
+        curve: {type: array, items: {$ref: '#/components/schemas/CurvePoint'}}
     RegisterStandard:
       type: object
       required: [code, description, certificateNumber, issuer, traceability, validUntil]

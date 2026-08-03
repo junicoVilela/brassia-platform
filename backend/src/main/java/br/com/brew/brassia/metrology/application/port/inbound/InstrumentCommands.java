@@ -2,6 +2,7 @@ package br.com.brew.brassia.metrology.application.port.inbound;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 /** Comandos do instrumento (MTR-001). */
@@ -54,6 +55,21 @@ public final class InstrumentCommands {
 
         record Command(UUID actorId, UUID breweryId, UUID instrumentId, UUID standardId, LocalDate performedOn,
                 LocalDate dueOn, String performedBy, String certificateNumber, String result,
-                BigDecimal maxDeviation, String restriction, String note) {}
+                BigDecimal maxDeviation, String restriction, String note, List<Point> curve) {}
+
+        /** Ponto do certificado: valor verdadeiro × valor indicado pelo instrumento. */
+        record Point(BigDecimal reference, BigDecimal measured) {}
+    }
+
+    /**
+     * Corrige uma leitura (MTR-002) sem tocar no valor bruto. Temperatura e curva são passos
+     * independentes: pelo menos um precisa se aplicar, senão não há correção.
+     */
+    public interface CorrectReading {
+        UUID handle(Command command);
+
+        record Command(UUID actorId, UUID breweryId, UUID instrumentId, UUID sourceReadingId,
+                BigDecimal rawValue, String unit, BigDecimal sampleTempC, BigDecimal calibrationTempC,
+                boolean applyCurve) {}
     }
 }

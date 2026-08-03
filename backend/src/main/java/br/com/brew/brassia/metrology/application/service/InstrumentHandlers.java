@@ -6,11 +6,13 @@ import br.com.brew.brassia.metrology.application.port.inbound.InstrumentCommands
 import br.com.brew.brassia.metrology.application.port.outbound.CalibrationStandardRepository;
 import br.com.brew.brassia.metrology.application.port.outbound.InstrumentRepository;
 import br.com.brew.brassia.metrology.domain.CalibrationResult;
+import br.com.brew.brassia.metrology.domain.CurvePoint;
 import br.com.brew.brassia.metrology.domain.Instrument;
 import br.com.brew.brassia.metrology.domain.InstrumentType;
 import br.com.brew.brassia.metrology.domain.MeasurementRange;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -187,7 +189,11 @@ public final class InstrumentHandlers {
             var calibration = instrument.calibrate(standard, command.performedOn(), command.dueOn(),
                     command.performedBy(), command.certificateNumber(),
                     CalibrationResult.valueOf(command.result()), command.maxDeviation(), command.restriction(),
-                    command.note());
+                    command.note(),
+                    command.curve() == null ? List.of()
+                            : command.curve().stream()
+                                    .map(p -> new CurvePoint(p.reference(), p.measured()))
+                                    .toList());
 
             // O certificado é histórico e só entra; o instrumento é atualizado porque a última
             // calibração passou a ser esta — inclusive quando ela reprova.

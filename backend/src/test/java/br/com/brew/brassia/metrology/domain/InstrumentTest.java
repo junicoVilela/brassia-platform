@@ -33,7 +33,7 @@ class InstrumentTest {
         var i = instrumento();
         i.calibrate(padrao(), HOJE.minusDays(1), vencimento, "Metrologista", "CERT-2026-1", resultado,
                 new BigDecimal("0.2"), resultado == CalibrationResult.APPROVED_WITH_RESTRICTION
-                        ? "faixa útil de 0 a 60 °C" : null, null);
+                        ? "faixa útil de 0 a 60 °C" : null, null, null);
         return i;
     }
 
@@ -77,7 +77,7 @@ class InstrumentTest {
         assertThat(i.fitness(HOJE)).isEqualTo(Fitness.FIT);
 
         i.calibrate(padrao(), HOJE, VENCIMENTO, "Metrologista", "CERT-2026-2", CalibrationResult.REJECTED,
-                new BigDecimal("3.0"), null, "fora da tolerância em três pontos");
+                new BigDecimal("3.0"), null, "fora da tolerância em três pontos", null);
 
         assertThat(i.fitness(HOJE)).isEqualTo(Fitness.REJECTED);
     }
@@ -173,7 +173,7 @@ class InstrumentTest {
         assertThatThrownBy(() -> i.block("x")).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> i.designateForCriticalUse(true, HOJE)).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> i.calibrate(padrao(), HOJE, VENCIMENTO, "M", "C", CalibrationResult.APPROVED,
-                BigDecimal.ZERO, null, null)).isInstanceOf(IllegalStateException.class);
+                BigDecimal.ZERO, null, null, null)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -200,7 +200,7 @@ class InstrumentTest {
                 "CERT-1", "Lab", "RBC", LocalDate.parse("2028-01-01"));
 
         assertThatThrownBy(() -> i.calibrate(alheio, HOJE, VENCIMENTO, "M", "C", CalibrationResult.APPROVED,
-                BigDecimal.ZERO, null, null))
+                BigDecimal.ZERO, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("outra cervejaria");
     }

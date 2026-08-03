@@ -208,10 +208,9 @@ Estado: CONCLUÍDA (aceite pendente do mantenedor)
   alergênico exigido barra a impressão, e o ABV sai marcado como calculado; (2) sem limite de
   pressão por embalagem, um alvo alto em embalagem frágil passa (`PKG-002-A`); (3) a liberação de
   limpeza não expira por tempo (`PKG-001-A`); (4) sem harness de e2e no projeto, único item não
-  atendido do DoD; (5) três achados cosméticos do tema, encontrados na verificação visual e não
-  introduzidos por esta sprint — contraste 2,1:1 do `btn-outline-secondary` no escuro (15
-  templates), `datetime-local` truncado em `col-sm-2` no desktop e `<code>` em vermelho ao lado de
-  resultado de cálculo.
+  atendido do DoD. Os três achados cosméticos do tema encontrados na verificação visual
+  (contraste do `btn-outline-secondary` no escuro, `datetime-local` truncado e `<code>` em
+  vermelho) foram corrigidos em #126, fora deste encerramento por não serem regressão da sprint.
 - **Aceite:** **pendente do mantenedor** — ver `ACCEPTANCE.md`.
 
 ## Débitos abertos ao fim da sprint

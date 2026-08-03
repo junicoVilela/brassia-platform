@@ -1,5 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
+import { map } from 'rxjs';
 import {
   Carbonation,
   CarbonationInput,
@@ -41,6 +42,18 @@ export interface EquipmentOption {
   name: string;
 }
 
+/**
+ * Envelope de paginação do backend. Endpoints de listagem devolvem
+ * `{content, page, size, ...}` — não um array cru.
+ */
+interface PageResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PackagingApi {
   private readonly http = inject(HttpClient);
@@ -79,11 +92,15 @@ export class PackagingApi {
   }
 
   ingredients() {
-    return this.http.get<IngredientOption[]>('/api/v1/catalog/ingredients');
+    return this.http.get<PageResponse<IngredientOption>>('/api/v1/catalog/ingredients', {
+      params: { size: '200' },
+    }).pipe(map(p => p.content));
   }
 
   equipment() {
-    return this.http.get<EquipmentOption[]>('/api/v1/equipment');
+    return this.http.get<PageResponse<EquipmentOption>>('/api/v1/equipment', {
+      params: { size: '200' },
+    }).pipe(map(p => p.content));
   }
 
   /** Registra DO/TPO, purga e vedação, e devolve a validade recomendada (FSL-001). */

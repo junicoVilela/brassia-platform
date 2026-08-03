@@ -1,5 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
+import { map } from 'rxjs';
 import {
   ApplyRevisionRequest,
   BalanceInput,
@@ -20,6 +21,18 @@ export interface EquipmentOption {
   id: string;
   code: string;
   name: string;
+}
+
+/**
+ * Envelope de paginação do backend. Endpoints de listagem devolvem
+ * `{content, page, size, ...}` — não um array cru.
+ */
+interface PageResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -91,7 +104,9 @@ export class GasApi {
   }
 
   equipment() {
-    return this.http.get<EquipmentOption[]>('/api/v1/equipment');
+    return this.http.get<PageResponse<EquipmentOption>>('/api/v1/equipment', {
+      params: { size: '200' },
+    }).pipe(map(p => p.content));
   }
 
   // --- linha de serviço (GAS-002) ---

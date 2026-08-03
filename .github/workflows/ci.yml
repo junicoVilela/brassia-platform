@@ -71,6 +71,67 @@ jobs:
           done
           echo "Contratos válidos."
 
+  e2e:
+    name: E2E (Playwright, stack real)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: brassia
+          POSTGRES_USER: brassia_app
+          POSTGRES_PASSWORD: brassia85!@#
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U brassia_app -d brassia"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # O perfil `local` cria o admin e a cervejaria de bootstrap, que é o que
+      # dá ao E2E um usuário logável sem seed próprio.
+      - name: Empacotar e subir a API
+        run: |
+          cd backend
+          ./mvnw -B --no-transfer-progress -DskipTests package
+          nohup java -jar target/*.jar --spring.profiles.active=local > /tmp/api.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/actuator/health > /dev/null; then
+              echo "API no ar"; exit 0
+            fi
+            sleep 3
+          done
+          echo "API não subiu"; tail -50 /tmp/api.log; exit 1
+
+      - name: Instalar dependências
+        run: |
+          cd frontend && npm ci
+          cd ../e2e && npm ci && npx playwright install --with-deps chromium
+
+      - name: Rodar E2E
+        run: cd e2e && npm test
+
+      - name: Log da API quando falha
+        if: failure()
+        run: tail -100 /tmp/api.log
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+
   secrets:
     name: Verificação de segredos
     runs-on: ubuntu-latest

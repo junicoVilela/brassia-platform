@@ -1,6 +1,6 @@
 # Status — Sprint 09
 
-Estado: CONCLUÍDA (aceite pendente do mantenedor)
+Estado: ACEITA
 
 ## Controle das histórias
 
@@ -61,7 +61,7 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - Migration aplicada: V61→V66, sequência contínua, aplicada em banco limpo a cada IT.
 - Contratos atualizados: `contracts/openapi.yaml` (endpoints e schemas das seis histórias).
 - Riscos remanescentes: (1) decisões da FER-002 ainda pendentes de confirmação; (2) varredura de atrasos da FER-004 sem agendador, disparada por endpoint; (3) sem harness de e2e no projeto, único item não atendido do DoD; (4) ids digitados à mão em três telas (responsável, cepa).
-- Aceite: **pendente do mantenedor** — ver `ACCEPTANCE.md`.
+- Aceite: **Valdemir Vilela Junior, 2026-08-03** — aceita com as ressalvas registradas em `ACCEPTANCE.md`, que seguem abertas e não foram resolvidas pelo aceite.
 
 ## Débitos abertos ao fim da sprint
 

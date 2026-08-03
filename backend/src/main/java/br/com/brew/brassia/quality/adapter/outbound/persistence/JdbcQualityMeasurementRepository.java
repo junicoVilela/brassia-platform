@@ -10,6 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -22,6 +23,12 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 class JdbcQualityMeasurementRepository implements MeasurementRepository {
+
+    private static final String DEVIATION_COLUMNS = """
+            SELECT id, brewery_id, measurement_id, plan_id, point_id, parameter, severity, bound,
+                   limit_value, measured_value, unit, action, status, opened_at, opened_by
+            FROM quality_deviation
+            """;
 
     private final JdbcClient jdbc;
 
@@ -93,6 +100,22 @@ class JdbcQualityMeasurementRepository implements MeasurementRepository {
                 .param("brewery", breweryId)
                 .query((rs, n) -> mapDeviation(rs))
                 .list();
+    }
+
+    @Override
+    public Optional<Deviation> findDeviation(UUID breweryId, UUID deviationId) {
+        return jdbc.sql(DEVIATION_COLUMNS + " WHERE brewery_id = :brewery AND id = :id")
+                .param("brewery", breweryId).param("id", deviationId)
+                .query((rs, n) -> mapDeviation(rs))
+                .optional();
+    }
+
+    /** Só o status muda: o desvio registra o que foi medido, e isso não se reescreve. */
+    @Override
+    public void updateDeviation(Deviation d) {
+        jdbc.sql("UPDATE quality_deviation SET status = :status WHERE id = :id AND brewery_id = :brewery")
+                .param("status", d.status().name()).param("id", d.id()).param("brewery", d.breweryId())
+                .update();
     }
 
     private Measurement mapMeasurement(ResultSet rs) throws SQLException {

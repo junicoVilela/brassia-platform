@@ -65,6 +65,9 @@ test.describe('jornada crítica', () => {
     await expect(page.getByRole('heading', { name: 'Planos de controle' })).toBeVisible();
     await expect(page.getByText('Nenhum plano de controle.')).toBeVisible();
     await expect(page.getByLabel('Etapa')).toBeVisible();
+    // A seção de não conformidades (QLT-002) vive na mesma tela e carrega da API.
+    await expect(page.getByRole('heading', { name: 'Não conformidades' })).toBeVisible();
+    await expect(page.getByText('Nenhuma não conformidade.')).toBeVisible();
   });
 
   test('receitas carrega e a sessão sobrevive a recarregar a página', async ({ page }) => {

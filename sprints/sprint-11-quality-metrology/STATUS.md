@@ -9,7 +9,7 @@ Estado: EM ANDAMENTO
 | MTR-001 | Concluída | IA | V74 + `MetrologyIT` (18 testes) | Novo módulo `metrology`; porta publicada `InstrumentStatusLookup` |
 | MTR-002 | Concluída | IA | V75 + `MetrologyIT` (26 testes) | Temperatura pelo hub; curva no domínio |
 | QLT-001 | Concluída | IA | V76 + `QualityIT` (16 testes) | Novo módulo `quality`; fecha MTR-001-A |
-| QLT-002 | A fazer | — | — | — |
+| QLT-002 | Concluída | IA | V77 + `QualityIT` (25 testes) | Encerrar exige verificação eficaz |
 | SEN-001 | A fazer | — | — | — |
 | SEN-002 | A fazer | — | — | — |
 
@@ -117,6 +117,62 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **PKG-002-A e PKG-001-A cabem como pontos deste plano** quando os números forem definidos:
   pressão máxima por embalagem e validade do CIP são parâmetro + faixa + ação, que é exatamente a
   forma do ponto de controle. Nenhum dos dois foi inventado aqui.
+
+### QLT-002
+
+- **A não conformidade é agregado próprio, não um estado a mais no desvio.** Desvio é medição fora
+  da faixa; NC também nasce de reclamação de cliente, auditoria e fornecedor. Origem `DEVIATION`
+  exige apontar um desvio existente, senão o encerramento não teria o que fechar.
+- **As fases têm ordem e o domínio a impõe:** não se investiga o que não se conteve, não se age sem
+  causa raiz, não se verifica sem ação concluída. Pular etapa é o jeito mais comum de um CAPA virar
+  teatro — fica o registro de que algo foi tratado sem que nada tenha sido.
+- **Verificação ineficaz devolve à fase de ação; não encerra.** Fechar com verificação negativa
+  produziria um registro dizendo que o problema foi resolvido quando ele não foi — pior que não
+  verificar, porque a próxima auditoria encontraria a prova documental de uma solução inexistente.
+  A negativa fica no histórico como evidência de que a primeira tentativa não resolveu.
+- **Encerrar a NC encerra o desvio de origem**, no mesmo commit. É o ciclo aberto em QLT-001 se
+  fechando: a medição abriu o desvio, e ele só se encerra quando o tratamento provou eficácia. Um
+  fechado sem o outro mentiria em uma das duas telas.
+- **Corretiva e preventiva são separadas de propósito.** Descartar o lote afetado é corretivo e não
+  impede o problema de voltar; um CAPA só com ação corretiva é um CAPA que vai se repetir.
+- **O método da investigação é obrigatório junto da causa.** "Contaminação" sem dizer como isso foi
+  determinado é palpite com aparência de conclusão — e é sobre essa conclusão que a ação preventiva
+  será desenhada.
+- **Prazo vencido é derivado na consulta**, nunca coluna: coluna de "atrasado" envelheceria sozinha
+  e exigiria a varredura agendada que a plataforma não tem. Assim esta história não esbarra no
+  débito QLT-001-A.
+- **Encerrar é alçada própria** (`quality.nc.close`, marcada como crítica): é o ato que declara o
+  problema resolvido.
+- **QLT-002-A — os prazos são informados, não derivados da severidade.** O tempo aceitável para
+  conter depende do porte da operação e do tipo de problema; derivá-lo de regra fixa criaria número
+  sem fonte. Critério de remoção: a tela de parametrização por cervejaria (ver PRM-001 abaixo).
+
+### PRM-001 — parametrização por cervejaria (proposta)
+
+Levantada pelo mantenedor durante a QLT-002: **tudo que hoje é "valor que depende de cada
+cervejaria" deveria virar uma tela de parametrização**, para cada casa ajustar conforme a sua
+política — em vez de continuar como débito espalhado.
+
+A plataforma já tem o padrão pronto: `brewery.OperationalPreferences` é mutável com trava otimista
+e **gera revisão imutável a cada alteração**, para que consumidores futuros não reinterpretem o
+passado. Também já existem políticas por cervejaria em `YeastPolicy` (YST-002),
+`ShelfLifePolicy` (FSL-001) e a regra de rótulo (PKG-004) — o que confirma o padrão e mostra que
+ele está espalhado por módulos.
+
+Débitos que a história resolveria de uma vez:
+
+| Débito | Parâmetro |
+|---|---|
+| `PKG-001-A` | Prazo de validade da liberação de CIP (horas) |
+| `PKG-002-A` | Pressão máxima por tipo de embalagem |
+| `GAS-001-B` | Periodicidade de requalificação de cilindro |
+| `MTR-001` | Periodicidade de calibração por tipo de instrumento |
+| `QLT-002-A` | Prazos de contenção, investigação e verificação por severidade |
+
+**Ponto a decidir antes de implementar:** se os parâmetros ficam centralizados em
+`OperationalPreferences` ou se cada módulo mantém a sua política e a tela apenas as reúne. A
+segunda opção preserva as fronteiras de módulo que o Modulith verifica; a primeira dá uma tela
+mais simples. Sprint de destino ainda não definida.
 
 ### Antes de começar
 

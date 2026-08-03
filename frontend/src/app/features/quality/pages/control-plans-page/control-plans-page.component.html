@@ -264,3 +264,241 @@
     }
   </div>
 </div>
+
+<div class="card border-0 rounded-10 mt-4">
+  <div class="card-body p-4">
+    <div class="d-flex justify-content-between align-items-center gap-3 mb-1">
+      <h2 class="h6 fw-semibold mb-0">Não conformidades</h2>
+      @if (store.overdueNcs().length > 0) {
+        <span class="badge text-bg-danger">{{ store.overdueNcs().length }} com prazo vencido</span>
+      }
+    </div>
+    <p class="text-muted small mb-3">
+      Conter, investigar, agir e verificar eficácia — nesta ordem. Encerrar exige verificação com
+      resultado positivo: verificação negativa devolve à fase de ação em vez de fechar.
+    </p>
+
+    @if (canManageNc) {
+      <form [formGroup]="ncForm" (ngSubmit)="openNc()" class="row g-2 align-items-end mb-3">
+        <div class="col-sm-2"><label class="form-label small" for="nccode">Código</label>
+          <input id="nccode" type="text" class="form-control form-control-sm" formControlName="code"
+                 placeholder="NC-001"></div>
+        <div class="col-sm-4"><label class="form-label small" for="nctitle">Título</label>
+          <input id="nctitle" type="text" class="form-control form-control-sm" formControlName="title"></div>
+        <div class="col-sm-3"><label class="form-label small" for="ncsource">Origem</label>
+          <select id="ncsource" class="form-select form-select-sm" formControlName="source">
+            @for (o of sourceOptions; track o) {
+              <option [value]="o">{{ sourceLabels[o] }}</option>
+            }
+          </select></div>
+        <div class="col-sm-3"><label class="form-label small" for="ncsev">Severidade</label>
+          <select id="ncsev" class="form-select form-select-sm" formControlName="severity">
+            @for (sv of severityOptions; track sv) {
+              <option [value]="sv">{{ severityLabels[sv] }}</option>
+            }
+          </select></div>
+        <div class="col-sm-6"><label class="form-label small" for="ncdesc">Descrição</label>
+          <input id="ncdesc" type="text" class="form-control form-control-sm"
+                 formControlName="description"></div>
+        <div class="col-sm-2"><label class="form-label small" for="ncdue1">Conter até</label>
+          <input id="ncdue1" type="date" class="form-control form-control-sm"
+                 formControlName="containmentDueOn"></div>
+        <div class="col-sm-2"><label class="form-label small" for="ncdue2">Investigar até</label>
+          <input id="ncdue2" type="date" class="form-control form-control-sm"
+                 formControlName="investigationDueOn"></div>
+        <div class="col-sm-2"><label class="form-label small" for="ncdue3">Verificar até</label>
+          <input id="ncdue3" type="date" class="form-control form-control-sm"
+                 formControlName="verificationDueOn"></div>
+        <div class="col-sm-3 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm" [disabled]="ncForm.invalid || store.submitting()">
+            <i class="ri-alarm-warning-line me-1" aria-hidden="true"></i> Abrir não conformidade
+          </button>
+        </div>
+      </form>
+      @if (store.phaseRefusal(); as recusa) {
+        <div class="alert alert-warning" role="alert">
+          A não conformidade {{ recusa.code }} está em <strong>{{ recusa.status }}</strong> e não aceita
+          {{ recusa.attempted }} agora. As fases têm ordem: conter, investigar, agir e verificar.
+        </div>
+      }
+      @if (store.ncError(); as ncError) {
+        <div class="alert alert-danger" role="alert">{{ ncError }}</div>
+      }
+    }
+
+    @if (store.nonConformities().length === 0) {
+      <app-empty-state icon="ri-alarm-warning-line" message="Nenhuma não conformidade."
+                       hint="Abra uma a partir de um desvio, reclamação ou auditoria." />
+    } @else {
+      <ul class="list-unstyled mb-0">
+        @for (nc of store.nonConformities(); track nc.id) {
+          <li class="border rounded-10 p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+              <div>
+                <span class="badge me-2" [class]="severityClass(nc.severity)">{{ nc.severityLabel }}</span>
+                <span class="badge text-bg-secondary me-2">{{ nc.statusLabel }}</span>
+                @if (nc.overdue) {
+                  <span class="badge text-bg-danger me-2">prazo vencido</span>
+                }
+                <span class="fw-medium">{{ nc.code }}</span>
+                <span class="text-muted small">
+                  · {{ nc.title }} · {{ nc.sourceLabel }} · aberta em {{ nc.openedAt | date:'short' }}
+                </span>
+                @if (nc.overduePhases.length > 0) {
+                  <p class="small text-danger mb-0 mt-1">
+                    Vencido: @for (f of nc.overduePhases; track f) { {{ f }} }
+                  </p>
+                }
+              </div>
+              @if (canCloseNc && nc.closable) {
+                <button type="button" class="btn btn-sm btn-outline-success text-nowrap"
+                        (click)="store.close(nc.id)">
+                  Encerrar
+                </button>
+              }
+            </div>
+
+            <div class="d-flex gap-3 mt-2">
+              <button type="button" class="btn btn-link btn-sm p-0" (click)="store.toggleNc(nc)">
+                {{ store.openNcOf() === nc.id ? 'Fechar tratamento' : 'Tratamento' }}
+              </button>
+            </div>
+
+            @if (store.openNcOf() === nc.id) {
+              <div class="border-top mt-3 pt-3">
+                <!-- 1. contenção -->
+                <p class="small fw-medium mb-1">1. Contenção — o que se fez de imediato</p>
+                @if (nc.containment; as c) {
+                  <p class="small text-muted mb-3">{{ c.description }} · {{ c.takenAt | date:'short' }}</p>
+                } @else if (canManageNc && nc.status === 'OPEN') {
+                  <form [formGroup]="containForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-sm-9"><input type="text" class="form-control form-control-sm"
+                             formControlName="description" placeholder="Lote segregado no FV-03"></div>
+                    <div class="col-sm-3 d-grid">
+                      <button type="button" class="btn btn-outline-primary btn-sm"
+                              [disabled]="containForm.invalid || store.submitting()" (click)="contain(nc)">
+                        Registrar contenção
+                      </button>
+                    </div>
+                  </form>
+                } @else {
+                  <p class="small text-muted mb-3">Pendente.</p>
+                }
+
+                <!-- 2. investigação -->
+                <p class="small fw-medium mb-1">2. Investigação — causa raiz e método</p>
+                @if (nc.investigation; as i) {
+                  <p class="small text-muted mb-3">
+                    {{ i.rootCause }} · método: {{ i.method }} · {{ i.investigatedAt | date:'short' }}
+                  </p>
+                } @else if (canManageNc && nc.status === 'CONTAINED') {
+                  <form [formGroup]="investigateForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-sm-6"><input type="text" class="form-control form-control-sm"
+                             formControlName="rootCause" placeholder="Água com alcalinidade alta"></div>
+                    <div class="col-sm-3"><input type="text" class="form-control form-control-sm"
+                             formControlName="method" placeholder="5 porquês"></div>
+                    <div class="col-sm-3 d-grid">
+                      <button type="button" class="btn btn-outline-primary btn-sm"
+                              [disabled]="investigateForm.invalid || store.submitting()"
+                              (click)="investigate(nc)">
+                        Registrar investigação
+                      </button>
+                    </div>
+                  </form>
+                } @else {
+                  <p class="small text-muted mb-3">Pendente.</p>
+                }
+
+                <!-- 3. ações -->
+                <p class="small fw-medium mb-1">
+                  3. Ações — corretiva trata a ocorrência, preventiva trata a causa
+                </p>
+                @if (nc.actions.length > 0) {
+                  <ul class="list-unstyled small mb-2">
+                    @for (a of nc.actions; track a.id) {
+                      <li class="border-start ps-3 mb-2">
+                        <span class="badge me-1"
+                              [class]="a.kind === 'PREVENTIVE' ? 'text-bg-info' : 'text-bg-secondary'">
+                          {{ a.kindLabel }}
+                        </span>
+                        <span class="fw-medium">{{ a.description }}</span>
+                        <span class="text-muted">
+                          · {{ a.owner }} · prazo {{ a.dueOn | date:'shortDate' }}
+                        </span>
+                        @if (a.completed) {
+                          <span class="badge text-bg-success ms-1">concluída</span>
+                        } @else if (a.overdue) {
+                          <span class="badge text-bg-danger ms-1">atrasada</span>
+                        }
+                        @if (canManageNc && !a.completed) {
+                          <button type="button" class="btn btn-link btn-sm p-0 ms-2"
+                                  (click)="store.completeAction(nc.id, a.id)">concluir</button>
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+                @if (canManageNc && (nc.status === 'INVESTIGATED' || nc.status === 'ACTION_PLANNED')) {
+                  <form [formGroup]="capaForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-sm-2"><select class="form-select form-select-sm" formControlName="kind">
+                        @for (k of capaKindOptions; track k) {
+                          <option [value]="k">{{ capaKindLabels[k] }}</option>
+                        }
+                      </select></div>
+                    <div class="col-sm-4"><input type="text" class="form-control form-control-sm"
+                             formControlName="description" placeholder="Tratar a água de diluição"></div>
+                    <div class="col-sm-2"><input type="text" class="form-control form-control-sm"
+                             formControlName="owner" placeholder="Responsável"></div>
+                    <div class="col-sm-2"><input type="date" class="form-control form-control-sm"
+                             formControlName="dueOn"></div>
+                    <div class="col-sm-2 d-grid">
+                      <button type="button" class="btn btn-outline-primary btn-sm"
+                              [disabled]="capaForm.invalid || store.submitting()" (click)="planCapa(nc)">
+                        Planejar
+                      </button>
+                    </div>
+                  </form>
+                }
+
+                <!-- 4. verificação -->
+                <p class="small fw-medium mb-1">4. Verificação de eficácia</p>
+                @if (nc.verifications.length > 0) {
+                  <ul class="list-unstyled small mb-2">
+                    @for (v of nc.verifications; track v.verifiedAt) {
+                      <li class="border-start ps-3 mb-2">
+                        <span class="badge me-1" [class]="v.effective ? 'text-bg-success' : 'text-bg-danger'">
+                          {{ v.effective ? 'eficaz' : 'ineficaz' }}
+                        </span>
+                        <span>{{ v.evidence }}</span>
+                        <span class="text-muted">· {{ v.verifiedAt | date:'short' }}</span>
+                      </li>
+                    }
+                  </ul>
+                }
+                @if (canManageNc && nc.status === 'ACTION_PLANNED') {
+                  <form [formGroup]="verifyForm" class="row g-2 align-items-end mb-0">
+                    <div class="col-sm-6"><input type="text" class="form-control form-control-sm"
+                             formControlName="evidence"
+                             placeholder="Três lotes seguintes dentro da faixa"></div>
+                    <div class="col-sm-3">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="veff" formControlName="effective">
+                        <label class="form-check-label small" for="veff">A ação funcionou</label>
+                      </div>
+                    </div>
+                    <div class="col-sm-3 d-grid">
+                      <button type="button" class="btn btn-primary btn-sm"
+                              [disabled]="verifyForm.invalid || store.submitting()" (click)="verify(nc)">
+                        Registrar verificação
+                      </button>
+                    </div>
+                  </form>
+                }
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</div>

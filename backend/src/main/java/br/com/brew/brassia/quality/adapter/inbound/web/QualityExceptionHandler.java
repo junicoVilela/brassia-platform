@@ -1,7 +1,9 @@
 package br.com.brew.brassia.quality.adapter.inbound.web;
 
 import br.com.brew.brassia.quality.domain.CriticalPointInstrumentException;
+import br.com.brew.brassia.quality.domain.PhaseOutOfOrderException;
 import br.com.brew.brassia.quality.domain.PlanNotPublishedException;
+import br.com.brew.brassia.quality.domain.VerificationRequiredException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -24,6 +26,28 @@ class QualityExceptionHandler {
                 "parameter", ex.parameter(),
                 "instrument", ex.instrumentCode(),
                 "fitness", ex.fitness()));
+        return problem;
+    }
+
+    /**
+     * Tentativa de pular fase do CAPA. Devolvemos a fase atual: sem ela a pessoa não sabe se falta
+     * conter, investigar ou concluir uma ação.
+     */
+    @ExceptionHandler(PhaseOutOfOrderException.class)
+    ProblemDetail handlePhaseOutOfOrder(PhaseOutOfOrderException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "nc_phase_out_of_order", ex.getMessage());
+        problem.setProperty("nonConformity", Map.of(
+                "code", ex.code(),
+                "status", ex.current().name(),
+                "attempted", ex.attempted()));
+        return problem;
+    }
+
+    /** Encerrar sem verificação eficaz — o critério central da história. */
+    @ExceptionHandler(VerificationRequiredException.class)
+    ProblemDetail handleVerificationRequired(VerificationRequiredException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "verification_required", ex.getMessage());
+        problem.setProperty("nonConformity", Map.of("code", ex.code()));
         return problem;
     }
 

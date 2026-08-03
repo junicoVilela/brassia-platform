@@ -55,6 +55,18 @@ test.describe('jornada crítica', () => {
     await expect(page.getByLabel('Tipo')).toBeVisible();
   });
 
+  test('navega até planos de controle e a tela responde com dados da API', async ({ page }) => {
+    const listagem = page.waitForResponse(
+      r => r.url().includes('/api/v1/quality/control-plans') && r.request().method() === 'GET',
+    );
+    await page.getByRole('link', { name: 'Planos de controle' }).click();
+    expect((await listagem).status()).toBe(200);
+
+    await expect(page.getByRole('heading', { name: 'Planos de controle' })).toBeVisible();
+    await expect(page.getByText('Nenhum plano de controle.')).toBeVisible();
+    await expect(page.getByLabel('Etapa')).toBeVisible();
+  });
+
   test('receitas carrega e a sessão sobrevive a recarregar a página', async ({ page }) => {
     await page.getByRole('link', { name: 'Receitas' }).click();
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

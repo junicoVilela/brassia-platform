@@ -1,0 +1,266 @@
+<app-page-header title="Planos de controle"
+                 subtitle="Parâmetro, faixa, frequência e ação por produto e etapa" />
+
+@if (store.severeDeviations().length > 0) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-1">Desvios em aberto</h2>
+      <p class="text-muted small mb-3">
+        Cada desvio traz a ação que o plano prescreveu no momento em que ele nasceu. O tratamento
+        completo — conter, investigar, agir e verificar — é a próxima história.
+      </p>
+      <ul class="list-unstyled mb-0">
+        @for (d of store.severeDeviations(); track d.id) {
+          <li class="border rounded-10 p-3 mb-2">
+            <span class="badge me-2" [class]="severityClass(d.severity)">{{ d.severityLabel }}</span>
+            <span class="fw-medium">{{ d.parameter }}</span>
+            <span class="text-muted small">
+              · {{ d.description }}
+              · excedeu em {{ d.excess | number:'1.0-4' }} {{ d.unit }}
+              · {{ d.openedAt | date:'short' }}
+            </span>
+            <p class="small mb-0 mt-1">Ação: {{ d.action }}</p>
+          </li>
+        }
+      </ul>
+    </div>
+  </div>
+}
+
+@if (canManage) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-1">Novo plano</h2>
+      <p class="text-muted small mb-3">
+        O plano nasce rascunho e só julga medição depois de publicado. Publicar congela a versão:
+        apertar um limite depois exige uma versão nova, para não transformar em desvio uma medição
+        que estava conforme.
+      </p>
+      <form [formGroup]="form" (ngSubmit)="create()" class="row g-2 align-items-end">
+        <div class="col-sm-3"><label class="form-label small" for="pcode">Código</label>
+          <input id="pcode" type="text" class="form-control form-control-sm" formControlName="code"
+                 placeholder="PC-001"></div>
+        <div class="col-sm-5"><label class="form-label small" for="pname">Nome</label>
+          <input id="pname" type="text" class="form-control form-control-sm" formControlName="name"></div>
+        <div class="col-sm-2"><label class="form-label small" for="pstage">Etapa</label>
+          <select id="pstage" class="form-select form-select-sm" formControlName="stage">
+            @for (s of stageOptions; track s) {
+              <option [value]="s">{{ stageLabels[s] }}</option>
+            }
+          </select></div>
+        <div class="col-sm-2 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm" [disabled]="form.invalid || store.submitting()">
+            <i class="ri-clipboard-line me-1" aria-hidden="true"></i> Criar
+          </button>
+        </div>
+      </form>
+      @if (store.actionError(); as actionError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+      }
+    </div>
+  </div>
+}
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Planos</h2>
+
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">
+        {{ error }}
+        <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">Tentar de novo</button>
+      </div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-clipboard-line" message="Nenhum plano de controle."
+                       hint="Crie um plano para definir o que se mede em cada etapa." />
+    } @else {
+      <ul class="list-unstyled mb-0">
+        @for (p of store.plans(); track p.id) {
+          <li class="border rounded-10 p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+              <div>
+                <span class="badge me-2" [class]="p.status === 'PUBLISHED' ? 'text-bg-success' : 'text-bg-secondary'">
+                  {{ p.status === 'PUBLISHED' ? 'publicado' : 'rascunho' }}
+                </span>
+                <span class="fw-medium">{{ p.code }} v{{ p.version }}</span>
+                <span class="text-muted small">
+                  · {{ p.name }} · {{ p.stageLabel }} · {{ p.points.length }} ponto(s)
+                </span>
+              </div>
+              @if (canManage) {
+                <div class="d-flex gap-2 flex-wrap">
+                  @if (p.status === 'DRAFT') {
+                    <button type="button" class="btn btn-sm btn-outline-success text-nowrap"
+                            [disabled]="p.points.length === 0" (click)="store.publish(p)">
+                      Publicar
+                    </button>
+                  } @else {
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap"
+                            (click)="store.newVersion(p)">
+                      Nova versão
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+
+            @if (p.points.length > 0) {
+              <ul class="list-unstyled small mb-0 mt-2">
+                @for (point of p.points; track point.id) {
+                  <li class="border-start ps-3 mb-2">
+                    <span class="badge me-1" [class]="severityClass(point.severity)">{{ point.severityLabel }}</span>
+                    @if (point.critical) {
+                      <span class="badge text-bg-info me-1">ponto crítico</span>
+                    }
+                    <span class="fw-medium">{{ point.parameter }}</span>
+                    <span class="text-muted">· {{ point.limits }} · {{ point.frequency }}</span>
+                    <p class="text-muted mb-0">Ação: {{ point.action }}</p>
+                    @if (canManage && p.status === 'DRAFT') {
+                      <button type="button" class="btn btn-link btn-sm p-0" (click)="removePoint(p, point)">
+                        remover
+                      </button>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+
+            <div class="d-flex gap-3 mt-2">
+              <button type="button" class="btn btn-link btn-sm p-0" (click)="store.togglePlan(p)">
+                {{ store.openPlanOf() === p.id ? 'Fechar' : 'Pontos e medições' }}
+              </button>
+            </div>
+
+            @if (store.openPlanOf() === p.id) {
+              <div class="border-top mt-3 pt-3">
+                @if (canManage && p.status === 'DRAFT') {
+                  <h3 class="h6 fw-semibold mb-1">Novo ponto de controle</h3>
+                  <p class="text-muted small mb-3">
+                    Basta um dos limites: muita especificação é só teto ou só piso. A ação é
+                    obrigatória — ponto sem ação é observação, não controle.
+                  </p>
+                  <form [formGroup]="pointForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-sm-4"><label class="form-label small" for="qparam">Parâmetro</label>
+                      <input id="qparam" type="text" class="form-control form-control-sm"
+                             formControlName="parameter" placeholder="pH do mosto"></div>
+                    <div class="col-sm-2"><label class="form-label small" for="qmin">Mínimo</label>
+                      <input id="qmin" type="number" step="any" class="form-control form-control-sm"
+                             formControlName="min"></div>
+                    <div class="col-sm-2"><label class="form-label small" for="qmax">Máximo</label>
+                      <input id="qmax" type="number" step="any" class="form-control form-control-sm"
+                             formControlName="max"></div>
+                    <div class="col-sm-2"><label class="form-label small" for="qtarget">Alvo</label>
+                      <input id="qtarget" type="number" step="any" class="form-control form-control-sm"
+                             formControlName="target"></div>
+                    <div class="col-sm-2"><label class="form-label small" for="qunit">Unidade</label>
+                      <input id="qunit" type="text" class="form-control form-control-sm"
+                             formControlName="unit"></div>
+                    <div class="col-sm-3"><label class="form-label small" for="qfreq">Frequência</label>
+                      <select id="qfreq" class="form-select form-select-sm" formControlName="frequencyKind">
+                        @for (f of frequencyOptions; track f) {
+                          <option [value]="f">{{ frequencyLabels[f] }}</option>
+                        }
+                      </select></div>
+                    @if (pointForm.controls.frequencyKind.value === 'PER_HOURS') {
+                      <div class="col-sm-2"><label class="form-label small" for="qhours">Horas</label>
+                        <input id="qhours" type="number" min="1" class="form-control form-control-sm"
+                               formControlName="everyHours"></div>
+                    }
+                    <div class="col-sm-2"><label class="form-label small" for="qsev">Severidade</label>
+                      <select id="qsev" class="form-select form-select-sm" formControlName="severity">
+                        @for (s of severityOptions; track s) {
+                          <option [value]="s">{{ severityLabels[s] }}</option>
+                        }
+                      </select></div>
+                    <div class="col-sm-2">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="qcrit" formControlName="critical">
+                        <label class="form-check-label small" for="qcrit">Ponto crítico</label>
+                      </div>
+                    </div>
+                    <div class="col-sm-8"><label class="form-label small" for="qaction">Ação quando sair da faixa</label>
+                      <input id="qaction" type="text" class="form-control form-control-sm"
+                             formControlName="action" placeholder="Ajustar com ácido lático e remedir"></div>
+                    <div class="col-sm-3 d-grid">
+                      <button type="button" class="btn btn-primary btn-sm"
+                              [disabled]="pointForm.invalid || store.submitting()" (click)="addPoint(p)">
+                        <i class="ri-add-line me-1" aria-hidden="true"></i> Incluir ponto
+                      </button>
+                    </div>
+                  </form>
+                }
+
+                @if (canMeasure && p.status === 'PUBLISHED') {
+                  <h3 class="h6 fw-semibold mb-1">Registrar medição</h3>
+                  <p class="text-muted small mb-3">
+                    Fora da faixa, o desvio nasce na hora, com a severidade e a ação do ponto. Ponto
+                    crítico exige instrumento apto.
+                  </p>
+                  <form [formGroup]="measurementForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-sm-4"><label class="form-label small" for="mpoint">Ponto</label>
+                      <select id="mpoint" class="form-select form-select-sm" formControlName="pointId">
+                        <option value="">Selecione…</option>
+                        @for (point of p.points; track point.id) {
+                          <option [value]="point.id">{{ point.parameter }} ({{ point.limits }})</option>
+                        }
+                      </select></div>
+                    <div class="col-sm-2"><label class="form-label small" for="mvalue">Valor</label>
+                      <input id="mvalue" type="number" step="any" class="form-control form-control-sm"
+                             formControlName="value"></div>
+                    <div class="col-sm-3"><label class="form-label small" for="minstr">Instrumento (id)</label>
+                      <input id="minstr" type="text" class="form-control form-control-sm"
+                             formControlName="instrumentId"></div>
+                    <div class="col-sm-3 d-grid">
+                      <button type="button" class="btn btn-primary btn-sm"
+                              [disabled]="measurementForm.invalid || store.submitting()" (click)="measure(p)">
+                        <i class="ri-ruler-2-line me-1" aria-hidden="true"></i> Registrar
+                      </button>
+                    </div>
+                  </form>
+
+                  @if (store.criticalRefusal(); as recusa) {
+                    <div class="alert alert-warning" role="alert">
+                      O ponto crítico <strong>{{ recusa.parameter }}</strong> exige instrumento apto.
+                      O instrumento {{ recusa.instrument }} está {{ recusa.fitness }} — recalibre,
+                      desbloqueie ou meça com outro.
+                    </div>
+                  }
+                  @if (store.measurementError(); as measurementError) {
+                    <div class="alert alert-danger" role="alert">{{ measurementError }}</div>
+                  }
+                }
+
+                @if (store.measurements().length > 0) {
+                  <p class="small fw-medium mb-2">Medições</p>
+                  <ul class="list-unstyled small mb-0">
+                    @for (m of store.measurements(); track m.id) {
+                      <li class="border-start ps-3 mb-2">
+                        <span class="badge me-1" [class]="m.withinSpec ? 'text-bg-success' : 'text-bg-danger'">
+                          {{ m.withinSpec ? 'conforme' : 'desvio' }}
+                        </span>
+                        <span class="fw-medium">{{ m.parameter }} = {{ m.value | number:'1.0-4' }} {{ m.unit }}</span>
+                        <span class="text-muted">
+                          · julgada pela v{{ m.planVersion }} · {{ m.measuredAt | date:'short' }}
+                        </span>
+                        @if (m.instrumentQuestionable) {
+                          <span class="badge text-bg-warning ms-1">instrumento {{ m.instrumentFitness }}</span>
+                        }
+                        @if (m.note) {
+                          <p class="text-muted mb-0">{{ m.note }}</p>
+                        }
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="small text-muted mb-0">Nenhuma medição registrada.</p>
+                }
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</div>

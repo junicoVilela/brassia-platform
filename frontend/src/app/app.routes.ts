@@ -116,6 +116,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/gas/gas.routes').then(m => m.GAS_ROUTES),
       },
       {
+        path: 'quality/control-plans',
+        canActivate: [permissionGuard],
+        data: { permission: 'quality.plan.read' },
+        loadChildren: () => import('./features/quality/quality.routes').then(m => m.QUALITY_ROUTES),
+      },
+      {
         path: 'metrology/instruments',
         canActivate: [permissionGuard],
         data: { permission: 'metrology.instrument.read' },

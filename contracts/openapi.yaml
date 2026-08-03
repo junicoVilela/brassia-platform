@@ -2829,8 +2829,323 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /quality/control-plans:
+    get:
+      tags: [Qualidade]
+      summary: Planos de controle (QLT-001)
+      responses:
+        '200':
+          description: Planos
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ControlPlan'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Qualidade]
+      summary: Cria plano como rascunho
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateControlPlan'}
+      responses:
+        '201':
+          description: Plano criado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ControlPlan'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /quality/control-plans/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Qualidade]
+      summary: Plano de controle
+      responses:
+        '200':
+          description: Plano
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ControlPlan'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Qualidade]
+      summary: Corrige o rascunho; publicado é imutável
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AmendControlPlan'}
+      responses:
+        '200':
+          description: Plano atualizado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ControlPlan'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /quality/control-plans/{id}/points:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Qualidade]
+      summary: Inclui ponto de controle no rascunho
+      description: >-
+        Ao menos um limite (mínimo ou máximo). Limite unilateral é caso normal — "O₂ ≤ 50 ppb" não
+        tem piso. A ação é obrigatória: ponto sem ação é observação, não controle.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AddControlPoint'}
+      responses:
+        '201':
+          description: Ponto incluído; devolve o plano
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ControlPlan'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /quality/control-plans/{id}/points/{pointId}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      - {name: pointId, in: path, required: true, schema: {type: string, format: uuid}}
+    delete:
+      tags: [Qualidade]
+      summary: Remove ponto do rascunho
+      responses:
+        '200':
+          description: Ponto removido
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ControlPlan'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /quality/control-plans/{id}/publish:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Qualidade]
+      summary: Publica o plano, congelando a versão
+      description: Plano sem ponto não publica. A partir daqui ele julga medição e não muda mais.
+      responses:
+        '200':
+          description: Plano publicado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ControlPlan'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /quality/control-plans/{id}/new-version:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Qualidade]
+      summary: Nova versão a partir de uma publicada
+      description: >-
+        Os pontos são copiados com identidade nova, para que medições antigas continuem
+        referenciando os limites da versão que as julgou.
+      responses:
+        '201':
+          description: Rascunho da versão seguinte
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ControlPlan'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /quality/control-plans/{id}/measurements:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Qualidade]
+      summary: Medições do plano, da mais recente para a mais antiga
+      responses:
+        '200':
+          description: Medições
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/QualityMeasurement'}}
+        '403': {$ref: '#/components/responses/Problem'}
+  /quality/measurements:
+    post:
+      tags: [Qualidade]
+      summary: Registra medição contra um ponto do plano
+      description: >-
+        Fora da faixa abre desvio com a severidade do ponto, devolvido na mesma resposta com a ação
+        prescrita. Rascunho não julga (409 `plan_not_published`). Ponto crítico exige instrumento
+        apto, verificado pela porta publicada da metrologia (409 `instrument_not_fit`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RecordQualityMeasurement'}
+      responses:
+        '201':
+          description: Medição registrada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MeasurementOutcome'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /quality/deviations:
+    get:
+      tags: [Qualidade]
+      summary: Desvios em aberto, dos mais severos e recentes primeiro
+      responses:
+        '200':
+          description: Desvios
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Deviation'}}
+        '403': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    ProcessStage:
+      type: string
+      enum: [BREWING, FERMENTATION, MATURATION, PACKAGING, STORAGE]
+    QualitySeverity:
+      type: string
+      description: Severidade do ponto, herdada pelo desvio que ele abre
+      enum: [MINOR, MAJOR, CRITICAL]
+    FrequencyKind:
+      type: string
+      enum: [PER_BATCH, PER_HOURS, PER_SHIFT, PER_PACKAGING_RUN]
+    CreateControlPlan:
+      type: object
+      required: [code, name, stage]
+      properties:
+        code: {type: string, maxLength: 40}
+        name: {type: string, maxLength: 120}
+        recipeId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Ausente vale para todas as receitas (controles de casa)
+        stage: {$ref: '#/components/schemas/ProcessStage'}
+    AmendControlPlan:
+      type: object
+      required: [name, stage]
+      properties:
+        name: {type: string, maxLength: 120}
+        recipeId: {type: string, format: uuid, nullable: true}
+        stage: {$ref: '#/components/schemas/ProcessStage'}
+    AddControlPoint:
+      type: object
+      required: [parameter, unit, frequencyKind, action, severity]
+      properties:
+        parameter: {type: string, maxLength: 120}
+        min: {type: number, nullable: true}
+        max: {type: number, nullable: true}
+        target: {type: number, nullable: true}
+        unit: {type: string, maxLength: 20}
+        frequencyKind: {$ref: '#/components/schemas/FrequencyKind'}
+        everyHours:
+          type: integer
+          nullable: true
+          description: Obrigatório em PER_HOURS e proibido no resto
+        action: {type: string, maxLength: 500}
+        severity: {$ref: '#/components/schemas/QualitySeverity'}
+        critical: {type: boolean, default: false}
+    ControlPoint:
+      type: object
+      required: [id, parameter, unit, limits, frequencyKind, frequency, action, severity,
+                 severityLabel, critical]
+      properties:
+        id: {type: string, format: uuid}
+        parameter: {type: string}
+        min: {type: number, nullable: true}
+        max: {type: number, nullable: true}
+        target: {type: number, nullable: true}
+        unit: {type: string}
+        limits: {type: string, description: Texto pronto da faixa, incluindo limite unilateral}
+        frequencyKind: {$ref: '#/components/schemas/FrequencyKind'}
+        everyHours: {type: integer, nullable: true}
+        frequency: {type: string}
+        action: {type: string}
+        severity: {$ref: '#/components/schemas/QualitySeverity'}
+        severityLabel: {type: string}
+        critical: {type: boolean, description: Ponto crítico exige instrumento apto para medir}
+    ControlPlan:
+      type: object
+      required: [id, code, name, stage, stageLabel, status, version, points]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+        recipeId: {type: string, format: uuid, nullable: true}
+        stage: {$ref: '#/components/schemas/ProcessStage'}
+        stageLabel: {type: string}
+        status: {type: string, enum: [DRAFT, PUBLISHED]}
+        version: {type: integer}
+        points: {type: array, items: {$ref: '#/components/schemas/ControlPoint'}}
+    RecordQualityMeasurement:
+      type: object
+      required: [planId, pointId, value]
+      properties:
+        planId: {type: string, format: uuid}
+        pointId: {type: string, format: uuid}
+        batchId: {type: string, format: uuid, nullable: true}
+        instrumentId: {type: string, format: uuid, nullable: true}
+        value: {type: number}
+        note: {type: string, maxLength: 500, nullable: true}
+        measuredAt: {type: string, format: date-time, nullable: true}
+    QualityMeasurement:
+      type: object
+      required: [id, planId, planVersion, pointId, parameter, value, unit, withinSpec,
+                 instrumentQuestionable, measuredAt]
+      properties:
+        id: {type: string, format: uuid}
+        planId: {type: string, format: uuid}
+        planVersion: {type: integer, description: Versão do plano pela qual foi julgada}
+        pointId: {type: string, format: uuid}
+        parameter: {type: string}
+        batchId: {type: string, format: uuid, nullable: true}
+        instrumentId: {type: string, format: uuid, nullable: true}
+        instrumentFitness: {type: string, nullable: true}
+        instrumentQuestionable: {type: boolean}
+        value: {type: number}
+        unit: {type: string}
+        withinSpec: {type: boolean}
+        note: {type: string, nullable: true}
+        measuredAt: {type: string, format: date-time}
+    Deviation:
+      type: object
+      required: [id, measurementId, planId, pointId, parameter, severity, severityLabel, bound,
+                 limitValue, measuredValue, excess, unit, action, status, description, openedAt]
+      properties:
+        id: {type: string, format: uuid}
+        measurementId: {type: string, format: uuid}
+        planId: {type: string, format: uuid}
+        pointId: {type: string, format: uuid}
+        parameter: {type: string}
+        severity: {$ref: '#/components/schemas/QualitySeverity'}
+        severityLabel: {type: string}
+        bound: {type: string, enum: [BELOW_MIN, ABOVE_MAX]}
+        limitValue: {type: number}
+        measuredValue: {type: number}
+        excess: {type: number, description: O quanto passou do limite}
+        unit: {type: string}
+        action: {type: string, description: Copiada do ponto na abertura do desvio}
+        status: {type: string, enum: [OPEN, CLOSED]}
+        description: {type: string}
+        openedAt: {type: string, format: date-time}
+    MeasurementOutcome:
+      type: object
+      required: [measurementId, withinSpec]
+      properties:
+        measurementId: {type: string, format: uuid}
+        withinSpec: {type: boolean}
+        deviationId: {type: string, format: uuid, nullable: true}
+        deviation:
+          allOf: [{$ref: '#/components/schemas/Deviation'}]
+          nullable: true
     CurvePoint:
       type: object
       required: [reference, measured]

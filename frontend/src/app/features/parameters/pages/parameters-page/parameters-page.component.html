@@ -17,7 +17,7 @@
     <p class="small mb-0">
       Sem valor, a plataforma segue o comportamento padrão: a liberação de CIP não expira por tempo,
       o vencimento vem do certificado, e o prazo é informado caso a caso. Preencher passa a derivar
-      automaticamente. {{ store.configuredCount() }} de 4 derivações estão ativas.
+      automaticamente. Derivações ligadas hoje: {{ store.configuredCount() }} de 4.
     </p>
   </div>
 
@@ -27,7 +27,7 @@
 
   <div class="row g-3">
     <!-- Sanitização -->
-    <div class="col-xl-6">
+    <div class="col-xl-4">
       <div class="card border-0 rounded-10 h-100">
         <div class="card-body p-4">
           <h2 class="h6 fw-semibold mb-1">
@@ -63,7 +63,7 @@
     </div>
 
     <!-- Gás -->
-    <div class="col-xl-6">
+    <div class="col-xl-4">
       <div class="card border-0 rounded-10 h-100">
         <div class="card-body p-4">
           <h2 class="h6 fw-semibold mb-1">
@@ -78,7 +78,7 @@
               <label class="form-label small" for="requalificationMonths">Meses</label>
               <input id="requalificationMonths" type="number" min="1" max="120"
                      class="form-control form-control-sm" formControlName="requalificationMonths"
-                     [attr.disabled]="canManageGas ? null : true" placeholder="informar na operação">
+                     [attr.disabled]="canManageGas ? null : true" placeholder="não deriva">
             </div>
             @if (canManageGas) {
               <div class="col-sm-6 d-grid">
@@ -98,39 +98,8 @@
       </div>
     </div>
 
-    <!-- Metrologia -->
-    <div class="col-xl-6">
-      <div class="card border-0 rounded-10 h-100">
-        <div class="card-body p-4">
-          <h2 class="h6 fw-semibold mb-1">
-            <i class="ri-ruler-line me-1" aria-hidden="true"></i> Periodicidade de calibração
-          </h2>
-          <p class="text-muted small mb-3">
-            Meses entre calibrações, por tipo de instrumento. Tipo em branco mantém o vencimento que
-            vem do certificado do laboratório.
-          </p>
-          <form [formGroup]="calibrationForm" (ngSubmit)="saveCalibration()" class="row g-2">
-            @for (type of instrumentTypes; track type) {
-              <div class="col-sm-6 col-xl-4">
-                <label class="form-label small" [for]="'cal-' + type">{{ instrumentTypeLabels[type] }}</label>
-                <input [id]="'cal-' + type" type="number" min="1" max="120"
-                       class="form-control form-control-sm" [formControlName]="type"
-                       [attr.disabled]="canManageCalibration ? null : true" placeholder="certificado">
-              </div>
-            }
-            @if (canManageCalibration) {
-              <div class="col-12 d-grid d-sm-block mt-3">
-                <button type="submit" class="btn btn-primary btn-sm"
-                        [disabled]="calibrationForm.invalid || store.saving() === 'calibration'">Salvar</button>
-              </div>
-            }
-          </form>
-        </div>
-      </div>
-    </div>
-
     <!-- Sensorial -->
-    <div class="col-xl-6">
+    <div class="col-xl-4">
       <div class="card border-0 rounded-10 h-100">
         <div class="card-body p-4">
           <h2 class="h6 fw-semibold mb-1">
@@ -157,6 +126,37 @@
           <p class="small text-muted mb-0 mt-2">
             Sessões novas passarão a usar a escala 0–{{ parameters.sensory.maxScore }}.
           </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metrologia -->
+    <div class="col-12">
+      <div class="card border-0 rounded-10 h-100">
+        <div class="card-body p-4">
+          <h2 class="h6 fw-semibold mb-1">
+            <i class="ri-ruler-line me-1" aria-hidden="true"></i> Periodicidade de calibração
+          </h2>
+          <p class="text-muted small mb-3">
+            Meses entre calibrações, por tipo de instrumento. Tipo em branco mantém o vencimento que
+            vem do certificado do laboratório.
+          </p>
+          <form [formGroup]="calibrationForm" (ngSubmit)="saveCalibration()" class="row g-2">
+            @for (type of instrumentTypes; track type) {
+              <div class="col-6 col-sm-4 col-xl-3">
+                <label class="form-label small" [for]="'cal-' + type">{{ instrumentTypeLabels[type] }}</label>
+                <input [id]="'cal-' + type" type="number" min="1" max="120"
+                       class="form-control form-control-sm" [formControlName]="type"
+                       [attr.disabled]="canManageCalibration ? null : true" placeholder="certificado">
+              </div>
+            }
+            @if (canManageCalibration) {
+              <div class="col-12 d-grid d-sm-block mt-3">
+                <button type="submit" class="btn btn-primary btn-sm"
+                        [disabled]="calibrationForm.invalid || store.saving() === 'calibration'">Salvar</button>
+              </div>
+            }
+          </form>
         </div>
       </div>
     </div>
@@ -220,9 +220,9 @@
               <div class="mt-3">
                 <button type="submit" class="btn btn-primary btn-sm"
                         [disabled]="capaForm.invalid || store.saving() === 'capa'">Salvar</button>
-                <span class="text-muted small ms-2">
+                <p class="text-muted small mb-0 mt-2">
                   Severidade preenchida pela metade é ignorada — as três fases andam juntas.
-                </span>
+                </p>
               </div>
             }
           </form>

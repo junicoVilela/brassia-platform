@@ -104,7 +104,7 @@ export class SettingsPageComponent {
     {
       title: 'Parametrização',
       description: 'Validade de CIP, prazos do CAPA, calibração, gás e escala sensorial.',
-      icon: 'ri-sliders-line',
+      icon: 'ri-sound-module-line',
       route: '/settings/parameters',
       accent: 'primary',
       permissions: [

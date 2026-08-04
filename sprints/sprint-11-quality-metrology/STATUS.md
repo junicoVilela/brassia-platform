@@ -225,6 +225,25 @@ declarando qual comportamento vale hoje. É a metade da invariante que costuma s
 interface: quem apaga a validade do CIP precisa entender que acabou de desligar a expiração por
 tempo, não que deixou de preencher algo.
 
+**Verificação visual (5 telas, claro e escuro, desktop e mobile).** Feita contra a aplicação real
+— backend, banco e `ng serve`, com screenshots por Playwright — e não mais contra um harness
+estático que replicava o HTML à mão. A diferença não é de conforto: o harness replicado só prova
+que a *cópia* está certa. Quatro achados, todos corrigidos:
+
+1. **`ri-sliders-line` não existe** no Remix Icon empacotado pelo tema, e o cartão de
+   Parametrização aparecia com o distintivo vazio. Trocado por `ri-sound-module-line`. Vale como
+   lembrete: nome de ícone errado falha em silêncio, sem erro de console e sem quebrar teste.
+2. **`<th scope="row">` não recebia o estilo de tabela.** As regras de `styles.scss` cobriam só
+   `td`, então a primeira coluna do CAPA ficava com a borda sólida do Bootstrap no meio de uma
+   tabela tracejada. Corrigido nos dois temas — é a tabela compartilhada, não só esta tela.
+3. **Controles nativos ignoravam o tema escuro.** O seletor de data abria calendário branco e
+   exibia o ícone escuro sobre campo escuro nas telas de instrumentos, planos de controle e
+   sessões sensoriais. Resolvido com `color-scheme: dark` no bloco escuro, que também acerta
+   spinners de `number` e barras de rolagem.
+4. **Cartão sensorial com metade vazia.** Ele dividia a linha com a calibração, que tem sete
+   campos e o esticava. Reorganizado: três cartões curtos em uma linha, calibração e CAPA em
+   largura total.
+
 **Correção da tabela acima:** dois itens que eu havia listado não são parâmetro de cervejaria e
 saíram do escopo:
 

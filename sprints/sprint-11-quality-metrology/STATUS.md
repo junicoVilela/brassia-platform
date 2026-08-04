@@ -211,7 +211,19 @@ sua porta. `OperationalPreferences` continua com o que é genuinamente transvers
 política de estoque) e ganha o padrão de revisão imutável como referência para os demais.
 
 **Backend entregue antes da sprint 12** (PR de `feat/prm-001-parametrizacao-backend`), com migration
-V79. A tela vem em PR separado.
+V79. **A tela veio no PR seguinte** (`feat/prm-001-tela-parametrizacao`), em `/settings/parameters`,
+alcançada por um cartão novo na seção "Operação" do hub de configurações.
+
+**Por que a tela salva seção por seção.** São cinco endpoints de cinco módulos: não há transação
+abrangendo os cinco, e um botão único de "salvar tudo" prometeria atomicidade inexistente — uma
+falha na terceira chamada deixaria as duas primeiras gravadas sem que ninguém soubesse. Cada seção
+tem o seu botão, a sua permissão de escrita (`*.policy.manage`) e o seu erro. A leitura, essa sim,
+é uma só: um `forkJoin` das cinco, porque uma tela pela metade não ajuda a decidir nada.
+
+**Campo em branco é valor, não esquecimento** — e a tela diz isso em texto, embaixo de cada campo,
+declarando qual comportamento vale hoje. É a metade da invariante que costuma se perder na
+interface: quem apaga a validade do CIP precisa entender que acabou de desligar a expiração por
+tempo, não que deixou de preencher algo.
 
 **Correção da tabela acima:** dois itens que eu havia listado não são parâmetro de cervejaria e
 saíram do escopo:

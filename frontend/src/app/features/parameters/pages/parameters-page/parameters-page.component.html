@@ -1,0 +1,233 @@
+<app-page-header title="Parametrização"
+                 subtitle="Valores que dependem da política de cada cervejaria" />
+
+@if (store.loading()) {
+  <div class="card border-0 rounded-10">
+    <div class="card-body p-4"><app-loading-indicator /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">Tentar de novo</button>
+  </div>
+} @else if (store.parameters(); as parameters) {
+
+  <div class="alert alert-info" role="alert">
+    <p class="mb-1 fw-medium">Campo em branco é uma escolha, não um esquecimento.</p>
+    <p class="small mb-0">
+      Sem valor, a plataforma segue o comportamento padrão: a liberação de CIP não expira por tempo,
+      o vencimento vem do certificado, e o prazo é informado caso a caso. Preencher passa a derivar
+      automaticamente. Derivações ligadas hoje: {{ store.configuredCount() }} de 4.
+    </p>
+  </div>
+
+  @if (store.actionError(); as actionError) {
+    <div class="alert alert-danger" role="alert">{{ actionError }}</div>
+  }
+
+  <div class="row g-3">
+    <!-- Sanitização -->
+    <div class="col-xl-4">
+      <div class="card border-0 rounded-10 h-100">
+        <div class="card-body p-4">
+          <h2 class="h6 fw-semibold mb-1">
+            <i class="ri-drop-line me-1" aria-hidden="true"></i> Validade da liberação de CIP
+          </h2>
+          <p class="text-muted small mb-3">
+            Quantas horas uma linha permanece liberada depois do CIP. Passado o prazo, a linha volta a
+            exigir sanitização antes do envase — mesmo que ninguém a tenha usado.
+          </p>
+          <form [formGroup]="cleaningForm" (ngSubmit)="saveCleaning()" class="row g-2 align-items-end">
+            <div class="col-sm-6">
+              <label class="form-label small" for="validityHours">Horas de validade</label>
+              <input id="validityHours" type="number" min="1" max="720"
+                     class="form-control form-control-sm" formControlName="validityHours"
+                     [attr.disabled]="canManageCleaning ? null : true" placeholder="não expira">
+            </div>
+            @if (canManageCleaning) {
+              <div class="col-sm-6 d-grid">
+                <button type="submit" class="btn btn-primary btn-sm"
+                        [disabled]="cleaningForm.invalid || store.saving() === 'cleaning'">Salvar</button>
+              </div>
+            }
+          </form>
+          <p class="small text-muted mb-0 mt-2">
+            @if (parameters.cleaning.expiresByTime) {
+              Hoje a liberação expira em {{ parameters.cleaning.validityHours }} h.
+            } @else {
+              Hoje a liberação não expira por tempo — só o uso da linha a invalida.
+            }
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gás -->
+    <div class="col-xl-4">
+      <div class="card border-0 rounded-10 h-100">
+        <div class="card-body p-4">
+          <h2 class="h6 fw-semibold mb-1">
+            <i class="ri-fire-line me-1" aria-hidden="true"></i> Requalificação de cilindros
+          </h2>
+          <p class="text-muted small mb-3">
+            Periodicidade em meses. Com um valor aqui, a data de vencimento é derivada da
+            requalificação registrada; sem ele, ela continua sendo digitada a cada operação.
+          </p>
+          <form [formGroup]="gasForm" (ngSubmit)="saveGas()" class="row g-2 align-items-end">
+            <div class="col-sm-6">
+              <label class="form-label small" for="requalificationMonths">Meses</label>
+              <input id="requalificationMonths" type="number" min="1" max="120"
+                     class="form-control form-control-sm" formControlName="requalificationMonths"
+                     [attr.disabled]="canManageGas ? null : true" placeholder="não deriva">
+            </div>
+            @if (canManageGas) {
+              <div class="col-sm-6 d-grid">
+                <button type="submit" class="btn btn-primary btn-sm"
+                        [disabled]="gasForm.invalid || store.saving() === 'gas'">Salvar</button>
+              </div>
+            }
+          </form>
+          <p class="small text-muted mb-0 mt-2">
+            @if (parameters.gas.derivesDueDate) {
+              Hoje o vencimento é derivado: {{ parameters.gas.requalificationMonths }} meses.
+            } @else {
+              Hoje o vencimento vem do certificado, informado na requalificação.
+            }
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sensorial -->
+    <div class="col-xl-4">
+      <div class="card border-0 rounded-10 h-100">
+        <div class="card-body p-4">
+          <h2 class="h6 fw-semibold mb-1">
+            <i class="ri-goblet-line me-1" aria-hidden="true"></i> Escala da ficha sensorial
+          </h2>
+          <p class="text-muted small mb-3">
+            Nota máxima de cada atributo, de 3 a 100. A escala é congelada na sessão no momento em que
+            ela é criada: mudar aqui não reinterpreta nenhuma avaliação já dada.
+          </p>
+          <form [formGroup]="sensoryForm" (ngSubmit)="saveSensory()" class="row g-2 align-items-end">
+            <div class="col-sm-6">
+              <label class="form-label small" for="maxScore">Nota máxima</label>
+              <input id="maxScore" type="number" min="3" max="100"
+                     class="form-control form-control-sm" formControlName="maxScore"
+                     [attr.disabled]="canManageSensory ? null : true">
+            </div>
+            @if (canManageSensory) {
+              <div class="col-sm-6 d-grid">
+                <button type="submit" class="btn btn-primary btn-sm"
+                        [disabled]="sensoryForm.invalid || store.saving() === 'sensory'">Salvar</button>
+              </div>
+            }
+          </form>
+          <p class="small text-muted mb-0 mt-2">
+            Sessões novas passarão a usar a escala 0–{{ parameters.sensory.maxScore }}.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metrologia -->
+    <div class="col-12">
+      <div class="card border-0 rounded-10 h-100">
+        <div class="card-body p-4">
+          <h2 class="h6 fw-semibold mb-1">
+            <i class="ri-ruler-line me-1" aria-hidden="true"></i> Periodicidade de calibração
+          </h2>
+          <p class="text-muted small mb-3">
+            Meses entre calibrações, por tipo de instrumento. Tipo em branco mantém o vencimento que
+            vem do certificado do laboratório.
+          </p>
+          <form [formGroup]="calibrationForm" (ngSubmit)="saveCalibration()" class="row g-2">
+            @for (type of instrumentTypes; track type) {
+              <div class="col-6 col-sm-4 col-xl-3">
+                <label class="form-label small" [for]="'cal-' + type">{{ instrumentTypeLabels[type] }}</label>
+                <input [id]="'cal-' + type" type="number" min="1" max="120"
+                       class="form-control form-control-sm" [formControlName]="type"
+                       [attr.disabled]="canManageCalibration ? null : true" placeholder="certificado">
+              </div>
+            }
+            @if (canManageCalibration) {
+              <div class="col-12 d-grid d-sm-block mt-3">
+                <button type="submit" class="btn btn-primary btn-sm"
+                        [disabled]="calibrationForm.invalid || store.saving() === 'calibration'">Salvar</button>
+              </div>
+            }
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAPA -->
+    <div class="col-12">
+      <div class="card border-0 rounded-10">
+        <div class="card-body p-4">
+          <h2 class="h6 fw-semibold mb-1">
+            <i class="ri-alarm-warning-line me-1" aria-hidden="true"></i> Prazos do CAPA por severidade
+          </h2>
+          <p class="text-muted small mb-3">
+            Dias contados da abertura da não conformidade. Devem crescer na ordem das fases — conter,
+            investigar, verificar —, porque nenhuma fase começa antes da anterior terminar. Severidade
+            sem prazos exige que a data seja informada na abertura da NC.
+          </p>
+          <form [formGroup]="capaForm" (ngSubmit)="saveCapa()">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th scope="col" class="small">Severidade</th>
+                    <th scope="col" class="small">Contenção (dias)</th>
+                    <th scope="col" class="small">Investigação (dias)</th>
+                    <th scope="col" class="small">Verificação (dias)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (severity of severities; track severity) {
+                    <tr>
+                      <th scope="row" class="fw-medium small">
+                        {{ severityLabels[severity] }}
+                        @if (incompleteSeverity(severity)) {
+                          <span class="badge text-bg-warning ms-1">incompleta</span>
+                        }
+                      </th>
+                      <td>
+                        <input type="number" min="1" class="form-control form-control-sm"
+                               [attr.aria-label]="severityLabels[severity] + ' contenção'"
+                               [formControlName]="severity + '_containment'"
+                               [attr.disabled]="canManageCapa ? null : true" placeholder="—">
+                      </td>
+                      <td>
+                        <input type="number" min="1" class="form-control form-control-sm"
+                               [attr.aria-label]="severityLabels[severity] + ' investigação'"
+                               [formControlName]="severity + '_investigation'"
+                               [attr.disabled]="canManageCapa ? null : true" placeholder="—">
+                      </td>
+                      <td>
+                        <input type="number" min="1" class="form-control form-control-sm"
+                               [attr.aria-label]="severityLabels[severity] + ' verificação'"
+                               [formControlName]="severity + '_verification'"
+                               [attr.disabled]="canManageCapa ? null : true" placeholder="—">
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            @if (canManageCapa) {
+              <div class="mt-3">
+                <button type="submit" class="btn btn-primary btn-sm"
+                        [disabled]="capaForm.invalid || store.saving() === 'capa'">Salvar</button>
+                <p class="text-muted small mb-0 mt-2">
+                  Severidade preenchida pela metade é ignorada — as três fases andam juntas.
+                </p>
+              </div>
+            }
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+}

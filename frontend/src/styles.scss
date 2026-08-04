@@ -18,6 +18,12 @@ body {
  * fundos, com a paleta exata do tema (#1b232d), sem reinventar o visual.
  */
 [data-theme='dark'] {
+  // Controles nativos do navegador: sem isto o seletor de data continua com o
+  // ícone escuro sobre o campo escuro e abre um calendário branco no meio do
+  // tema escuro. É o CSS que também acerta spinners de `number` e barras de
+  // rolagem — coisas que não dá para estilizar uma a uma.
+  color-scheme: dark;
+
   // Canvas: o tema não escurece o fundo do conteúdo (`bg-body-bg`) de forma
   // consistente, deixando os cards escuros sobre um fundo claro. Fixamos um
   // canvas escuro (mais fundo que os cards #28333f) para coesão total.
@@ -108,7 +114,11 @@ body {
     border-bottom: 0;
     white-space: nowrap;
   }
-  .card .table > tbody > tr > td {
+  // `td` e o `th` de cabeçalho de linha (`scope="row"`) recebem o mesmo
+  // tratamento: sem isso o `th` fica com a borda sólida do Bootstrap no meio de
+  // uma tabela de bordas tracejadas, e a primeira coluna ganha um risco só dela.
+  .card .table > tbody > tr > td,
+  .card .table > tbody > tr > th {
     color: #475569;
     font-size: 15px;
     padding: 14px 20px;
@@ -116,7 +126,8 @@ body {
     border-bottom: 1px dashed #e0e0e0;
   }
   // Última linha sem borda, para a faixa terminar limpa dentro do card.
-  .card .table > tbody > tr:last-child > td {
+  .card .table > tbody > tr:last-child > td,
+  .card .table > tbody > tr:last-child > th {
     border-bottom: 0;
   }
 }
@@ -144,14 +155,16 @@ body {
   border-bottom: 0;
   white-space: nowrap;
 }
-[data-theme='dark'] .card .table > tbody > tr > td {
+[data-theme='dark'] .card .table > tbody > tr > td,
+[data-theme='dark'] .card .table > tbody > tr > th {
   color: #cbd5e1;
   font-size: 15px;
   padding: 14px 20px;
   vertical-align: middle;
   border-bottom: 1px dashed rgba(255, 255, 255, 0.09);
 }
-[data-theme='dark'] .card .table > tbody > tr:last-child > td {
+[data-theme='dark'] .card .table > tbody > tr:last-child > td,
+[data-theme='dark'] .card .table > tbody > tr:last-child > th {
   border-bottom: 0;
 }
 // Linha "selecionada" (table-active) legível no escuro.

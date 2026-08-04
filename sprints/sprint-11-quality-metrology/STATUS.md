@@ -211,7 +211,38 @@ sua porta. `OperationalPreferences` continua com o que é genuinamente transvers
 política de estoque) e ganha o padrão de revisão imutável como referência para os demais.
 
 **Backend entregue antes da sprint 12** (PR de `feat/prm-001-parametrizacao-backend`), com migration
-V79. A tela vem em PR separado.
+V79. **A tela veio no PR seguinte** (`feat/prm-001-tela-parametrizacao`), em `/settings/parameters`,
+alcançada por um cartão novo na seção "Operação" do hub de configurações.
+
+**Por que a tela salva seção por seção.** São cinco endpoints de cinco módulos: não há transação
+abrangendo os cinco, e um botão único de "salvar tudo" prometeria atomicidade inexistente — uma
+falha na terceira chamada deixaria as duas primeiras gravadas sem que ninguém soubesse. Cada seção
+tem o seu botão, a sua permissão de escrita (`*.policy.manage`) e o seu erro. A leitura, essa sim,
+é uma só: um `forkJoin` das cinco, porque uma tela pela metade não ajuda a decidir nada.
+
+**Campo em branco é valor, não esquecimento** — e a tela diz isso em texto, embaixo de cada campo,
+declarando qual comportamento vale hoje. É a metade da invariante que costuma se perder na
+interface: quem apaga a validade do CIP precisa entender que acabou de desligar a expiração por
+tempo, não que deixou de preencher algo.
+
+**Verificação visual (5 telas, claro e escuro, desktop e mobile).** Feita contra a aplicação real
+— backend, banco e `ng serve`, com screenshots por Playwright — e não mais contra um harness
+estático que replicava o HTML à mão. A diferença não é de conforto: o harness replicado só prova
+que a *cópia* está certa. Quatro achados, todos corrigidos:
+
+1. **`ri-sliders-line` não existe** no Remix Icon empacotado pelo tema, e o cartão de
+   Parametrização aparecia com o distintivo vazio. Trocado por `ri-sound-module-line`. Vale como
+   lembrete: nome de ícone errado falha em silêncio, sem erro de console e sem quebrar teste.
+2. **`<th scope="row">` não recebia o estilo de tabela.** As regras de `styles.scss` cobriam só
+   `td`, então a primeira coluna do CAPA ficava com a borda sólida do Bootstrap no meio de uma
+   tabela tracejada. Corrigido nos dois temas — é a tabela compartilhada, não só esta tela.
+3. **Controles nativos ignoravam o tema escuro.** O seletor de data abria calendário branco e
+   exibia o ícone escuro sobre campo escuro nas telas de instrumentos, planos de controle e
+   sessões sensoriais. Resolvido com `color-scheme: dark` no bloco escuro, que também acerta
+   spinners de `number` e barras de rolagem.
+4. **Cartão sensorial com metade vazia.** Ele dividia a linha com a calibração, que tem sete
+   campos e o esticava. Reorganizado: três cartões curtos em uma linha, calibração e CAPA em
+   largura total.
 
 **Correção da tabela acima:** dois itens que eu havia listado não são parâmetro de cervejaria e
 saíram do escopo:

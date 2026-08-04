@@ -172,6 +172,21 @@ export const routes: Routes = [
         loadChildren: () => import('./features/account/account.routes').then(m => m.ACCOUNT_ROUTES),
       },
       {
+        path: 'settings/parameters',
+        canActivate: [permissionGuard],
+        // Ler os parâmetros basta ler qualquer um dos módulos que eles regem.
+        data: {
+          permission: [
+            'sanitation.cycle.read',
+            'gas.read',
+            'metrology.instrument.read',
+            'quality.nc.read',
+            'sensory.session.read',
+          ],
+        },
+        loadChildren: () => import('./features/parameters/parameters.routes').then(m => m.PARAMETERS_ROUTES),
+      },
+      {
         path: 'settings',
         loadChildren: () => import('./features/settings/settings.routes').then(m => m.SETTINGS_ROUTES),
       },

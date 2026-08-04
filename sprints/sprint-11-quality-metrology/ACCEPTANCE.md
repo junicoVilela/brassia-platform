@@ -79,17 +79,21 @@ código morto nos módulos novos, e decisões registradas.
 
 ## Aberto para o mantenedor
 
-1. **`PRM-001` — a tela de parametrização que você propôs.** Seis parâmetros mapeados no
-   `STATUS.md`. A decisão de arquitetura (centralizar em `OperationalPreferences` × cada módulo
-   manter a sua política) está registrada com a recomendação e o motivo.
+1. ~~**`PRM-001` — a tela de parametrização que você propôs.**~~ **Entregue** antes da sprint 12,
+   em dois PRs: backend (#139, migration V79) e tela (#140, `/settings/parameters`). Fechou
+   `PKG-001-A`, `GAS-001-B`, `QLT-002-A` e a periodicidade de calibração da MTR-001.
 2. **`QLT-001-A` — frequência declarada, não fiscalizada.** Depende do agendador ausente desde
    FER-004; é o débito mais antigo ainda vivo na plataforma.
 3. **`QLT-002-A` — prazos do CAPA informados, não derivados da severidade.** Cai na PRM-001.
 4. **`MTR-001-B` — "aprovado com restrição" não estreita a faixa automaticamente.** Interpretar a
    restrição exigiria parsear texto livre e inventar semântica.
 5. **`SEN-002` adiada**, pendente da decisão sobre catálogo licenciado.
-6. **Verificação visual das três telas novas não foi feita** — os estados de UI existem e os testes
-   de store passam, mas não rodei o harness de screenshot em tema claro e escuro.
+6. ~~**Verificação visual das três telas novas não foi feita.**~~ **Feita** junto com a tela da
+   PRM-001 — cinco telas (instrumentos, planos de controle, sessões sensoriais, parametrização e o
+   hub de configurações), em tema claro e escuro, desktop (1440) e mobile (390). Desta vez contra a
+   **aplicação real** com backend e banco, via Playwright, em vez do harness estático de HTML
+   replicado: o que se inspeciona passa a ser a tela, não uma imitação dela. Quatro achados
+   corrigidos, listados no `STATUS.md`.
 
 ## Débitos abertos ao fim da sprint
 

@@ -100,10 +100,31 @@ export class SettingsPageComponent {
     },
   ];
 
+  private readonly operationCards: readonly SettingsCard[] = [
+    {
+      title: 'Parametrização',
+      description: 'Validade de CIP, prazos do CAPA, calibração, gás e escala sensorial.',
+      icon: 'ri-sound-module-line',
+      route: '/settings/parameters',
+      accent: 'primary',
+      permissions: [
+        'sanitation.cycle.read',
+        'gas.read',
+        'metrology.instrument.read',
+        'quality.nc.read',
+        'sensory.session.read',
+      ],
+    },
+  ];
+
   /** Seções com apenas os cartões que o usuário tem permissão de acessar. */
   protected readonly sections = computed<SettingsSection[]>(() => {
+    const operation = this.operationCards.filter(card => this.auth.hasAnyPermission([...card.permissions]));
     const security = this.securityCards.filter(card => this.auth.hasAnyPermission([...card.permissions]));
     const sections: SettingsSection[] = [];
+    if (operation.length > 0) {
+      sections.push({ title: 'Operação', icon: 'ri-equalizer-line', cards: operation });
+    }
     if (security.length > 0) {
       sections.push({ title: 'Segurança e acesso', icon: 'ri-shield-check-line', cards: security });
     }

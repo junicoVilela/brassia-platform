@@ -9,6 +9,7 @@ import br.com.brew.brassia.packaging.domain.VolumeBalanceException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import java.util.List;
 import java.util.Map;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * de bloqueios vai na extensão {@code blockers} e a falta de embalagem na extensão
  * {@code shortfall}, para o operador resolver tudo sem tentativa e erro.
  */
+@Order(0)
 @RestControllerAdvice
 class PackagingExceptionHandler {
 

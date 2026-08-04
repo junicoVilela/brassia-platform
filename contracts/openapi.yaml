@@ -3544,6 +3544,50 @@ paths:
               schema: {$ref: '#/components/schemas/SensoryPolicy'}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /traceability/genealogy:
+    get:
+      tags: [Rastreabilidade]
+      summary: Genealogia de um nó (TRC-001)
+      description: >-
+        Grafo derivado das ligações que cada módulo já registra: insumo reservado, ordem, lote,
+        coleta de levedura, plano e execução de envase. **Nada é materializado** — o grafo é lido
+        na hora, porque uma cópia envelheceria a cada envase.
+
+
+        Duas leituras que a resposta obriga a fazer. `strength` distingue `CONFIRMED` (fato
+        registrado) de `INTENDED` (intenção — a reserva de insumo diz qual lote foi separado para a
+        OP, não qual foi ao moinho). E `gaps` lista os elos que **deveriam existir e não existem**,
+        com o motivo: hoje são o blend de lotes (TRC-001-A), o lote de produto acabado e seu destino
+        (TRC-001-B) e o consumo de insumo por lote no dia de brassa (TRC-001-C).
+
+
+        `truncated` avisa que o corte de profundidade escondeu parte do grafo. Num recall, um
+        resultado que parece completo sem ser é pior do que um resultado declaradamente parcial.
+      parameters:
+        - {name: nodeType, in: query, required: true,
+           schema: {type: string, enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN]}}
+        - {name: nodeId, in: query, required: true, schema: {type: string, format: uuid}}
+        - {name: direction, in: query, required: false,
+           description: "BACKWARD responde de onde veio; FORWARD, para onde foi.",
+           schema: {type: string, enum: [BACKWARD, FORWARD, BOTH], default: BOTH}}
+        - {name: depth, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 10, default: 6}}
+      responses:
+        '200':
+          description: Genealogia
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Genealogy'}
+        '400':
+          description: "`depth_exceeded` — profundidade acima do teto de 10 saltos"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_node` — o nó não existe nesta cervejaria. Não é o mesmo que um nó sem elos."
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
     CleaningPolicy:
@@ -5545,6 +5589,58 @@ components:
               reason: {type: string, nullable: true}
               at: {type: string, format: date-time}
         consumedKg: {type: number, description: "Soma do consumo registrado nesta linha"}
+    Genealogy:
+      type: object
+      description: "Grafo derivado (TRC-001). Nós e arestas alcançados, mais os elos ausentes."
+      properties:
+        root: {$ref: '#/components/schemas/LineageNode'}
+        direction: {type: string, enum: [BACKWARD, FORWARD, BOTH]}
+        depth: {type: integer}
+        truncated:
+          type: boolean
+          description: "Verdadeiro quando o corte de profundidade escondeu parte do grafo."
+        nodes:
+          type: array
+          items: {$ref: '#/components/schemas/LineageNode'}
+        edges:
+          type: array
+          items: {$ref: '#/components/schemas/LineageEdge'}
+        gaps:
+          type: array
+          description: "Elos que deveriam existir e não existem, com o motivo."
+          items: {$ref: '#/components/schemas/LineageGap'}
+    LineageNode:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN]
+        id: {type: string, format: uuid}
+        label: {type: string, nullable: true}
+    LineageEdge:
+      type: object
+      description: "Aresta dirigida no sentido do tempo: `from` deu origem a `to`."
+      properties:
+        from: {$ref: '#/components/schemas/LineageNode'}
+        to: {$ref: '#/components/schemas/LineageNode'}
+        kind:
+          type: string
+          description: "O elo em termos de negócio: reserva de insumo, ordem executada, envase executado…"
+        strength:
+          type: string
+          enum: [CONFIRMED, INTENDED]
+          description: >-
+            `INTENDED` é intenção registrada, não fato. Tratar intenção como fato num recall é
+            recolher o lote errado.
+        recordedAt: {type: string, format: date-time, nullable: true}
+    LineageGap:
+      type: object
+      properties:
+        from: {$ref: '#/components/schemas/LineageNode'}
+        expectedLink: {type: string}
+        reason:
+          type: string
+          description: "Por que o elo não existe — o que falta na plataforma para que exista."
     GasConnectionProblem:
       type: object
       description: "Problem Details da recusa de conexão; `blockers` acompanha gas_connection_blocked."

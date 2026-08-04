@@ -5,12 +5,14 @@ import br.com.brew.brassia.sensory.domain.ResultsNotAvailableException;
 import br.com.brew.brassia.sensory.domain.SessionNotOpenException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import java.util.Map;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /** Recusas da análise sensorial (SEN-001) — todas em defesa da cegueira. */
+@Order(0)
 @RestControllerAdvice
 class SensoryExceptionHandler {
 

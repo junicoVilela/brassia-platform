@@ -1,6 +1,6 @@
 # Status — Sprint 11
 
-Estado: CONCLUÍDA (aceite pendente do mantenedor)
+Estado: ACEITA
 
 ## Controle das histórias
 
@@ -308,10 +308,14 @@ reestruturaria a ficha.
   `plan_not_published`, `nc_phase_out_of_order`, `verification_required`, `results_not_available`,
   `session_not_open`, `already_evaluated` e a reutilização de `instrument_not_fit` em QLT-001.
 - **Riscos remanescentes:** (1) o E2E cobre navegação e integração, não o fluxo de negócio ponta a
-  ponta; (2) as três telas novas não passaram por verificação visual em tema claro e escuro;
-  (3) `QLT-001-A` segue dependendo do agendador ausente desde FER-004; (4) SEN-002 adiada deixa os
-  descritores como texto livre, sem sinônimos nem agregação confiável.
-- **Aceite:** **pendente do mantenedor** — ver `ACCEPTANCE.md`.
+  ponta — item de backlog decidido no aceite; (2) `QLT-001-A` segue dependendo do agendador ausente
+  desde FER-004; (3) SEN-002 adiada deixa os descritores como texto livre, sem sinônimos nem
+  agregação confiável. **A verificação visual saiu da lista**: foi feita junto com a tela da
+  PRM-001, em cinco telas, claro e escuro, desktop e mobile, contra a aplicação real — quatro
+  achados corrigidos e registrados acima.
+- **Aceite:** **Valdemir Vilela Junior, 2026-08-04** — aceita com as ressalvas registradas em
+  `ACCEPTANCE.md`. `QLT-001-A`, `MTR-001-B` e a adiada `SEN-002` seguem abertos, e o item de E2E do
+  DoD fica como jornada de negócio a escrever: o aceite libera a sprint, não os débitos.
 
 ## Débitos abertos ao fim da sprint
 
@@ -320,5 +324,7 @@ CAPA informados, não derivados da severidade) e **MTR-001-B** (restrição do c
 a faixa). **MTR-001-A foi aberto e fechado dentro da própria sprint**: a designação de ponto crítico
 criada em MTR-001 virou regra executável em QLT-001, verificada no momento da medição.
 
-Quatro deles — mais `PKG-001-A`, `PKG-002-A` e `GAS-001-B` da sprint 10 — estão mapeados na
-PRM-001 acima e deixam de ser débitos soltos quando a tela de parametrização existir.
+A **PRM-001 foi entregue antes da sprint 12** (#139 e #140) e fechou `PKG-001-A`, `GAS-001-B`,
+`QLT-002-A` e a periodicidade de calibração da MTR-001. Restam abertos: `QLT-001-A` e `MTR-001-B`
+daqui, `PKG-002-A` e `PKG-004-A`/`PKG-004-B` da sprint 10 (o primeiro virou item de catálogo, o
+segundo cai na FDS-001 da sprint 12) e `CLN-004-A` da sprint 08.

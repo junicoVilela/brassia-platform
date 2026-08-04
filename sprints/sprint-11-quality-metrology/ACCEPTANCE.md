@@ -9,7 +9,7 @@ está explicitamente aberto no fim.
 - [x] OpenAPI, migrations, eventos e documentação estão consistentes.
 - [x] Frontend trata loading, vazio, erro, conflito e acesso negado.
 - [x] Observabilidade permite localizar a operação por traceId.
-- [ ] `.ai/DEFINITION_OF_DONE.md` foi executado. *(12 de 12 — ver abaixo)*
+- [ ] `.ai/DEFINITION_OF_DONE.md` foi executado. *(11 de 12 — ver abaixo)*
 - [x] Débitos e decisões restantes foram registrados, não escondidos em TODO.
 
 ## Escopo entregue: cinco histórias, não seis
@@ -59,17 +59,19 @@ ações escondidas sem permissão).
 **Observabilidade** — `RequestTraceIdFilter` + MDC preenchem o `traceId` em log estruturado,
 auditoria e Problem Details; vale para os endpoints novos sem trabalho adicional.
 
-## Definition of Done — 12 de 12
+## Definition of Done — 11 de 12
 
-**Pela primeira vez o item de E2E é atendido.** O harness de Playwright entrou fora de sprint (PR
-#130) e esta sprint acrescentou três jornadas — instrumentos, planos de controle e sessões
-sensoriais. O job `E2E (Playwright, stack real)` roda na CI a cada PR, contra a aplicação
-empacotada com PostgreSQL.
+**O item de E2E fica aberto — decisão do mantenedor, 2026-08-04.** O harness de Playwright entrou
+fora de sprint (PR #130) e esta sprint acrescentou três jornadas — instrumentos, planos de controle
+e sessões sensoriais —, além de uma quarta na PRM-001. O job `E2E (Playwright, stack real)` roda na
+CI a cada PR, contra a aplicação empacotada com PostgreSQL.
 
-Deixo o item **desmarcado no topo mesmo assim**: o E2E cobre navegação, sessão e integração
-frontend↔API, mas não percorre o fluxo de negócio ponta a ponta (montar plano, medir fora da
-faixa, abrir NC, tratar e encerrar). Marcar "fluxo principal E2E aprovado" com o que existe hoje
-seria generoso demais com a própria entrega. É julgamento, e por isso vai para a sua decisão.
+Mesmo assim o item não é dado por atendido: o E2E cobre navegação, sessão e integração
+frontend↔API, mas não percorre o fluxo de negócio ponta a ponta (montar plano, medir fora da faixa,
+abrir NC, tratar e encerrar). Marcar "fluxo principal E2E aprovado" com o que existe hoje seria
+generoso demais com a própria entrega. **Fica como item de backlog: uma jornada E2E de negócio
+completa**, a ser escrita quando o fluxo tiver dados de apoio suficientes para ser montado pela
+interface.
 
 Os demais 11 itens estão atendidos: domínio sem framework, unitários de invariante/limite/transição
 inválida, integração com Testcontainers, autorização e tenant negativos, migrations com constraints

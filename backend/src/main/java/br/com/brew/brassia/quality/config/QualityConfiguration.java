@@ -7,6 +7,7 @@ import br.com.brew.brassia.quality.application.port.inbound.ControlPlanCommands;
 import br.com.brew.brassia.quality.application.port.inbound.MeasurementCommands;
 import br.com.brew.brassia.quality.application.port.inbound.NonConformityCommands;
 import br.com.brew.brassia.quality.application.port.inbound.QualityQueries;
+import br.com.brew.brassia.quality.application.port.outbound.CapaPolicyRepository;
 import br.com.brew.brassia.quality.application.port.outbound.ControlPlanRepository;
 import br.com.brew.brassia.quality.application.port.outbound.MeasurementRepository;
 import br.com.brew.brassia.quality.application.port.outbound.NonConformityRepository;
@@ -14,6 +15,8 @@ import br.com.brew.brassia.quality.application.service.ControlPlanHandlers;
 import br.com.brew.brassia.quality.application.service.MeasurementHandler;
 import br.com.brew.brassia.quality.application.service.NonConformityHandlers;
 import br.com.brew.brassia.quality.application.service.QualityQueriesHandler;
+import br.com.brew.brassia.quality.application.port.inbound.CapaPolicyUseCase;
+import br.com.brew.brassia.quality.application.service.CapaPolicyHandler;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -96,9 +99,9 @@ class QualityConfiguration {
 
     @Bean
     NonConformityCommands.Open openNonConformityUseCase(NonConformityRepository nonConformities,
-            MeasurementRepository measurements, AuditTrail audit,
+            MeasurementRepository measurements, CapaPolicyRepository policies, AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new NonConformityHandlers.Open(nonConformities, measurements, audit);
+        var handler = new NonConformityHandlers.Open(nonConformities, measurements, policies, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }
@@ -159,4 +162,11 @@ class QualityConfiguration {
             NonConformityRepository nonConformities) {
         return new QualityQueriesHandler(plans, measurements, nonConformities);
     }
+
+    /** Política de CAPA (PRM-001): prazos por severidade. */
+    @Bean
+    CapaPolicyUseCase capaPolicyUseCase(CapaPolicyRepository policies, AuditTrail audit) {
+        return new CapaPolicyHandler(policies, audit);
+    }
+
 }

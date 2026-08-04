@@ -34,7 +34,8 @@ class JdbcSensorySessionRepository implements SensorySessionRepository {
     private static final TypeReference<List<String>> DESCRIPTORS = new TypeReference<>() {};
 
     private static final String COLUMNS = """
-            SELECT id, brewery_id, code, purpose, scheduled_for, status, opened_at, closed_at, lock_version
+            SELECT id, brewery_id, code, purpose, scheduled_for, status, max_score, opened_at, closed_at,
+                   lock_version
             FROM sensory_session
             """;
 
@@ -48,12 +49,12 @@ class JdbcSensorySessionRepository implements SensorySessionRepository {
     public void insert(SensorySession s) {
         jdbc.sql("""
                 INSERT INTO sensory_session (id, brewery_id, code, purpose, scheduled_for, status,
-                    opened_at, closed_at, lock_version)
-                VALUES (:id, :brewery, :code, :purpose, :scheduledFor, :status, NULL, NULL, 0)
+                    max_score, opened_at, closed_at, lock_version)
+                VALUES (:id, :brewery, :code, :purpose, :scheduledFor, :status, :maxScore, NULL, NULL, 0)
                 """)
                 .param("id", s.id()).param("brewery", s.breweryId()).param("code", s.code())
                 .param("purpose", s.purpose()).param("scheduledFor", s.scheduledFor())
-                .param("status", s.status().name())
+                .param("status", s.status().name()).param("maxScore", s.maxScore())
                 .update();
         insertSamples(s);
     }
@@ -190,6 +191,7 @@ class JdbcSensorySessionRepository implements SensorySessionRepository {
                 rs.getString("purpose"),
                 rs.getObject("scheduled_for", LocalDate.class),
                 SessionStatus.valueOf(rs.getString("status")),
+                rs.getInt("max_score"),
                 samples(id),
                 openedAt == null ? null : openedAt.toInstant(),
                 closedAt == null ? null : closedAt.toInstant(),

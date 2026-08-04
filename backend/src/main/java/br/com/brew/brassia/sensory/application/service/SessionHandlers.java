@@ -4,6 +4,7 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.sensory.application.port.inbound.SessionCommands;
+import br.com.brew.brassia.sensory.application.port.outbound.SensoryPolicyRepository;
 import br.com.brew.brassia.sensory.application.port.outbound.SensorySessionRepository;
 import br.com.brew.brassia.sensory.domain.AlreadyEvaluatedException;
 import br.com.brew.brassia.sensory.domain.SensoryAttribute;
@@ -35,10 +36,13 @@ public final class SessionHandlers {
     public static final class Create implements SessionCommands.Create {
 
         private final SensorySessionRepository sessions;
+        private final SensoryPolicyRepository policies;
         private final AuditTrail audit;
 
-        public Create(SensorySessionRepository sessions, AuditTrail audit) {
+        public Create(SensorySessionRepository sessions, SensoryPolicyRepository policies,
+                AuditTrail audit) {
             this.sessions = Objects.requireNonNull(sessions);
+            this.policies = Objects.requireNonNull(policies);
             this.audit = Objects.requireNonNull(audit);
         }
 
@@ -47,13 +51,16 @@ public final class SessionHandlers {
             if (sessions.existsByCode(command.breweryId(), command.code())) {
                 throw new IllegalStateException("já existe sessão com o código " + command.code());
             }
+            // A escala vem do parâmetro da cervejaria e fica congelada na sessão.
+            var maxScore = policies.find(command.breweryId()).maxScore();
             var session = SensorySession.draft(command.breweryId(), command.code(), command.purpose(),
-                    command.scheduledFor());
+                    command.scheduledFor(), maxScore);
             sessions.insert(session);
 
             audit.record(AuditEvent.success(command.breweryId(), command.actorId(), "sensory.session.create",
                     "sensory.session", session.id().toString(),
-                    Map.of("code", session.code(), "scheduledFor", session.scheduledFor().toString())));
+                    Map.of("code", session.code(), "scheduledFor", session.scheduledFor().toString(),
+                            "maxScore", String.valueOf(session.maxScore()))));
             return session.id();
         }
     }
@@ -202,7 +209,7 @@ public final class SessionHandlers {
             var evaluation = SensoryEvaluation.submit(command.breweryId(), session.id(), sample.id(),
                     command.actorId(), scores, command.descriptors() == null ? java.util.List.of()
                             : command.descriptors(),
-                    command.note(), Instant.now());
+                    command.note(), Instant.now(), session.maxScore());
             sessions.insertEvaluation(evaluation);
 
             // Sem nota e sem lote no evento: a auditoria não pode ser a fresta por onde o

@@ -27,7 +27,8 @@ public final class GasDtos {
     /** {@code reason} é obrigatório para bloquear; ignorado no desbloqueio. */
     public record BlockCylinderRequest(boolean blocked, @Size(max = 200) String reason) {}
 
-    public record RequalifyRequest(@NotNull LocalDate dueOn) {}
+    /** @param dueOn opcional desde a PRM-001: em branco, a política da cervejaria deriva a data */
+    public record RequalifyRequest(LocalDate dueOn) {}
 
     public record RefillRequest(@NotNull @PositiveOrZero BigDecimal contentKg) {}
 

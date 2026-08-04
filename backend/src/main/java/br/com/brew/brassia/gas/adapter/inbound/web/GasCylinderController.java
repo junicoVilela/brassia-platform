@@ -74,12 +74,21 @@ final class GasCylinderController {
                 principal.userId(), principal.requireBrewery(), id, request.blocked(), request.reason()));
     }
 
+    /**
+     * Devolve o cilindro porque o vencimento pode ter sido <em>derivado</em> da política da
+     * cervejaria (PRM-001): quem requalificou sem informar data precisa saber qual ficou valendo.
+     */
     @PostMapping("/{id}/requalification")
-    void requalify(@PathVariable UUID id, @Valid @RequestBody GasDtos.RequalifyRequest request,
+    GasViews.CylinderView requalify(@PathVariable UUID id,
+            @Valid @RequestBody GasDtos.RequalifyRequest request,
             @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("gas.manage");
-        requalify.handle(new CylinderCommands.Requalify.Command(
-                principal.userId(), principal.requireBrewery(), id, request.dueOn()));
+        var brewery = principal.requireBrewery();
+        requalify.handle(new CylinderCommands.Requalify.Command(principal.userId(), brewery, id,
+                request.dueOn()));
+        return queries.cylinder(brewery, id)
+                .map(GasViews.CylinderView::from)
+                .orElseThrow(() -> new IllegalStateException("cilindro não encontrado após o comando"));
     }
 
     @PostMapping("/{id}/refill")

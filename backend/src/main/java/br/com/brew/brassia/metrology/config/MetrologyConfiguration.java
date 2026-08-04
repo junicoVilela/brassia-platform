@@ -6,12 +6,15 @@ import br.com.brew.brassia.metrology.InstrumentStatusLookup;
 import br.com.brew.brassia.metrology.application.port.inbound.InstrumentCommands;
 import br.com.brew.brassia.metrology.application.port.inbound.MetrologyQueries;
 import br.com.brew.brassia.metrology.application.port.inbound.StandardCommands;
+import br.com.brew.brassia.metrology.application.port.outbound.CalibrationPolicyRepository;
 import br.com.brew.brassia.metrology.application.port.outbound.CalibrationStandardRepository;
 import br.com.brew.brassia.metrology.application.port.outbound.InstrumentRepository;
 import br.com.brew.brassia.metrology.application.service.CorrectionHandler;
 import br.com.brew.brassia.metrology.application.service.InstrumentHandlers;
 import br.com.brew.brassia.metrology.application.service.MetrologyQueriesHandler;
 import br.com.brew.brassia.metrology.application.service.StandardHandlers;
+import br.com.brew.brassia.metrology.application.port.inbound.CalibrationPolicyUseCase;
+import br.com.brew.brassia.metrology.application.service.CalibrationPolicyHandler;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -71,9 +74,9 @@ class MetrologyConfiguration {
 
     @Bean
     InstrumentCommands.Calibrate calibrateInstrumentUseCase(InstrumentRepository instruments,
-            CalibrationStandardRepository standards, AuditTrail audit,
-            PlatformTransactionManager transactionManager) {
-        var handler = new InstrumentHandlers.Calibrate(instruments, standards, audit);
+            CalibrationStandardRepository standards, CalibrationPolicyRepository policies,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new InstrumentHandlers.Calibrate(instruments, standards, policies, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }
@@ -118,4 +121,12 @@ class MetrologyConfiguration {
             CalibrationStandardRepository standards) {
         return new MetrologyQueriesHandler(instruments, standards);
     }
+
+    /** Política de calibração (PRM-001): periodicidade por tipo de instrumento. */
+    @Bean
+    CalibrationPolicyUseCase calibrationPolicyUseCase(CalibrationPolicyRepository policies,
+            AuditTrail audit) {
+        return new CalibrationPolicyHandler(policies, audit);
+    }
+
 }

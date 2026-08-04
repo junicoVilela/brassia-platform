@@ -116,6 +116,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/gas/gas.routes').then(m => m.GAS_ROUTES),
       },
       {
+        path: 'sensory/sessions',
+        canActivate: [permissionGuard],
+        data: { permission: 'sensory.session.read' },
+        loadChildren: () => import('./features/sensory/sensory.routes').then(m => m.SENSORY_ROUTES),
+      },
+      {
         path: 'quality/control-plans',
         canActivate: [permissionGuard],
         data: { permission: 'quality.plan.read' },

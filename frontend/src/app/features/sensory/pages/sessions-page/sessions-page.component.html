@@ -1,0 +1,233 @@
+<app-page-header title="Sessões sensoriais"
+                 subtitle="Amostras cegas, ficha, resultado e comparação entre lotes" />
+
+@if (canManage) {
+  <div class="card border-0 rounded-10 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-1">Nova sessão</h2>
+      <p class="text-muted small mb-3">
+        A sessão nasce rascunho: monte as amostras, abra para o painel e encerre para revelar. O
+        resultado não aparece antes do fechamento — ver a nota alheia antes de dar a sua faz o
+        painel convergir por contágio.
+      </p>
+      <form [formGroup]="form" (ngSubmit)="create()" class="row g-2 align-items-end">
+        <div class="col-sm-3"><label class="form-label small" for="scode">Código</label>
+          <input id="scode" type="text" class="form-control form-control-sm" formControlName="code"
+                 placeholder="SEN-001"></div>
+        <div class="col-sm-5"><label class="form-label small" for="spurpose">Propósito</label>
+          <input id="spurpose" type="text" class="form-control form-control-sm" formControlName="purpose"
+                 placeholder="Comparativo entre lotes"></div>
+        <div class="col-sm-2"><label class="form-label small" for="sdate">Data</label>
+          <input id="sdate" type="date" class="form-control form-control-sm"
+                 formControlName="scheduledFor"></div>
+        <div class="col-sm-2 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm" [disabled]="form.invalid || store.submitting()">
+            <i class="ri-goblet-line me-1" aria-hidden="true"></i> Criar
+          </button>
+        </div>
+      </form>
+      @if (store.actionError(); as actionError) {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ actionError }}</div>
+      }
+    </div>
+  </div>
+}
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    <h2 class="h6 fw-semibold mb-3">Sessões</h2>
+
+    @if (store.loading()) {
+      <app-loading-indicator />
+    } @else if (store.error(); as error) {
+      <div class="alert alert-danger mb-0" role="alert">
+        {{ error }}
+        <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">Tentar de novo</button>
+      </div>
+    } @else if (store.empty()) {
+      <app-empty-state icon="ri-goblet-line" message="Nenhuma sessão sensorial."
+                       hint="Crie uma sessão e monte as amostras cegas." />
+    } @else {
+      <ul class="list-unstyled mb-0">
+        @for (s of store.sessions(); track s.id) {
+          <li class="border rounded-10 p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+              <div>
+                <span class="badge me-2" [class]="statusClass(s)">{{ s.statusLabel }}</span>
+                <span class="fw-medium">{{ s.code }}</span>
+                <span class="text-muted small">
+                  · {{ s.purpose }} · {{ s.scheduledFor | date:'shortDate' }}
+                  · {{ s.samples.length }} amostra(s)
+                  · {{ s.evaluationCount }} ficha(s)
+                </span>
+              </div>
+              @if (canManage) {
+                <div class="d-flex gap-2 flex-wrap">
+                  @if (s.status === 'DRAFT') {
+                    <button type="button" class="btn btn-sm btn-outline-success text-nowrap"
+                            [disabled]="s.samples.length === 0" (click)="store.open(s)">
+                      Abrir para o painel
+                    </button>
+                  } @else if (s.status === 'OPEN') {
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap"
+                            (click)="store.close(s)">
+                      Encerrar e revelar
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+
+            @if (s.samples.length > 0) {
+              <ul class="list-unstyled small mb-0 mt-2 d-flex flex-wrap gap-3">
+                @for (sample of s.samples; track sample.id) {
+                  <li>
+                    <span class="badge text-bg-light">{{ sample.blindCode }}</span>
+                    @if (sample.batchId) {
+                      <span class="text-muted">· lote revelado</span>
+                    } @else {
+                      <span class="text-muted">· cega</span>
+                    }
+                    @if (canManage && s.status === 'DRAFT') {
+                      <button type="button" class="btn btn-link btn-sm p-0 ms-1"
+                              (click)="removeSample(s, sample)">remover</button>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+
+            <div class="d-flex gap-3 mt-2">
+              <button type="button" class="btn btn-link btn-sm p-0" (click)="store.toggleSession(s)">
+                {{ store.openSessionOf() === s.id ? 'Fechar' : 'Amostras, ficha e resultado' }}
+              </button>
+            </div>
+
+            @if (store.openSessionOf() === s.id) {
+              <div class="border-top mt-3 pt-3">
+                @if (canManage && s.status === 'DRAFT') {
+                  <h3 class="h6 fw-semibold mb-1">Nova amostra</h3>
+                  <p class="text-muted small mb-3">
+                    O código cego é sorteado pelo sistema — três dígitos aleatórios, para não vazar a
+                    ordem de preparo. O mesmo lote pode entrar duas vezes de propósito: duplicata cega
+                    mede a consistência do painel.
+                  </p>
+                  <form [formGroup]="sampleForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-sm-5"><label class="form-label small" for="abatch">Lote (id)</label>
+                      <input id="abatch" type="text" class="form-control form-control-sm"
+                             formControlName="batchId"></div>
+                    <div class="col-sm-4"><label class="form-label small" for="anote">Observação</label>
+                      <input id="anote" type="text" class="form-control form-control-sm"
+                             formControlName="note" placeholder="servida a 8 °C"></div>
+                    <div class="col-sm-3 d-grid">
+                      <button type="button" class="btn btn-outline-primary btn-sm"
+                              [disabled]="sampleForm.invalid || store.submitting()" (click)="addSample(s)">
+                        Incluir amostra
+                      </button>
+                    </div>
+                  </form>
+                }
+
+                @if (canEvaluate && s.status === 'OPEN') {
+                  <h3 class="h6 fw-semibold mb-1">Sua ficha</h3>
+                  <p class="text-muted small mb-3">
+                    Uma ficha por amostra, e ela é imutável depois de enviada. Enquanto a sessão está
+                    aberta você não vê nota de ninguém — nem a sua.
+                  </p>
+                  <form [formGroup]="evaluationForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-sm-4"><label class="form-label small" for="esample">Amostra</label>
+                      <select id="esample" class="form-select form-select-sm" formControlName="sampleId">
+                        <option value="">Selecione…</option>
+                        @for (sample of s.samples; track sample.id) {
+                          <option [value]="sample.id">{{ sample.blindCode }}</option>
+                        }
+                      </select></div>
+                    @for (a of attributes; track a) {
+                      <div class="col-sm-2">
+                        <label class="form-label small" [for]="'score-' + a">{{ attributeLabels[a] }}</label>
+                        <input [id]="'score-' + a" type="number" min="0" max="10"
+                               class="form-control form-control-sm" [formControlName]="a">
+                      </div>
+                    }
+                    <div class="col-sm-6"><label class="form-label small" for="edesc">Descritores</label>
+                      <input id="edesc" type="text" class="form-control form-control-sm"
+                             formControlName="descriptors" placeholder="cítrico, resinoso"></div>
+                    <div class="col-sm-4"><label class="form-label small" for="enote">Observação</label>
+                      <input id="enote" type="text" class="form-control form-control-sm"
+                             formControlName="note"></div>
+                    <div class="col-sm-2 d-grid">
+                      <button type="button" class="btn btn-primary btn-sm"
+                              [disabled]="evaluationForm.invalid || store.submitting()" (click)="submit(s)">
+                        Enviar ficha
+                      </button>
+                    </div>
+                  </form>
+                }
+
+                @if (!s.resultsAvailable) {
+                  <div class="alert alert-info mb-0" role="alert">
+                    O resultado aparece no encerramento. Até lá, só o número de fichas recebidas é
+                    público — {{ s.evaluationCount }} até agora.
+                  </div>
+                } @else if (store.results(); as results) {
+                  @if (store.inconsistentBatches().length > 0) {
+                    <div class="alert alert-warning" role="alert">
+                      <p class="mb-1 fw-medium">O painel divergiu sobre o mesmo lote.</p>
+                      <p class="small mb-0">
+                        Amostras duplicadas receberam notas distintas. A cerveja era a mesma, então a
+                        diferença é do painel — vale calibrar antes de usar esta sessão para decidir.
+                      </p>
+                    </div>
+                  }
+
+                  <p class="small fw-medium mb-2">Resultado</p>
+                  <ul class="list-unstyled small mb-3">
+                    @for (r of results.samples; track r.sampleId) {
+                      <li class="border-start ps-3 mb-2">
+                        <span class="badge text-bg-light me-1">{{ r.blindCode }}</span>
+                        <span class="fw-medium">
+                          global {{ r.overallAverage | number:'1.0-2' }}
+                        </span>
+                        <span class="text-muted">
+                          · {{ r.evaluations }} ficha(s) · dispersão {{ r.spread | number:'1.0-2' }}
+                        </span>
+                        <p class="text-muted mb-0">
+                          @for (a of attributes; track a) {
+                            {{ attributeLabels[a] }} {{ r.averages[a] | number:'1.0-2' }}@if (a !== 'OVERALL') {,&nbsp;}
+                          }
+                        </p>
+                        @if (r.descriptors.length > 0) {
+                          <p class="text-muted mb-0">
+                            Descritores: @for (d of r.descriptors; track d) { {{ d }} }
+                          </p>
+                        }
+                      </li>
+                    }
+                  </ul>
+
+                  @if (results.consistency.length > 0) {
+                    <p class="small fw-medium mb-2">Consistência do painel</p>
+                    <ul class="list-unstyled small mb-0">
+                      @for (c of results.consistency; track c.batchId) {
+                        <li class="border-start ps-3 mb-2">
+                          <span class="fw-medium">
+                            Mesmo lote em @for (b of c.blindCodes; track b) { {{ b }} }
+                          </span>
+                          <span class="text-muted">
+                            · diferença de {{ c.difference | number:'1.0-2' }} pontos
+                          </span>
+                        </li>
+                      }
+                    </ul>
+                  }
+                } @else if (store.resultsError(); as resultsError) {
+                  <div class="alert alert-warning mb-0" role="alert">{{ resultsError }}</div>
+                }
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</div>

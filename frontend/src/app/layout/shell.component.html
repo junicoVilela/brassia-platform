@@ -169,6 +169,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('sensory.session.read')) {
+            <li class="menu-item">
+              <a routerLink="/sensory/sessions" routerLinkActive="active" class="menu-link">
+                <i class="ri-goblet-line menu-icon"></i>
+                <span class="title">Sessões sensoriais</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('quality.plan.read')) {
             <li class="menu-item">
               <a routerLink="/quality/control-plans" routerLinkActive="active" class="menu-link">

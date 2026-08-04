@@ -3186,8 +3186,298 @@ paths:
               schema: {$ref: '#/components/schemas/NonConformity'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /sensory/sessions:
+    get:
+      tags: [Sensorial]
+      summary: Sessões sensoriais (SEN-001)
+      responses:
+        '200':
+          description: Sessões
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/SensorySession'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Sensorial]
+      summary: Cria sessão como rascunho
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateSensorySession'}
+      responses:
+        '201':
+          description: Sessão criada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensorySession'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sensory/sessions/attributes:
+    get:
+      tags: [Sensorial]
+      summary: Atributos da ficha e seus rótulos
+      responses:
+        '200':
+          description: Atributos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code: {$ref: '#/components/schemas/SensoryAttribute'}
+                    label: {type: string}
+        '403': {$ref: '#/components/responses/Problem'}
+  /sensory/sessions/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Sensorial]
+      summary: Sessão
+      description: >-
+        As amostras saem **sem o lote** enquanto a sessão não é encerrada — a cegueira é garantida
+        na resposta, não na tela.
+      responses:
+        '200':
+          description: Sessão
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensorySession'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Sensorial]
+      summary: Corrige o rascunho
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purpose, scheduledFor]
+              properties:
+                purpose: {type: string, maxLength: 200}
+                scheduledFor: {type: string, format: date}
+      responses:
+        '200':
+          description: Sessão atualizada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensorySession'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sensory/sessions/{id}/samples:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Sensorial]
+      summary: Acrescenta amostra com código cego sorteado pelo sistema
+      description: >-
+        O código cego **não vem do cliente**: é sorteado com três dígitos aleatórios, porque código
+        sequencial vazaria a ordem de preparo. O mesmo lote pode entrar mais de uma vez — duplicata
+        cega mede a consistência do painel.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [batchId]
+              properties:
+                batchId: {type: string, format: uuid}
+                note: {type: string, maxLength: 500, nullable: true}
+      responses:
+        '201':
+          description: Amostra incluída
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensorySession'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sensory/sessions/{id}/samples/{sampleId}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      - {name: sampleId, in: path, required: true, schema: {type: string, format: uuid}}
+    delete:
+      tags: [Sensorial]
+      summary: Remove amostra do rascunho
+      responses:
+        '200':
+          description: Amostra removida
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensorySession'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sensory/sessions/{id}/open:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Sensorial]
+      summary: Abre a sessão para o painel
+      description: Sessão sem amostra não abre.
+      responses:
+        '200':
+          description: Sessão aberta
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensorySession'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sensory/sessions/{id}/close:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Sensorial]
+      summary: Encerra a sessão e revela o resultado
+      responses:
+        '200':
+          description: Sessão encerrada; as amostras passam a trazer o lote
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensorySession'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sensory/sessions/{id}/evaluations:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Sensorial]
+      summary: Envia a ficha do provador
+      description: >-
+        Só com a sessão aberta (409 `session_not_open`) e uma ficha por provador e amostra (409
+        `already_evaluated`). A ficha é **imutável**: não há endpoint de alteração, porque bastaria
+        esperar o fechamento, ver o resultado e reescrevê-la.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SubmitSensoryEvaluation'}
+      responses:
+        '201':
+          description: Ficha registrada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensorySession'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sensory/sessions/{id}/results:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Sensorial]
+      summary: Resultado consolidado
+      description: >-
+        Recusado com 409 `results_not_available` enquanto a sessão não é encerrada — é o critério
+        da história. Ver a nota alheia antes de dar a sua faz o painel convergir por contágio.
+      responses:
+        '200':
+          description: Resultado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensoryResults'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    SensoryAttribute:
+      type: string
+      description: Atributos da ficha, nota de 0 a 10
+      enum: [APPEARANCE, AROMA, FLAVOR, BODY, OVERALL]
+    CreateSensorySession:
+      type: object
+      required: [code, purpose, scheduledFor]
+      properties:
+        code: {type: string, maxLength: 40}
+        purpose: {type: string, maxLength: 200}
+        scheduledFor: {type: string, format: date}
+    SensorySample:
+      type: object
+      required: [id, blindCode]
+      properties:
+        id: {type: string, format: uuid}
+        blindCode:
+          type: string
+          pattern: '^[0-9]{3}$'
+          description: Três dígitos aleatórios sorteados pelo sistema
+        batchId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >-
+            Nulo enquanto a sessão não é encerrada. O vínculo nunca é apagado — apenas não é
+            revelado antes do fechamento.
+        note: {type: string, nullable: true}
+    SensorySession:
+      type: object
+      required: [id, code, purpose, scheduledFor, status, statusLabel, resultsAvailable,
+                 evaluationCount, samples]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        purpose: {type: string}
+        scheduledFor: {type: string, format: date}
+        status: {type: string, enum: [DRAFT, OPEN, CLOSED]}
+        statusLabel: {type: string}
+        resultsAvailable: {type: boolean}
+        evaluationCount:
+          type: integer
+          description: O único número público enquanto a sessão está aberta
+        samples: {type: array, items: {$ref: '#/components/schemas/SensorySample'}}
+        openedAt: {type: string, format: date-time, nullable: true}
+        closedAt: {type: string, format: date-time, nullable: true}
+    SubmitSensoryEvaluation:
+      type: object
+      required: [sampleId, scores]
+      properties:
+        sampleId: {type: string, format: uuid}
+        scores:
+          type: object
+          description: Todos os cinco atributos, de 0 a 10; faltando um, a ficha é recusada
+          additionalProperties: {type: integer, minimum: 0, maximum: 10}
+        descriptors: {type: array, items: {type: string}}
+        note: {type: string, maxLength: 1000, nullable: true}
+    SensorySampleResult:
+      type: object
+      required: [sampleId, blindCode, batchId, evaluations, averages, overallAverage, spread,
+                 descriptors]
+      properties:
+        sampleId: {type: string, format: uuid}
+        blindCode: {type: string}
+        batchId: {type: string, format: uuid}
+        evaluations: {type: integer}
+        averages:
+          type: object
+          additionalProperties: {type: number}
+        overallAverage: {type: number}
+        spread:
+          type: number
+          description: Diferença entre a maior e a menor nota global; painel disperso pede calibração
+        descriptors: {type: array, items: {type: string}}
+    BatchConsistency:
+      type: object
+      required: [batchId, blindCodes, difference]
+      properties:
+        batchId: {type: string, format: uuid}
+        blindCodes: {type: array, items: {type: string}}
+        difference:
+          type: number
+          description: >-
+            Diferença entre médias de amostras do mesmo lote. A cerveja era a mesma, então o valor
+            mede o viés do painel.
+    SensoryResults:
+      type: object
+      required: [samples, consistency]
+      properties:
+        samples: {type: array, items: {$ref: '#/components/schemas/SensorySampleResult'}}
+        consistency: {type: array, items: {$ref: '#/components/schemas/BatchConsistency'}}
     NonConformitySource:
       type: string
       enum: [DEVIATION, COMPLAINT, AUDIT, SUPPLIER, OTHER]

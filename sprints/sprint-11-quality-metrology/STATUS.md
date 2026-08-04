@@ -10,7 +10,7 @@ Estado: EM ANDAMENTO
 | MTR-002 | Concluída | IA | V75 + `MetrologyIT` (26 testes) | Temperatura pelo hub; curva no domínio |
 | QLT-001 | Concluída | IA | V76 + `QualityIT` (16 testes) | Novo módulo `quality`; fecha MTR-001-A |
 | QLT-002 | Concluída | IA | V77 + `QualityIT` (25 testes) | Encerrar exige verificação eficaz |
-| SEN-001 | A fazer | — | — | — |
+| SEN-001 | Concluída | IA | V78 + `SensoryIT` (14 testes) | Novo módulo `sensory`; cegueira na API |
 | SEN-002 | A fazer | — | — | — |
 
 ## Decisões e bloqueios
@@ -147,6 +147,33 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
   conter depende do porte da operação e do tipo de problema; derivá-lo de regra fixa criaria número
   sem fonte. Critério de remoção: a tela de parametrização por cervejaria (ver PRM-001 abaixo).
 
+### SEN-001
+
+- **A cegueira é garantida na resposta da API, não na tela.** A amostra sai sem lote enquanto a
+  sessão não é encerrada, e o resultado é recusado com 409. Deixar isso para o frontend significaria
+  que qualquer cliente — inclusive o navegador com o devtools aberto — enxergaria o que o provador
+  não deveria.
+- **O código cego é aleatório de três dígitos, sorteado pelo sistema.** Sequencial vazaria a ordem
+  de preparo, e ordem é informação: quem percebe "a 001 é a primeira" começa a inferir o que está
+  provando. O cliente não escolhe o código.
+- **O mesmo lote pode entrar duas vezes sob códigos diferentes** — de propósito. Duplicata cega é
+  a técnica clássica para medir a consistência do painel: se o mesmo lote recebe notas muito
+  distintas, o problema está em quem prova, não no que se prova. O resultado traz essa comparação
+  separada, e é a resposta ao risco de **viés sensorial** declarado no plano de testes da sprint.
+- **A ficha é imutável e há uma por provador e amostra.** Sem isso bastaria esperar o fechamento,
+  ver o resultado e reescrever a própria avaliação. Não existe endpoint de alteração, e o
+  repositório não tem update de ficha — a imutabilidade é propriedade da persistência, não só do
+  domínio.
+- **A auditoria não vaza resultado.** Os eventos de envio de ficha e de inclusão de amostra
+  registram o que aconteceu sem nota e sem o par código↔lote: a trilha de auditoria não pode ser a
+  fresta por onde o resultado escapa antes do fechamento.
+- **O vínculo ao lote nunca é apagado** — é o outro lado do critério. Ele existe no registro desde
+  a montagem; apenas não é revelado.
+- **Ficha incompleta é recusada:** faltando um atributo, a média do painel compararia coisas
+  diferentes.
+- **Fora de escopo:** a biblioteca estruturada de descritores e off-flavors é a SEN-002. Aqui os
+  descritores são texto livre.
+
 ### PRM-001 — parametrização por cervejaria (proposta)
 
 Levantada pelo mantenedor durante a QLT-002: **tudo que hoje é "valor que depende de cada
@@ -168,6 +195,7 @@ Débitos que a história resolveria de uma vez:
 | `GAS-001-B` | Periodicidade de requalificação de cilindro |
 | `MTR-001` | Periodicidade de calibração por tipo de instrumento |
 | `QLT-002-A` | Prazos de contenção, investigação e verificação por severidade |
+| `SEN-001` | Escala da ficha (0–10 ou BJCP) e conjunto de atributos sensoriais |
 
 **Ponto a decidir antes de implementar:** se os parâmetros ficam centralizados em
 `OperationalPreferences` ou se cada módulo mantém a sua política e a tela apenas as reúne. A

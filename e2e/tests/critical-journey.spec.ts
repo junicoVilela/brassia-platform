@@ -70,6 +70,18 @@ test.describe('jornada crítica', () => {
     await expect(page.getByText('Nenhuma não conformidade.')).toBeVisible();
   });
 
+  test('navega até sessões sensoriais e a tela responde com dados da API', async ({ page }) => {
+    const listagem = page.waitForResponse(
+      r => r.url().includes('/api/v1/sensory/sessions') && r.request().method() === 'GET',
+    );
+    await page.getByRole('link', { name: 'Sessões sensoriais' }).click();
+    expect((await listagem).status()).toBe(200);
+
+    await expect(page.getByRole('heading', { name: 'Sessões sensoriais' })).toBeVisible();
+    await expect(page.getByText('Nenhuma sessão sensorial.')).toBeVisible();
+    await expect(page.getByLabel('Propósito')).toBeVisible();
+  });
+
   test('receitas carrega e a sessão sobrevive a recarregar a página', async ({ page }) => {
     await page.getByRole('link', { name: 'Receitas' }).click();
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

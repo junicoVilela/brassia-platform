@@ -34,17 +34,21 @@ public final class SensoryEvaluation {
         this.sessionId = Objects.requireNonNull(sessionId, "sessionId");
         this.sampleId = Objects.requireNonNull(sampleId, "sampleId");
         this.tasterId = Objects.requireNonNull(tasterId, "provador");
-        this.scores = requireScores(scores);
+        this.scores = new EnumMap<>(Objects.requireNonNull(scores, "notas"));
         this.descriptors = List.copyOf(Objects.requireNonNull(descriptors, "descritores"));
         this.note = note == null || note.isBlank() ? null : note.trim();
         this.submittedAt = Objects.requireNonNull(submittedAt, "instante do envio");
     }
 
+    /**
+     * @param maxScore escala da sessão (PRM-001), não uma constante global: a nota é validada
+     *                 contra a escala que estava congelada quando a sessão foi criada
+     */
     public static SensoryEvaluation submit(UUID breweryId, UUID sessionId, UUID sampleId, UUID tasterId,
             Map<SensoryAttribute, Integer> scores, List<String> descriptors, String note,
-            Instant submittedAt) {
-        return new SensoryEvaluation(UUID.randomUUID(), breweryId, sessionId, sampleId, tasterId, scores,
-                descriptors, note, submittedAt);
+            Instant submittedAt, int maxScore) {
+        return new SensoryEvaluation(UUID.randomUUID(), breweryId, sessionId, sampleId, tasterId,
+                requireScores(scores, maxScore), descriptors, note, submittedAt);
     }
 
     public static SensoryEvaluation reconstitute(UUID id, UUID breweryId, UUID sessionId, UUID sampleId,
@@ -95,7 +99,8 @@ public final class SensoryEvaluation {
     }
 
     /** Ficha incompleta não é ficha: faltando um atributo, a média do painel compararia coisas diferentes. */
-    private static Map<SensoryAttribute, Integer> requireScores(Map<SensoryAttribute, Integer> scores) {
+    private static Map<SensoryAttribute, Integer> requireScores(Map<SensoryAttribute, Integer> scores,
+            int maxScore) {
         Objects.requireNonNull(scores, "notas");
         var copy = new EnumMap<SensoryAttribute, Integer>(SensoryAttribute.class);
         for (var attribute : SensoryAttribute.values()) {
@@ -103,10 +108,9 @@ public final class SensoryEvaluation {
             if (score == null) {
                 throw new IllegalArgumentException("falta a nota de " + attribute.label());
             }
-            if (score < SensoryAttribute.MIN_SCORE || score > SensoryAttribute.MAX_SCORE) {
+            if (score < SensoryAttribute.MIN_SCORE || score > maxScore) {
                 throw new IllegalArgumentException("a nota de %s deve ficar entre %d e %d"
-                        .formatted(attribute.label(), SensoryAttribute.MIN_SCORE,
-                                SensoryAttribute.MAX_SCORE));
+                        .formatted(attribute.label(), SensoryAttribute.MIN_SCORE, maxScore));
             }
             copy.put(attribute, score);
         }

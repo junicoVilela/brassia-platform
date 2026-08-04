@@ -197,7 +197,7 @@ Débitos que a história resolveria de uma vez:
 | `QLT-002-A` | Prazos de contenção, investigação e verificação por severidade |
 | `SEN-001` | Escala da ficha (0–10 ou BJCP) e conjunto de atributos sensoriais |
 
-**Decisão de arquitetura (recomendada): cada módulo mantém a sua política; a tela reúne.**
+**Decisão de arquitetura (aplicada): cada módulo mantém a sua política; a tela reúne.**
 
 Centralizar os parâmetros em `brewery.OperationalPreferences` daria uma tela mais simples, mas
 faria o módulo `brewery` conhecer pressão de embalagem, requalificação de cilindro, calibração,
@@ -210,7 +210,30 @@ conceito, e a tela de parametrização é um agregador de leitura/escrita que fa
 sua porta. `OperationalPreferences` continua com o que é genuinamente transversal (unidades, moeda,
 política de estoque) e ganha o padrão de revisão imutável como referência para os demais.
 
-Sprint de destino ainda não definida.
+**Backend entregue antes da sprint 12** (PR de `feat/prm-001-parametrizacao-backend`), com migration
+V79. A tela vem em PR separado.
+
+**Correção da tabela acima:** dois itens que eu havia listado não são parâmetro de cervejaria e
+saíram do escopo:
+
+- `PKG-002-A` (pressão máxima por embalagem) é **dado do catálogo**, não da casa: lata, long neck e
+  garrafa de champanhe têm limites diferentes entre si, independentemente da cervejaria. É atributo
+  do ingrediente-embalagem, como `volumeMl` já é. Segue como item próprio.
+- `PKG-004-A` (alergênicos) é o mesmo caso, e já está coberto pela `FDS-001` da sprint 12.
+
+**Invariante que a história sustenta:** o parâmetro é opcional e **a ausência dele preserva
+exatamente o comportamento anterior**. Sem validade de CIP a liberação não expira por tempo; sem
+periodicidade o vencimento continua vindo do certificado; sem prazos de CAPA eles continuam
+informados. Nenhuma migration muda comportamento de quem não configurar nada.
+
+**Por que não há revisão imutável por política:** os agregados já guardam o que precisam no momento
+da decisão — a NC grava os próprios prazos ao abrir, o certificado grava o próprio vencimento, o
+plano de controle é versionado e a sessão sensorial congela a escala. Mudar um parâmetro afeta só
+decisões futuras, então a trilha de auditoria basta como histórico.
+
+**Débitos fechados:** `PKG-001-A`, `GAS-001-B`, `QLT-002-A` e a periodicidade de calibração da
+`MTR-001`. O conjunto de atributos sensoriais continua fixo e segue aberto — parametrizá-lo
+reestruturaria a ficha.
 
 ### Antes de começar
 

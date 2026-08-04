@@ -22,7 +22,7 @@ class SensorySessionTest {
     private static final LocalDate DATA = LocalDate.parse("2026-08-03");
 
     private static SensorySession sessao() {
-        return SensorySession.draft(BREWERY, "SEN-001", "Comparativo de lote", DATA);
+        return SensorySession.draft(BREWERY, "SEN-001", "Comparativo de lote", DATA, 10);
     }
 
     private static Map<SensoryAttribute, Integer> notas(int valor) {
@@ -36,7 +36,7 @@ class SensorySessionTest {
     private static SensoryEvaluation ficha(SensorySession s, SensorySample amostra, int nota,
             List<String> descritores) {
         return SensoryEvaluation.submit(BREWERY, s.id(), amostra.id(), UUID.randomUUID(), notas(nota),
-                descritores, null, AGORA);
+                descritores, null, AGORA, s.maxScore());
     }
 
     // --- código cego ---
@@ -233,7 +233,7 @@ class SensorySessionTest {
         incompleta.put(SensoryAttribute.AROMA, 7);
 
         assertThatThrownBy(() -> SensoryEvaluation.submit(BREWERY, s.id(), amostra.id(), UUID.randomUUID(),
-                incompleta, List.of(), null, AGORA))
+                incompleta, List.of(), null, AGORA, 10))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("falta a nota de");
     }

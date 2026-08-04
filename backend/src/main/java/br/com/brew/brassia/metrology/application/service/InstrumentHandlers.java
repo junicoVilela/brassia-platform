@@ -3,6 +3,7 @@ package br.com.brew.brassia.metrology.application.service;
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.metrology.application.port.inbound.InstrumentCommands;
+import br.com.brew.brassia.metrology.application.port.outbound.CalibrationPolicyRepository;
 import br.com.brew.brassia.metrology.application.port.outbound.CalibrationStandardRepository;
 import br.com.brew.brassia.metrology.application.port.outbound.InstrumentRepository;
 import br.com.brew.brassia.metrology.domain.CalibrationResult;
@@ -171,12 +172,14 @@ public final class InstrumentHandlers {
 
         private final InstrumentRepository instruments;
         private final CalibrationStandardRepository standards;
+        private final CalibrationPolicyRepository policies;
         private final AuditTrail audit;
 
         public Calibrate(InstrumentRepository instruments, CalibrationStandardRepository standards,
-                AuditTrail audit) {
+                CalibrationPolicyRepository policies, AuditTrail audit) {
             this.instruments = Objects.requireNonNull(instruments);
             this.standards = Objects.requireNonNull(standards);
+            this.policies = Objects.requireNonNull(policies);
             this.audit = Objects.requireNonNull(audit);
         }
 
@@ -186,7 +189,16 @@ public final class InstrumentHandlers {
             var standard = standards.findById(command.breweryId(), command.standardId())
                     .orElseThrow(() -> new IllegalArgumentException("padrão inexistente"));
 
-            var calibration = instrument.calibrate(standard, command.performedOn(), command.dueOn(),
+            // O vencimento do certificado sempre vence; a política (PRM-001) só preenche o que
+            // ficou em branco, e sem periodicidade para o tipo o comando exige a data como antes.
+            var dueOn = command.dueOn() != null ? command.dueOn()
+                    : policies.find(command.breweryId())
+                            .nextDueOn(instrument.type(), command.performedOn())
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "informe o vencimento ou configure a periodicidade de calibração para "
+                                            + instrument.type().label()));
+
+            var calibration = instrument.calibrate(standard, command.performedOn(), dueOn,
                     command.performedBy(), command.certificateNumber(),
                     CalibrationResult.valueOf(command.result()), command.maxDeviation(), command.restriction(),
                     command.note(),

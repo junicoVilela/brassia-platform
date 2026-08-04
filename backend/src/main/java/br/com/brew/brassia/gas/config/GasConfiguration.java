@@ -10,6 +10,7 @@ import br.com.brew.brassia.gas.application.port.inbound.GasQueries;
 import br.com.brew.brassia.gas.application.port.inbound.ServiceLineCommands;
 import br.com.brew.brassia.gas.application.port.outbound.GasConnectionRepository;
 import br.com.brew.brassia.gas.application.port.outbound.GasCylinderRepository;
+import br.com.brew.brassia.gas.application.port.outbound.GasPolicyRepository;
 import br.com.brew.brassia.gas.application.port.outbound.GasNetworkComponentRepository;
 import br.com.brew.brassia.gas.application.port.outbound.ServiceLineRepository;
 import br.com.brew.brassia.gas.application.service.ComponentHandlers;
@@ -17,6 +18,8 @@ import br.com.brew.brassia.gas.application.service.ConnectionHandlers;
 import br.com.brew.brassia.gas.application.service.CylinderHandlers;
 import br.com.brew.brassia.gas.application.service.GasQueriesHandler;
 import br.com.brew.brassia.gas.application.service.ServiceLineHandlers;
+import br.com.brew.brassia.gas.application.port.inbound.GasPolicyUseCase;
+import br.com.brew.brassia.gas.application.service.GasPolicyHandler;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -48,9 +51,10 @@ class GasConfiguration {
     }
 
     @Bean
-    CylinderCommands.Requalify requalifyCylinderUseCase(GasCylinderRepository cylinders, AuditTrail audit,
+    CylinderCommands.Requalify requalifyCylinderUseCase(GasCylinderRepository cylinders,
+            GasPolicyRepository policies, AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new CylinderHandlers.Requalify(cylinders, audit);
+        var handler = new CylinderHandlers.Requalify(cylinders, policies, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> transaction.executeWithoutResult(status -> handler.handle(command));
     }
@@ -174,4 +178,11 @@ class GasConfiguration {
     ServiceLineCommands.Queries serviceLineQueries(ServiceLineRepository lines) {
         return new ServiceLineHandlers.Queries(lines);
     }
+
+    /** Política de gases (PRM-001): periodicidade de requalificação. */
+    @Bean
+    GasPolicyUseCase gasPolicyUseCase(GasPolicyRepository policies, AuditTrail audit) {
+        return new GasPolicyHandler(policies, audit);
+    }
+
 }

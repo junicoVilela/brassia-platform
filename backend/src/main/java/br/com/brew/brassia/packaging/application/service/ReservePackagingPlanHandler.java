@@ -12,6 +12,7 @@ import br.com.brew.brassia.packaging.domain.PackagingBlockedException;
 import br.com.brew.brassia.packaging.domain.PackagingPlan;
 import br.com.brew.brassia.packaging.domain.PackagingPlanStatus;
 import br.com.brew.brassia.packaging.domain.PackagingStockShortfallException;
+import br.com.brew.brassia.sanitation.CleaningPolicyLookup;
 import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -33,16 +34,18 @@ public final class ReservePackagingPlanHandler implements ReservePackagingPlanUs
     private final PackagingPlanRepository plans;
     private final EquipmentAvailabilityLookup lines;
     private final CleaningReleaseLookup cleanings;
+    private final CleaningPolicyLookup cleaningPolicy;
     private final IngredientSpecLookup ingredients;
     private final PackagingStockGateway stock;
     private final AuditTrail audit;
 
     public ReservePackagingPlanHandler(PackagingPlanRepository plans, EquipmentAvailabilityLookup lines,
-            CleaningReleaseLookup cleanings, IngredientSpecLookup ingredients, PackagingStockGateway stock,
-            AuditTrail audit) {
+            CleaningReleaseLookup cleanings, CleaningPolicyLookup cleaningPolicy,
+            IngredientSpecLookup ingredients, PackagingStockGateway stock, AuditTrail audit) {
         this.plans = Objects.requireNonNull(plans);
         this.lines = Objects.requireNonNull(lines);
         this.cleanings = Objects.requireNonNull(cleanings);
+        this.cleaningPolicy = Objects.requireNonNull(cleaningPolicy);
         this.ingredients = Objects.requireNonNull(ingredients);
         this.stock = Objects.requireNonNull(stock);
         this.audit = Objects.requireNonNull(audit);
@@ -114,7 +117,12 @@ public final class ReservePackagingPlanHandler implements ReservePackagingPlanUs
                 .orElse(null);
         var lastUse = plans.lastLineUse(plan.breweryId(), plan.lineEquipmentId(), plan.plannedStart(), plan.id())
                 .orElse(null);
-        LineCleanliness.check(releasedAt, lastUse, plan.plannedStart()).ifPresent(blockers::add);
+        // A validade por tempo é parâmetro da cervejaria (PRM-001) e vive na sanitização; sem
+        // prazo configurado, `covers` responde verdadeiro e o comportamento é o de antes.
+        var stillCovered = releasedAt == null
+                || cleaningPolicy.covers(plan.breweryId(), releasedAt, plan.plannedStart());
+        LineCleanliness.check(releasedAt, lastUse, plan.plannedStart(), stillCovered)
+                .ifPresent(blockers::add);
 
         return blockers;
     }

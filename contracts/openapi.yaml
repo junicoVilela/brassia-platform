@@ -3385,8 +3385,215 @@ paths:
               schema: {$ref: '#/components/schemas/SensoryResults'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /sanitation/cleaning-policy:
+    get:
+      tags: [Limpeza e sanitização]
+      summary: Política de limpeza da cervejaria (PRM-001)
+      responses:
+        '200':
+          description: Política
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CleaningPolicy'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Limpeza e sanitização]
+      summary: Ajusta a validade da liberação de CIP
+      description: >-
+        `validityHours` nulo remove o prazo e a liberação volta a **não expirar por tempo** — que é
+        o comportamento anterior à PRM-001. Fecha o débito PKG-001-A.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                validityHours: {type: integer, minimum: 1, maximum: 8760, nullable: true}
+      responses:
+        '200':
+          description: Política ajustada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CleaningPolicy'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /gas/policy:
+    get:
+      tags: [Gases e rede de CO₂]
+      summary: Política de gases (PRM-001)
+      responses:
+        '200':
+          description: Política
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GasPolicy'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Gases e rede de CO₂]
+      summary: Ajusta a periodicidade de requalificação
+      description: >-
+        Com periodicidade, requalificar sem informar data deriva o vencimento; a data informada
+        sempre vence sobre a política. Nulo volta a exigir a data. Fecha o débito GAS-001-B.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                requalificationMonths: {type: integer, minimum: 1, maximum: 240, nullable: true}
+      responses:
+        '200':
+          description: Política ajustada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GasPolicy'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /metrology/calibration-policy:
+    get:
+      tags: [Metrologia]
+      summary: Periodicidade de calibração por tipo (PRM-001)
+      responses:
+        '200':
+          description: Política
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CalibrationPolicy'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Metrologia]
+      summary: Substitui a política inteira
+      description: >-
+        Tipo fora do mapa deixa de ter periodicidade e o vencimento volta a vir do certificado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CalibrationPolicy'}
+      responses:
+        '200':
+          description: Política ajustada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CalibrationPolicy'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /quality/capa-policy:
+    get:
+      tags: [Qualidade]
+      summary: Prazos do CAPA por severidade (PRM-001)
+      responses:
+        '200':
+          description: Política
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CapaPolicy'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Qualidade]
+      summary: Substitui a política inteira
+      description: >-
+        Severidade fora do mapa volta a exigir prazos informados na abertura da não conformidade.
+        Os prazos seguem a ordem das fases. Fecha o débito QLT-002-A.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CapaPolicy'}
+      responses:
+        '200':
+          description: Política ajustada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CapaPolicy'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /sensory/policy:
+    get:
+      tags: [Sensorial]
+      summary: Escala da ficha sensorial (PRM-001)
+      responses:
+        '200':
+          description: Política
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensoryPolicy'}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Sensorial]
+      summary: Ajusta a escala da ficha
+      description: >-
+        A escala é **congelada em cada sessão** quando ela é criada: mudar o parâmetro não
+        reinterpreta sessão nenhuma. Uma nota 8 dada numa sessão de escala 10 não vira 8 de 50.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [maxScore]
+              properties:
+                maxScore: {type: integer, minimum: 3, maximum: 100}
+      responses:
+        '200':
+          description: Política ajustada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensoryPolicy'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    CleaningPolicy:
+      type: object
+      required: [expiresByTime]
+      properties:
+        validityHours:
+          type: integer
+          nullable: true
+          description: Ausente significa que a liberação não expira por tempo
+        expiresByTime: {type: boolean}
+    GasPolicy:
+      type: object
+      required: [derivesDueDate]
+      properties:
+        requalificationMonths: {type: integer, nullable: true}
+        derivesDueDate:
+          type: boolean
+          description: Verdadeiro quando há periodicidade e o vencimento pode ser derivado
+    CalibrationPolicy:
+      type: object
+      required: [monthsByType]
+      properties:
+        monthsByType:
+          type: object
+          description: Periodicidade em meses por tipo; tipo ausente não deriva vencimento
+          additionalProperties: {type: integer, minimum: 1, maximum: 120}
+    CapaDeadlines:
+      type: object
+      required: [containmentDays, investigationDays, verificationDays]
+      properties:
+        containmentDays: {type: integer, minimum: 1}
+        investigationDays: {type: integer, minimum: 1}
+        verificationDays: {type: integer, minimum: 1}
+    CapaPolicy:
+      type: object
+      required: [bySeverity]
+      properties:
+        bySeverity:
+          type: object
+          description: Prazos em dias da abertura, por severidade; ausente exige prazo informado
+          additionalProperties: {$ref: '#/components/schemas/CapaDeadlines'}
+    SensoryPolicy:
+      type: object
+      required: [maxScore, appliesToNewSessionsOnly]
+      properties:
+        maxScore: {type: integer, minimum: 3, maximum: 100}
+        appliesToNewSessionsOnly:
+          type: boolean
+          description: Sempre verdadeiro — a escala é congelada em cada sessão
     SensoryAttribute:
       type: string
       description: Atributos da ficha, nota de 0 a 10

@@ -1,11 +1,11 @@
 package br.com.brew.brassia.sensory.domain;
 
 /**
- * Atributos da ficha (SEN-001), com nota de 0 a 10.
+ * Atributos da ficha (SEN-001). A nota vai de zero até a escala da sessão.
  *
- * <p>O conjunto é fixo nesta história; a biblioteca de descritores e off-flavors (SEN-002) é que
- * vai enriquecer a ficha. Conjunto e escala são candidatos naturais à parametrização por
- * cervejaria (PRM-001) — casas que usam BJCP de 50 pontos precisam de outra escala.
+ * <p>O conjunto é fixo; a biblioteca de descritores e off-flavors (SEN-002) é que vai enriquecer a
+ * ficha. A <strong>escala</strong> deixou de ser constante na PRM-001: ela é parâmetro da
+ * cervejaria, congelado na sessão — casas que usam BJCP trabalham com 50 pontos.
  */
 public enum SensoryAttribute {
     APPEARANCE("Aparência"),
@@ -15,7 +15,6 @@ public enum SensoryAttribute {
     OVERALL("Impressão global");
 
     public static final int MIN_SCORE = 0;
-    public static final int MAX_SCORE = 10;
 
     private final String label;
 

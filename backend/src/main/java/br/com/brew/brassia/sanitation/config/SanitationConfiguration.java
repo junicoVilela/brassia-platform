@@ -47,6 +47,9 @@ import br.com.brew.brassia.sanitation.application.service.ReleaseCycleHandler;
 import br.com.brew.brassia.sanitation.application.service.ResumeCycleHandler;
 import br.com.brew.brassia.sanitation.application.service.StartCycleHandler;
 import br.com.brew.brassia.sanitation.application.service.UpdateProcedureHandler;
+import br.com.brew.brassia.sanitation.application.port.inbound.CleaningPolicyUseCase;
+import br.com.brew.brassia.sanitation.application.port.outbound.CleaningPolicyRepository;
+import br.com.brew.brassia.sanitation.application.service.CleaningPolicyHandler;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -203,4 +206,11 @@ class SanitationConfiguration {
     CleaningReleaseLookup cleaningReleaseLookup(CleaningCycleRepository cycles) {
         return cycles::findLastRelease;
     }
+
+    /** Política de limpeza (PRM-001): a validade da liberação de CIP é parâmetro da cervejaria. */
+    @Bean
+    CleaningPolicyUseCase cleaningPolicyUseCase(CleaningPolicyRepository policies, AuditTrail audit) {
+        return new CleaningPolicyHandler(policies, audit);
+    }
+
 }

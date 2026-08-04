@@ -30,8 +30,8 @@ public final class QualityDtos {
     public record OpenNonConformity(@NotBlank @Size(max = 40) String code,
             @NotBlank @Size(max = 200) String title, @NotBlank @Size(max = 2000) String description,
             @NotBlank String source, UUID deviationId, @NotBlank String severity,
-            @NotNull LocalDate containmentDueOn, @NotNull LocalDate investigationDueOn,
-            @NotNull LocalDate verificationDueOn) {}
+            LocalDate containmentDueOn, LocalDate investigationDueOn,
+            LocalDate verificationDueOn) {}
 
     public record Contain(@NotBlank @Size(max = 1000) String description) {}
 

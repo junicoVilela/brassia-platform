@@ -4,12 +4,16 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.quality.application.port.inbound.NonConformityCommands;
 import br.com.brew.brassia.quality.application.port.outbound.MeasurementRepository;
+import br.com.brew.brassia.quality.application.port.outbound.CapaPolicyRepository;
 import br.com.brew.brassia.quality.application.port.outbound.NonConformityRepository;
 import br.com.brew.brassia.quality.domain.CapaActionKind;
+import br.com.brew.brassia.quality.domain.CapaPolicy;
 import br.com.brew.brassia.quality.domain.NonConformity;
 import br.com.brew.brassia.quality.domain.NonConformitySource;
 import br.com.brew.brassia.quality.domain.Severity;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -25,6 +29,16 @@ public final class NonConformityHandlers {
     private NonConformityHandlers() {
     }
 
+    /** Sem política e sem prazo informado, o comando é recusado — nada é inventado. */
+    private static java.time.LocalDate requireDerived(CapaPolicy.Dates derived,
+            java.util.function.Function<CapaPolicy.Dates, java.time.LocalDate> field) {
+        if (derived == null) {
+            throw new IllegalArgumentException(
+                    "informe os prazos ou configure a política de CAPA para esta severidade");
+        }
+        return field.apply(derived);
+    }
+
     private static NonConformity require(NonConformityRepository repo, UUID breweryId, UUID id) {
         return repo.lockById(breweryId, id)
                 .orElseThrow(() -> new IllegalArgumentException("não conformidade inexistente"));
@@ -34,12 +48,14 @@ public final class NonConformityHandlers {
 
         private final NonConformityRepository nonConformities;
         private final MeasurementRepository measurements;
+        private final CapaPolicyRepository policies;
         private final AuditTrail audit;
 
         public Open(NonConformityRepository nonConformities, MeasurementRepository measurements,
-                AuditTrail audit) {
+                CapaPolicyRepository policies, AuditTrail audit) {
             this.nonConformities = Objects.requireNonNull(nonConformities);
             this.measurements = Objects.requireNonNull(measurements);
+            this.policies = Objects.requireNonNull(policies);
             this.audit = Objects.requireNonNull(audit);
         }
 
@@ -54,11 +70,25 @@ public final class NonConformityHandlers {
                     && measurements.findDeviation(command.breweryId(), command.deviationId()).isEmpty()) {
                 throw new IllegalArgumentException("desvio inexistente");
             }
+            var severity = Severity.valueOf(command.severity());
+            // Prazos informados sempre vencem; a política (PRM-001) preenche os três de uma vez
+            // quando nenhum veio, porque prazo pela metade não descreve tratamento nenhum.
+            var today = LocalDate.now(ZoneOffset.UTC);
+            var derived = command.containmentDueOn() == null && command.investigationDueOn() == null
+                    && command.verificationDueOn() == null
+                            ? policies.find(command.breweryId()).datesFor(severity, today).orElse(null)
+                            : null;
+            var containment = command.containmentDueOn() != null ? command.containmentDueOn()
+                    : requireDerived(derived, CapaPolicy.Dates::containmentDueOn);
+            var investigation = command.investigationDueOn() != null ? command.investigationDueOn()
+                    : requireDerived(derived, CapaPolicy.Dates::investigationDueOn);
+            var verification = command.verificationDueOn() != null ? command.verificationDueOn()
+                    : requireDerived(derived, CapaPolicy.Dates::verificationDueOn);
+
             var nc = NonConformity.open(command.breweryId(), command.code(), command.title(),
                     command.description(), NonConformitySource.valueOf(command.source()),
-                    command.deviationId(), Severity.valueOf(command.severity()), command.containmentDueOn(),
-                    command.investigationDueOn(), command.verificationDueOn(), Instant.now(),
-                    command.actorId());
+                    command.deviationId(), severity, containment, investigation, verification,
+                    Instant.now(), command.actorId());
             nonConformities.insert(nc);
 
             audit.record(AuditEvent.success(command.breweryId(), command.actorId(), "quality.nc.open",

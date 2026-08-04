@@ -29,37 +29,45 @@ public final class SensorySession {
     private String purpose;
     private LocalDate scheduledFor;
     private SessionStatus status;
+    /**
+     * Escala da ficha, congelada quando a sessão é criada (PRM-001). Mudar o parâmetro da
+     * cervejaria depois não reinterpreta sessão nenhuma: uma nota 8 dada numa sessão de escala 10
+     * não vira 8 de 50.
+     */
+    private final int maxScore;
     private final List<SensorySample> samples;
     private Instant openedAt;
     private Instant closedAt;
     private final long lockVersion;
 
     private SensorySession(UUID id, UUID breweryId, String code, String purpose, LocalDate scheduledFor,
-            SessionStatus status, List<SensorySample> samples, Instant openedAt, Instant closedAt,
-            long lockVersion) {
+            SessionStatus status, int maxScore, List<SensorySample> samples, Instant openedAt,
+            Instant closedAt, long lockVersion) {
         this.id = Objects.requireNonNull(id, "id");
         this.breweryId = Objects.requireNonNull(breweryId, "breweryId");
         this.code = requireText(code, "código", 40);
         this.purpose = requireText(purpose, "propósito", 200);
         this.scheduledFor = Objects.requireNonNull(scheduledFor, "data da sessão é obrigatória");
         this.status = Objects.requireNonNull(status, "situação");
+        this.maxScore = maxScore;
         this.samples = new ArrayList<>(Objects.requireNonNull(samples, "amostras"));
         this.openedAt = openedAt;
         this.closedAt = closedAt;
         this.lockVersion = lockVersion;
     }
 
+    /** @param maxScore escala vigente na cervejaria no momento da criação; fica congelada aqui */
     public static SensorySession draft(UUID breweryId, String code, String purpose,
-            LocalDate scheduledFor) {
+            LocalDate scheduledFor, int maxScore) {
         return new SensorySession(UUID.randomUUID(), breweryId, code, purpose, scheduledFor,
-                SessionStatus.DRAFT, List.of(), null, null, 0);
+                SessionStatus.DRAFT, maxScore, List.of(), null, null, 0);
     }
 
     public static SensorySession reconstitute(UUID id, UUID breweryId, String code, String purpose,
-            LocalDate scheduledFor, SessionStatus status, List<SensorySample> samples, Instant openedAt,
-            Instant closedAt, long lockVersion) {
-        return new SensorySession(id, breweryId, code, purpose, scheduledFor, status, samples, openedAt,
-                closedAt, lockVersion);
+            LocalDate scheduledFor, SessionStatus status, int maxScore, List<SensorySample> samples,
+            Instant openedAt, Instant closedAt, long lockVersion) {
+        return new SensorySession(id, breweryId, code, purpose, scheduledFor, status, maxScore, samples,
+                openedAt, closedAt, lockVersion);
     }
 
     /**
@@ -202,6 +210,10 @@ public final class SensorySession {
 
     public SessionStatus status() {
         return status;
+    }
+
+    public int maxScore() {
+        return maxScore;
     }
 
     public List<SensorySample> samples() {

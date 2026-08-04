@@ -4,6 +4,7 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.gas.application.port.inbound.CylinderCommands;
 import br.com.brew.brassia.gas.application.port.outbound.GasCylinderRepository;
+import br.com.brew.brassia.gas.application.port.outbound.GasPolicyRepository;
 import br.com.brew.brassia.gas.domain.GasCylinder;
 import br.com.brew.brassia.gas.domain.GasType;
 import java.time.LocalDate;
@@ -80,19 +81,27 @@ public final class CylinderHandlers {
     public static final class Requalify implements CylinderCommands.Requalify {
 
         private final GasCylinderRepository cylinders;
+        private final GasPolicyRepository policies;
         private final AuditTrail audit;
 
-        public Requalify(GasCylinderRepository cylinders, AuditTrail audit) {
+        public Requalify(GasCylinderRepository cylinders, GasPolicyRepository policies, AuditTrail audit) {
             this.cylinders = Objects.requireNonNull(cylinders);
+            this.policies = Objects.requireNonNull(policies);
             this.audit = Objects.requireNonNull(audit);
         }
 
         @Override
         public void handle(Command command) {
             var today = LocalDate.now(ZoneOffset.UTC);
+            // A data informada sempre vence: a política (PRM-001) só preenche o que ficou em
+            // branco. Sem política e sem data, o comando é recusado como antes.
+            var dueOn = command.dueOn() != null ? command.dueOn()
+                    : policies.find(command.breweryId()).nextDueOn(today)
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "informe o vencimento ou configure a periodicidade de requalificação"));
             mutate(cylinders, audit, command.actorId(), command.breweryId(), command.cylinderId(),
                     "gas.cylinder.requalify",
-                    cylinder -> cylinder.requalify(command.dueOn(), today),
+                    cylinder -> cylinder.requalify(dueOn, today),
                     cylinder -> Map.of("code", cylinder.code(),
                             "requalificationDueOn", cylinder.requalificationDueOn().toString()));
         }

@@ -29,6 +29,7 @@ import br.com.brew.brassia.packaging.application.service.PlanPackagingHandler;
 import br.com.brew.brassia.packaging.application.service.ReservePackagingPlanHandler;
 import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.recipe.RecipeLookup;
+import br.com.brew.brassia.sanitation.CleaningPolicyLookup;
 import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -62,9 +63,11 @@ class PackagingConfiguration {
      */
     @Bean
     ReservePackagingPlanUseCase reservePackagingPlanUseCase(PackagingPlanRepository plans,
-            EquipmentAvailabilityLookup lines, CleaningReleaseLookup cleanings, IngredientSpecLookup ingredients,
+            EquipmentAvailabilityLookup lines, CleaningReleaseLookup cleanings,
+            CleaningPolicyLookup cleaningPolicy, IngredientSpecLookup ingredients,
             PackagingStockGateway stock, AuditTrail audit, PlatformTransactionManager transactionManager) {
-        var handler = new ReservePackagingPlanHandler(plans, lines, cleanings, ingredients, stock, audit);
+        var handler = new ReservePackagingPlanHandler(plans, lines, cleanings, cleaningPolicy, ingredients,
+                stock, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }

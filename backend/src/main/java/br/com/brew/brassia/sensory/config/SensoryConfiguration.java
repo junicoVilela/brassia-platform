@@ -4,9 +4,12 @@ import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.sensory.application.port.inbound.SensoryQueries;
 import br.com.brew.brassia.sensory.application.port.inbound.SessionCommands;
+import br.com.brew.brassia.sensory.application.port.outbound.SensoryPolicyRepository;
 import br.com.brew.brassia.sensory.application.port.outbound.SensorySessionRepository;
 import br.com.brew.brassia.sensory.application.service.SensoryQueriesHandler;
 import br.com.brew.brassia.sensory.application.service.SessionHandlers;
+import br.com.brew.brassia.sensory.application.port.inbound.SensoryPolicyUseCase;
+import br.com.brew.brassia.sensory.application.service.SensoryPolicyHandler;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,9 +25,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 class SensoryConfiguration {
 
     @Bean
-    SessionCommands.Create createSensorySessionUseCase(SensorySessionRepository sessions, AuditTrail audit,
+    SessionCommands.Create createSensorySessionUseCase(SensorySessionRepository sessions,
+            SensoryPolicyRepository policies, AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new SessionHandlers.Create(sessions, audit);
+        var handler = new SessionHandlers.Create(sessions, policies, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }
@@ -81,4 +85,11 @@ class SensoryConfiguration {
     SensoryQueries sensoryQueries(SensorySessionRepository sessions) {
         return new SensoryQueriesHandler(sessions);
     }
+
+    /** Política sensorial (PRM-001): a escala da ficha, congelada em cada sessão. */
+    @Bean
+    SensoryPolicyUseCase sensoryPolicyUseCase(SensoryPolicyRepository policies, AuditTrail audit) {
+        return new SensoryPolicyHandler(policies, audit);
+    }
+
 }

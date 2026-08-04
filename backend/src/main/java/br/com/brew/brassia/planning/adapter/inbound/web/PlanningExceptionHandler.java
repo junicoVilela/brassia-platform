@@ -5,6 +5,7 @@ import br.com.brew.brassia.planning.domain.ReleaseBlockedException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import java.util.List;
 import java.util.Map;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * completa de bloqueios na extensão {@code blockers} ("falha lista bloqueios"), e a
  * falta de estoque da reserva de OP (STK-003-A) na extensão {@code shortfalls}.
  */
+@Order(0)
 @RestControllerAdvice
 class PlanningExceptionHandler {
 

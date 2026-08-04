@@ -4,6 +4,8 @@ import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
@@ -19,7 +21,16 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  * Traduz exceções da camada web em Problem Details (RFC 9457) com {@code code}
  * e {@code traceId}. Nunca expõe stack trace, SQL ou mensagem interna sensível:
  * o {@code detail} é sempre uma frase segura e estável.
+ *
+ * <p><strong>Precedência mínima, e é essencial.</strong> O {@code @ExceptionHandler(Exception.class)}
+ * daqui pega qualquer coisa, inclusive as recusas que os módulos traduzem no próprio advice. Entre
+ * advices sem ordem declarada o desempate acaba sendo a ordem de descoberta dos beans — ou seja,
+ * alfabética por pacote —, e um módulo cujo nome venha depois de "shared" perdia silenciosamente:
+ * a recusa virava 500. Foi assim que a rastreabilidade (TRC-001) descobriu o problema, sendo o
+ * primeiro módulo nessa posição. Declarar a menor precedência possível resolve para todos, hoje e
+ * para os módulos que ainda não existem.
  */
+@Order(Ordered.LOWEST_PRECEDENCE)
 @RestControllerAdvice
 class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 

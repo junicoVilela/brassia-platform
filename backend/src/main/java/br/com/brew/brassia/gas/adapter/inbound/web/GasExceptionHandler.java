@@ -4,6 +4,7 @@ import br.com.brew.brassia.gas.domain.GasConnectionBlockedException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import java.util.List;
 import java.util.Map;
+import org.springframework.core.annotation.Order;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * impedimentos na extensão {@code blockers} — em rede de gás, descobrir um problema por tentativa
  * significa montar e desmontar a linha várias vezes.
  */
+@Order(0)
 @RestControllerAdvice
 class GasExceptionHandler {
 

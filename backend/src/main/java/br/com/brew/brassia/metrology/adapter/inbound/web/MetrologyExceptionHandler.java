@@ -4,6 +4,7 @@ import br.com.brew.brassia.metrology.domain.ExpiredStandardException;
 import br.com.brew.brassia.metrology.domain.InstrumentNotFitException;
 import br.com.brew.brassia.metrology.domain.OutsideCurveRangeException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * vez de só negar: sem a aptidão e o vencimento, quem recebe o erro não sabe se recalibra, se
  * desbloqueia ou se troca de instrumento.
  */
+@Order(0)
 @RestControllerAdvice
 class MetrologyExceptionHandler {
 

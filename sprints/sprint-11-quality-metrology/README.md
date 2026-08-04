@@ -19,7 +19,9 @@ Sprints 07–10
 - `QLT-001` — Plano de controle
 - `QLT-002` — Não conformidade e CAPA
 - `SEN-001` — Sessão sensorial
-- `SEN-002` — Biblioteca de descritores e off-flavors
+- ~~`SEN-002` — Biblioteca de descritores e off-flavors~~ — **adiada** para sprint futura:
+  o critério de conteúdo licenciado depende de decisão sobre qual catálogo usar e sob que licença
+  (ver `STATUS.md`). O `AI_EXECUTION.md` desta sprint já listava apenas cinco histórias.
 
 ## Entregáveis técnicos
 

@@ -1,17 +1,17 @@
 # Status — Sprint 11
 
-Estado: EM ANDAMENTO
+Estado: CONCLUÍDA (aceite pendente do mantenedor)
 
 ## Controle das histórias
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| MTR-001 | Concluída | IA | V74 + `MetrologyIT` (18 testes) | Novo módulo `metrology`; porta publicada `InstrumentStatusLookup` |
-| MTR-002 | Concluída | IA | V75 + `MetrologyIT` (26 testes) | Temperatura pelo hub; curva no domínio |
-| QLT-001 | Concluída | IA | V76 + `QualityIT` (16 testes) | Novo módulo `quality`; fecha MTR-001-A |
-| QLT-002 | Concluída | IA | V77 + `QualityIT` (25 testes) | Encerrar exige verificação eficaz |
-| SEN-001 | Concluída | IA | V78 + `SensoryIT` (14 testes) | Novo módulo `sensory`; cegueira na API |
-| SEN-002 | A fazer | — | — | — |
+| MTR-001 | Concluída | IA | #131 — V74 + `MetrologyIT` (18 testes) | Novo módulo `metrology`; porta publicada `InstrumentStatusLookup` |
+| MTR-002 | Concluída | IA | #132 — V75 + `MetrologyIT` (26 testes) | Temperatura pelo hub; curva no domínio |
+| QLT-001 | Concluída | IA | #133 — V76 + `QualityIT` (16 testes) | Novo módulo `quality`; fecha MTR-001-A |
+| QLT-002 | Concluída | IA | #134 — V77 + `QualityIT` (25 testes) | Encerrar exige verificação eficaz |
+| SEN-001 | Concluída | IA | #135 — V78 + `SensoryIT` (14 testes) | Novo módulo `sensory`; cegueira na API |
+| SEN-002 | Adiada | — | — | Depende de decisão sobre catálogo licenciado; vai para sprint futura |
 
 ## Decisões e bloqueios
 
@@ -197,10 +197,20 @@ Débitos que a história resolveria de uma vez:
 | `QLT-002-A` | Prazos de contenção, investigação e verificação por severidade |
 | `SEN-001` | Escala da ficha (0–10 ou BJCP) e conjunto de atributos sensoriais |
 
-**Ponto a decidir antes de implementar:** se os parâmetros ficam centralizados em
-`OperationalPreferences` ou se cada módulo mantém a sua política e a tela apenas as reúne. A
-segunda opção preserva as fronteiras de módulo que o Modulith verifica; a primeira dá uma tela
-mais simples. Sprint de destino ainda não definida.
+**Decisão de arquitetura (recomendada): cada módulo mantém a sua política; a tela reúne.**
+
+Centralizar os parâmetros em `brewery.OperationalPreferences` daria uma tela mais simples, mas
+faria o módulo `brewery` conhecer pressão de embalagem, requalificação de cilindro, calibração,
+prazos de CAPA e escala sensorial — conceitos de cinco outros módulos. O `ModularityTest` acusaria,
+e com razão: seria o mesmo tipo de acoplamento que as consultas publicadas existem para evitar.
+
+O caminho recomendado espelha o que a plataforma já faz em `YeastPolicy` (YST-002),
+`ShelfLifePolicy` (FSL-001) e na regra de rótulo (PKG-004): a política vive no módulo dono do
+conceito, e a tela de parametrização é um agregador de leitura/escrita que fala com cada módulo pela
+sua porta. `OperationalPreferences` continua com o que é genuinamente transversal (unidades, moeda,
+política de estoque) e ganha o padrão de revisão imutável como referência para os demais.
+
+Sprint de destino ainda não definida.
 
 ### Antes de começar
 
@@ -227,3 +237,34 @@ mais simples. Sprint de destino ainda não definida.
 - Contratos atualizados:
 - Riscos remanescentes:
 - Aceite:
+
+## Evidências de encerramento
+
+- **Build/commit:** `main` em `105a6ff`; PRs #131 (MTR-001), #132 (MTR-002), #133 (QLT-001),
+  #134 (QLT-002) e #135 (SEN-001) mergeados por squash, nesta ordem.
+- **Testes executados:** `./mvnw verify` — 628 unitários + 441 de integração
+  (Testcontainers/PostgreSQL 18), verdes, incluindo `ModularityTest`; frontend `ng build` +
+  `ng test` — 257 testes, verdes, ESLint sem warnings. **E2E: 9 jornadas** contra a stack real
+  (`ng serve` + API empacotada + PostgreSQL), três delas criadas nesta sprint.
+- **Migration aplicada:** V74 `metrology_instrument`, V75 `metrology_reading_correction`,
+  V76 `quality_control_plan`, V77 `quality_non_conformity`, V78 `sensory_session`. Sequência
+  contínua, sem alteração de migration já publicada.
+- **Contratos atualizados:** `contracts/openapi.yaml` de 129 para 165 paths (+36). Dez códigos de
+  Problem Details novos: `instrument_not_fit`, `standard_expired`, `outside_curve_range`,
+  `plan_not_published`, `nc_phase_out_of_order`, `verification_required`, `results_not_available`,
+  `session_not_open`, `already_evaluated` e a reutilização de `instrument_not_fit` em QLT-001.
+- **Riscos remanescentes:** (1) o E2E cobre navegação e integração, não o fluxo de negócio ponta a
+  ponta; (2) as três telas novas não passaram por verificação visual em tema claro e escuro;
+  (3) `QLT-001-A` segue dependendo do agendador ausente desde FER-004; (4) SEN-002 adiada deixa os
+  descritores como texto livre, sem sinônimos nem agregação confiável.
+- **Aceite:** **pendente do mantenedor** — ver `ACCEPTANCE.md`.
+
+## Débitos abertos ao fim da sprint
+
+Três criados aqui: **QLT-001-A** (frequência declarada, não fiscalizada), **QLT-002-A** (prazos do
+CAPA informados, não derivados da severidade) e **MTR-001-B** (restrição do certificado não estreita
+a faixa). **MTR-001-A foi aberto e fechado dentro da própria sprint**: a designação de ponto crítico
+criada em MTR-001 virou regra executável em QLT-001, verificada no momento da medição.
+
+Quatro deles — mais `PKG-001-A`, `PKG-002-A` e `GAS-001-B` da sprint 10 — estão mapeados na
+PRM-001 acima e deixam de ser débitos soltos quando a tela de parametrização existir.

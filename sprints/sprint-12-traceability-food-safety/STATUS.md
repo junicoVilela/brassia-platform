@@ -9,7 +9,7 @@ Estado: EM ANDAMENTO
 | TRC-001 | Concluída | IA | V80 + `TraceabilityIT` (11 testes); PRs #142, #143, #144 | Novo módulo `traceability`; porta `LineageSource`. TRC-001-B fechada em #144 |
 | FDS-001 | Concluída | IA | V82 + `FoodSafetyIT` (9 testes) + 17 de domínio; PR #145 (backend) e a tela | Novo módulo `foodsafety`; fecha `PKG-004-A` |
 | FDS-002 | Concluída | IA | V83 + `QuarantineIT` (11 testes) + 11 de domínio; PR #147 (backend) e a tela | Bloqueio derivado do grafo; alçadas separadas |
-| FDS-003 | Backend concluído | IA | V84 + V85 + `RecallIT` (9 testes) + 9 de domínio | Fecha `TRC-001-D` e `FDS-002-A`. Tela em PR separado |
+| FDS-003 | Concluída | IA | V84 + V85 + `RecallIT` (9 testes) + 9 de domínio; PR #149 (backend) e as telas | Fecha `TRC-001-D` e `FDS-002-A` |
 | FDS-004 | A fazer | — | — | — |
 
 ## Decisões e bloqueios
@@ -250,6 +250,10 @@ por extenso no próprio interceptor.
 - **O recall não abre quarentena sozinho.** São decisões diferentes, com alçadas diferentes, e um
   comando que dispara o outro em silêncio esconderia metade do que aconteceu. A tela oferece as
   duas; quem decide é quem investiga.
+- **A tela do produto acabado mostra o saldo sem destino.** É o número que, num recall, ninguém sabe
+  onde está — e é a razão de ela existir antes de haver qualquer coisa comercial.
+- **O dossiê separa três coisas na tela:** o que foi comunicado, o que foi descoberto depois da
+  abertura e o que não tem destino nenhum. Juntá-las faria a cobertura parecer maior do que é.
 - **`FDS-003-A` — a expedição não tem correção nem estorno.** Registrar é fato; devolução, cancelamento
   e transferência entre destinos não existem. *Critério de remoção:* as sprints 19/20 definirem
   movimentação comercial, com o recall passando a enxergar a saída líquida.

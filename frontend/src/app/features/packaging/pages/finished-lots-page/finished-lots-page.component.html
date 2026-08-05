@@ -1,0 +1,143 @@
+<app-page-header
+  title="Produto acabado"
+  subtitle="A cerveja que saiu da linha — e para onde ela foi."
+/>
+
+@if (store.actionError(); as actionError) {
+  <div class="alert alert-warning" role="alert">{{ actionError }}</div>
+}
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando lotes…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else if (store.rows().length === 0) {
+  <div class="card">
+    <div class="card-body p-4">
+      <app-empty-state
+        icon="ri-barcode-line"
+        message="Nenhum lote de produto acabado."
+        hint="Eles nascem da execução do envase — não há como criá-los à mão."
+      />
+    </div>
+  </div>
+} @else {
+  @if (store.withoutDestination().length > 0) {
+    <div class="alert alert-warning" role="alert">
+      <strong>{{ store.withoutDestination().length }} lote(s) sem nenhuma saída registrada.</strong>
+      Num recall, é o que ninguém sabe onde está: a cobertura só mede os destinos conhecidos.
+    </div>
+  }
+
+  <div class="card">
+    <div class="list-group list-group-flush">
+      @for (row of store.rows(); track row.lot.id) {
+        <div class="list-group-item p-3">
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+              <h2 class="h6 fw-semibold mb-1">
+                <i class="ri-barcode-line me-1" aria-hidden="true"></i>{{ row.lot.code }}
+              </h2>
+              <p class="text-muted small mb-0">
+                Lote {{ row.lot.batchCode }} · {{ row.lot.units }} un ·
+                {{ row.lot.volumeLiters }} L · envasado em
+                {{ row.lot.packagedOn | date: 'dd/MM/yyyy' }}
+              </p>
+              <p class="small mb-0 mt-1">
+                @if (row.shipments.length === 0) {
+                  <span class="badge text-bg-warning">Sem destino registrado</span>
+                } @else if (row.remaining > 0) {
+                  <span class="badge text-bg-secondary">{{ row.shipped }} un expedidas</span>
+                  <span class="badge text-bg-warning ms-1">{{ row.remaining }} un sem destino</span>
+                } @else {
+                  <span class="badge text-bg-success">Todas as unidades com destino</span>
+                }
+              </p>
+            </div>
+            @if (canShip && row.remaining > 0 && !isShipping(row)) {
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-primary"
+                [disabled]="busy(row)"
+                (click)="startShipment(row)"
+              >
+                Registrar expedição
+              </button>
+            }
+          </div>
+
+          @if (row.shipments.length > 0) {
+            <ul class="list-unstyled small mb-0 mt-2 d-flex flex-column gap-1">
+              @for (shipment of row.shipments; track shipment.id) {
+                <li>
+                  <i class="ri-truck-line me-1" aria-hidden="true"></i>
+                  <strong>{{ shipment.destination }}</strong> — {{ shipment.units }} un em
+                  {{ shipment.shippedOn | date: 'dd/MM/yyyy' }}
+                  @if (shipment.contact) {
+                    · {{ shipment.contact }}
+                  } @else {
+                    · <span class="text-warning-emphasis">sem contato registrado</span>
+                  }
+                </li>
+              }
+            </ul>
+          }
+
+          @if (isShipping(row)) {
+            <form class="mt-3 border-top pt-3" [formGroup]="shipmentForm"
+                  (ngSubmit)="confirmShipment(row)">
+              <p class="text-muted small mb-2">
+                O destino é o que um recall vai procurar. Sem contato, ele sabe para onde foi e não
+                sabe com quem falar.
+              </p>
+              <div class="row g-2 align-items-end">
+                <div class="col-sm-4">
+                  <label class="form-label small" [for]="'dest-' + row.lot.id">Destino</label>
+                  <input [id]="'dest-' + row.lot.id" class="form-control form-control-sm"
+                         formControlName="destination" placeholder="Distribuidora Norte" />
+                </div>
+                <div class="col-sm-3">
+                  <label class="form-label small" [for]="'cont-' + row.lot.id">Contato</label>
+                  <input [id]="'cont-' + row.lot.id" class="form-control form-control-sm"
+                         formControlName="contact" placeholder="(11) 99999-0000" />
+                </div>
+                <div class="col-sm-2">
+                  <label class="form-label small" [for]="'un-' + row.lot.id">Unidades</label>
+                  <input [id]="'un-' + row.lot.id" type="number" min="1" [max]="row.remaining"
+                         class="form-control form-control-sm" formControlName="units" />
+                </div>
+                <div class="col-sm-3">
+                  <label class="form-label small" [for]="'dt-' + row.lot.id">Saída</label>
+                  <input [id]="'dt-' + row.lot.id" type="date" class="form-control form-control-sm"
+                         formControlName="shippedOn" />
+                </div>
+                <div class="col-12">
+                  <label class="form-label small" [for]="'nt-' + row.lot.id">Observação</label>
+                  <input [id]="'nt-' + row.lot.id" class="form-control form-control-sm"
+                         formControlName="note" />
+                </div>
+                <div class="col-12 d-flex gap-2">
+                  <button type="submit" class="btn btn-sm btn-primary"
+                          [disabled]="shipmentForm.invalid || busy(row)">
+                    Registrar
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary"
+                          (click)="cancelShipment()">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </form>
+          }
+        </div>
+      }
+    </div>
+  </div>
+}

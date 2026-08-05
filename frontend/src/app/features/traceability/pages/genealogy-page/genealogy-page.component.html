@@ -47,8 +47,37 @@
               <i class="ri-shield-cross-line me-1" aria-hidden="true"></i>Quarentenar
             </button>
           }
+          @if (canRecall && !recalling()) {
+            <button type="button" class="btn btn-sm btn-outline-danger" (click)="startRecall()">
+              <i class="ri-megaphone-line me-1" aria-hidden="true"></i>Abrir recall
+            </button>
+          }
         </div>
       </div>
+
+      @if (recalling()) {
+        <form class="border rounded p-3 mb-3" [formGroup]="recallForm" (ngSubmit)="confirmRecall()">
+          <label class="form-label" for="recall-reason">Motivo do recall</label>
+          <p class="text-muted small mb-2">
+            O recall vai atrás do que <strong>já saiu</strong>: ele lista os destinos alcançados por
+            este nó e abre uma pendência de comunicação para cada um. Conter o que ainda está aqui
+            dentro é a quarentena — são decisões diferentes, e uma não dispara a outra.
+          </p>
+          @if (recallError(); as recallFailure) {
+            <div class="alert alert-warning py-2" role="alert">{{ recallFailure }}</div>
+          }
+          <div class="d-flex gap-2 flex-wrap">
+            <input id="recall-reason" class="form-control" style="max-width: 32rem"
+                   formControlName="reason" placeholder="contaminação confirmada na contraprova" />
+            <button type="submit" class="btn btn-danger" [disabled]="recallForm.invalid">
+              Abrir recall
+            </button>
+            <button type="button" class="btn btn-outline-secondary" (click)="cancelRecall()">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      }
 
       @if (quarantining()) {
         <form class="border rounded p-3 mb-3" [formGroup]="quarantineForm"

@@ -121,6 +121,22 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('packaging.plan.read')) {
+            <li class="menu-item">
+              <a routerLink="/packaging/finished-lots" routerLinkActive="active" class="menu-link">
+                <i class="ri-barcode-line menu-icon"></i>
+                <span class="title">Produto acabado</span>
+              </a>
+            </li>
+          }
+          @if (auth.hasPermission('traceability.recall.read')) {
+            <li class="menu-item">
+              <a routerLink="/traceability/recalls" routerLinkActive="active" class="menu-link">
+                <i class="ri-megaphone-line menu-icon"></i>
+                <span class="title">Recalls</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('traceability.quarantine.read')) {
             <li class="menu-item">
               <a routerLink="/traceability/quarantines" routerLinkActive="active" class="menu-link">

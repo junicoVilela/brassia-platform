@@ -1,0 +1,238 @@
+<app-page-header
+  title="Recalls"
+  subtitle="A quem o recall se dirige, o que já foi comunicado — e o que ainda não se sabe."
+/>
+
+@if (store.actionError(); as actionError) {
+  <div class="alert alert-warning" role="alert">{{ actionError }}</div>
+}
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando recalls…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else if (store.recalls().length === 0) {
+  <div class="card">
+    <div class="card-body p-4">
+      <app-empty-state
+        icon="ri-megaphone-line"
+        message="Nenhum recall registrado."
+        hint="O recall começa na genealogia: abra o lote afetado e use o botão Abrir recall."
+      />
+    </div>
+  </div>
+} @else {
+  <div class="card">
+    <div class="list-group list-group-flush">
+      @for (recall of store.recalls(); track recall.id) {
+        <div class="list-group-item p-3">
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+              <h2 class="h6 fw-semibold mb-1">
+                {{ recall.code }}
+                @if (recall.status === 'OPEN') {
+                  <span class="badge text-bg-danger ms-1">Aberto</span>
+                } @else {
+                  <span class="badge text-bg-success ms-1">Encerrado</span>
+                }
+              </h2>
+              <p class="text-muted small mb-1">
+                <i class="{{ nodeIcons[recall.origin.type] }} me-1" aria-hidden="true"></i>
+                {{ nodeLabels[recall.origin.type] }}: {{ recall.origin.label ?? recall.origin.id }}
+              </p>
+              <p class="mb-1">{{ recall.reason }}</p>
+              <p class="text-muted small mb-0">
+                Aberto em {{ recall.openedAt | date: 'dd/MM/yyyy HH:mm' }}
+                @if (recall.closedAt) {
+                  · encerrado em {{ recall.closedAt | date: 'dd/MM/yyyy HH:mm' }}:
+                  {{ recall.closingSummary }}
+                }
+              </p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="select(recall)">
+                {{ isOpenDossier(recall) ? 'Ocultar dossiê' : 'Abrir dossiê' }}
+              </button>
+            </div>
+          </div>
+
+          @if (isOpenDossier(recall)) {
+            @if (store.dossierLoading()) {
+              <app-loading-indicator text="Montando o dossiê…" />
+            } @else if (store.dossier(); as dossier) {
+              <div class="mt-3 border-top pt-3">
+                <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
+                  <div>
+                    <span class="h5 mb-0">{{ dossier.coverage }}%</span>
+                    <span class="text-muted small ms-1">dos destinos conhecidos comunicados</span>
+                  </div>
+                  @if (dossier.pending > 0) {
+                    <span class="badge text-bg-warning">{{ dossier.pending }} pendente(s)</span>
+                  }
+                </div>
+
+                @if (dossier.gaps.length > 0) {
+                  <div class="alert alert-warning py-2" role="alert">
+                    <strong>{{ dossier.gaps.length }} lote(s) do escopo sem expedição registrada.</strong>
+                    A cobertura acima mede só os destinos conhecidos; estes não se sabe onde estão.
+                  </div>
+                }
+
+                @if (dossier.newDestinations.length > 0) {
+                  <div class="alert alert-info py-2" role="alert">
+                    <strong>{{ dossier.newDestinations.length }} destino(s) descoberto(s) depois da
+                      abertura</strong> — o lote saiu depois. Eles não entram na cobertura porque
+                    ninguém os avisou ainda.
+                    <ul class="mb-0 mt-1 small">
+                      @for (destination of dossier.newDestinations; track destination.shipmentId) {
+                        <li>
+                          {{ destination.destination }} — {{ destination.units }} un
+                          @if (destination.contact) {
+                            · {{ destination.contact }}
+                          }
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                }
+
+                @if (dossier.truncated) {
+                  <div class="alert alert-warning py-2" role="alert">
+                    <strong>Este não é o escopo inteiro.</strong>
+                    O corte de profundidade escondeu parte da cadeia.
+                  </div>
+                }
+
+                <h3 class="h6 mb-2">Destinos</h3>
+                @if (dossier.notifications.length === 0) {
+                  <p class="text-muted small">
+                    Nenhum destino alcançado: nada deste escopo tem expedição registrada.
+                  </p>
+                } @else {
+                  <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
+                    @for (notification of dossier.notifications; track notification.id) {
+                      <li class="border rounded p-2">
+                        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                          <div>
+                            <strong>{{ notification.destination }}</strong>
+                            <span class="text-muted small ms-1">
+                              {{ notification.finishedLotCode }} · {{ notification.units }} un
+                            </span>
+                            <div class="small">
+                              @if (notification.contact) {
+                                {{ notification.contact }}
+                              } @else {
+                                <span class="text-warning-emphasis">sem contato registrado</span>
+                              }
+                            </div>
+                            @if (notification.status === 'NOTIFIED') {
+                              <div class="small text-muted">
+                                Comunicado por {{ notification.channel }} em
+                                {{ notification.notifiedAt | date: 'dd/MM/yyyy HH:mm' }}
+                                @if (notification.note) {
+                                  — {{ notification.note }}
+                                }
+                              </div>
+                            }
+                          </div>
+                          <div class="d-flex gap-2 align-items-start">
+                            @if (notification.status === 'PENDING') {
+                              <span class="badge text-bg-warning">Pendente</span>
+                              @if (canManage && recall.status === 'OPEN' && notifying() !== notification.id) {
+                                <button type="button" class="btn btn-sm btn-outline-primary"
+                                        [disabled]="busy('notify:' + notification.id)"
+                                        (click)="startNotify(notification)">
+                                  Registrar comunicação
+                                </button>
+                              }
+                            } @else {
+                              <span class="badge text-bg-success">Comunicado</span>
+                            }
+                          </div>
+                        </div>
+
+                        @if (notifying() === notification.id) {
+                          <form class="mt-2" [formGroup]="notifyForm"
+                                (ngSubmit)="confirmNotify(recall, notification)">
+                            <div class="row g-2 align-items-end">
+                              <div class="col-sm-3">
+                                <label class="form-label small" [for]="'ch-' + notification.id">
+                                  Canal
+                                </label>
+                                <input [id]="'ch-' + notification.id"
+                                       class="form-control form-control-sm"
+                                       formControlName="channel" placeholder="telefone" />
+                              </div>
+                              <div class="col-sm-6">
+                                <label class="form-label small" [for]="'nt-' + notification.id">
+                                  O que aconteceu
+                                </label>
+                                <input [id]="'nt-' + notification.id"
+                                       class="form-control form-control-sm" formControlName="note"
+                                       placeholder="falei com o gerente; 40 latas devolvidas" />
+                              </div>
+                              <div class="col-sm-3 d-flex gap-2">
+                                <button type="submit" class="btn btn-sm btn-primary"
+                                        [disabled]="notifyForm.invalid">
+                                  Registrar
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        (click)="cancelNotify()">
+                                  Cancelar
+                                </button>
+                              </div>
+                            </div>
+                          </form>
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+
+                @if (canManage && recall.status === 'OPEN') {
+                  <div class="mt-3">
+                    @if (closing() === recall.id) {
+                      <form [formGroup]="closeForm" (ngSubmit)="confirmClose(recall)">
+                        <label class="form-label" [for]="'sum-' + recall.id">
+                          Resumo do encerramento
+                        </label>
+                        <p class="text-muted small mb-2">
+                          Encerrar exige que todos os destinos tenham comunicação registrada. Quem
+                          não conseguiu falar registra o canal e o que aconteceu — o que não se pode
+                          é omitir.
+                        </p>
+                        <div class="d-flex gap-2 flex-wrap">
+                          <input [id]="'sum-' + recall.id" class="form-control"
+                                 style="max-width: 32rem" formControlName="summary"
+                                 placeholder="1.200 latas recolhidas; laudo anexado" />
+                          <button type="submit" class="btn btn-primary" [disabled]="closeForm.invalid">
+                            Encerrar recall
+                          </button>
+                          <button type="button" class="btn btn-outline-secondary" (click)="cancelClose()">
+                            Cancelar
+                          </button>
+                        </div>
+                      </form>
+                    } @else {
+                      <button type="button" class="btn btn-sm btn-outline-primary"
+                              [disabled]="busy('close:' + recall.id)" (click)="startClose(recall)">
+                        Encerrar recall
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          }
+        </div>
+      }
+    </div>
+  </div>
+}

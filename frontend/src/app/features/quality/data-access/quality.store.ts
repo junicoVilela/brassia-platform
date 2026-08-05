@@ -19,12 +19,10 @@ import { QualityApi } from './quality.api';
 /** Corpo Problem Details das recusas de qualidade, como o backend as publica. */
 interface QualityError {
   status?: number;
-  error?: {
-    code?: string;
-    detail?: string;
-    controlPoint?: CriticalPointRefusal;
-    nonConformity?: PhaseOutOfOrder;
-  };
+  code?: string;
+  detail?: string;
+  controlPoint?: CriticalPointRefusal;
+  nonConformity?: PhaseOutOfOrder;
 }
 
 /** Estado do plano de controle (QLT-001). */
@@ -159,10 +157,10 @@ export class QualityStore {
         },
         error: (e: QualityError) => {
           // A recusa de fase diz em que fase está e o que se tentou fazer — informação acionável.
-          if (e.error?.code === 'nc_phase_out_of_order' && e.error.nonConformity) {
-            this.phaseRefusal.set(e.error.nonConformity);
+          if (e.code === 'nc_phase_out_of_order' && e.nonConformity) {
+            this.phaseRefusal.set(e.nonConformity);
           } else {
-            this.ncError.set(e.error?.detail ?? 'Não foi possível concluir a operação.');
+            this.ncError.set(e.detail ?? 'Não foi possível concluir a operação.');
           }
         },
       });
@@ -181,7 +179,7 @@ export class QualityStore {
           onSuccess?.();
         },
         error: (e: QualityError) =>
-          this.actionError.set(e.error?.detail ?? 'Não foi possível criar o plano.'),
+          this.actionError.set(e.detail ?? 'Não foi possível criar o plano.'),
       });
   }
 
@@ -198,7 +196,7 @@ export class QualityStore {
           onSuccess?.();
         },
         error: (e: QualityError) =>
-          this.actionError.set(e.error?.detail ?? 'Não foi possível incluir o ponto.'),
+          this.actionError.set(e.detail ?? 'Não foi possível incluir o ponto.'),
       });
   }
 
@@ -212,7 +210,7 @@ export class QualityStore {
           this.load();
         },
         error: (e: QualityError) =>
-          this.actionError.set(e.error?.detail ?? 'Não foi possível remover o ponto.'),
+          this.actionError.set(e.detail ?? 'Não foi possível remover o ponto.'),
       });
   }
 
@@ -226,7 +224,7 @@ export class QualityStore {
           this.load();
         },
         error: (e: QualityError) =>
-          this.actionError.set(e.error?.detail ?? 'Não foi possível publicar o plano.'),
+          this.actionError.set(e.detail ?? 'Não foi possível publicar o plano.'),
       });
   }
 
@@ -240,7 +238,7 @@ export class QualityStore {
           this.load();
         },
         error: (e: QualityError) =>
-          this.actionError.set(e.error?.detail ?? 'Não foi possível criar a nova versão.'),
+          this.actionError.set(e.detail ?? 'Não foi possível criar a nova versão.'),
       });
   }
 
@@ -279,10 +277,10 @@ export class QualityStore {
           onSuccess?.();
         },
         error: (e: QualityError) => {
-          if (e.error?.code === 'instrument_not_fit' && e.error.controlPoint) {
-            this.criticalRefusal.set(e.error.controlPoint);
+          if (e.code === 'instrument_not_fit' && e.controlPoint) {
+            this.criticalRefusal.set(e.controlPoint);
           } else {
-            this.measurementError.set(e.error?.detail ?? 'Não foi possível registrar a medição.');
+            this.measurementError.set(e.detail ?? 'Não foi possível registrar a medição.');
           }
         },
       });

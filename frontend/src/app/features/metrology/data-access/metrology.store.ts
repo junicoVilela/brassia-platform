@@ -20,13 +20,11 @@ import { MetrologyApi } from './metrology.api';
 /** Corpo Problem Details das recusas de metrologia, como o backend as publica. */
 interface MetrologyError {
   status?: number;
-  error?: {
-    code?: string;
-    detail?: string;
-    instrument?: InstrumentNotFit;
-    standard?: StandardExpired;
-    curve?: OutsideCurveRange;
-  };
+  code?: string;
+  detail?: string;
+  instrument?: InstrumentNotFit;
+  standard?: StandardExpired;
+  curve?: OutsideCurveRange;
 }
 
 /** Estado do cadastro metrológico (MTR-001). */
@@ -97,7 +95,7 @@ export class MetrologyStore {
           onSuccess?.();
         },
         error: (e: MetrologyError) =>
-          this.actionError.set(e.error?.detail ?? 'Não foi possível cadastrar o instrumento.'),
+          this.actionError.set(e.detail ?? 'Não foi possível cadastrar o instrumento.'),
       });
   }
 
@@ -114,7 +112,7 @@ export class MetrologyStore {
           onSuccess?.();
         },
         error: (e: MetrologyError) =>
-          this.actionError.set(e.error?.detail ?? 'Não foi possível cadastrar o padrão.'),
+          this.actionError.set(e.detail ?? 'Não foi possível cadastrar o padrão.'),
       });
   }
 
@@ -126,7 +124,7 @@ export class MetrologyStore {
         this.load();
       },
       error: (e: MetrologyError) =>
-        this.actionError.set(e.error?.detail ?? 'Não foi possível alterar o bloqueio.'),
+        this.actionError.set(e.detail ?? 'Não foi possível alterar o bloqueio.'),
     });
   }
 
@@ -140,7 +138,7 @@ export class MetrologyStore {
           this.load();
         },
         error: (e: MetrologyError) =>
-          this.actionError.set(e.error?.detail ?? 'Não foi possível dar baixa no instrumento.'),
+          this.actionError.set(e.detail ?? 'Não foi possível dar baixa no instrumento.'),
       });
   }
 
@@ -158,10 +156,10 @@ export class MetrologyStore {
         },
         error: (e: MetrologyError) => {
           // A recusa é informação acionável: dizemos qual aptidão barrou e até quando valia.
-          if (e.error?.code === 'instrument_not_fit' && e.error.instrument) {
-            this.notFit.set(e.error.instrument);
+          if (e.code === 'instrument_not_fit' && e.instrument) {
+            this.notFit.set(e.instrument);
           } else {
-            this.actionError.set(e.error?.detail ?? 'Não foi possível alterar a designação.');
+            this.actionError.set(e.detail ?? 'Não foi possível alterar a designação.');
           }
         },
       });
@@ -187,10 +185,10 @@ export class MetrologyStore {
           this.loadCorrections(request.instrumentId);
         },
         error: (e: MetrologyError) => {
-          if (e.error?.code === 'outside_curve_range' && e.error.curve) {
-            this.outsideCurve.set(e.error.curve);
+          if (e.code === 'outside_curve_range' && e.curve) {
+            this.outsideCurve.set(e.curve);
           } else {
-            this.correctionError.set(e.error?.detail ?? 'Não foi possível registrar a correção.');
+            this.correctionError.set(e.detail ?? 'Não foi possível registrar a correção.');
           }
         },
       });
@@ -237,10 +235,10 @@ export class MetrologyStore {
           onSuccess?.();
         },
         error: (e: MetrologyError) => {
-          if (e.error?.code === 'standard_expired' && e.error.standard) {
-            this.standardExpired.set(e.error.standard);
+          if (e.code === 'standard_expired' && e.standard) {
+            this.standardExpired.set(e.standard);
           } else {
-            this.calibrationError.set(e.error?.detail ?? 'Não foi possível registrar a calibração.');
+            this.calibrationError.set(e.detail ?? 'Não foi possível registrar a calibração.');
           }
         },
       });

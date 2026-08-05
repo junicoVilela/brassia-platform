@@ -108,7 +108,7 @@ describe('SensoryStore', () => {
       submit: () =>
         throwError(() => ({
           status: 409,
-          error: { code: 'already_evaluated', sample: { blindCode: '473' } },
+          code: 'already_evaluated', sample: { blindCode: '473' }
         })),
     });
 
@@ -124,7 +124,7 @@ describe('SensoryStore', () => {
       submit: () =>
         throwError(() => ({
           status: 409,
-          error: { code: 'session_not_open', session: { code: 'SEN-001', status: 'Encerrada' } },
+          code: 'session_not_open', session: { code: 'SEN-001', status: 'Encerrada' }
         })),
     });
 

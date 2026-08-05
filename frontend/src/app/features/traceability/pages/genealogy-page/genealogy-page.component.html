@@ -1,0 +1,158 @@
+<app-page-header title="Genealogia"
+                 subtitle="De onde veio e para onde foi — insumo, ordem, lote, levedura e envase" />
+
+@if (!hasNode()) {
+  <div class="card border-0 rounded-10">
+    <div class="card-body p-4">
+      <app-empty-state icon="ri-node-tree"
+                       message="Escolha um lote para ver a genealogia."
+                       hint="A genealogia é sempre sobre algo: abra um lote de produção e use o botão Genealogia." />
+      <div class="text-center">
+        <button type="button" class="btn btn-sm btn-outline-primary" (click)="goToBatches()">
+          Ir para lotes de produção
+        </button>
+      </div>
+    </div>
+  </div>
+} @else if (store.loading()) {
+  <div class="card border-0 rounded-10">
+    <div class="card-body p-4"><app-loading-indicator /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+} @else if (store.genealogy(); as graph) {
+
+  <div class="card border-0 rounded-10 mb-3">
+    <div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+        <div>
+          <p class="text-muted small mb-1">{{ nodeLabels[graph.root.type] }}</p>
+          <h2 class="h5 fw-semibold mb-0">
+            <i class="{{ nodeIcons[graph.root.type] }} me-1" aria-hidden="true"></i>
+            {{ graph.root.label ?? graph.root.id }}
+          </h2>
+        </div>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Sentido da consulta">
+          @for (option of directions; track option.value) {
+            <button type="button" class="btn"
+                    [class.btn-primary]="graph.direction === option.value"
+                    [class.btn-outline-secondary]="graph.direction !== option.value"
+                    [title]="option.hint"
+                    (click)="select(option.value)">{{ option.label }}</button>
+          }
+        </div>
+      </div>
+
+      @if (graph.truncated) {
+        <div class="alert alert-warning d-flex justify-content-between align-items-center gap-2 flex-wrap" role="alert">
+          <span>
+            <strong>Este não é o grafo inteiro.</strong>
+            O corte de {{ graph.depth }} saltos escondeu parte da cadeia — uma consulta que parece
+            completa sem ser é pior do que uma declaradamente parcial.
+          </span>
+          @if (graph.depth < 10) {
+            <button type="button" class="btn btn-sm btn-outline-dark text-nowrap" (click)="expand()">
+              Ampliar o alcance
+            </button>
+          }
+        </div>
+      }
+
+      @if (store.isolated()) {
+        <app-empty-state icon="ri-link-unlink"
+                         message="Este nó não está ligado a nada."
+                         hint="Ele existe, mas nenhum elo foi registrado no sentido consultado." />
+      } @else {
+        <div class="row g-3">
+          @for (column of store.columns(); track column.type) {
+            <div class="col-6 col-lg-4 col-xl-2">
+              <p class="text-muted small fw-medium mb-2">
+                <i class="{{ nodeIcons[column.type] }} me-1" aria-hidden="true"></i>
+                {{ nodeLabels[column.type] }}
+              </p>
+              <ul class="list-unstyled mb-0">
+                @for (node of column.nodes; track node.id) {
+                  <li class="border rounded-10 p-2 mb-2 small"
+                      [class.border-primary]="node.id === graph.root.id">
+                    {{ node.label ?? node.id }}
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (store.gaps().length > 0) {
+    <div class="card border-0 rounded-10 mb-3">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-1">
+          <i class="ri-link-unlink me-1" aria-hidden="true"></i> Elos que faltam
+        </h2>
+        <p class="text-muted small mb-3">
+          A rastreabilidade vale pelo que ela admite não saber. Cada item aqui é um elo que deveria
+          existir e não existe — não é falha da consulta, é o que a plataforma ainda não registra.
+        </p>
+        <ul class="list-unstyled mb-0">
+          @for (gap of store.gaps(); track gap.expectedLink) {
+            <li class="border-start border-warning border-3 ps-3 mb-3">
+              <p class="fw-medium mb-1">{{ gap.expectedLink }}</p>
+              <p class="text-muted small mb-1">{{ gap.reason }}</p>
+              <p class="text-muted small mb-0">
+                a partir de {{ nodeLabels[gap.from.type] }} {{ gap.from.label ?? gap.from.id }}
+              </p>
+            </li>
+          }
+        </ul>
+      </div>
+    </div>
+  }
+
+  @if (graph.edges.length > 0) {
+    <div class="card border-0 rounded-10">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-semibold mb-1">Elos registrados</h2>
+        <p class="text-muted small mb-3">
+          <span class="badge text-bg-warning me-1">intenção</span>
+          marca o que foi planejado e não comprovado — a reserva diz qual insumo foi separado para a
+          ordem, não qual foi ao moinho. Num recall, tratar intenção como fato recolhe o lote errado.
+        </p>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col" class="small">De</th>
+                <th scope="col" class="small">Para</th>
+                <th scope="col" class="small">Elo</th>
+                <th scope="col" class="small">Quando</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (edge of graph.edges; track edge.from.id + edge.to.id + edge.kind) {
+                <tr>
+                  <td class="small">
+                    <span class="text-muted">{{ nodeLabels[edge.from.type] }}</span><br>
+                    {{ edge.from.label ?? edge.from.id }}
+                  </td>
+                  <td class="small">
+                    <span class="text-muted">{{ nodeLabels[edge.to.type] }}</span><br>
+                    {{ edge.to.label ?? edge.to.id }}
+                  </td>
+                  <td class="small">
+                    {{ edge.kind }}
+                    <span class="badge ms-1" [class]="edgeClass(edge)">{{ strengthLabel(edge) }}</span>
+                  </td>
+                  <td class="small text-muted">
+                    {{ edge.recordedAt ? (edge.recordedAt | date: 'dd/MM/yyyy HH:mm') : '—' }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  }
+}

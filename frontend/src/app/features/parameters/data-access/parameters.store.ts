@@ -13,7 +13,7 @@ import { ParametersApi } from './parameters.api';
 
 interface ParametersError {
   status?: number;
-  error?: { detail?: string };
+  detail?: string;
 }
 
 /**
@@ -125,7 +125,7 @@ export class ParametersStore {
           this.toast.success('Parâmetro salvo.');
         },
         error: (e: ParametersError) =>
-          this.actionError.set(e.error?.detail ?? 'Não foi possível salvar o parâmetro.'),
+          this.actionError.set(e.detail ?? 'Não foi possível salvar o parâmetro.'),
       });
   }
 }

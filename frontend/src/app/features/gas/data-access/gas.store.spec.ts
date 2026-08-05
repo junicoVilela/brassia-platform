@@ -111,7 +111,7 @@ describe('GasStore', () => {
       connections: () => of([]),
       cylinders: () => of([]),
       connect: () => throwError(() => ({
-        status: 409, error: { code: 'gas_connection_blocked', blockers },
+        status: 409, code: 'gas_connection_blocked', blockers
       })),
     });
 

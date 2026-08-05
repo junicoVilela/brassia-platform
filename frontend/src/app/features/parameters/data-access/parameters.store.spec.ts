@@ -109,7 +109,7 @@ describe('ParametersStore', () => {
   it('mostra a recusa do backend em vez de mensagem genérica', () => {
     const store = setup({
       loadAll: () => of(parameters()),
-      saveCapa: () => throwError(() => ({ status: 400, error: { detail: 'verificação antes da investigação' } })),
+      saveCapa: () => throwError(() => ({ status: 400, detail: 'verificação antes da investigação' })),
     });
     store.load();
 

@@ -150,7 +150,7 @@ describe('PackagingStore', () => {
     ];
     const { store, toast } = setup({
       list: () => of([plan()]),
-      reserve: () => throwError(() => ({ status: 409, error: { code: 'packaging_blocked', blockers } })),
+      reserve: () => throwError(() => ({ status: 409, code: 'packaging_blocked', blockers })),
     });
 
     store.reserve('p1');
@@ -165,7 +165,7 @@ describe('PackagingStore', () => {
     const { store } = setup({
       list: () => of([plan()]),
       reserve: () => throwError(() => ({
-        status: 409, error: { code: 'insufficient_packaging_stock', shortfall },
+        status: 409, code: 'insufficient_packaging_stock', shortfall
       })),
     });
 
@@ -179,7 +179,7 @@ describe('PackagingStore', () => {
     const reserve = vi.fn()
       .mockReturnValueOnce(throwError(() => ({
         status: 409,
-        error: { code: 'packaging_blocked', blockers: [{ code: 'line_not_clean', message: 'Linha suja.' }] },
+        code: 'packaging_blocked', blockers: [{ code: 'line_not_clean', message: 'Linha suja.' }]
       })))
       .mockReturnValueOnce(of({ planId: 'p1', reservedUnits: 800, unit: 'UNIT' }));
     const { store, toast } = setup({ list: () => of([plan()]), reserve });
@@ -222,7 +222,7 @@ describe('PackagingStore', () => {
     const blocked = { missingRequired: ['ALLERGENS' as const], requiredNotDrawn: [] };
     const { store, toast } = setup({
       printLabel: () => throwError(() => ({
-        status: 409, error: { code: 'label_not_printable', label: blocked },
+        status: 409, code: 'label_not_printable', label: blocked
       })),
       labelPrints: () => of([]),
     });
@@ -367,7 +367,7 @@ describe('PackagingStore', () => {
       shortfallLiters: 4 };
     const { store, toast } = setup({
       list: () => of([]),
-      execute: () => throwError(() => ({ status: 409, error: { code: 'volume_balance', balance } })),
+      execute: () => throwError(() => ({ status: 409, code: 'volume_balance', balance })),
       run: () => throwError(() => ({ status: 400 })),
     });
 
@@ -383,7 +383,7 @@ describe('PackagingStore', () => {
       requestedLiters: 100 };
     const { store } = setup({
       list: () => of([]),
-      execute: () => throwError(() => ({ status: 409, error: { code: 'batch_volume_exceeded', batchVolume } })),
+      execute: () => throwError(() => ({ status: 409, code: 'batch_volume_exceeded', batchVolume })),
       run: () => throwError(() => ({ status: 400 })),
     });
 
@@ -397,7 +397,7 @@ describe('PackagingStore', () => {
   it('explica que o envase acontece uma vez só', () => {
     const { store } = setup({
       list: () => of([]),
-      execute: () => throwError(() => ({ status: 409, error: {} })),
+      execute: () => throwError(() => ({ status: 409,  })),
       run: () => throwError(() => ({ status: 400 })),
     });
 
@@ -449,7 +449,7 @@ describe('PackagingStore', () => {
     const carbonationDetail = { targetVolumes: 1.2, residualVolumes: 1.48 };
     const { store, toast } = setup({
       recordCarbonation: () => throwError(() => ({
-        status: 409, error: { code: 'over_carbonation', carbonation: carbonationDetail },
+        status: 409, code: 'over_carbonation', carbonation: carbonationDetail
       })),
       carbonation: () => throwError(() => ({ status: 400 })),
     });
@@ -463,7 +463,7 @@ describe('PackagingStore', () => {
 
   it('explica a recusa quando o plano foi cancelado', () => {
     const { store } = setup({
-      recordCarbonation: () => throwError(() => ({ status: 409, error: {} })),
+      recordCarbonation: () => throwError(() => ({ status: 409,  })),
       carbonation: () => throwError(() => ({ status: 400 })),
     });
 

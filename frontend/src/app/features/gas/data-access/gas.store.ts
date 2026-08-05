@@ -22,7 +22,8 @@ import { EquipmentOption, GasApi } from './gas.api';
 /** Corpo Problem Details da recusa de conexão, como o backend o publica. */
 interface ConnectError {
   status?: number;
-  error?: { code?: string; blockers?: GasBlocker[] };
+  code?: string;
+  blockers?: GasBlocker[];
 }
 
 /** Estado da rede de gás (GAS-001). */
@@ -172,8 +173,8 @@ export class GasStore {
           this.load();
         },
         error: (err: ConnectError) => {
-          if (err?.error?.blockers?.length) {
-            this.connectBlockers.set(err.error.blockers);
+          if (err?.blockers?.length) {
+            this.connectBlockers.set(err.blockers);
             return;
           }
           this.actionError.set('Não foi possível montar a linha (cilindro ou ponto de uso inválido).');

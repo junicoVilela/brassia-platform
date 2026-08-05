@@ -55,7 +55,7 @@ describe('OrdersStore', () => {
   });
 
   it('mostra os bloqueios quando a liberação falha (409)', () => {
-    const release = vi.fn(() => throwError(() => ({ status: 409, error: { blockers: [{ code: 'missing_responsible', message: 'Informe o responsável.' }] } })));
+    const release = vi.fn(() => throwError(() => ({ status: 409, blockers: [{ code: 'missing_responsible', message: 'Informe o responsável.' }] })));
     const store = setup({ release });
     store.confirmRelease('o1', 'u1');
     expect(store.releaseBlockers()).toHaveLength(1);

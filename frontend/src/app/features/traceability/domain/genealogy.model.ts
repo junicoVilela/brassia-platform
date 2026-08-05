@@ -6,7 +6,8 @@ export type NodeType =
   | 'BATCH'
   | 'YEAST_HARVEST'
   | 'PACKAGING_PLAN'
-  | 'PACKAGING_RUN';
+  | 'PACKAGING_RUN'
+  | 'FINISHED_LOT';
 
 /** Ordem da cadeia produtiva; é ela que dá a leitura da esquerda para a direita na tela. */
 export const NODE_ORDER: readonly NodeType[] = [
@@ -16,6 +17,7 @@ export const NODE_ORDER: readonly NodeType[] = [
   'YEAST_HARVEST',
   'PACKAGING_PLAN',
   'PACKAGING_RUN',
+  'FINISHED_LOT',
 ];
 
 export const NODE_LABELS: Record<NodeType, string> = {
@@ -25,6 +27,7 @@ export const NODE_LABELS: Record<NodeType, string> = {
   YEAST_HARVEST: 'Levedura',
   PACKAGING_PLAN: 'Plano de envase',
   PACKAGING_RUN: 'Envase',
+  FINISHED_LOT: 'Produto acabado',
 };
 
 export const NODE_ICONS: Record<NodeType, string> = {
@@ -34,6 +37,7 @@ export const NODE_ICONS: Record<NodeType, string> = {
   YEAST_HARVEST: 'ri-bubble-chart-line',
   PACKAGING_PLAN: 'ri-inbox-line',
   PACKAGING_RUN: 'ri-inbox-archive-line',
+  FINISHED_LOT: 'ri-barcode-line',
 };
 
 export type Direction = 'BACKWARD' | 'FORWARD' | 'BOTH';

@@ -1,7 +1,10 @@
 package br.com.brew.brassia.packaging;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
@@ -249,6 +252,87 @@ class PackagingRunIT {
     private record Scene(String planId, String lotId) {}
 
     /** Plano reservado de 800 latas de 355 ml, com {@code stock} latas em estoque. */
+    @Test
+    void oEnvaseGeraLoteDeProdutoAcabado() throws Exception {
+        var session = login();
+        var scene = reservedPlan(session, 1000);
+
+        var body = execute(session, scene.planId, "284", 780, 12).andExpect(status().isOk())
+                // O código sai na resposta da execução: é o que vai impresso na embalagem.
+                .andExpect(jsonPath("$.finishedLotCode", is(notNullValue())))
+                .andReturn().getResponse().getContentAsString();
+        var code = JSON.readTree(body).get("finishedLotCode").asText();
+
+        // A suíte compartilha a cervejaria de bootstrap: filtrar pelo lote desta execução é o que
+        // torna a asserção sobre ESTE envase, e não sobre o primeiro da lista.
+        var batchId = batchOfPlan(session, scene.planId);
+        var lote = finishedLotOf(session, batchId, code);
+        // Só as unidades boas: as 12 rejeitadas consumiram lata e não viraram produto.
+        assertThat(lote.get("units").asInt()).isEqualTo(780);
+        assertThat(lote.get("volumeLiters").asDouble()).isEqualTo(276.9);
+    }
+
+    private JsonNode finishedLotOf(MockHttpSession session, String batchId, String code) throws Exception {
+        var body = mockMvc.perform(get("/api/v1/packaging/finished-lots").param("batchId", batchId)
+                        .session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        for (JsonNode lot : JSON.readTree(body)) {
+            if (lot.get("code").asText().equals(code)) {
+                return lot;
+            }
+        }
+        throw new AssertionError("lote de produto acabado ausente: " + code);
+    }
+
+    @Test
+    void doisEnvasesDoMesmoLoteGeramLotesDistintos() throws Exception {
+        var session = login();
+        var batchId = fermentingBatch(session);
+        var containerId = createIngredient(session, "PACKAGING", "UNIT",
+                "{\"volumeMl\":\"355\",\"material\":\"lata\"}");
+        receiveContainers(session, containerId, 4000);
+
+        var primeiro = reserveFor(session, batchId, containerId, 400);
+        execute(session, primeiro, "100", 280, 0).andExpect(status().isOk());
+        var segundo = reserveFor(session, batchId, containerId, 400);
+        execute(session, segundo, "100", 280, 0).andExpect(status().isOk());
+
+        var body = mockMvc.perform(get("/api/v1/packaging/finished-lots").param("batchId", batchId)
+                        .session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        var codigos = new java.util.ArrayList<String>();
+        for (JsonNode lot : JSON.readTree(body)) {
+            codigos.add(lot.get("code").asText());
+        }
+
+        // Foram latas diferentes em momentos diferentes: um recall pode atingir só uma das duas.
+        assertThat(codigos).hasSize(2).doesNotHaveDuplicates();
+        assertThat(codigos).allMatch(c -> c.contains("/"));
+    }
+
+    @Test
+    void aGenealogiaDoLoteChegaAoProdutoAcabado() throws Exception {
+        var session = login();
+        var scene = reservedPlan(session, 1000);
+        execute(session, scene.planId, "284", 780, 12).andExpect(status().isOk());
+        var batchId = batchOfPlan(session, scene.planId);
+
+        mockMvc.perform(get("/api/v1/traceability/genealogy").session(session)
+                        .param("nodeType", "BATCH").param("nodeId", batchId).param("direction", "FORWARD"))
+                .andExpect(status().isOk())
+                // A cadeia para a frente não termina mais na execução (TRC-001-B).
+                .andExpect(jsonPath("$.nodes[*].type", hasItem("FINISHED_LOT")))
+                .andExpect(jsonPath("$.edges[*].kind", hasItem("lote de produto acabado")))
+                // O que falta agora é o passo de fora da fábrica.
+                .andExpect(jsonPath("$.gaps[*].expectedLink", hasItem("expedição e destino")));
+    }
+
+    private String batchOfPlan(MockHttpSession session, String planId) throws Exception {
+        var body = mockMvc.perform(get(PLANS + "/" + planId).session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return JSON.readTree(body).get("batchId").asText();
+    }
+
     private Scene reservedPlan(MockHttpSession session, int stock) throws Exception {
         var batchId = fermentingBatch(session);
         var containerId = createIngredient(session, "PACKAGING", "UNIT",

@@ -57,7 +57,9 @@ public interface LineageSource {
         /** Plano de envase. */
         PACKAGING_PLAN,
         /** Execução do envase. */
-        PACKAGING_RUN
+        PACKAGING_RUN,
+        /** Lote de produto acabado — o que um recall recolhe. */
+        FINISHED_LOT
     }
 
     /**

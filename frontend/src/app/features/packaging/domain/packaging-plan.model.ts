@@ -155,6 +155,8 @@ export interface PackagingRun {
   note: string | null;
   executedAt: string;
   executedBy: string;
+  /** Lote de produto acabado gerado pelo envase (TRC-001-B) — o que vai impresso na embalagem. */
+  finishedLotCode: string | null;
 }
 
 export interface ExecutePackagingRequest {

@@ -126,7 +126,9 @@ class LabelIT {
     @Test
     void missingRequiredFieldBlocksPrinting() throws Exception {
         var session = login();
-        // Alergênicos ainda não têm fonte no sistema (PKG-004-A): exigi-los barra a impressão.
+        // Cervejaria que não declarou alergênico nenhum (FDS-001): o campo continua sem fonte, e
+        // exigi-lo barra a impressão. É o comportamento correto — imprimir isenção que ninguém
+        // assinou seria pior do que não imprimir.
         saveRule(session, "BEER_NAME", "ALLERGENS").andExpect(status().isOk());
         var template = saveTemplate(session, "BEER_NAME", "ALLERGENS");
         var planId = executedPlan(session);

@@ -4,6 +4,8 @@ import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.calculator.CalculatorEngine;
 import br.com.brew.brassia.catalog.IngredientSpecLookup;
 import br.com.brew.brassia.equipment.EquipmentAvailabilityLookup;
+import br.com.brew.brassia.foodsafety.AllergenProfileLookup;
+import br.com.brew.brassia.foodsafety.ChangeoverCheck;
 import br.com.brew.brassia.packaging.PackagingStockGateway;
 import br.com.brew.brassia.packaging.application.port.inbound.CancelPackagingPlanUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.CarbonationCommands;
@@ -67,10 +69,11 @@ class PackagingConfiguration {
     @Bean
     ReservePackagingPlanUseCase reservePackagingPlanUseCase(PackagingPlanRepository plans,
             EquipmentAvailabilityLookup lines, CleaningReleaseLookup cleanings,
-            CleaningPolicyLookup cleaningPolicy, IngredientSpecLookup ingredients,
-            PackagingStockGateway stock, AuditTrail audit, PlatformTransactionManager transactionManager) {
-        var handler = new ReservePackagingPlanHandler(plans, lines, cleanings, cleaningPolicy, ingredients,
-                stock, audit);
+            CleaningPolicyLookup cleaningPolicy, ChangeoverCheck changeover,
+            IngredientSpecLookup ingredients, PackagingStockGateway stock, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ReservePackagingPlanHandler(plans, lines, cleanings, cleaningPolicy, changeover,
+                ingredients, stock, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }
@@ -179,15 +182,18 @@ class PackagingConfiguration {
     /** Prévia é consulta: monta os campos das fontes e não grava nada. */
     @Bean
     LabelCommands.Preview previewLabelUseCase(LabelRepository labels, PackagingPlanRepository plans,
-            FreshnessRepository freshness, BatchLookup batches, RecipeLookup recipes) {
-        return new LabelHandlers.Preview(labels, plans, freshness, batches, recipes);
+            FreshnessRepository freshness, BatchLookup batches, RecipeLookup recipes,
+            AllergenProfileLookup allergenProfiles) {
+        return new LabelHandlers.Preview(labels, plans, freshness, batches, recipes, allergenProfiles);
     }
 
     @Bean
     LabelCommands.Print printLabelUseCase(LabelRepository labels, PackagingPlanRepository plans,
-            FreshnessRepository freshness, BatchLookup batches, RecipeLookup recipes, AuditTrail audit,
+            FreshnessRepository freshness, BatchLookup batches, RecipeLookup recipes,
+            AllergenProfileLookup allergenProfiles, AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new LabelHandlers.Print(labels, plans, freshness, batches, recipes, audit);
+        var handler = new LabelHandlers.Print(labels, plans, freshness, batches, recipes, allergenProfiles,
+                audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }

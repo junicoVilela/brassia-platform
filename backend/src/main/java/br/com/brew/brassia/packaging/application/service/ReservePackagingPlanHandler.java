@@ -4,6 +4,7 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.catalog.IngredientSpecLookup;
 import br.com.brew.brassia.equipment.EquipmentAvailabilityLookup;
+import br.com.brew.brassia.foodsafety.ChangeoverCheck;
 import br.com.brew.brassia.packaging.PackagingStockGateway;
 import br.com.brew.brassia.packaging.application.port.inbound.ReservePackagingPlanUseCase;
 import br.com.brew.brassia.packaging.application.port.outbound.PackagingPlanRepository;
@@ -35,17 +36,19 @@ public final class ReservePackagingPlanHandler implements ReservePackagingPlanUs
     private final EquipmentAvailabilityLookup lines;
     private final CleaningReleaseLookup cleanings;
     private final CleaningPolicyLookup cleaningPolicy;
+    private final ChangeoverCheck changeover;
     private final IngredientSpecLookup ingredients;
     private final PackagingStockGateway stock;
     private final AuditTrail audit;
 
     public ReservePackagingPlanHandler(PackagingPlanRepository plans, EquipmentAvailabilityLookup lines,
-            CleaningReleaseLookup cleanings, CleaningPolicyLookup cleaningPolicy,
+            CleaningReleaseLookup cleanings, CleaningPolicyLookup cleaningPolicy, ChangeoverCheck changeover,
             IngredientSpecLookup ingredients, PackagingStockGateway stock, AuditTrail audit) {
         this.plans = Objects.requireNonNull(plans);
         this.lines = Objects.requireNonNull(lines);
         this.cleanings = Objects.requireNonNull(cleanings);
         this.cleaningPolicy = Objects.requireNonNull(cleaningPolicy);
+        this.changeover = Objects.requireNonNull(changeover);
         this.ingredients = Objects.requireNonNull(ingredients);
         this.stock = Objects.requireNonNull(stock);
         this.audit = Objects.requireNonNull(audit);
@@ -90,7 +93,13 @@ public final class ReservePackagingPlanHandler implements ReservePackagingPlanUs
         return new Result(plan.id(), units, unit);
     }
 
-    /** Disponibilidade, agenda e limpeza da linha — os três motivos de recusa que o envase controla. */
+    /**
+     * Disponibilidade, agenda, limpeza e troca de produto — os motivos de recusa da linha.
+     *
+     * <p>A troca de produto (FDS-001) é a única que o envase não decide: ele diz qual lote entra e
+     * qual saiu, e a segurança de alimentos responde se a troca é segura. O envase não conhece
+     * alergênico, e não deveria.
+     */
     private List<PackagingBlockedException.Blocker> lineBlockers(PackagingPlan plan) {
         var blockers = new ArrayList<PackagingBlockedException.Blocker>();
 
@@ -121,8 +130,17 @@ public final class ReservePackagingPlanHandler implements ReservePackagingPlanUs
         // prazo configurado, `covers` responde verdadeiro e o comportamento é o de antes.
         var stillCovered = releasedAt == null
                 || cleaningPolicy.covers(plan.breweryId(), releasedAt, plan.plannedStart());
-        LineCleanliness.check(releasedAt, lastUse, plan.plannedStart(), stillCovered)
+        LineCleanliness.check(releasedAt, lastUse == null ? null : lastUse.startedAt(), plan.plannedStart(),
+                        stillCovered)
                 .ifPresent(blockers::add);
+
+        var verdict = changeover.check(plan.breweryId(), plan.lineEquipmentId(), plan.batchId(),
+                lastUse == null ? null : lastUse.batchId(),
+                lastUse == null ? null : lastUse.startedAt(),
+                plan.plannedStart());
+        if (!verdict.allowed()) {
+            blockers.add(new PackagingBlockedException.Blocker(verdict.code(), verdict.detail()));
+        }
 
         return blockers;
     }

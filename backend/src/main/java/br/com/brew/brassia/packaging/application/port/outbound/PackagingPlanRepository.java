@@ -29,6 +29,14 @@ public interface PackagingPlanRepository {
     /** Existe outro plano ativo ocupando a mesma linha na janela [from, to)? */
     boolean hasLineConflict(UUID breweryId, UUID lineEquipmentId, Instant from, Instant to, UUID excludePlanId);
 
-    /** Início do último envase reservado que ocupou a linha antes de {@code before}. */
-    Optional<Instant> lastLineUse(UUID breweryId, UUID lineEquipmentId, Instant before, UUID excludePlanId);
+    /**
+     * Último envase reservado que ocupou a linha antes de {@code before}.
+     *
+     * <p>Traz o lote junto com o instante porque a limpeza responde "quando" e a troca de produto
+     * (FDS-001) responde "o quê": sem saber qual cerveja passou ali, não há como dizer que
+     * alergênico ficou.
+     */
+    Optional<LineUse> lastLineUse(UUID breweryId, UUID lineEquipmentId, Instant before, UUID excludePlanId);
+
+    record LineUse(UUID batchId, Instant startedAt) {}
 }

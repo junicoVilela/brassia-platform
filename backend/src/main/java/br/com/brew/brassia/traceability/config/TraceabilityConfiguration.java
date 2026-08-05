@@ -1,15 +1,29 @@
 package br.com.brew.brassia.traceability.config;
 
+import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.traceability.LineageSource;
+import br.com.brew.brassia.traceability.QuarantineCheck;
+import br.com.brew.brassia.traceability.application.port.inbound.QuarantineCommands;
+import br.com.brew.brassia.traceability.application.port.inbound.QuarantineQueries;
 import br.com.brew.brassia.traceability.application.port.inbound.TraceabilityQueries;
+import br.com.brew.brassia.traceability.application.port.outbound.QuarantineRepository;
 import br.com.brew.brassia.traceability.application.service.GenealogyQueryHandler;
+import br.com.brew.brassia.traceability.application.service.QuarantineHandlers;
+import br.com.brew.brassia.traceability.application.service.QuarantineQueryHandler;
 import java.util.List;
+import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * A consulta é só leitura, então não há transação a abrir: cada fonte responde com a sua própria
  * consulta e o domínio junta. Sem escrita, não há o que tornar atômico.
+ *
+ * <p>A quarentena escreve, e aí há: abrir verifica a inexistência de outra aberta e insere no mesmo
+ * commit — sem isso, dois pedidos simultâneos passariam os dois pela verificação. O índice único
+ * parcial no banco é a segunda linha de defesa, e a que vale de verdade.
  */
 @Configuration(proxyBeanMethods = false)
 class TraceabilityConfiguration {
@@ -18,5 +32,36 @@ class TraceabilityConfiguration {
     @Bean
     TraceabilityQueries traceabilityQueries(List<LineageSource> sources) {
         return new GenealogyQueryHandler(sources);
+    }
+
+    /**
+     * Um bean só, dos dois lados. O mesmo objeto responde à tela ({@link QuarantineQueries}) e aos
+     * módulos que bloqueiam ({@link QuarantineCheck}): são a mesma pergunta feita de dois lados, e
+     * duas implementações acabariam divergindo — a tela mostraria um descendente que o envase
+     * deixou passar. Por isso o tipo declarado é o concreto: registrar um bean por interface daria
+     * dois candidatos para a mesma injeção.
+     */
+    @Bean
+    QuarantineQueryHandler quarantineQueryHandler(QuarantineRepository quarantines,
+            List<LineageSource> sources) {
+        return new QuarantineQueryHandler(quarantines, sources);
+    }
+
+    @Bean
+    QuarantineCommands.Open openQuarantineUseCase(QuarantineRepository quarantines,
+            List<LineageSource> sources, AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new QuarantineHandlers.Open(quarantines, sources, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return (actorId, breweryId, type, nodeId, reason) -> Objects.requireNonNull(
+                transaction.execute(status -> handler.handle(actorId, breweryId, type, nodeId, reason)));
+    }
+
+    @Bean
+    QuarantineCommands.Release releaseQuarantineUseCase(QuarantineRepository quarantines, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new QuarantineHandlers.Release(quarantines, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return (actorId, breweryId, quarantineId, justification) -> transaction.executeWithoutResult(
+                status -> handler.handle(actorId, breweryId, quarantineId, justification));
     }
 }

@@ -12,12 +12,16 @@ import br.com.brew.brassia.packaging.domain.BatchVolumeExceededException;
 import br.com.brew.brassia.packaging.domain.FinishedLot;
 import br.com.brew.brassia.packaging.domain.PackagingPlanStatus;
 import br.com.brew.brassia.packaging.domain.PackagingRun;
+import br.com.brew.brassia.packaging.domain.PackagingBlockedException;
 import br.com.brew.brassia.packaging.domain.PackagingStockShortfallException;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.traceability.LineageSource.NodeType;
+import br.com.brew.brassia.traceability.QuarantineCheck;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -37,17 +41,19 @@ public final class ExecutePackagingHandler implements ExecutePackagingUseCase {
     private final FinishedLotRepository finishedLots;
     private final BatchLookup batches;
     private final IngredientSpecLookup ingredients;
+    private final QuarantineCheck quarantines;
     private final PackagingStockGateway stock;
     private final AuditTrail audit;
 
     public ExecutePackagingHandler(PackagingPlanRepository plans, PackagingRunRepository runs,
             FinishedLotRepository finishedLots, BatchLookup batches, IngredientSpecLookup ingredients,
-            PackagingStockGateway stock, AuditTrail audit) {
+            QuarantineCheck quarantines, PackagingStockGateway stock, AuditTrail audit) {
         this.plans = Objects.requireNonNull(plans);
         this.runs = Objects.requireNonNull(runs);
         this.finishedLots = Objects.requireNonNull(finishedLots);
         this.batches = Objects.requireNonNull(batches);
         this.ingredients = Objects.requireNonNull(ingredients);
+        this.quarantines = Objects.requireNonNull(quarantines);
         this.stock = Objects.requireNonNull(stock);
         this.audit = Objects.requireNonNull(audit);
     }
@@ -59,6 +65,14 @@ public final class ExecutePackagingHandler implements ExecutePackagingUseCase {
         if (plan.status() != PackagingPlanStatus.RESERVED) {
             throw new IllegalStateException("só plano reservado é executado: " + plan.status());
         }
+
+        // A quarentena (FDS-002) é verificada aqui, e não só na reserva: a investigação quase sempre
+        // começa depois que o plano foi reservado, e é justamente o envase que ela precisa impedir.
+        quarantines.blocking(plan.breweryId(), NodeType.PACKAGING_PLAN, plan.id())
+                .ifPresent(block -> {
+                    throw new PackagingBlockedException(List.of(
+                            new PackagingBlockedException.Blocker(block.code(), block.message())));
+                });
 
         var batch = batches.find(plan.breweryId(), plan.batchId())
                 .orElseThrow(() -> new IllegalStateException("lote do plano não encontrado"));

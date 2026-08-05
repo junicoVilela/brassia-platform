@@ -36,6 +36,7 @@ import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.recipe.RecipeLookup;
 import br.com.brew.brassia.sanitation.CleaningPolicyLookup;
 import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
+import br.com.brew.brassia.traceability.QuarantineCheck;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -69,11 +70,11 @@ class PackagingConfiguration {
     @Bean
     ReservePackagingPlanUseCase reservePackagingPlanUseCase(PackagingPlanRepository plans,
             EquipmentAvailabilityLookup lines, CleaningReleaseLookup cleanings,
-            CleaningPolicyLookup cleaningPolicy, ChangeoverCheck changeover,
+            CleaningPolicyLookup cleaningPolicy, ChangeoverCheck changeover, QuarantineCheck quarantines,
             IngredientSpecLookup ingredients, PackagingStockGateway stock, AuditTrail audit,
             PlatformTransactionManager transactionManager) {
         var handler = new ReservePackagingPlanHandler(plans, lines, cleanings, cleaningPolicy, changeover,
-                ingredients, stock, audit);
+                quarantines, ingredients, stock, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }
@@ -93,8 +94,10 @@ class PackagingConfiguration {
     @Bean
     ExecutePackagingUseCase executePackagingUseCase(PackagingPlanRepository plans, PackagingRunRepository runs,
             FinishedLotRepository finishedLots, BatchLookup batches, IngredientSpecLookup ingredients,
-            PackagingStockGateway stock, AuditTrail audit, PlatformTransactionManager transactionManager) {
-        var handler = new ExecutePackagingHandler(plans, runs, finishedLots, batches, ingredients, stock, audit);
+            QuarantineCheck quarantines, PackagingStockGateway stock, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ExecutePackagingHandler(plans, runs, finishedLots, batches, ingredients, quarantines,
+                stock, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }

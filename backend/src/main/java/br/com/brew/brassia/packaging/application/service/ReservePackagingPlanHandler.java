@@ -15,6 +15,8 @@ import br.com.brew.brassia.packaging.domain.PackagingPlanStatus;
 import br.com.brew.brassia.packaging.domain.PackagingStockShortfallException;
 import br.com.brew.brassia.sanitation.CleaningPolicyLookup;
 import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
+import br.com.brew.brassia.traceability.LineageSource.NodeType;
+import br.com.brew.brassia.traceability.QuarantineCheck;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -37,18 +39,21 @@ public final class ReservePackagingPlanHandler implements ReservePackagingPlanUs
     private final CleaningReleaseLookup cleanings;
     private final CleaningPolicyLookup cleaningPolicy;
     private final ChangeoverCheck changeover;
+    private final QuarantineCheck quarantines;
     private final IngredientSpecLookup ingredients;
     private final PackagingStockGateway stock;
     private final AuditTrail audit;
 
     public ReservePackagingPlanHandler(PackagingPlanRepository plans, EquipmentAvailabilityLookup lines,
             CleaningReleaseLookup cleanings, CleaningPolicyLookup cleaningPolicy, ChangeoverCheck changeover,
-            IngredientSpecLookup ingredients, PackagingStockGateway stock, AuditTrail audit) {
+            QuarantineCheck quarantines, IngredientSpecLookup ingredients, PackagingStockGateway stock,
+            AuditTrail audit) {
         this.plans = Objects.requireNonNull(plans);
         this.lines = Objects.requireNonNull(lines);
         this.cleanings = Objects.requireNonNull(cleanings);
         this.cleaningPolicy = Objects.requireNonNull(cleaningPolicy);
         this.changeover = Objects.requireNonNull(changeover);
+        this.quarantines = Objects.requireNonNull(quarantines);
         this.ingredients = Objects.requireNonNull(ingredients);
         this.stock = Objects.requireNonNull(stock);
         this.audit = Objects.requireNonNull(audit);
@@ -133,6 +138,12 @@ public final class ReservePackagingPlanHandler implements ReservePackagingPlanUs
         LineCleanliness.check(releasedAt, lastUse == null ? null : lastUse.startedAt(), plan.plannedStart(),
                         stillCovered)
                 .ifPresent(blockers::add);
+
+        // Quarentena (FDS-002): pergunta pelo plano, não pelo lote — a resposta herda o bloqueio do
+        // lote pelo grafo, e um dia um insumo quarentenado vai alcançar o plano pelo mesmo caminho.
+        quarantines.blocking(plan.breweryId(), NodeType.PACKAGING_PLAN, plan.id())
+                .ifPresent(block -> blockers.add(
+                        new PackagingBlockedException.Blocker(block.code(), block.message())));
 
         var verdict = changeover.check(plan.breweryId(), plan.lineEquipmentId(), plan.batchId(),
                 lastUse == null ? null : lastUse.batchId(),

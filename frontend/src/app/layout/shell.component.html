@@ -121,6 +121,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('foodsafety.allergen.read')) {
+            <li class="menu-item">
+              <a routerLink="/food-safety/allergens" routerLinkActive="active" class="menu-link">
+                <i class="ri-alert-line menu-icon"></i>
+                <span class="title">Matriz de alergênicos</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('fermentation.profile.read')) {
             <li class="menu-item">
               <a routerLink="/fermentation/profiles" routerLinkActive="active" class="menu-link">

@@ -11,12 +11,15 @@ import org.springframework.stereotype.Component;
 /**
  * O estoque na genealogia (TRC-001): de onde o insumo saiu e para onde foi.
  *
- * <p>As duas arestas daqui não valem o mesmo, e o grafo diz isso em vez de disfarçar:
+ * <p>As arestas daqui não valem todas o mesmo, e o grafo diz isso em vez de disfarçar:
  *
  * <ul>
  *   <li><strong>Reserva → OP é intenção.</strong> A reserva registra qual lote foi separado para a
- *       ordem, não qual foi de fato ao moinho — o dia de brassa não registra consumo por lote de
- *       insumo. Num recall, tratar isso como fato é recolher o lote errado.</li>
+ *       ordem, não qual foi de fato ao moinho. Num recall, tratar isso como fato é recolher o lote
+ *       errado.</li>
+ *   <li><strong>Consumo → OP é fato</strong> desde a TRC-001-C: quem brassou confirmou, lote a
+ *       lote, o que entrou. Quando o consumo existe, a reserva da mesma OP <em>não</em> vira
+ *       aresta: ela foi liberada no ato, e mostrar as duas contaria o mesmo malte duas vezes.</li>
  *   <li><strong>Consumo → plano de envase é fato.</strong> A embalagem que virou lata cheia saiu do
  *       estoque de verdade, com movimento de consumo apontando para o plano.</li>
  * </ul>
@@ -49,7 +52,7 @@ class InventoryLineageAdapter implements LineageSource {
             SELECT lot_id, reference, MIN(occurred_at) AS first_at
             FROM stock_movement
             WHERE brewery_id = :brewery AND reference IS NOT NULL AND type = 'CONSUMPTION'
-              AND reason = 'envase' AND %s
+              AND reason = :reason AND %s
             GROUP BY lot_id, reference
             """;
 
@@ -84,34 +87,46 @@ class InventoryLineageAdapter implements LineageSource {
         }
         var edges = new ArrayList<Edge>();
         edges.addAll(reservations(breweryId, "lot_id = :lot", "lot", node.id()));
-        edges.addAll(consumptions(breweryId, "lot_id = :lot", "lot", node.id()));
+        edges.addAll(brewConsumptions(breweryId, "lot_id = :lot", "lot", node.id()));
+        edges.addAll(packagingConsumptions(breweryId, "lot_id = :lot", "lot", node.id()));
         return edges;
     }
 
     @Override
     public List<Edge> ancestorsOf(UUID breweryId, Node node) {
         return switch (node.type()) {
-            case BREW_ORDER -> reservations(breweryId, "reference = :ref", "ref", node.id());
-            case PACKAGING_PLAN -> consumptions(breweryId, "reference = :ref", "ref", node.id());
+            // Consumo confirmado substitui a reserva: as duas juntas contariam o mesmo malte duas
+            // vezes, uma como intenção e outra como fato.
+            case BREW_ORDER -> {
+                var consumed = brewConsumptions(breweryId, "reference = :ref", "ref", node.id());
+                yield consumed.isEmpty()
+                        ? reservations(breweryId, "reference = :ref", "ref", node.id())
+                        : consumed;
+            }
+            case PACKAGING_PLAN -> packagingConsumptions(breweryId, "reference = :ref", "ref", node.id());
             default -> List.of();
         };
     }
 
     /**
-     * A lacuna do consumo no dia de brassa (TRC-001-C).
+     * A lacuna do consumo, agora por OP.
      *
-     * <p>Declarada na OP porque é lá que ela dói: quem olha para trás a partir de um lote de
-     * produção encontra reservas e pode tomá-las por consumo. O elo que falta é um movimento de
-     * consumo, por lote de insumo, lançado no dia de brassa.
+     * <p>Antes da TRC-001-C ela era da plataforma: não existia comando de consumo, e nenhuma ordem
+     * podia tê-lo. Agora existe, e a lacuna passou a ser um fato sobre <em>esta</em> ordem — quem
+     * brassou ainda não confirmou o que usou, e o elo para trás continua sendo a reserva, que é
+     * intenção. É a diferença entre "o sistema não sabe registrar" e "ninguém registrou".
      */
     @Override
     public List<Gap> gapsOf(UUID breweryId, Node node) {
         if (node.type() != NodeType.BREW_ORDER) {
             return List.of();
         }
+        if (!brewConsumptions(breweryId, "reference = :ref", "ref", node.id()).isEmpty()) {
+            return List.of();
+        }
         return List.of(new Gap(node, "consumo de insumo por lote",
-                "o dia de brassa não registra consumo por lote de insumo; o elo para trás é a "
-                        + "reserva, que é intenção e não fato (TRC-001-C)"));
+                "esta ordem ainda não teve o consumo do dia de brassa confirmado; o elo para trás é "
+                        + "a reserva, que é intenção e não fato"));
     }
 
     private List<Edge> reservations(UUID breweryId, String filter, String param, UUID value) {
@@ -125,13 +140,25 @@ class InventoryLineageAdapter implements LineageSource {
                 .list();
     }
 
-    private List<Edge> consumptions(UUID breweryId, String filter, String param, UUID value) {
+    /** Consumo do dia de brassa (TRC-001-C): insumo → OP, e é fato. */
+    private List<Edge> brewConsumptions(UUID breweryId, String filter, String param, UUID value) {
+        return consumptions(breweryId, filter, param, value, "brassagem", NodeType.BREW_ORDER,
+                "consumo de insumo");
+    }
+
+    private List<Edge> packagingConsumptions(UUID breweryId, String filter, String param, UUID value) {
+        return consumptions(breweryId, filter, param, value, "envase", NodeType.PACKAGING_PLAN,
+                "consumo de embalagem");
+    }
+
+    private List<Edge> consumptions(UUID breweryId, String filter, String param, UUID value, String reason,
+            NodeType target, String kind) {
         return jdbc.sql(CONSUMED_BY_REFERENCE.formatted(filter))
-                .param("brewery", breweryId).param(param, value)
+                .param("brewery", breweryId).param(param, value).param("reason", reason)
                 .query((rs, rowNum) -> new Edge(
                         Node.of(NodeType.STOCK_LOT, rs.getObject("lot_id", UUID.class)),
-                        Node.of(NodeType.PACKAGING_PLAN, rs.getObject("reference", UUID.class)),
-                        "consumo de embalagem", EdgeStrength.CONFIRMED,
+                        Node.of(target, rs.getObject("reference", UUID.class)),
+                        kind, EdgeStrength.CONFIRMED,
                         rs.getTimestamp("first_at").toInstant()))
                 .list();
     }

@@ -6,6 +6,8 @@ import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
 import br.com.brew.brassia.production.BatchAlertPublisher;
 import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.production.application.port.inbound.ApplyCorrectionUseCase;
+import br.com.brew.brassia.production.ProductionStockGateway;
+import br.com.brew.brassia.production.application.port.inbound.BrewConsumptionUseCases;
 import br.com.brew.brassia.production.application.port.inbound.CompleteBatchStepUseCase;
 import br.com.brew.brassia.production.application.port.inbound.ConfirmAlertUseCase;
 import br.com.brew.brassia.production.application.port.inbound.CreateAlertUseCase;
@@ -27,6 +29,7 @@ import br.com.brew.brassia.production.application.port.outbound.MeasurementRepos
 import br.com.brew.brassia.production.application.port.outbound.ProductionEventPublisher;
 import br.com.brew.brassia.production.application.port.outbound.TransferRepository;
 import br.com.brew.brassia.production.application.service.ApplyCorrectionHandler;
+import br.com.brew.brassia.production.application.service.BrewConsumptionHandlers;
 import br.com.brew.brassia.production.application.service.CompleteBatchStepHandler;
 import br.com.brew.brassia.production.application.service.ConfirmAlertHandler;
 import br.com.brew.brassia.production.application.service.ListAppliedCorrectionsHandler;
@@ -171,5 +174,22 @@ class ProductionConfiguration {
         return (breweryId, actorId, batchId, message, plannedAt, occurredAt) -> createAlert.handle(
                 new CreateAlertUseCase.Command(actorId, breweryId, batchId, "STEP", message, plannedAt, occurredAt))
                 .id();
+    }
+
+    /** Consulta pura: a proposta é a reserva viva, lida do ledger na hora. */
+    @Bean
+    BrewConsumptionUseCases.Proposal brewConsumptionProposal(BatchRepository batches,
+            ProductionStockGateway stock) {
+        return new BrewConsumptionHandlers.Proposal(batches, stock);
+    }
+
+    /**
+     * O gateway já abre a própria transação para consumir tudo ou nada; aqui só se acrescenta a
+     * verificação de estado e a auditoria, que não escrevem estoque.
+     */
+    @Bean
+    BrewConsumptionUseCases.Register registerBrewConsumption(BatchRepository batches,
+            ProductionStockGateway stock, AuditTrail audit) {
+        return new BrewConsumptionHandlers.Register(batches, stock, audit);
     }
 }

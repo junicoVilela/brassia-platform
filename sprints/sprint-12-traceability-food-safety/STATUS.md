@@ -60,9 +60,11 @@ O critério da história é "ausência de elo é evidenciada". As três aparecem
   PR próprio: a execução do envase passa a criar um `FinishedLot` no mesmo commit, com código
   derivado do lote de produção (`LOTE-100/1`). Ver a seção própria abaixo. O que sobrou da lacuna
   virou **`TRC-001-D`**.
-- **`TRC-001-C` — o dia de brassa não registra consumo por lote de insumo.** Só existe a reserva da
-  OP, que é intenção. *Critério de remoção:* lançar movimento de consumo por lote no encerramento da
-  brassagem, e a aresta passar de `INTENDED` a `CONFIRMED`.
+- ~~**`TRC-001-C` — o dia de brassa não registra consumo por lote de insumo.**~~ **Fechada na
+  sprint 13**, dentro da CST-001: sem consumo confirmado, "custo realizado de insumo" seria custo
+  estimado com outro nome. A brassagem passa a registrar o que usou, lote a lote, e a aresta virou
+  `CONFIRMED` sem que uma linha da rastreabilidade mudasse. A lacuna deixou de ser da plataforma e
+  virou fato sobre cada ordem: quem ainda não confirmou continua com a lacuna declarada.
 
 #### Achado fora do escopo, corrigido porque não dava para deixar
 

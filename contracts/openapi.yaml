@@ -4214,6 +4214,75 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /production/batches/{id}/consumption/proposal:
+    get:
+      tags: [Produção]
+      summary: Proposta de consumo do dia de brassa (TRC-001-C)
+      description: >-
+        O que a OP tem reservado, lote a lote, para o operador confirmar ou corrigir. Propor a
+        reserva torna o registro barato no caso comum — na maioria dos dias a brassagem usa o que
+        foi separado. O que não se pode é o sistema **assumir** a proposta: quem trocou de lote
+        porque o reservado acabou precisa poder dizer isso, e é essa divergência que o registro
+        existe para capturar.
+
+
+        Depois do registro a proposta vem vazia, com `alreadyRegistered` verdadeiro: a reserva já
+        virou consumo.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Proposta
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BrewConsumptionProposal'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /production/batches/{id}/consumption:
+    post:
+      tags: [Produção]
+      summary: Registrar o consumo do dia de brassa (TRC-001-C)
+      description: >-
+        Transforma a reserva — intenção — no fato de que aquele malte entrou nesta cerveja. É o que
+        faz a aresta da genealogia passar de `INTENDED` a `CONFIRMED` e o custo realizado (CST-001)
+        somar o preço do lote certo.
+
+
+        All-or-nothing: ou o dia de brassa inteiro é registrado, ou nada é — consumo pela metade
+        daria custo pela metade e genealogia pela metade. Lançar duas vezes é recusado (409), porque
+        dobraria consumo e custo; corrigir um consumo errado é assunto de ajuste de estoque, que tem
+        comando e rastro próprios.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lines]
+              properties:
+                lines:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [lotId, quantity, unit]
+                    properties:
+                      lotId: {type: string, format: uuid}
+                      quantity: {type: number, exclusiveMinimum: 0}
+                      unit: {type: string}
+      responses:
+        '200': {description: Consumo registrado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `brew_consumption_shortfall` — declarado acima do que o lote tem, com a falta lote a
+            lote em `shortfalls`; ou `conflict`, quando o consumo desta brassagem já foi registrado.
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
     CleaningPolicy:
@@ -6410,6 +6479,27 @@ components:
           type: array
           description: "Ações corretivas sugeridas: as lacunas viradas do avesso."
           items: {type: string}
+    BrewConsumptionProposal:
+      type: object
+      properties:
+        orderId: {type: string, format: uuid}
+        alreadyRegistered:
+          type: boolean
+          description: "Verdadeiro depois do registro: a proposta serve só para conferência."
+        reserved:
+          type: array
+          items:
+            type: object
+            properties:
+              lotId: {type: string, format: uuid}
+              ingredientId: {type: string, format: uuid}
+              ingredientName: {type: string, nullable: true}
+              supplierLotCode:
+                type: string
+                nullable: true
+                description: "Como o operador reconhece o saco no chão."
+              reserved: {type: number}
+              unit: {type: string}
     LineageNode:
       type: object
       properties:

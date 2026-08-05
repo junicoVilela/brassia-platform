@@ -16,5 +16,5 @@
 | quality | especificações, amostras, CAPA e sensorial | reescrever medição histórica |
 | traceability | genealogia, quarentena e recall | ser origem de saldo |
 | foodsafety | matriz de alergênicos, troca de produto e contaminação cruzada | declarar alergênico no lugar da cervejaria ou embutir lista regulatória |
-| costing | snapshots e análises de custo | alterar consumo físico |
+| costing | snapshots e análises de custo | alterar consumo físico ou inventar parcela sem fonte |
 | ai | contexto, RAG e recomendações | executar comando sem usuário |

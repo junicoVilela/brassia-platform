@@ -6,7 +6,7 @@ Estado: EM ANDAMENTO
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| CST-001 | Em andamento | IA | `BrewConsumptionIT` (8 testes) | Fecha `TRC-001-C` primeiro: sem consumo confirmado, custo realizado é estimativa |
+| CST-001 | Backend concluído | IA | V87 + `BatchCostIT` (10 testes) + 5 de domínio; `BrewConsumptionIT` (8) | Novo módulo `costing`; porta `CostContributor`. Fecha `TRC-001-C`. Tela em PR separado |
 | CST-002 | A fazer | — | — | — |
 | RPT-001 | A fazer | — | — | — |
 | UTL-001 | A fazer | — | — | — |
@@ -54,6 +54,44 @@ estoque, porque custo não lê tabela alheia.
   a proposta vem vazia.
 - **Lote em fermentação ainda aceita consumo.** Quem esqueceu de registrar no dia consegue no
   seguinte — registrar tarde é melhor do que nunca. Encerrado ou cancelado, não.
+
+### CST-001 — custo realizado
+
+- **Derivado enquanto aberto, congelado quando fechado.** É a mesma distinção que a sprint 12 firmou
+  entre escopo e comunicação: o que é sobre o presente se deriva, o que é sobre o passado se guarda.
+  Um custo aberto tem de acompanhar o que ainda acontece — um envase a mais muda o custo por litro;
+  um custo fechado é a resposta daquele dia. A tabela nasce vazia: enquanto ninguém fecha, não há
+  linha nenhuma, e a consulta responde do ledger.
+- **Fechar é ato, não consequência.** O custo não fecha sozinho quando o lote termina: terminar de
+  produzir e terminar de apurar são coisas diferentes, e a segunda tem dono, alçada e assinatura.
+  Fechar duas vezes é recusado — evidência que se sobrescreve não é evidência.
+- **`CostContributor` é a mesma inversão do `LineageSource`.** Somar o custo exigiria ler estoque,
+  envase, sanitização e gás; em vez disso cada módulo responde pelo que sabe custar. O efeito
+  colateral é o argumento: módulo que não implementa não contribui parcela, e a ausência aparece
+  **como lacuna declarada** em vez de virar um zero somado no total.
+- **O recorte que o custo passa é mínimo — lote e ordem.** Quem sabe quais planos de envase
+  pertencem ao lote é o envase, pela consulta publicada dele. A primeira versão buscava isso na
+  genealogia e o `ModularityTest` reprovou: `TraceabilityQueries` é porta interna, não tipo exposto.
+  A correção deixou o desenho melhor — o custo não precisa conhecer o mundo inteiro para somá-lo.
+- **Preço do lote, não preço médio.** O custo do insumo sai de `quantidade × unit_cost do lote que
+  saiu`. É a razão de a `TRC-001-C` ter vindo antes: sem consumo por lote não há preço a aplicar.
+- **Reserva não é custo.** Só movimento de consumo entra; somar reserva daria um custo que some
+  quando a OP é cancelada.
+- **O divisor do custo por litro é o volume transferido**, não o planejado. Dividir pelo planejado
+  embelezaria exatamente o lote que rendeu menos, que é o lote sobre o qual se precisa saber.
+- **Perda não é parcela somada, e isso protege do `double counting`** que o README lista como risco.
+  A cerveja perdida não tem custo próprio: ela é o mesmo insumo já somado, e lançá-la de novo como
+  "perda" contaria duas vezes. A perda aparece no indicador — custo por litro sobe quando o lote
+  rende menos —, não em linha nova.
+- **`CST-001-A` — mão de obra não tem fonte.** Não há hora trabalhada registrada em lugar nenhum da
+  plataforma. Inventar um cadastro de horas aqui seria criar regra de negócio sem fonte; somar zero
+  seria mentir por omissão. A parcela é declarada como lacuna. *Critério de remoção:* existir
+  apontamento de hora por lote ou por etapa, e um contribuinte implementar a porta.
+- **`CST-001-B` — utilidade não tem fonte por lote.** Água e energia são medidas por ciclo de
+  limpeza, por equipamento (CLN-005); atribuí-las a um lote exigiria uma regra de rateio que ninguém
+  definiu. O CO₂ não tem preço nem vínculo com lote — o `GAS-001-A` continua aberto, e o lugar dele
+  é a UTL-001 (consumo por litro), não o custo do lote. *Critério de remoção:* haver rateio definido
+  pela casa, ou medição por lote.
 
 ## Evidências de encerramento
 

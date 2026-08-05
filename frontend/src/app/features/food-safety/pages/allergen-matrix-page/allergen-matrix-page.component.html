@@ -1,0 +1,395 @@
+<app-page-header
+  title="Matriz de alergênicos"
+  subtitle="Ingrediente, equipamento e limpeza — o cruzamento que decide a troca de produto e o rótulo."
+/>
+
+@if (store.loading()) {
+  <app-loading-indicator text="Carregando a matriz…" />
+} @else if (store.error()) {
+  <div class="alert alert-danger" role="alert">
+    {{ store.error() }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else {
+  @if (store.actionError()) {
+    <div class="alert alert-warning" role="alert">{{ store.actionError() }}</div>
+  }
+
+  <!-- Eixo 1: o vocabulário. Sem ele a matriz não está em uso, e é o primeiro passo da adesão. -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div>
+        <h2 class="h6 mb-0">Alergênicos declarados pela cervejaria</h2>
+        <p class="text-muted small mb-0 mt-1">
+          A lista é da casa, não da plataforma: a norma muda e difere por país, e quem responde por
+          ela é quem assina o rótulo.
+        </p>
+      </div>
+    </div>
+    <div class="card-body">
+      @if (!store.inUse()) {
+        <app-empty-state
+          icon="ri-alert-line"
+          message="Nenhum alergênico cadastrado."
+          hint="Enquanto a lista estiver vazia, a matriz não está em uso: a troca de produto não é avaliada e o rótulo continua sem o campo de alergênicos."
+        />
+      } @else {
+        <ul class="list-inline mb-3">
+          @for (allergen of store.allergens(); track allergen.id) {
+            <li class="list-inline-item mb-2">
+              <span class="badge text-bg-secondary">{{ allergen.name }}</span>
+              <small class="text-muted ms-1">{{ allergen.code }}</small>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (canDeclare) {
+        <form class="row g-2 align-items-end" [formGroup]="allergenForm" (ngSubmit)="registerAllergen()">
+          <div class="col-sm-4">
+            <label class="form-label" for="allergen-code">Código</label>
+            <input
+              id="allergen-code"
+              class="form-control"
+              formControlName="code"
+              placeholder="GLUTEN"
+              autocomplete="off"
+            />
+          </div>
+          <div class="col-sm-5">
+            <label class="form-label" for="allergen-name">Nome no rótulo</label>
+            <input
+              id="allergen-name"
+              class="form-control"
+              formControlName="name"
+              placeholder="Glúten"
+              autocomplete="off"
+            />
+          </div>
+          <div class="col-sm-3 d-grid">
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="allergenForm.invalid || busy('allergen')"
+            >
+              @if (busy('allergen')) {
+                <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+              }
+              Cadastrar
+            </button>
+          </div>
+        </form>
+      }
+    </div>
+  </div>
+
+  @if (store.inUse()) {
+    <!-- Eixo 2: o ingrediente. `declared` é a coluna que não pode ser achatada. -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h2 class="h6 mb-0">Ingredientes</h2>
+        <p class="text-muted small mb-0 mt-1">
+          @if (store.undeclared().length > 0) {
+            <span class="text-warning-emphasis">
+              {{ store.undeclared().length }} sem declaração.
+            </span>
+          }
+          Ingrediente não declarado não é ingrediente isento: enquanto houver lacuna, o rótulo do
+          lote não imprime alergênico e a troca de produto na linha é recusada.
+        </p>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Ingrediente</th>
+              <th scope="col">Declaração</th>
+              @if (canDeclare) {
+                <th scope="col" class="text-end">Ações</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of store.ingredients(); track row.ingredientId) {
+              <tr>
+                <td>
+                  <span class="fw-medium">{{ row.name }}</span>
+                  <small class="text-muted d-block">{{ row.code }}</small>
+                </td>
+                <td>
+                  @if (isEditing('ingredient', row.ingredientId)) {
+                    <div class="d-flex flex-wrap gap-3">
+                      @for (allergen of store.allergens(); track allergen.id) {
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="checkbox"
+                            [id]="'ing-' + row.ingredientId + '-' + allergen.code"
+                            [checked]="isSelected(allergen.code)"
+                            (change)="toggle(allergen.code)"
+                          />
+                          <label
+                            class="form-check-label"
+                            [for]="'ing-' + row.ingredientId + '-' + allergen.code"
+                          >
+                            {{ allergen.name }}
+                          </label>
+                        </div>
+                      }
+                    </div>
+                    <p class="text-muted small mb-0 mt-2">
+                      Salvar sem marcar nada declara o ingrediente <strong>isento</strong> — que é
+                      uma afirmação, e diferente de deixá-lo sem declaração.
+                    </p>
+                  } @else if (!row.declared) {
+                    <span class="badge text-bg-warning">Não declarado</span>
+                  } @else if (row.allergens.length === 0) {
+                    <span class="badge text-bg-success">Declarado isento</span>
+                  } @else {
+                    @for (code of row.allergens; track code) {
+                      <span class="badge text-bg-secondary me-1">{{ nameOf(code) }}</span>
+                    }
+                  }
+                </td>
+                @if (canDeclare) {
+                  <td class="text-end text-nowrap">
+                    @if (isEditing('ingredient', row.ingredientId)) {
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-primary me-1"
+                        [disabled]="busy('ingredient:' + row.ingredientId)"
+                        (click)="saveIngredient(row)"
+                      >
+                        Salvar
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancel()">
+                        Cancelar
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        (click)="edit('ingredient', row.ingredientId, row.allergens)"
+                      >
+                        {{ row.declared ? 'Rever' : 'Declarar' }}
+                      </button>
+                    }
+                  </td>
+                }
+              </tr>
+            } @empty {
+              <tr>
+                <td [attr.colspan]="canDeclare ? 3 : 2">
+                  <app-empty-state
+                    message="Nenhum ingrediente no catálogo."
+                    hint="A matriz cruza o que o catálogo tem; cadastre os ingredientes primeiro."
+                  />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Eixo 3a: o equipamento. Compartilhado é o padrão, e é onde a troca importa. -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h2 class="h6 mb-0">Equipamentos</h2>
+        <p class="text-muted small mb-0 mt-1">
+          Equipamento é compartilhado por omissão. Dedicação sem nenhum alergênico marcado é a linha
+          <em>livre de alergênicos</em> — a mais restritiva que existe: nenhuma limpeza a resgata,
+          porque ali a garantia é o alergênico nunca ter entrado.
+        </p>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Equipamento</th>
+              <th scope="col">Uso</th>
+              @if (canDeclare) {
+                <th scope="col" class="text-end">Ações</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of store.equipmentRows(); track row.id) {
+              <tr>
+                <td>
+                  <span class="fw-medium">{{ row.name }}</span>
+                  <small class="text-muted d-block">{{ row.code }}</small>
+                </td>
+                <td>
+                  @if (isEditing('equipment', row.id)) {
+                    <div class="d-flex flex-wrap gap-3">
+                      @for (allergen of store.allergens(); track allergen.id) {
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="checkbox"
+                            [id]="'eqp-' + row.id + '-' + allergen.code"
+                            [checked]="isSelected(allergen.code)"
+                            (change)="toggle(allergen.code)"
+                          />
+                          <label class="form-check-label" [for]="'eqp-' + row.id + '-' + allergen.code">
+                            {{ allergen.name }}
+                          </label>
+                        </div>
+                      }
+                    </div>
+                  } @else if (!row.dedicated) {
+                    <span class="badge text-bg-light">Compartilhado</span>
+                  } @else if (row.allergens.length === 0) {
+                    <span class="badge text-bg-info">Dedicado — livre de alergênicos</span>
+                  } @else {
+                    <span class="badge text-bg-info me-1">Dedicado</span>
+                    @for (code of row.allergens; track code) {
+                      <span class="badge text-bg-secondary me-1">{{ nameOf(code) }}</span>
+                    }
+                  }
+                </td>
+                @if (canDeclare) {
+                  <td class="text-end text-nowrap">
+                    @if (isEditing('equipment', row.id)) {
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-primary me-1"
+                        [disabled]="busy('equipment:' + row.id)"
+                        (click)="saveEquipment(row)"
+                      >
+                        Salvar
+                      </button>
+                      @if (row.dedicated) {
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-secondary me-1"
+                          (click)="share(row)"
+                        >
+                          Tornar compartilhado
+                        </button>
+                      }
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancel()">
+                        Cancelar
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        (click)="edit('equipment', row.id, row.allergens)"
+                      >
+                        {{ row.dedicated ? 'Rever' : 'Dedicar' }}
+                      </button>
+                    }
+                  </td>
+                }
+              </tr>
+            } @empty {
+              <tr>
+                <td [attr.colspan]="canDeclare ? 3 : 2">
+                  <app-empty-state message="Nenhum equipamento cadastrado." />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Eixo 3b: a limpeza. É o que transforma "não pode" em "faça este POP". -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="h6 mb-0">POPs de limpeza</h2>
+        <p class="text-muted small mb-0 mt-1">
+          O que cada procedimento declara <strong>remover</strong>. Sem declaração, o POP limpa
+          sujidade e não responde por alergênico — que é o padrão até alguém afirmar o contrário.
+        </p>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">POP</th>
+              <th scope="col">Remove</th>
+              @if (canDeclare) {
+                <th scope="col" class="text-end">Ações</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of store.procedureRows(); track row.code) {
+              <tr>
+                <td>
+                  <span class="fw-medium">{{ row.name }}</span>
+                  <small class="text-muted d-block">{{ row.code }}</small>
+                </td>
+                <td>
+                  @if (isEditing('procedure', row.code)) {
+                    <div class="d-flex flex-wrap gap-3">
+                      @for (allergen of store.allergens(); track allergen.id) {
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="checkbox"
+                            [id]="'pop-' + row.code + '-' + allergen.code"
+                            [checked]="isSelected(allergen.code)"
+                            (change)="toggle(allergen.code)"
+                          />
+                          <label class="form-check-label" [for]="'pop-' + row.code + '-' + allergen.code">
+                            {{ allergen.name }}
+                          </label>
+                        </div>
+                      }
+                    </div>
+                  } @else if (row.allergens.length === 0) {
+                    <span class="text-muted small">Não responde por alergênico</span>
+                  } @else {
+                    @for (code of row.allergens; track code) {
+                      <span class="badge text-bg-secondary me-1">{{ nameOf(code) }}</span>
+                    }
+                  }
+                </td>
+                @if (canDeclare) {
+                  <td class="text-end text-nowrap">
+                    @if (isEditing('procedure', row.code)) {
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-primary me-1"
+                        [disabled]="busy('procedure:' + row.code)"
+                        (click)="saveProcedure(row)"
+                      >
+                        Salvar
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancel()">
+                        Cancelar
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        (click)="edit('procedure', row.code, row.allergens)"
+                      >
+                        Declarar
+                      </button>
+                    }
+                  </td>
+                }
+              </tr>
+            } @empty {
+              <tr>
+                <td [attr.colspan]="canDeclare ? 3 : 2">
+                  <app-empty-state
+                    message="Nenhum POP de limpeza."
+                    hint="Sem POP declarado, a troca de produto que exigir remoção de alergênico não terá como ser liberada."
+                  />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+}

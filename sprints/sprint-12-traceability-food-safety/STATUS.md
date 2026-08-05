@@ -7,7 +7,7 @@ Estado: EM ANDAMENTO
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
 | TRC-001 | Concluída | IA | V80 + `TraceabilityIT` (11 testes); PRs #142, #143, #144 | Novo módulo `traceability`; porta `LineageSource`. TRC-001-B fechada em #144 |
-| FDS-001 | Backend concluído | IA | V82 + `FoodSafetyIT` (9 testes) + 17 testes de domínio | Novo módulo `foodsafety`; fecha `PKG-004-A`. Tela em PR separado |
+| FDS-001 | Concluída | IA | V82 + `FoodSafetyIT` (9 testes) + 17 de domínio; PR #145 (backend) e a tela | Novo módulo `foodsafety`; fecha `PKG-004-A` |
 | FDS-002 | A fazer | — | — | — |
 | FDS-003 | A fazer | — | — | — |
 | FDS-004 | A fazer | — | — | — |
@@ -157,6 +157,13 @@ por extenso no próprio interceptor.
   imprimir isenção que ninguém assinou é pior do que não imprimir. A revalidação do rótulo sai de
   graça: a prévia é remontada das fontes a cada impressão, então declaração alterada é reavaliada
   contra a matriz vigente, não contra a que valia na primeira tiragem.
+- **A tela mostra todo equipamento, e não só os dedicados.** A API devolve apenas os dedicados —
+  quem não está lá é compartilhado. Uma tela que listasse só o que a API devolve esconderia
+  exatamente o caso de risco, que é o equipamento compartilhado. O cruzamento é feito no store,
+  contra o cadastro de equipamentos e os POPs da sanitização.
+- **A jornada E2E cobre o fan-out de três endpoints.** É a forma de defeito que os testes de
+  unidade não pegam — um deles é paginado (`/equipment`), e foi assim que as telas de envase e gases
+  quebraram em silêncio na sprint 10.
 - **`FDS-001-A` — a embalagem não entra no perfil.** O perfil vem da composição da receita; a lata
   ou garrafa do plano de envase não é avaliada, embora possa ter revestimento com alergênico
   declarável. *Critério de remoção:* incluir o item de embalagem do plano nas contribuições do

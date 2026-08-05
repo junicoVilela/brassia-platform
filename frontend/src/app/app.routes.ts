@@ -172,6 +172,13 @@ export const routes: Routes = [
         loadChildren: () => import('./features/account/account.routes').then(m => m.ACCOUNT_ROUTES),
       },
       {
+        path: 'food-safety/allergens',
+        canActivate: [permissionGuard],
+        data: { permission: 'foodsafety.allergen.read' },
+        loadChildren: () =>
+          import('./features/food-safety/food-safety.routes').then(m => m.FOOD_SAFETY_ROUTES),
+      },
+      {
         path: 'traceability/genealogy',
         canActivate: [permissionGuard],
         data: { permission: 'traceability.genealogy.read' },

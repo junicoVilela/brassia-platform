@@ -172,6 +172,13 @@ export const routes: Routes = [
         loadChildren: () => import('./features/account/account.routes').then(m => m.ACCOUNT_ROUTES),
       },
       {
+        path: 'traceability/genealogy',
+        canActivate: [permissionGuard],
+        data: { permission: 'traceability.genealogy.read' },
+        loadChildren: () =>
+          import('./features/traceability/traceability.routes').then(m => m.TRACEABILITY_ROUTES),
+      },
+      {
         path: 'settings/parameters',
         canActivate: [permissionGuard],
         // Ler os parâmetros basta ler qualquer um dos módulos que eles regem.

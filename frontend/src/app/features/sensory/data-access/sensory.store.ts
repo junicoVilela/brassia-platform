@@ -15,7 +15,10 @@ import { SensoryApi } from './sensory.api';
 /** Corpo Problem Details das recusas sensoriais, como o backend as publica. */
 interface SensoryError {
   status?: number;
-  error?: { code?: string; detail?: string; session?: SessionRefusal; sample?: { blindCode: string } };
+  code?: string;
+  detail?: string;
+  session?: SessionRefusal;
+  sample?: { blindCode: string };
 }
 
 /** Estado da análise sensorial (SEN-001). */
@@ -110,7 +113,7 @@ export class SensoryStore {
         error: (e: SensoryError) => {
           // Pedir resultado antes do fechamento é comportamento esperado da regra, não falha.
           this.resultsError.set(
-            e.error?.code === 'results_not_available'
+            e.code === 'results_not_available'
               ? 'O resultado só aparece quando a sessão é encerrada.'
               : 'Não foi possível carregar o resultado.',
           );
@@ -134,16 +137,16 @@ export class SensoryStore {
           onSuccess?.();
         },
         error: (e: SensoryError) => {
-          if (e.error?.code === 'already_evaluated') {
+          if (e.code === 'already_evaluated') {
             this.actionError.set(
-              `Você já enviou ficha para a amostra ${e.error.sample?.blindCode}. A ficha é imutável.`,
+              `Você já enviou ficha para a amostra ${e.sample?.blindCode}. A ficha é imutável.`,
             );
-          } else if (e.error?.code === 'session_not_open') {
+          } else if (e.code === 'session_not_open') {
             this.actionError.set(
-              `A sessão está em ${e.error.session?.status} e não recebe fichas agora.`,
+              `A sessão está em ${e.session?.status} e não recebe fichas agora.`,
             );
           } else {
-            this.actionError.set(e.error?.detail ?? 'Não foi possível concluir a operação.');
+            this.actionError.set(e.detail ?? 'Não foi possível concluir a operação.');
           }
         },
       });

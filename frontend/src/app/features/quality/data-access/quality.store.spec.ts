@@ -160,10 +160,8 @@ describe('QualityStore', () => {
       measure: () =>
         throwError(() => ({
           status: 409,
-          error: {
-            code: 'instrument_not_fit',
-            controlPoint: { parameter: 'pH do mosto', instrument: 'PH-01', fitness: 'EXPIRED' },
-          },
+          code: 'instrument_not_fit',
+            controlPoint: { parameter: 'pH do mosto', instrument: 'PH-01', fitness: 'EXPIRED' }
         })),
     });
 
@@ -239,10 +237,8 @@ describe('QualityStore', () => {
       investigate: () =>
         throwError(() => ({
           status: 409,
-          error: {
-            code: 'nc_phase_out_of_order',
-            nonConformity: { code: 'NC-001', status: 'OPEN', attempted: 'investigação' },
-          },
+          code: 'nc_phase_out_of_order',
+            nonConformity: { code: 'NC-001', status: 'OPEN', attempted: 'investigação' }
         })),
     });
 

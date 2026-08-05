@@ -56,8 +56,8 @@ export class CycleDetailStore {
       .pipe(finalize(() => this.submitting.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => { this.toast.success('Etapa registrada.'); onSuccess?.(); this.load(id); },
-        error: (err: { status?: number; error?: { detail?: string } }) =>
-          this.actionError.set(err?.error?.detail ?? this.message(err?.status)),
+        error: (err: { status?: number; detail?: string }) =>
+          this.actionError.set(err?.detail ?? this.message(err?.status)),
       });
   }
 
@@ -97,8 +97,8 @@ export class CycleDetailStore {
       .pipe(finalize(() => this.submitting.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => { this.toast.success('Consumo registrado.'); this.load(id); if (code) { this.loadSummary(code); } },
-        error: (err: { status?: number; error?: { detail?: string } }) =>
-          this.actionError.set(err?.error?.detail ?? this.message(err?.status)),
+        error: (err: { status?: number; detail?: string }) =>
+          this.actionError.set(err?.detail ?? this.message(err?.status)),
       });
   }
 
@@ -119,8 +119,8 @@ export class CycleDetailStore {
       .pipe(finalize(() => this.submitting.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => { this.toast.success(ok); this.load(id); },
-        error: (err: { status?: number; error?: { detail?: string } }) =>
-          this.actionError.set(err?.error?.detail ?? this.message(err?.status)),
+        error: (err: { status?: number; detail?: string }) =>
+          this.actionError.set(err?.detail ?? this.message(err?.status)),
       });
   }
 

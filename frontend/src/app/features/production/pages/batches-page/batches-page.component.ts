@@ -2,6 +2,8 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
+import { AuthService } from '../../../../core/auth/auth.service';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
 import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator.component';
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
@@ -20,6 +22,10 @@ import { MEASUREMENT_KINDS, MEASUREMENT_SOURCES } from '../../domain/measurement
 })
 export class BatchesPageComponent implements OnInit {
   protected readonly store = inject(BatchesStore);
+  private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+
+  protected readonly canTrace = this.auth.hasPermission('traceability.genealogy.read');
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -146,6 +152,13 @@ export class BatchesPageComponent implements OnInit {
       volumeLiters: v.volumeLiters,
       ogSg: v.ogSg,
       lossesLiters: v.lossesLiters,
+    });
+  }
+
+  /** A genealogia é sempre sobre algo: o lote viaja na URL, e a consulta vira link compartilhável. */
+  protected openGenealogy(batchId: string): void {
+    this.router.navigate(['/traceability/genealogy'], {
+      queryParams: { nodeType: 'BATCH', nodeId: batchId, direction: 'BOTH' },
     });
   }
 

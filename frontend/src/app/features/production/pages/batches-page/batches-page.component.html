@@ -43,6 +43,12 @@
                   <button type="button" class="btn btn-sm btn-outline-secondary me-1" (click)="startAlerts(batch.id)">
                     <i class="ri-notification-3-line me-1"></i> Central
                   </button>
+                  @if (canTrace) {
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-1"
+                            (click)="openGenealogy(batch.id)">
+                      <i class="ri-node-tree me-1"></i> Genealogia
+                    </button>
+                  }
                   @if (store.canManage && batch.status === 'IN_PROGRESS') {
                     <button type="button" class="btn btn-sm btn-outline-success" (click)="startTransfer(batch.id)">
                       <i class="ri-git-merge-line me-1"></i> Transferir

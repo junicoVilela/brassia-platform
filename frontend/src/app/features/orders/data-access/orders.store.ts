@@ -84,9 +84,9 @@ export class OrdersStore {
           this.toast.success('Ordem liberada.');
           this.load();
         },
-        error: (err: { status?: number; error?: { blockers?: { code: string; message: string }[] } }) => {
-          if (err?.status === 409 && err.error?.blockers) {
-            this.releaseBlockers.set(err.error.blockers);
+        error: (err: { status?: number; blockers?: { code: string; message: string }[] }) => {
+          if (err?.status === 409 && err.blockers) {
+            this.releaseBlockers.set(err.blockers);
           } else {
             this.releaseBlockers.set([{ code: 'error', message: 'Não foi possível liberar a ordem.' }]);
           }
@@ -149,10 +149,13 @@ export class OrdersStore {
         },
         error: (err: {
           status?: number;
-          error?: { shortfalls?: { ingredientId: string; requested: number; available: number; unit: string }[] };
+          shortfalls?: { ingredientId: string;
+  requested: number;
+  available: number;
+  unit: string }[];
         }) => {
-          if (err?.status === 409 && err.error?.shortfalls) {
-            this.reserveShortfalls.set(err.error.shortfalls);
+          if (err?.status === 409 && err.shortfalls) {
+            this.reserveShortfalls.set(err.shortfalls);
           } else {
             this.toast.error('Não foi possível reservar o estoque da ordem.');
             this.reservingId.set(null);

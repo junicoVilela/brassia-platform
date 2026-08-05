@@ -30,30 +30,32 @@ import { BatchOption, EquipmentOption, IngredientOption, PackagingApi } from './
 /** Corpo Problem Details da recusa de reserva, como o backend o publica. */
 interface ReserveError {
   status?: number;
-  error?: { code?: string; blockers?: PackagingBlocker[]; shortfall?: PackagingShortfall };
+  code?: string;
+  blockers?: PackagingBlocker[];
+  shortfall?: PackagingShortfall;
 }
 
 /** Corpo Problem Details da recusa de carbonatação. */
 interface CarbonationError {
   status?: number;
-  error?: { code?: string; carbonation?: OverCarbonation };
+  code?: string;
+  carbonation?: OverCarbonation;
 }
 
 /** Corpo Problem Details do rótulo incompleto. */
 interface LabelError {
   status?: number;
-  error?: { code?: string; label?: LabelNotPrintable };
+  code?: string;
+  label?: LabelNotPrintable;
 }
 
 /** Corpo Problem Details da recusa de execução; a extensão depende do código. */
 interface RunError {
   status?: number;
-  error?: {
-    code?: string;
-    balance?: VolumeBalance;
-    batchVolume?: BatchVolumeExceeded;
-    shortfall?: PackagingShortfall;
-  };
+  code?: string;
+  balance?: VolumeBalance;
+  batchVolume?: BatchVolumeExceeded;
+  shortfall?: PackagingShortfall;
 }
 
 /** Estado dos planos de envase (PKG-001). */
@@ -264,8 +266,8 @@ export class PackagingStore {
           this.previewLabel(planId, templateId);
         },
         error: (err: LabelError) => {
-          if (err?.error?.code === 'label_not_printable' && err.error.label) {
-            this.labelBlocked.set(err.error.label);
+          if (err?.code === 'label_not_printable' && err.label) {
+            this.labelBlocked.set(err.label);
             return;
           }
           this.labelError.set(err?.status === 409
@@ -375,7 +377,7 @@ export class PackagingStore {
    * o que permite ao operador achar qual das três medidas está errada.
    */
   private showRunRefusal(err: RunError): void {
-    const body = err?.error;
+    const body = err;
     if (body?.code === 'volume_balance' && body.balance) {
       this.volumeBalance.set(body.balance);
       return;
@@ -458,8 +460,8 @@ export class PackagingStore {
           this.loadCarbonation(planId);
         },
         error: (err: CarbonationError) => {
-          if (err?.error?.code === 'over_carbonation' && err.error.carbonation) {
-            this.overCarbonation.set(err.error.carbonation);
+          if (err?.code === 'over_carbonation' && err.carbonation) {
+            this.overCarbonation.set(err.carbonation);
             return;
           }
           this.carbonationError.set(err?.status === 409
@@ -481,7 +483,7 @@ export class PackagingStore {
 
   /** A recusa é informação acionável: guardamos os motivos ao lado do plano recusado. */
   private showRefusal(planId: string, err: ReserveError): void {
-    const body = err?.error;
+    const body = err;
     if (body?.blockers?.length) {
       this.blockers.update(current => ({ ...current, [planId]: body.blockers! }));
       return;

@@ -105,10 +105,8 @@ describe('MetrologyStore', () => {
       setCriticalUse: () =>
         throwError(() => ({
           status: 409,
-          error: {
-            code: 'instrument_not_fit',
-            instrument: { code: 'TERM-01', fitness: 'EXPIRED', calibrationDueOn: '2026-01-01' },
-          },
+          code: 'instrument_not_fit',
+            instrument: { code: 'TERM-01', fitness: 'EXPIRED', calibrationDueOn: '2026-01-01' }
         })),
     });
 
@@ -127,10 +125,8 @@ describe('MetrologyStore', () => {
       calibrate: () =>
         throwError(() => ({
           status: 409,
-          error: {
-            code: 'standard_expired',
-            standard: { code: 'PAD-01', validUntil: '2026-01-01', performedOn: '2026-08-03' },
-          },
+          code: 'standard_expired',
+            standard: { code: 'PAD-01', validUntil: '2026-01-01', performedOn: '2026-08-03' }
         })),
     });
 
@@ -158,7 +154,7 @@ describe('MetrologyStore', () => {
       correct: () =>
         throwError(() => ({
           status: 409,
-          error: { code: 'outside_curve_range', curve: { value: '150', min: '0.5', max: '100.5' } },
+          code: 'outside_curve_range', curve: { value: '150', min: '0.5', max: '100.5' }
         })),
     });
 

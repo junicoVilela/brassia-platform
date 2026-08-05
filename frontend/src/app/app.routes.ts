@@ -186,6 +186,20 @@ export const routes: Routes = [
           import('./features/traceability/traceability.routes').then(m => m.TRACEABILITY_ROUTES),
       },
       {
+        path: 'packaging/finished-lots',
+        canActivate: [permissionGuard],
+        data: { permission: 'packaging.plan.read' },
+        loadChildren: () =>
+          import('./features/packaging/packaging.routes').then(m => m.FINISHED_LOT_ROUTES),
+      },
+      {
+        path: 'traceability/recalls',
+        canActivate: [permissionGuard],
+        data: { permission: 'traceability.recall.read' },
+        loadChildren: () =>
+          import('./features/traceability/traceability.routes').then(m => m.RECALL_ROUTES),
+      },
+      {
         path: 'traceability/quarantines',
         canActivate: [permissionGuard],
         data: { permission: 'traceability.quarantine.read' },

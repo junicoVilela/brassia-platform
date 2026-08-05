@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { GenealogyStore } from '../../data-access/genealogy.store';
 import { QuarantinesApi } from '../../data-access/quarantines.api';
+import { RecallsApi } from '../../data-access/recalls.api';
 import {
   Direction,
   LineageEdge,
@@ -44,6 +45,7 @@ export class GenealogyPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly quarantines = inject(QuarantinesApi);
+  private readonly recalls = inject(RecallsApi);
   private readonly toast = inject(ToastService);
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
@@ -57,6 +59,17 @@ export class GenealogyPageComponent implements OnInit {
   protected readonly quarantineError = signal<string | null>(null);
   protected readonly quarantineForm = this.fb.nonNullable.group({
     reason: ['', [Validators.required, Validators.maxLength(500)]],
+  });
+
+  /**
+   * Abrir recall (FDS-003) fica ao lado de quarentenar, e não substitui: são decisões diferentes.
+   * Conter é parar o que está aqui dentro; recall é ir atrás do que já saiu.
+   */
+  protected readonly canRecall = this.auth.hasPermission('traceability.recall.manage');
+  protected readonly recalling = signal(false);
+  protected readonly recallError = signal<string | null>(null);
+  protected readonly recallForm = this.fb.nonNullable.group({
+    reason: ['', [Validators.required, Validators.maxLength(1000)]],
   });
 
   protected readonly nodeLabels = NODE_LABELS;
@@ -112,6 +125,34 @@ export class GenealogyPageComponent implements OnInit {
 
   protected goToBatches(): void {
     this.router.navigate(['/production/batches']);
+  }
+
+  protected startRecall(): void {
+    this.recalling.set(true);
+    this.recallError.set(null);
+    this.recallForm.reset({ reason: '' });
+  }
+
+  protected cancelRecall(): void {
+    this.recalling.set(false);
+  }
+
+  /** Abre o recall do nó raiz e leva para o dossiê, que é onde o trabalho continua. */
+  protected confirmRecall(): void {
+    const query = this.store.query();
+    if (!query || this.recallForm.invalid) {
+      this.recallForm.markAllAsTouched();
+      return;
+    }
+    this.recalls.open(query.nodeType, query.nodeId, this.recallForm.getRawValue().reason).subscribe({
+      next: () => {
+        this.recalling.set(false);
+        this.toast.success('Recall aberto.');
+        this.router.navigate(['/traceability/recalls']);
+      },
+      error: (e: { detail?: string }) =>
+        this.recallError.set(e.detail ?? 'Não foi possível abrir o recall.'),
+    });
   }
 
   protected startQuarantine(): void {

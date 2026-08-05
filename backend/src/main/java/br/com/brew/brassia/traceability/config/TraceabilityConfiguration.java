@@ -6,11 +6,16 @@ import br.com.brew.brassia.traceability.LineageSource;
 import br.com.brew.brassia.traceability.QuarantineCheck;
 import br.com.brew.brassia.traceability.application.port.inbound.QuarantineCommands;
 import br.com.brew.brassia.traceability.application.port.inbound.QuarantineQueries;
+import br.com.brew.brassia.traceability.application.port.inbound.DrillCommands;
+import br.com.brew.brassia.traceability.application.port.inbound.DrillQueries;
 import br.com.brew.brassia.traceability.application.port.inbound.RecallCommands;
 import br.com.brew.brassia.traceability.application.port.inbound.RecallQueries;
 import br.com.brew.brassia.traceability.application.port.inbound.TraceabilityQueries;
+import br.com.brew.brassia.traceability.application.port.outbound.DrillRepository;
 import br.com.brew.brassia.traceability.application.port.outbound.QuarantineRepository;
 import br.com.brew.brassia.traceability.application.port.outbound.RecallRepository;
+import br.com.brew.brassia.traceability.application.service.DrillHandlers;
+import br.com.brew.brassia.traceability.application.service.DrillQueryHandler;
 import br.com.brew.brassia.traceability.application.service.GenealogyQueryHandler;
 import br.com.brew.brassia.traceability.application.service.QuarantineHandlers;
 import br.com.brew.brassia.traceability.application.service.QuarantineQueryHandler;
@@ -109,5 +114,36 @@ class TraceabilityConfiguration {
         var transaction = new TransactionTemplate(transactionManager);
         return (actorId, breweryId, recallId, summary) -> transaction.executeWithoutResult(
                 status -> handler.handle(actorId, breweryId, recallId, summary));
+    }
+
+    /** O relatório é leitura pura; o que ele mostra enquanto o simulado corre é o alvo, não o placar. */
+    @Bean
+    DrillQueries drillQueries(DrillRepository drills, List<LineageSource> sources,
+            List<DestinationSource> destinations) {
+        return new DrillQueryHandler(drills, sources, destinations);
+    }
+
+    @Bean
+    DrillCommands.Start startRecallDrillUseCase(DrillRepository drills, List<LineageSource> sources,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new DrillHandlers.Start(drills, sources, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return (actorId, breweryId, type, nodeId, note) -> Objects.requireNonNull(
+                transaction.execute(status -> handler.handle(actorId, breweryId, type, nodeId, note)));
+    }
+
+    /**
+     * Encerrar tira a medição e a congela no mesmo commit: um simulado encerrado com número medido
+     * meia hora depois seria um relatório sobre outro momento.
+     */
+    @Bean
+    DrillCommands.Finish finishRecallDrillUseCase(DrillRepository drills, List<LineageSource> sources,
+            List<DestinationSource> destinations, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new DrillHandlers.Finish(drills, sources, destinations, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return (actorId, breweryId, drillId, unitsLocated, summary, actions) ->
+                transaction.executeWithoutResult(status ->
+                        handler.handle(actorId, breweryId, drillId, unitsLocated, summary, actions));
     }
 }

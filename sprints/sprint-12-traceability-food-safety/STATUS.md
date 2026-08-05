@@ -1,6 +1,6 @@
 # Status — Sprint 12
 
-Estado: EM ANDAMENTO
+Estado: CONCLUÍDA — aguardando aceite
 
 ## Controle das histórias
 
@@ -10,7 +10,7 @@ Estado: EM ANDAMENTO
 | FDS-001 | Concluída | IA | V82 + `FoodSafetyIT` (9 testes) + 17 de domínio; PR #145 (backend) e a tela | Novo módulo `foodsafety`; fecha `PKG-004-A` |
 | FDS-002 | Concluída | IA | V83 + `QuarantineIT` (11 testes) + 11 de domínio; PR #147 (backend) e a tela | Bloqueio derivado do grafo; alçadas separadas |
 | FDS-003 | Concluída | IA | V84 + V85 + `RecallIT` (9 testes) + 9 de domínio; PR #149 (backend) e as telas | Fecha `TRC-001-D` e `FDS-002-A` |
-| FDS-004 | A fazer | — | — | — |
+| FDS-004 | Concluída | IA | V86 + `RecallDrillIT` (8 testes) + 5 de domínio; a tela e a jornada E2E | Fecha o item de E2E do DoD herdado da sprint 11 |
 
 ## Decisões e bloqueios
 
@@ -258,6 +258,45 @@ por extenso no próprio interceptor.
   e transferência entre destinos não existem. *Critério de remoção:* as sprints 19/20 definirem
   movimentação comercial, com o recall passando a enxergar a saída líquida.
 
+### FDS-004 — simulado de recall
+
+- **Treinar não é recolher, e a restrição define o desenho.** O simulado não cria expedição, não move
+  saldo, não abre quarentena e não gera pendência de comunicação. A `RecallDrillIT` verifica
+  justamente o que *não* aconteceu depois de um exercício inteiro — é o tipo de invariante que um
+  refactor futuro quebra em silêncio, e a asserção existe para não deixar.
+- **O tempo medido é o da cervejaria.** Derivar o escopo leva milissegundos e não diz nada; o que a
+  norma cobra, e o que o gerente precisa saber, é quantas horas a equipe levou para localizar o
+  produto. Por isso o simulado tem começo e fim declarados por gente, e o relógio corre entre os dois.
+- **Quantas unidades foram localizadas é declarado, não contado.** O sistema sabe quantas *deveriam*
+  estar em cada destino; o simulado existe para descobrir que às vezes elas não estão. Contar sozinho
+  daria 100% sempre e não mediria nada. Localizar mais do que saiu é recusado: acima de 100% é erro
+  de contagem, não excelência.
+- **O escopo é medido no que saiu.** O que ficou na fábrica não é objeto de recall, e contá-lo
+  inflaria a cobertura sem ninguém ter procurado nada.
+- **Aqui congelar é o certo — e é o oposto do recall.** O escopo do recall é sobre o presente e por
+  isso é derivado; o resultado do simulado é uma *medição* daquele dia. Recalculá-la depois
+  responderia sobre outro dia e apagaria o exercício, como recalcular uma leitura de instrumento
+  (MTR-002) apagaria a medição.
+- **Escopo vazio devolve percentual nulo, não 100%.** Não localizar o que não existe não é cobertura
+  perfeita; é simulado sem objeto, e o relatório diz isso em vez de exibir um número redondo falso.
+- **As ações corretivas sugeridas são as lacunas viradas do avesso.** Lote sem expedição vira
+  "registre para onde ele foi"; destino sem contato vira "cadastre com quem falar". É o que faz o
+  relatório dizer o que fazer, e não só quanto deu.
+- **Acompanhar ação corretiva é trabalho do CAPA (QLT-002), não daqui.** O campo é texto livre de
+  propósito: duplicar item com dono e prazo criaria um segundo lugar para acompanhar a mesma coisa.
+  *`FDS-004-A`, critério de remoção:* o CAPA publicar porta de abertura de ação, e o encerramento do
+  simulado passar a criar as ações lá em vez de escrevê-las como texto.
+- **O item de E2E do DoD, herdado do aceite da sprint 11, está fechado.** A jornada
+  `business-journey.spec.ts` vai do insumo recebido ao relatório do simulado, contra a stack real:
+  recebimento, receita publicada, ordem, lote, transferência, limpeza liberada, envase executado,
+  lote de produto acabado, expedição, genealogia na tela, saldo sem destino na tela e simulado
+  medindo 75%. O preparo vai pela API — clicar em quinze telas testaria formulários que já têm teste
+  próprio —, e o que a jornada confere na interface é o que só existe no fim da cadeia.
+- **Um achado da jornada, corrigido:** a `critical-journey` afirmava "nenhum plano de envase",
+  passando só porque o banco estava vazio. Com uma jornada que cria dados no mesmo banco, a asserção
+  virava dependente da ordem dos arquivos. Trocada por "a tela renderiza sem erro", que é o que
+  aquele teste sempre quis dizer.
+
 ### Antes de começar
 
 - **Jornada E2E de negócio — herdada do aceite da sprint 11 (2026-08-04).** O item de E2E do DoD
@@ -272,9 +311,37 @@ por extenso no próprio interceptor.
 
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- **Build/commit:** PRs #142 e #143 (TRC-001), #144 (TRC-001-B), #145 e #146 (FDS-001), #147 e #148
+  (FDS-002), #149 e #150 (FDS-003), mais o PR da FDS-004. Todos com os cinco checks da CI verdes.
+- **Testes executados:** backend **708** (unitários de domínio, integração com PostgreSQL real via
+  Testcontainers, autorização negativa e isolamento entre cervejarias, `ModularityTest`); frontend
+  **302**; E2E **19** contra a stack real, incluindo a jornada de negócio completa.
+- **Migration aplicada:** V80 (permissão e índice da genealogia), V81 (lote de produto acabado),
+  V82 (matriz de alergênicos), V83 (quarentena), V84 (expedição), V85 (recall e comunicações),
+  V86 (simulado). Todas testadas em banco limpo pela CI.
+- **Contratos atualizados:** OpenAPI com as rotas de genealogia, produto acabado, matriz de
+  alergênicos, troca de produto, quarentena, expedição, recall e simulado; Problem Details novos
+  documentados junto das rotas que os produzem.
+- **Riscos remanescentes:** os débitos abaixo, nenhum bloqueando o uso das histórias entregues. O
+  mais relevante para quem opera é o `FDS-001-B`: a troca de produto só é checada no envase, e
+  brassagem e fermentação usam equipamento compartilhado sem consultar a matriz.
+- **Aceite:**
+
+## Débitos abertos ao fim da sprint
+
+Todos com critério de remoção registrado nas seções acima.
+
+| Débito | O que falta |
+|---|---|
+| `TRC-001-A` | Não existe blend: a plataforma não tem conceito de misturar lotes |
+| `TRC-001-C` | O dia de brassa não registra consumo por lote; a aresta do insumo segue como intenção |
+| `FDS-001-A` | A embalagem do plano não entra no perfil de alergênicos |
+| `FDS-001-B` | A troca de produto só é checada no envase |
+| `FDS-002-B` | O bloqueio da quarentena enxerga seis saltos e não avisa quando o corte esconde algo |
+| `FDS-003-A` | A expedição não tem correção nem estorno |
+| `FDS-004-A` | Ação corretiva do simulado é texto livre, não item de CAPA |
+
+Fechados nesta sprint: **`TRC-001-B`** (lote de produto acabado), **`TRC-001-D`** (expedição e
+destino), **`PKG-004-A`** (alergênicos sem fonte no catálogo, aberto desde a sprint 10) e
+**`FDS-002-A`** (expedição não impedida pela quarentena). O item de E2E de negócio do DoD, herdado
+do aceite da sprint 11, também está fechado.

@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { GenealogyStore } from '../../data-access/genealogy.store';
 import { QuarantinesApi } from '../../data-access/quarantines.api';
+import { DrillsApi } from '../../data-access/drills.api';
 import { RecallsApi } from '../../data-access/recalls.api';
 import {
   Direction,
@@ -46,6 +47,7 @@ export class GenealogyPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly quarantines = inject(QuarantinesApi);
   private readonly recalls = inject(RecallsApi);
+  private readonly drills = inject(DrillsApi);
   private readonly toast = inject(ToastService);
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
@@ -66,6 +68,9 @@ export class GenealogyPageComponent implements OnInit {
    * Conter é parar o que está aqui dentro; recall é ir atrás do que já saiu.
    */
   protected readonly canRecall = this.auth.hasPermission('traceability.recall.manage');
+
+  /** Simular (FDS-004) é o mesmo gesto sem consequência: treina a localização e não recolhe nada. */
+  protected readonly canDrill = this.auth.hasPermission('traceability.drill.manage');
   protected readonly recalling = signal(false);
   protected readonly recallError = signal<string | null>(null);
   protected readonly recallForm = this.fb.nonNullable.group({
@@ -125,6 +130,22 @@ export class GenealogyPageComponent implements OnInit {
 
   protected goToBatches(): void {
     this.router.navigate(['/production/batches']);
+  }
+
+  /** Inicia o simulado do nó em tela e leva para o cronômetro, que é onde o exercício acontece. */
+  protected startDrill(): void {
+    const query = this.store.query();
+    if (!query) {
+      return;
+    }
+    this.drills.start(query.nodeType, query.nodeId, null).subscribe({
+      next: () => {
+        this.toast.success('Simulado iniciado.');
+        this.router.navigate(['/traceability/recall-drills']);
+      },
+      error: (e: { detail?: string }) =>
+        this.recallError.set(e.detail ?? 'Não foi possível iniciar o simulado.'),
+    });
   }
 
   protected startRecall(): void {

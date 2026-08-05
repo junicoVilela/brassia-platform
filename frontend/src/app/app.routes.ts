@@ -200,6 +200,13 @@ export const routes: Routes = [
           import('./features/traceability/traceability.routes').then(m => m.RECALL_ROUTES),
       },
       {
+        path: 'traceability/recall-drills',
+        canActivate: [permissionGuard],
+        data: { permission: 'traceability.drill.read' },
+        loadChildren: () =>
+          import('./features/traceability/traceability.routes').then(m => m.DRILL_ROUTES),
+      },
+      {
         path: 'traceability/quarantines',
         canActivate: [permissionGuard],
         data: { permission: 'traceability.quarantine.read' },

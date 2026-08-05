@@ -1725,6 +1725,12 @@ paths:
         tanque respondem 409 `volume_balance`; a soma das execuções acima do que o lote tem
         responde 409 `batch_volume_exceeded`. Rejeito consome embalagem igual às unidades boas.
         Só plano RESERVED executa, e executar é terminal — plano executado não é cancelável.
+
+
+        A quarentena (FDS-002) é verificada **aqui também**, e não só na reserva: a investigação
+        quase sempre começa depois que o plano foi reservado, e é justamente o envase que ela
+        precisa impedir. Lote quarentenado responde 409 `packaging_blocked` com `quarantined` (ou
+        `quarantine_suspected`, quando o caminho até o lote é uma reserva de insumo).
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       requestBody:
@@ -3786,6 +3792,119 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ChangeoverVerdict'}
         '403': {$ref: '#/components/responses/Problem'}
+  /traceability/quarantines:
+    get:
+      tags: [Rastreabilidade]
+      summary: Quarentenas da cervejaria (FDS-002)
+      parameters:
+        - {name: onlyOpen, in: query, required: false, schema: {type: boolean, default: false},
+           description: "Liberar não apaga: a quarentena encerrada continua legível."}
+      responses:
+        '200':
+          description: Quarentenas
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Quarantine'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Rastreabilidade]
+      summary: Abrir quarentena
+      description: >-
+        Bloqueia o nó e **tudo o que descende dele**, sem que ninguém precise bloquear os
+        descendentes: o alcance é derivado do grafo no momento de cada pergunta. Um envase criado
+        depois da abertura já nasce bloqueado — uma lista de descendentes congelada na abertura não
+        o conheceria, e contenção que envelhece é contenção furada.
+
+
+        Uma quarentena aberta por nó: a segunda partiria a investigação em duas, e liberar uma delas
+        daria a impressão de que o lote foi liberado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nodeType, nodeId, reason]
+              properties:
+                nodeType:
+                  type: string
+                  enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN, FINISHED_LOT]
+                nodeId: {type: string, format: uuid}
+                reason: {type: string, maxLength: 500, description: "Contenção sem motivo não é investigação."}
+      responses:
+        '201':
+          description: Quarentena aberta
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Quarantine'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_node` — o nó não existe nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '409':
+          description: "`already_quarantined` — já há quarentena aberta para o nó; `quarantineId` acompanha"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /traceability/quarantines/{id}:
+    get:
+      tags: [Rastreabilidade]
+      summary: Quarentena e o que ela alcança hoje (FDS-002)
+      description: >-
+        O alcance é recalculado a cada leitura. Cada nó atingido vem com `suspected`: verdadeiro
+        quando o caminho até ele passa por uma aresta de **intenção** — hoje a reserva de insumo,
+        que registra o lote separado para a OP e não o que foi ao moinho. Bloqueia igual; não afirma
+        o mesmo. `truncated` avisa que o corte de profundidade escondeu parte do alcance.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: depth, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 10, default: 6}}
+      responses:
+        '200':
+          description: Quarentena com alcance
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/QuarantineDetail'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_quarantine` — não existe nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /traceability/quarantines/{id}/release:
+    post:
+      tags: [Rastreabilidade]
+      summary: Liberar quarentena (alçada própria)
+      description: >-
+        Exige a permissão `traceability.quarantine.release`, **separada** da de abrir: quem contém
+        não é necessariamente quem decide que a investigação terminou. A justificativa é obrigatória
+        e é a outra metade da alçada — liberar é afirmar que o produto pode seguir.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [justification]
+              properties:
+                justification: {type: string, maxLength: 500}
+      responses:
+        '200': {description: Quarentena liberada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_quarantine` — não existe nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '409':
+          description: "`conflict` — a quarentena já foi liberada"
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
     CleaningPolicy:
@@ -5275,7 +5394,8 @@ components:
                   cervejaria que cadastrou alergênicos: sem vocabulário, a matriz não está em uso.
                 enum: [checklist_pending, line_unknown, line_inactive, line_under_maintenance,
                        line_conflict, line_not_clean, allergen_undeclared,
-                       allergen_dedication_violated, allergen_changeover_required]
+                       allergen_dedication_violated, allergen_changeover_required,
+                       quarantined, quarantine_suspected]
               message: {type: string}
         shortfall:
           type: object
@@ -5832,6 +5952,36 @@ components:
           type: array
           description: "Elos que deveriam existir e não existem, com o motivo."
           items: {$ref: '#/components/schemas/LineageGap'}
+    Quarantine:
+      type: object
+      description: "Quarentena (FDS-002). Guarda a origem; o alcance é derivado a cada leitura."
+      properties:
+        id: {type: string, format: uuid}
+        origin: {$ref: '#/components/schemas/LineageNode'}
+        reason: {type: string}
+        status: {type: string, enum: [OPEN, RELEASED]}
+        openedAt: {type: string, format: date-time}
+        releasedAt: {type: string, format: date-time, nullable: true}
+        releaseJustification: {type: string, nullable: true}
+    QuarantineDetail:
+      type: object
+      properties:
+        quarantine: {$ref: '#/components/schemas/Quarantine'}
+        truncated:
+          type: boolean
+          description: "Verdadeiro quando o corte de profundidade escondeu parte do alcance."
+        affected:
+          type: array
+          items:
+            type: object
+            properties:
+              node: {$ref: '#/components/schemas/LineageNode'}
+              suspected:
+                type: boolean
+                description: >-
+                  O caminho até este nó passa por intenção, não por fato registrado. Bloqueia igual —
+                  num recall, o custo de bloquear a mais é estoque parado, e o de bloquear a menos é
+                  produto na rua —, mas quem investiga precisa saber onde apertar primeiro.
     LineageNode:
       type: object
       properties:

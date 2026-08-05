@@ -8,7 +8,7 @@ Estado: EM ANDAMENTO
 |---|---|---|---|---|
 | TRC-001 | Concluída | IA | V80 + `TraceabilityIT` (11 testes); PRs #142, #143, #144 | Novo módulo `traceability`; porta `LineageSource`. TRC-001-B fechada em #144 |
 | FDS-001 | Concluída | IA | V82 + `FoodSafetyIT` (9 testes) + 17 de domínio; PR #145 (backend) e a tela | Novo módulo `foodsafety`; fecha `PKG-004-A` |
-| FDS-002 | A fazer | — | — | — |
+| FDS-002 | Backend concluído | IA | V83 + `QuarantineIT` (11 testes) + 11 de domínio | Bloqueio derivado do grafo; alçadas separadas. Tela em PR separado |
 | FDS-003 | A fazer | — | — | — |
 | FDS-004 | A fazer | — | — | — |
 
@@ -172,6 +172,41 @@ por extenso no próprio interceptor.
   compartilhado e não consultam a matriz: nenhuma delas registra hoje "qual lote ocupou este tanque
   antes". *Critério de remoção:* produção e fermentação passarem a responder qual foi o uso
   anterior do equipamento e a chamar `ChangeoverCheck`, como o envase já faz.
+
+### FDS-002 — quarentena
+
+- **A intenção propaga, e essa foi a decisão de negócio da história.** Uma aresta `INTENDED` — hoje
+  a reserva de insumo, que registra o lote *separado* para a OP e não o que foi ao moinho — alcança
+  o descendente e **bloqueia**, mas chega marcada como suspeita. O raciocínio: o custo de bloquear a
+  mais é estoque parado; o de bloquear a menos é produto na rua. O que não se pode é bloquear sem
+  dizer qual dos dois casos é, porque quem investiga precisa saber onde apertar primeiro. Quando
+  dois caminhos chegam ao mesmo nó, o confirmado vence — basta um caminho de fato para o alcance
+  deixar de ser suposição. Se a `TRC-001-C` for fechada (consumo por lote no dia de brassa), essas
+  suspeitas viram confirmações sozinhas, sem uma linha de código mudar aqui.
+- **O que se guarda é a origem; o alcance é derivado.** Congelar a lista de descendentes na abertura
+  seria mais rápido e estaria errada no dia seguinte: um envase criado depois não estaria nela e
+  passaria. A `QuarantineIT` fixa exatamente esse caso. Mesmo princípio do grafo (TRC-001) e do
+  perfil de alergênicos (FDS-001) — a tabela `traceability_quarantine` não tem coluna de alcance, e
+  a ausência dela é a decisão.
+- **A travessia é a mesma, lida dos dois lados.** "O que este lote contaminou" é `FORWARD` a partir
+  da origem; "que bloqueio alcança este plano" é `BACKWARD` a partir do plano. Um `Spread` só, e um
+  bean só servindo à tela e aos módulos que bloqueiam — duas implementações acabariam divergindo, e
+  a tela mostraria um descendente que o envase deixou passar.
+- **Abrir e liberar são alçadas separadas.** Foi a única forma de dar sentido a "liberação exige
+  alçada": uma permissão só, usada nos dois comandos, tornaria a liberação tão barata quanto a
+  abertura. A justificativa obrigatória é a outra metade — liberar é afirmar que o produto pode
+  seguir, e quem assina precisa ter dito por quê.
+- **O envase é impedido na reserva e na execução.** Só na reserva não bastaria: a investigação quase
+  sempre começa depois que o plano foi reservado, e é justamente o envase que ela precisa impedir.
+- **`FDS-002-A` — a expedição não é impedida porque não existe.** O critério da história fala em
+  "envase/expedição são impedidos"; a metade de fora da fábrica continua sendo a `TRC-001-D`. O nó
+  do produto acabado é quarentenável e o bloqueio o alcança, mas não há operação de saída para
+  recusar. *Critério de remoção:* existir expedição e ela consultar `QuarantineCheck`, como o envase
+  já faz.
+- **`FDS-002-B` — o bloqueio não alcança além de seis saltos.** A contenção usa a mesma profundidade
+  padrão da genealogia. O corte é declarado (`truncated`) na consulta de detalhe, mas o bloqueio em
+  si não avisa quando o nó ficou fora do alcance por profundidade. *Critério de remoção:* medir a
+  profundidade real das cadeias em produção e, se seis for pouco, tornar o teto parâmetro (PRM-001).
 
 ### Antes de começar
 

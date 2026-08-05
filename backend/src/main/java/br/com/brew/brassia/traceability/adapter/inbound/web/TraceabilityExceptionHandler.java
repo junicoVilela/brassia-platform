@@ -1,8 +1,10 @@
 package br.com.brew.brassia.traceability.adapter.inbound.web;
 
 import br.com.brew.brassia.shared.web.ProblemDetails;
+import br.com.brew.brassia.traceability.domain.AlreadyQuarantinedException;
 import br.com.brew.brassia.traceability.domain.DepthExceededException;
 import br.com.brew.brassia.traceability.domain.UnknownNodeException;
+import br.com.brew.brassia.traceability.domain.UnknownQuarantineException;
 import java.util.Map;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -31,6 +33,23 @@ class TraceabilityExceptionHandler {
     ProblemDetail handleUnknownNode(UnknownNodeException ex) {
         var problem = ProblemDetails.of(HttpStatus.NOT_FOUND, "unknown_node", ex.getMessage());
         problem.setProperty("node", Map.of("type", ex.type().name(), "id", ex.id().toString()));
+        return problem;
+    }
+
+    /** 409 e não 400: o pedido está correto, o estado é que já tem uma investigação em pé. */
+    @ExceptionHandler(AlreadyQuarantinedException.class)
+    ProblemDetail handleAlreadyQuarantined(AlreadyQuarantinedException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "already_quarantined",
+                "Este item já está em quarentena.");
+        problem.setProperty("quarantineId", ex.quarantineId().toString());
+        return problem;
+    }
+
+    @ExceptionHandler(UnknownQuarantineException.class)
+    ProblemDetail handleUnknownQuarantine(UnknownQuarantineException ex) {
+        var problem = ProblemDetails.of(HttpStatus.NOT_FOUND, "unknown_quarantine",
+                "Esta quarentena não existe nesta cervejaria.");
+        problem.setProperty("quarantineId", ex.id().toString());
         return problem;
     }
 

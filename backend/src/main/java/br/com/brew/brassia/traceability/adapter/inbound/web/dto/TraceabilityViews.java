@@ -2,11 +2,13 @@ package br.com.brew.brassia.traceability.adapter.inbound.web.dto;
 
 import br.com.brew.brassia.traceability.LineageSource;
 import br.com.brew.brassia.traceability.LineageSource.Node;
+import br.com.brew.brassia.traceability.application.port.inbound.DrillQueries;
 import br.com.brew.brassia.traceability.application.port.inbound.QuarantineQueries;
 import br.com.brew.brassia.traceability.application.port.inbound.RecallQueries;
 import br.com.brew.brassia.traceability.domain.Genealogy;
 import br.com.brew.brassia.traceability.domain.Quarantine;
 import br.com.brew.brassia.traceability.domain.Recall;
+import br.com.brew.brassia.traceability.domain.RecallDrill;
 import br.com.brew.brassia.traceability.domain.RecallNotification;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -179,4 +181,61 @@ public final class TraceabilityViews {
     }
 
     public record NewDestinationView(UUID shipmentId, String destination, String contact, int units) {}
+
+    // --- simulado de recall (FDS-004) ---
+
+    public record StartDrillRequest(@NotNull LineageSource.NodeType nodeType, @NotNull UUID nodeId,
+            @Size(max = 500) String note) {}
+
+    public record FinishDrillRequest(@jakarta.validation.constraints.Min(0) int unitsLocated,
+            @NotBlank @Size(max = 1000) String summary,
+            @Size(max = 2000) String correctiveActions) {}
+
+    /**
+     * @param locatedPercent nulo quando não havia nada no escopo: não localizar o que não existe não
+     *                       é cobertura perfeita, é simulado sem objeto
+     * @param elapsedSeconds tempo da cervejaria, não do sistema — é o que a norma cobra
+     */
+    public record DrillView(UUID id, String code, NodeView origin, String note, String status,
+            Instant startedAt, Instant finishedAt, Integer unitsInScope, Integer unitsLocated,
+            Integer locatedPercent, Integer destinationsReached, Integer gapsFound, String summary,
+            String correctiveActions, long elapsedSeconds) {
+
+        public static DrillView of(RecallDrill drill, long elapsedSeconds) {
+            return new DrillView(drill.id(), drill.code(),
+                    new NodeView(drill.nodeType().name(), drill.nodeId(), drill.originLabel()),
+                    drill.note(), drill.status().name(), drill.startedAt(), drill.finishedAt(),
+                    drill.unitsInScope(), drill.unitsLocated(), drill.locatedPercent(),
+                    drill.destinationsReached(), drill.gapsFound(), drill.summary(),
+                    drill.correctiveActions(), elapsedSeconds);
+        }
+
+        public static List<DrillView> of(List<RecallDrill> drills, Instant now) {
+            return drills.stream()
+                    .map(drill -> of(drill, drill.elapsed(now).toSeconds()))
+                    .toList();
+        }
+    }
+
+    /** @param findings lacunas viradas do avesso: o que fazer para a cobertura ser maior */
+    public record DrillReportView(DrillView drill, int unitsInScope, int destinationsReached,
+            List<DrillDestinationView> destinations, List<GapView> gaps, List<String> findings) {
+
+        public static DrillReportView of(DrillQueries.Report report) {
+            return new DrillReportView(DrillView.of(report.drill(), report.elapsedSeconds()),
+                    report.unitsInScope(), report.destinationsReached(),
+                    report.destinations().stream()
+                            .map(destination -> new DrillDestinationView(destination.reference(),
+                                    destination.label(), destination.contact(), destination.units()))
+                            .toList(),
+                    report.gaps().stream()
+                            .map(gap -> new GapView(
+                                    new NodeView(gap.from().type().name(), gap.from().id(), gap.from().label()),
+                                    gap.expectedLink(), gap.reason()))
+                            .toList(),
+                    report.findings());
+        }
+    }
+
+    public record DrillDestinationView(UUID reference, String destination, String contact, int units) {}
 }

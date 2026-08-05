@@ -21,8 +21,10 @@ test.describe('jornada crítica', () => {
 
     expect(resposta.status()).toBe(200);
     await expect(page.getByRole('heading', { name: 'Planos de envase' })).toBeVisible();
-    // Banco recém-criado: a tela precisa mostrar o estado vazio, não um erro.
-    await expect(page.getByText('Nenhum plano de envase.')).toBeVisible();
+    // A tela precisa renderizar a resposta, não um erro. Não se afirma que a lista está vazia:
+    // a jornada de negócio cria um plano no mesmo banco, e uma asserção de vazio aqui só
+    // passaria dependendo da ordem dos arquivos — fragilidade, não cobertura.
+    await expect(page.getByRole('alert')).toHaveCount(0);
 
     // Os selects de referência vêm de endpoints paginados. Se voltarem como
     // objeto e não array, a lista quebra e o campo fica vazio — o formulário de

@@ -4093,6 +4093,127 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /traceability/recall-drills:
+    get:
+      tags: [Rastreabilidade]
+      summary: Simulados de recall (FDS-004)
+      responses:
+        '200':
+          description: Simulados
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/RecallDrill'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Rastreabilidade]
+      summary: Iniciar simulado
+      description: >-
+        **Treinar, não recolher.** O simulado não cria expedição, não move saldo, não abre quarentena
+        e não gera pendência de comunicação: lê o mesmo grafo que o recall leria e cronometra a casa
+        respondendo "onde está".
+
+
+        O relógio que começa aqui é o da **cervejaria**, não o do servidor. Derivar o escopo leva
+        milissegundos e não diz nada; o que a norma cobra é quantas horas a equipe levou para
+        localizar o produto.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nodeType, nodeId]
+              properties:
+                nodeType:
+                  type: string
+                  enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN, FINISHED_LOT, SHIPMENT]
+                nodeId: {type: string, format: uuid}
+                note: {type: string, maxLength: 500}
+      responses:
+        '201':
+          description: Simulado iniciado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RecallDrill'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_node` — o nó não existe nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /traceability/recall-drills/{id}:
+    get:
+      tags: [Rastreabilidade]
+      summary: Relatório do simulado (FDS-004)
+      description: >-
+        Enquanto o simulado corre, os números vêm do grafo — são o **alvo** que a equipe está
+        tentando localizar, e mudam se alguém expedir no meio do exercício, o que é a verdade. Depois
+        de encerrado, vêm congelados: aquele foi o resultado daquele dia, e recalculá-lo responderia
+        sobre outro.
+
+
+        `findings` são as lacunas viradas do avesso — lote sem expedição vira "registre para onde
+        ele foi", destino sem contato vira "cadastre com quem falar". É o que transforma o simulado
+        em exercício útil: o relatório não diz só que a cobertura foi de 75%, diz o que fazer para
+        ela ser maior.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: depth, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 10, default: 6}}
+      responses:
+        '200':
+          description: Relatório
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RecallDrillReport'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_drill`"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /traceability/recall-drills/{id}/finish:
+    post:
+      tags: [Rastreabilidade]
+      summary: Encerrar simulado e medir
+      description: >-
+        `unitsLocated` é **declarado por gente**, não contado pelo sistema: o sistema sabe quantas
+        unidades deveriam estar em cada destino, e o simulado existe justamente para descobrir que às
+        vezes elas não estão. Contar sozinho daria 100% sempre e não mediria nada.
+
+
+        Localizar mais do que saiu é recusado (400): percentual acima de 100% é sinal de erro de
+        contagem, não de excelência.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [unitsLocated, summary]
+              properties:
+                unitsLocated: {type: integer, minimum: 0}
+                summary: {type: string, maxLength: 1000}
+                correctiveActions:
+                  type: string
+                  maxLength: 2000
+                  description: >-
+                    Texto livre. Transformar ação em item com dono e prazo é trabalho do CAPA
+                    (QLT-002); duplicá-lo aqui criaria um segundo lugar para acompanhar a mesma coisa.
+      responses:
+        '200': {description: Simulado encerrado}
+        '400':
+          description: "Resumo ausente, ou unidades localizadas acima do escopo"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "`conflict` — o simulado já foi encerrado"
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
     CleaningPolicy:
@@ -6241,6 +6362,54 @@ components:
         channel: {type: string, nullable: true}
         note: {type: string, nullable: true}
         notifiedAt: {type: string, format: date-time, nullable: true}
+    RecallDrill:
+      type: object
+      description: "Simulado de recall (FDS-004). Mede sem afetar estoque real."
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string, description: "SIM-<ano>-<sequência>, por cervejaria."}
+        origin: {$ref: '#/components/schemas/LineageNode'}
+        note: {type: string, nullable: true}
+        status: {type: string, enum: [RUNNING, FINISHED]}
+        startedAt: {type: string, format: date-time}
+        finishedAt: {type: string, format: date-time, nullable: true}
+        unitsInScope: {type: integer, nullable: true, description: "Unidades que saíram da fábrica."}
+        unitsLocated: {type: integer, nullable: true}
+        locatedPercent:
+          type: integer
+          nullable: true
+          description: >-
+            Nulo quando não havia nada no escopo: não localizar o que não existe não é cobertura
+            perfeita, é simulado sem objeto.
+        destinationsReached: {type: integer, nullable: true}
+        gapsFound: {type: integer, nullable: true}
+        summary: {type: string, nullable: true}
+        correctiveActions: {type: string, nullable: true}
+        elapsedSeconds:
+          type: integer
+          description: "Tempo da cervejaria, do início ao encerramento — não o do servidor."
+    RecallDrillReport:
+      type: object
+      properties:
+        drill: {$ref: '#/components/schemas/RecallDrill'}
+        unitsInScope: {type: integer}
+        destinationsReached: {type: integer}
+        destinations:
+          type: array
+          items:
+            type: object
+            properties:
+              reference: {type: string, format: uuid}
+              destination: {type: string}
+              contact: {type: string, nullable: true}
+              units: {type: integer}
+        gaps:
+          type: array
+          items: {$ref: '#/components/schemas/LineageGap'}
+        findings:
+          type: array
+          description: "Ações corretivas sugeridas: as lacunas viradas do avesso."
+          items: {type: string}
     LineageNode:
       type: object
       properties:

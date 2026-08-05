@@ -4,6 +4,7 @@ import br.com.brew.brassia.shared.web.ProblemDetails;
 import br.com.brew.brassia.traceability.domain.AlreadyQuarantinedException;
 import br.com.brew.brassia.traceability.domain.DepthExceededException;
 import br.com.brew.brassia.traceability.domain.PendingNotificationsException;
+import br.com.brew.brassia.traceability.domain.UnknownDrillException;
 import br.com.brew.brassia.traceability.domain.UnknownNodeException;
 import br.com.brew.brassia.traceability.domain.UnknownQuarantineException;
 import br.com.brew.brassia.traceability.domain.UnknownRecallException;
@@ -72,6 +73,14 @@ class TraceabilityExceptionHandler {
         var problem = ProblemDetails.of(HttpStatus.CONFLICT, "recall_has_pending_notifications",
                 "Há destinos sem comunicação registrada; o recall não pode ser encerrado.");
         problem.setProperty("pending", ex.pending());
+        return problem;
+    }
+
+    @ExceptionHandler(UnknownDrillException.class)
+    ProblemDetail handleUnknownDrill(UnknownDrillException ex) {
+        var problem = ProblemDetails.of(HttpStatus.NOT_FOUND, "unknown_drill",
+                "Este simulado não existe nesta cervejaria.");
+        problem.setProperty("drillId", ex.id().toString());
         return problem;
     }
 

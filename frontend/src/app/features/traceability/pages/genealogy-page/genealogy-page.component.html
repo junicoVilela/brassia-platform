@@ -52,6 +52,12 @@
               <i class="ri-megaphone-line me-1" aria-hidden="true"></i>Abrir recall
             </button>
           }
+          @if (canDrill) {
+            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="startDrill()"
+                    title="Treina a localização sem recolher nada nem mexer em estoque">
+              <i class="ri-timer-line me-1" aria-hidden="true"></i>Simular recall
+            </button>
+          }
         </div>
       </div>
 

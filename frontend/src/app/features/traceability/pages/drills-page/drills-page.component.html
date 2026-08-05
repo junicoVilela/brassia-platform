@@ -1,0 +1,194 @@
+<app-page-header
+  title="Simulados de recall"
+  subtitle="Treinar a localização sem recolher nada: quanto tempo, quanta cobertura, quais lacunas."
+>
+  @if (store.averageCoverage() !== null) {
+    <span class="badge text-bg-light">
+      Média localizada: {{ store.averageCoverage() }}%
+    </span>
+  }
+</app-page-header>
+
+@if (store.actionError(); as actionError) {
+  <div class="alert alert-warning" role="alert">{{ actionError }}</div>
+}
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando simulados…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else if (store.drills().length === 0) {
+  <div class="card">
+    <div class="card-body p-4">
+      <app-empty-state
+        icon="ri-timer-line"
+        message="Nenhum simulado registrado."
+        hint="O simulado começa na genealogia: abra um lote que já saiu da fábrica e use o botão Simular recall."
+      />
+    </div>
+  </div>
+} @else {
+  <div class="card">
+    <div class="list-group list-group-flush">
+      @for (drill of store.drills(); track drill.id) {
+        <div class="list-group-item p-3">
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+              <h2 class="h6 fw-semibold mb-1">
+                {{ drill.code }}
+                @if (drill.status === 'RUNNING') {
+                  <span class="badge text-bg-warning ms-1">Em andamento</span>
+                } @else {
+                  <span class="badge text-bg-success ms-1">Encerrado</span>
+                }
+              </h2>
+              <p class="text-muted small mb-1">
+                <i class="{{ nodeIcons[drill.origin.type] }} me-1" aria-hidden="true"></i>
+                {{ nodeLabels[drill.origin.type] }}: {{ drill.origin.label ?? drill.origin.id }}
+                @if (drill.note) {
+                  · {{ drill.note }}
+                }
+              </p>
+              <p class="small mb-0">
+                <i class="ri-timer-line me-1" aria-hidden="true"></i>{{ elapsed(drill.elapsedSeconds) }}
+                @if (drill.status === 'FINISHED') {
+                  @if (drill.locatedPercent !== null) {
+                    · <strong>{{ drill.locatedPercent }}%</strong> localizado
+                    ({{ drill.unitsLocated }}/{{ drill.unitsInScope }} un)
+                  } @else {
+                    · <span class="text-muted">nada havia saído deste lote</span>
+                  }
+                  @if (drill.gapsFound) {
+                    · <span class="text-warning-emphasis">{{ drill.gapsFound }} lacuna(s)</span>
+                  }
+                }
+              </p>
+              <p class="text-muted small mb-0 mt-1">
+                Iniciado em {{ drill.startedAt | date: 'dd/MM/yyyy HH:mm' }}
+                @if (drill.finishedAt) {
+                  · encerrado em {{ drill.finishedAt | date: 'dd/MM/yyyy HH:mm' }}
+                }
+              </p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="select(drill)">
+                {{ isOpenReport(drill) ? 'Ocultar relatório' : 'Ver relatório' }}
+              </button>
+            </div>
+          </div>
+
+          @if (isOpenReport(drill)) {
+            @if (store.reportLoading()) {
+              <app-loading-indicator text="Montando o relatório…" />
+            } @else if (store.report(); as report) {
+              <div class="mt-3 border-top pt-3">
+                @if (drill.status === 'RUNNING') {
+                  <p class="text-muted small mb-2">
+                    <strong>Este é o alvo, não o placar.</strong> Enquanto o simulado corre, os
+                    números vêm do grafo: {{ report.unitsInScope }} unidade(s) em
+                    {{ report.destinationsReached }} destino(s). O resultado é o que a equipe
+                    conseguir localizar.
+                  </p>
+                }
+
+                @if (report.findings.length > 0) {
+                  <div class="alert alert-warning py-2" role="alert">
+                    <strong>Ações corretivas sugeridas</strong>
+                    <ul class="mb-0 mt-1 small">
+                      @for (finding of report.findings; track finding) {
+                        <li>{{ finding }}</li>
+                      }
+                    </ul>
+                  </div>
+                }
+
+                @if (report.destinations.length > 0) {
+                  <h3 class="h6 mb-2">Destinos a localizar</h3>
+                  <ul class="list-unstyled small mb-3 d-flex flex-column gap-1">
+                    @for (destination of report.destinations; track destination.reference) {
+                      <li>
+                        <i class="ri-truck-line me-1" aria-hidden="true"></i>
+                        <strong>{{ destination.destination }}</strong> — {{ destination.units }} un
+                        @if (destination.contact) {
+                          · {{ destination.contact }}
+                        } @else {
+                          · <span class="text-warning-emphasis">sem contato</span>
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+
+                @if (drill.status === 'FINISHED') {
+                  <p class="mb-1"><strong>Resumo:</strong> {{ drill.summary }}</p>
+                  @if (drill.correctiveActions) {
+                    <p class="mb-0"><strong>Ações registradas:</strong> {{ drill.correctiveActions }}</p>
+                  }
+                }
+
+                @if (canManage && drill.status === 'RUNNING') {
+                  <div class="mt-3">
+                    @if (finishing() === drill.id) {
+                      <form [formGroup]="finishForm" (ngSubmit)="confirmFinish(drill)">
+                        <p class="text-muted small mb-2">
+                          Quantas unidades a equipe <strong>de fato localizou</strong>. O sistema sabe
+                          quantas deveriam estar em cada destino — o simulado existe para descobrir
+                          quando elas não estão.
+                        </p>
+                        <div class="row g-2 align-items-end">
+                          <div class="col-sm-2">
+                            <label class="form-label small" [for]="'un-' + drill.id">
+                              Localizadas
+                            </label>
+                            <input [id]="'un-' + drill.id" type="number" min="0"
+                                   class="form-control form-control-sm" formControlName="unitsLocated" />
+                          </div>
+                          <div class="col-sm-5">
+                            <label class="form-label small" [for]="'sum-' + drill.id">Resumo</label>
+                            <input [id]="'sum-' + drill.id" class="form-control form-control-sm"
+                                   formControlName="summary"
+                                   placeholder="duas ligações; 30 latas não localizadas" />
+                          </div>
+                          <div class="col-sm-5">
+                            <label class="form-label small" [for]="'ac-' + drill.id">
+                              Ações corretivas
+                            </label>
+                            <input [id]="'ac-' + drill.id" class="form-control form-control-sm"
+                                   formControlName="correctiveActions"
+                                   placeholder="cadastrar contato da distribuidora" />
+                          </div>
+                          <div class="col-12 d-flex gap-2">
+                            <button type="submit" class="btn btn-sm btn-primary"
+                                    [disabled]="finishForm.invalid || busy('finish:' + drill.id)">
+                              Encerrar simulado
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    (click)="cancelFinish()">
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+                    } @else {
+                      <button type="button" class="btn btn-sm btn-outline-primary"
+                              (click)="startFinish(drill)">
+                        Encerrar simulado
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          }
+        </div>
+      }
+    </div>
+  </div>
+}

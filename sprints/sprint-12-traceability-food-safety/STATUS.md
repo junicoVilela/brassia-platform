@@ -6,8 +6,8 @@ Estado: EM ANDAMENTO
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| TRC-001 | Backend concluído | IA | V80 + `TraceabilityIT` (11 testes) | Novo módulo `traceability`; porta `LineageSource`. Tela em PR separado |
-| FDS-001 | A fazer | — | — | — |
+| TRC-001 | Concluída | IA | V80 + `TraceabilityIT` (11 testes); PRs #142, #143, #144 | Novo módulo `traceability`; porta `LineageSource`. TRC-001-B fechada em #144 |
+| FDS-001 | Backend concluído | IA | V82 + `FoodSafetyIT` (9 testes) + 17 testes de domínio | Novo módulo `foodsafety`; fecha `PKG-004-A`. Tela em PR separado |
 | FDS-002 | A fazer | — | — | — |
 | FDS-003 | A fazer | — | — | — |
 | FDS-004 | A fazer | — | — | — |
@@ -114,6 +114,57 @@ por extenso no próprio interceptor.
   fecha: o lote existe, mas a plataforma não registra para onde ele foi. A lacuna agora é declarada
   no nó do produto acabado, e é o que a **FDS-003** vai precisar para dizer a quem o recall se
   dirige. *Critério de remoção:* registrar expedição com destino e contato, ligando-a ao lote.
+
+### FDS-001 — matriz de alergênicos
+
+- **A lista de alergênicos é da casa, não da plataforma.** Era a decisão a tomar antes de qualquer
+  linha de código, e a tentação era um enum com a lista da RDC 26/2015. Embutir a norma no código
+  a congela: ela muda, difere por país e quem responde por ela é quem assina o rótulo — o mesmo
+  motivo pelo qual `LabelRegulatoryRule` já é por cervejaria. A cervejaria cadastra o vocabulário e
+  a plataforma cuida de propagá-lo. O domínio garante só a forma do código (caixa alta, estável),
+  para que "GLUTEN" e "gluten" nunca sejam dois alergênicos no meio de um recall.
+- **Não declarado ≠ declarado isento, e a estrutura do banco é que garante isso.** A declaração é
+  uma linha própria, separada dos alergênicos declarados: ingrediente com linha de declaração e
+  nenhum alergênico foi declarado isento; ingrediente sem linha nenhuma é lacuna. As duas produzem
+  o mesmo conjunto vazio em memória, e confundi-las é o que imprime "não contém glúten" numa
+  cerveja de cevada. A distinção atravessa tudo — `AllergenDeclaration.missing`, `complete()` no
+  perfil, o campo `declared` na matriz.
+- **O perfil do lote é derivado, como o grafo da TRC-001.** É a soma das declarações dos
+  ingredientes da receita publicada, lida na hora. Guardá-lo faria o lote continuar dizendo
+  "isento" depois de alguém declarar o alergênico do malte.
+- **A matriz liga quando a casa adere, e essa foi a correção mais importante do desenho.** A
+  primeira versão bloqueava toda troca de produto sem declaração completa — o que pararia a linha
+  de quem nunca pediu a funcionalidade, no dia do deploy. Sem alergênico cadastrado, a matriz não
+  está em uso e a troca não é avaliada; ela passa a valer no instante em que a cervejaria cadastra
+  o primeiro alergênico. É o precedente da validade do CIP (PRM-001), que sem prazo configurado
+  não expira. Ganhar um campo não pode mudar o comportamento de quem não o preencheu.
+- **A lacuna só bloqueia onde mudaria a resposta.** Em equipamento sem uso anterior não há troca a
+  avaliar, e exigir declaração ali seria burocracia com cara de segurança. Onde há uso anterior —
+  ou dedicação declarada — a lacuna bloqueia, porque "não sei" não pode valer como "não tem". Quem
+  guarda a verdade do que a cerveja contém é o rótulo, que continua sem imprimir o campo sem fonte.
+- **A carga residual é a diferença entre os perfis, não o perfil anterior.** Se os dois lados têm o
+  mesmo alergênico, não há troca a fazer. POP exigido sem motivo é POP que se aprende a ignorar.
+- **Dedicação não se resolve com limpeza.** Equipamento é compartilhado por omissão; declarar
+  dedicação afirma o contrário. Dedicação com conjunto vazio é a linha *livre de alergênicos*, a
+  mais restritiva que existe — nenhum POP a resgata, porque ali a garantia é o alergênico nunca ter
+  entrado, não o procedimento.
+- **O envase pergunta, a segurança de alimentos responde.** `ChangeoverCheck` é porta publicada e o
+  uso anterior é parâmetro: quem sabe qual foi o último lote da linha é quem agenda (hoje o envase,
+  amanhã a produção). O envase não conhece alergênico, e não deveria. `PackagingPlanRepository.
+  lastLineUse` passou a devolver lote + instante — a limpeza responde "quando", a troca "o quê".
+- **`PKG-004-A` fechada.** O campo de alergênicos do rótulo tem fonte: a matriz. Perfil incompleto
+  não escreve nada, e ausente obrigatório barra a impressão — que é o comportamento correto, porque
+  imprimir isenção que ninguém assinou é pior do que não imprimir. A revalidação do rótulo sai de
+  graça: a prévia é remontada das fontes a cada impressão, então declaração alterada é reavaliada
+  contra a matriz vigente, não contra a que valia na primeira tiragem.
+- **`FDS-001-A` — a embalagem não entra no perfil.** O perfil vem da composição da receita; a lata
+  ou garrafa do plano de envase não é avaliada, embora possa ter revestimento com alergênico
+  declarável. *Critério de remoção:* incluir o item de embalagem do plano nas contribuições do
+  perfil, quando houver fonte que declare alergênico de material de embalagem.
+- **`FDS-001-B` — a troca só é checada no envase.** A brassagem e a fermentação usam equipamento
+  compartilhado e não consultam a matriz: nenhuma delas registra hoje "qual lote ocupou este tanque
+  antes". *Critério de remoção:* produção e fermentação passarem a responder qual foi o uso
+  anterior do equipamento e a chamar `ChangeoverCheck`, como o envase já faz.
 
 ### Antes de começar
 

@@ -154,18 +154,19 @@ class JdbcPackagingPlanRepository implements PackagingPlanRepository {
     }
 
     @Override
-    public Optional<Instant> lastLineUse(UUID breweryId, UUID lineEquipmentId, Instant before, UUID excludePlanId) {
+    public Optional<LineUse> lastLineUse(UUID breweryId, UUID lineEquipmentId, Instant before, UUID excludePlanId) {
         return jdbc.sql("""
-                SELECT MAX(planned_start) AS last_use FROM packaging_plan
+                SELECT batch_id, planned_start FROM packaging_plan
                 WHERE brewery_id = :brewery AND line_equipment_id = :line AND id <> :exclude
                   AND status IN ('RESERVED', 'EXECUTED') AND planned_start < :before
+                ORDER BY planned_start DESC
+                LIMIT 1
                 """)
                 .param("brewery", breweryId).param("line", lineEquipmentId).param("exclude", excludePlanId)
                 .param("before", Timestamp.from(before))
-                .query((rs, n) -> rs.getTimestamp("last_use"))
-                .optional()
-                .filter(java.util.Objects::nonNull)
-                .map(Timestamp::toInstant);
+                .query((rs, n) -> new LineUse(rs.getObject("batch_id", UUID.class),
+                        rs.getTimestamp("planned_start").toInstant()))
+                .optional();
     }
 
     private Map<ChecklistItem, PackagingPlan.Confirmation> checklistOf(UUID breweryId, UUID planId) {

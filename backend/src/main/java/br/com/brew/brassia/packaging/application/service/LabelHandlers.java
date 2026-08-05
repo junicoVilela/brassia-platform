@@ -2,6 +2,7 @@ package br.com.brew.brassia.packaging.application.service;
 
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.foodsafety.AllergenProfileLookup;
 import br.com.brew.brassia.packaging.application.port.inbound.LabelCommands;
 import br.com.brew.brassia.packaging.application.port.outbound.FreshnessRepository;
 import br.com.brew.brassia.packaging.application.port.outbound.LabelRepository;
@@ -93,14 +94,16 @@ public final class LabelHandlers {
         private final FreshnessRepository freshness;
         private final BatchLookup batches;
         private final RecipeLookup recipes;
+        private final AllergenProfileLookup allergenProfiles;
 
         public Preview(LabelRepository labels, PackagingPlanRepository plans, FreshnessRepository freshness,
-                BatchLookup batches, RecipeLookup recipes) {
+                BatchLookup batches, RecipeLookup recipes, AllergenProfileLookup allergenProfiles) {
             this.labels = Objects.requireNonNull(labels);
             this.plans = Objects.requireNonNull(plans);
             this.freshness = Objects.requireNonNull(freshness);
             this.batches = Objects.requireNonNull(batches);
             this.recipes = Objects.requireNonNull(recipes);
+            this.allergenProfiles = Objects.requireNonNull(allergenProfiles);
         }
 
         @Override
@@ -109,7 +112,7 @@ public final class LabelHandlers {
             var rule = rule(labels, breweryId);
             var plan = plans.findById(breweryId, planId)
                     .orElseThrow(() -> new IllegalArgumentException("plano de envase inexistente"));
-            return assemble(template, rule, plan, freshness, batches, recipes);
+            return assemble(template, rule, plan, freshness, batches, recipes, allergenProfiles);
         }
     }
 
@@ -120,15 +123,18 @@ public final class LabelHandlers {
         private final FreshnessRepository freshness;
         private final BatchLookup batches;
         private final RecipeLookup recipes;
+        private final AllergenProfileLookup allergenProfiles;
         private final AuditTrail audit;
 
         public Print(LabelRepository labels, PackagingPlanRepository plans, FreshnessRepository freshness,
-                BatchLookup batches, RecipeLookup recipes, AuditTrail audit) {
+                BatchLookup batches, RecipeLookup recipes, AllergenProfileLookup allergenProfiles,
+                AuditTrail audit) {
             this.labels = Objects.requireNonNull(labels);
             this.plans = Objects.requireNonNull(plans);
             this.freshness = Objects.requireNonNull(freshness);
             this.batches = Objects.requireNonNull(batches);
             this.recipes = Objects.requireNonNull(recipes);
+            this.allergenProfiles = Objects.requireNonNull(allergenProfiles);
             this.audit = Objects.requireNonNull(audit);
         }
 
@@ -139,8 +145,10 @@ public final class LabelHandlers {
             var plan = plans.findById(command.breweryId(), command.planId())
                     .orElseThrow(() -> new IllegalArgumentException("plano de envase inexistente"));
 
-            // A prévia é a mesma que o operador viu: imprimir não relaxa a checagem.
-            var preview = assemble(template, rule, plan, freshness, batches, recipes);
+            // A prévia é a mesma que o operador viu: imprimir não relaxa a checagem. É também o que
+            // revalida o rótulo — declaração de alergênico alterada muda a prévia, e a reimpressão
+            // volta a ser avaliada contra a matriz vigente, não contra a que valia na primeira vez.
+            var preview = assemble(template, rule, plan, freshness, batches, recipes, allergenProfiles);
             if (!preview.printable()) {
                 throw new LabelNotPrintableException(preview.missingRequired(), preview.requiredNotDrawn());
             }
@@ -207,7 +215,8 @@ public final class LabelHandlers {
      * prévia que decide se isso barra a impressão, conforme a regra da casa.
      */
     private static LabelPreview assemble(LabelTemplate template, LabelRegulatoryRule rule, PackagingPlan plan,
-            FreshnessRepository freshness, BatchLookup batches, RecipeLookup recipes) {
+            FreshnessRepository freshness, BatchLookup batches, RecipeLookup recipes,
+            AllergenProfileLookup allergenProfiles) {
         var values = new EnumMap<LabelField, String>(LabelField.class);
         var sources = new EnumMap<LabelField, String>(LabelField.class);
 
@@ -239,8 +248,31 @@ public final class LabelHandlers {
                 "brassia://lote/" + b.code() + "/envase/" + plan.code(),
                 "rastreabilidade do lote e do plano de envase"));
 
-        // ALLERGENS fica sem fonte: o catálogo ainda não guarda alergênico (PKG-004-A).
+        // Alergênicos vêm da matriz da segurança de alimentos (FDS-001), que fecha PKG-004-A. Perfil
+        // incompleto não escreve nada: campo ausente barra a impressão se a regra da casa o exigir,
+        // e é exatamente o que se quer — imprimir "isento" sem alguém ter declarado é o pior desfecho.
+        batch.ifPresent(b -> {
+            var profile = allergenProfiles.ofBatch(plan.breweryId(), b.batchId());
+            if (profile.complete()) {
+                put(values, sources, LabelField.ALLERGENS, allergenText(profile),
+                        "matriz de alergênicos — declaração dos ingredientes da receita publicada");
+            }
+        });
+
         return LabelPreview.of(template, rule, values, sources);
+    }
+
+    /**
+     * "Contém" quando há alergênico; a frase de isenção quando a casa declarou todos os ingredientes
+     * e nenhum deles traz alergênico. As duas afirmações têm dono: a declaração de quem assina.
+     */
+    private static String allergenText(AllergenProfileLookup.Profile profile) {
+        if (profile.allergens().isEmpty()) {
+            return "Não contém alergênicos declarados";
+        }
+        return "Contém: " + profile.allergens().stream()
+                .map(AllergenProfileLookup.Profile.Allergen::name)
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 
     private static void put(Map<LabelField, String> values, Map<LabelField, String> sources, LabelField field,

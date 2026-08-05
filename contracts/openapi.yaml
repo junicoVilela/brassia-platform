@@ -3611,6 +3611,181 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /food-safety/allergens:
+    get:
+      tags: [Segurança de alimentos]
+      summary: Vocabulário de alergênicos da cervejaria (FDS-001)
+      description: >-
+        A lista é **da casa**, não da plataforma. Embutir uma relação regulatória no código seria
+        congelar uma norma que muda e difere por país, e quem responde por ela é quem assina o
+        rótulo. Enquanto a cervejaria não cadastra nenhum alergênico, a matriz não está em uso e a
+        troca de produto não é avaliada — mesmo princípio da validade do CIP (PRM-001).
+      responses:
+        '200':
+          description: Alergênicos cadastrados
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Allergen'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Segurança de alimentos]
+      summary: Cadastrar alergênico
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name]
+              properties:
+                code: {type: string, maxLength: 40, description: "Normalizado em caixa alta; GLUTEN e gluten são o mesmo."}
+                name: {type: string, maxLength: 120, description: "O nome vai impresso no rótulo."}
+      responses:
+        '201':
+          description: Alergênico cadastrado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Allergen'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /food-safety/matrix:
+    get:
+      tags: [Segurança de alimentos]
+      summary: Matriz de alergênicos (FDS-001)
+      description: >-
+        Os três eixos numa leitura só — ingrediente, equipamento e POP —, porque é assim que a
+        matriz é usada: ninguém confere um ingrediente isolado, confere o cruzamento. Em
+        `ingredients`, `declared` distingue **declarado isento** (declarado, sem alergênico) de
+        **não declarado** (ninguém respondeu). Tratar o segundo como o primeiro é o erro que
+        imprime "não contém glúten" numa cerveja de cevada.
+      responses:
+        '200':
+          description: Matriz
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AllergenMatrix'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /food-safety/ingredients/{ingredientId}/allergens:
+    put:
+      tags: [Segurança de alimentos]
+      summary: Declarar alergênicos de um ingrediente
+      description: >-
+        Declarar é responder **por inteiro**: a lista enviada passa a ser a vigente, e lista vazia
+        é a afirmação "declarado isento". Sem esse comando, "tirei o glúten deste insumo" não teria
+        como ser dito, e a matriz só cresceria.
+      parameters:
+        - {name: ingredientId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AllergenDeclarationRequest'}
+      responses:
+        '200': {description: Declaração registrada}
+        '400':
+          description: "`unknown_allergen` — código fora do vocabulário da cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
+  /food-safety/equipment/{equipmentId}/dedication:
+    put:
+      tags: [Segurança de alimentos]
+      summary: Declarar equipamento dedicado
+      description: >-
+        Equipamento é **compartilhado por omissão** — é o estado natural de quase toda cervejaria, e
+        é o que torna a troca de produto uma decisão de segurança. Declarar dedicação afirma o
+        contrário. Lista vazia é a linha *livre de alergênicos*, a mais restritiva que existe:
+        nenhum POP a resgata, porque ali a garantia é o alergênico nunca ter entrado.
+      parameters:
+        - {name: equipmentId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AllergenDeclarationRequest'}
+      responses:
+        '200': {description: Dedicação registrada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    delete:
+      tags: [Segurança de alimentos]
+      summary: Devolver o equipamento ao compartilhado
+      parameters:
+        - {name: equipmentId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Dedicação removida}
+        '403': {$ref: '#/components/responses/Problem'}
+  /food-safety/procedures/{procedureCode}/allergens:
+    put:
+      tags: [Segurança de alimentos]
+      summary: Declarar o que um POP remove
+      description: >-
+        Eficácia declarada do procedimento de limpeza. Referencia o POP por **código**, não por
+        versão, pelo mesmo motivo da matriz de compatibilidade (CLN-002): a eficácia é do
+        procedimento, não da revisão do texto. Sem declaração, o POP limpa sujidade e não responde
+        por alergênico — que é o padrão até alguém afirmar o contrário.
+      parameters:
+        - {name: procedureCode, in: path, required: true, schema: {type: string, maxLength: 40}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AllergenDeclarationRequest'}
+      responses:
+        '200': {description: Eficácia registrada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /food-safety/batches/{batchId}/allergens:
+    get:
+      tags: [Segurança de alimentos]
+      summary: Perfil de alergênicos de um lote (FDS-001)
+      description: >-
+        **Derivado**, não guardado: é a soma das declarações dos ingredientes da receita publicada
+        do lote, lida no momento da pergunta. Materializá-lo criaria uma segunda verdade que
+        continuaria dizendo "isento" depois de alguém declarar o alergênico do malte — o mesmo
+        motivo pelo qual a genealogia (TRC-001) também é derivada.
+
+
+        `complete` é o campo que decide: só um perfil completo autoriza afirmar o que a cerveja
+        contém — ou não contém. É ele que libera o campo de alergênicos no rótulo (PKG-004).
+      parameters:
+        - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Perfil
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AllergenProfile'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /food-safety/changeover:
+    get:
+      tags: [Segurança de alimentos]
+      summary: Avaliar troca de produto num equipamento (FDS-001)
+      description: >-
+        Responde se o produto que entra pode ocupar o equipamento depois do que saiu. O envase já
+        recusa a reserva insegura por conta própria (PKG-001); esta consulta existe para perguntar
+        **antes**, que é quando ainda dá para escolher outra linha ou outro POP.
+
+
+        A carga residual é a **diferença** entre os perfis, não o perfil anterior: se os dois lados
+        têm o mesmo alergênico, não há troca a fazer, e POP exigido sem motivo é POP que se aprende
+        a ignorar. Quem sabe qual foi o uso anterior é quem agenda, por isso ele é parâmetro.
+      parameters:
+        - {name: equipmentId, in: query, required: true, schema: {type: string, format: uuid}}
+        - {name: incomingBatchId, in: query, required: true, schema: {type: string, format: uuid}}
+        - {name: previousBatchId, in: query, required: false, schema: {type: string, format: uuid},
+           description: "Ausente quando não houve uso anterior: equipamento novo não tem o que trocar."}
+        - {name: previousUseAt, in: query, required: false, schema: {type: string, format: date-time}}
+        - {name: at, in: query, required: false, schema: {type: string, format: date-time},
+           description: "Instante de referência; padrão é agora."}
+      responses:
+        '200':
+          description: Veredito
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChangeoverVerdict'}
+        '403': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
     CleaningPolicy:
@@ -5095,8 +5270,12 @@ components:
             properties:
               code:
                 type: string
+                description: >-
+                  Os três `allergen_*` vêm da matriz de alergênicos (FDS-001) e só aparecem em
+                  cervejaria que cadastrou alergênicos: sem vocabulário, a matriz não está em uso.
                 enum: [checklist_pending, line_unknown, line_inactive, line_under_maintenance,
-                       line_conflict, line_not_clean]
+                       line_conflict, line_not_clean, allergen_undeclared,
+                       allergen_dedication_violated, allergen_changeover_required]
               message: {type: string}
         shortfall:
           type: object
@@ -5685,6 +5864,96 @@ components:
         reason:
           type: string
           description: "Por que o elo não existe — o que falta na plataforma para que exista."
+    Allergen:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+    AllergenDeclarationRequest:
+      type: object
+      description: "A lista enviada passa a ser a vigente; lista vazia é declaração de isenção."
+      properties:
+        allergens:
+          type: array
+          items: {type: string}
+    AllergenProfile:
+      type: object
+      description: "Perfil derivado do lote (FDS-001), com as lacunas que impedem afirmá-lo."
+      properties:
+        allergens:
+          type: array
+          items: {type: string}
+        complete:
+          type: boolean
+          description: >-
+            Falso quando algum ingrediente da composição não tem declaração. Perfil incompleto não
+            vira alerta discreto: ele barra o campo do rótulo e barra a troca de produto, porque
+            "não sei" nunca pode valer como "não tem".
+        gaps:
+          type: array
+          items: {$ref: '#/components/schemas/AllergenGap'}
+    AllergenGap:
+      type: object
+      properties:
+        ingredientId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Nulo quando o que falta é a própria composição, e não um ingrediente."
+        label: {type: string}
+    ChangeoverVerdict:
+      type: object
+      properties:
+        allowed: {type: boolean}
+        outcome:
+          type: string
+          enum: [CLEAR, DEDICATED, CLEANED, UNDECLARED, DEDICATION_VIOLATED, CHANGEOVER_REQUIRED]
+        code:
+          type: string
+          enum: [allergen_clear, allergen_undeclared, allergen_dedication_violated, allergen_changeover_required]
+          description: "Motivo estável; é o mesmo código que aparece em `blockers` na recusa do envase."
+        detail: {type: string}
+        allergens:
+          type: array
+          description: "Os alergênicos em questão — sem eles o operador não sabe qual POP resolve."
+          items: {type: string}
+        gaps:
+          type: array
+          items: {$ref: '#/components/schemas/AllergenGap'}
+    AllergenMatrix:
+      type: object
+      properties:
+        allergens:
+          type: array
+          items: {$ref: '#/components/schemas/Allergen'}
+        ingredients:
+          type: array
+          items:
+            type: object
+            properties:
+              ingredientId: {type: string, format: uuid}
+              code: {type: string}
+              name: {type: string}
+              declared:
+                type: boolean
+                description: "Falso é lacuna, não isenção."
+              allergens: {type: array, items: {type: string}}
+        dedications:
+          type: array
+          description: "Só os equipamentos dedicados; os ausentes são compartilhados."
+          items:
+            type: object
+            properties:
+              equipmentId: {type: string, format: uuid}
+              allergens: {type: array, items: {type: string}}
+        procedures:
+          type: array
+          items:
+            type: object
+            properties:
+              procedureCode: {type: string}
+              allergens: {type: array, items: {type: string}}
     GasConnectionProblem:
       type: object
       description: "Problem Details da recusa de conexão; `blockers` acompanha gas_connection_blocked."

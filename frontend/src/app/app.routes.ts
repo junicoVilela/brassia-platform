@@ -186,6 +186,13 @@ export const routes: Routes = [
           import('./features/traceability/traceability.routes').then(m => m.TRACEABILITY_ROUTES),
       },
       {
+        path: 'traceability/quarantines',
+        canActivate: [permissionGuard],
+        data: { permission: 'traceability.quarantine.read' },
+        loadChildren: () =>
+          import('./features/traceability/traceability.routes').then(m => m.QUARANTINE_ROUTES),
+      },
+      {
         path: 'settings/parameters',
         canActivate: [permissionGuard],
         // Ler os parâmetros basta ler qualquer um dos módulos que eles regem.

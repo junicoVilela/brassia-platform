@@ -1,6 +1,8 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { GenealogyStore } from '../../data-access/genealogy.store';
+import { QuarantinesApi } from '../../data-access/quarantines.api';
 import {
   Direction,
   LineageEdge,
@@ -9,6 +11,8 @@ import {
   NodeType,
 } from '../../domain/genealogy.model';
 import { DatePipe } from '@angular/common';
+import { AuthService } from '../../../../core/auth/auth.service';
+import { ToastService } from '../../../../core/notifications/toast.service';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
 import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator.component';
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
@@ -25,7 +29,13 @@ import { PageHeaderComponent } from '../../../../shared/ui/page-header.component
 @Component({
   selector: 'app-genealogy-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, PageHeaderComponent, EmptyStateComponent, LoadingIndicatorComponent],
+  imports: [
+    DatePipe,
+    ReactiveFormsModule,
+    PageHeaderComponent,
+    EmptyStateComponent,
+    LoadingIndicatorComponent,
+  ],
   providers: [GenealogyStore],
   templateUrl: './genealogy-page.component.html',
 })
@@ -33,6 +43,21 @@ export class GenealogyPageComponent implements OnInit {
   protected readonly store = inject(GenealogyStore);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly quarantines = inject(QuarantinesApi);
+  private readonly toast = inject(ToastService);
+  private readonly auth = inject(AuthService);
+  private readonly fb = inject(FormBuilder);
+
+  /**
+   * Quarentenar (FDS-002) mora aqui porque é aqui que se decide: a investigação começa olhando a
+   * cadeia do lote suspeito, não numa tela de cadastro à parte.
+   */
+  protected readonly canQuarantine = this.auth.hasPermission('traceability.quarantine.open');
+  protected readonly quarantining = signal(false);
+  protected readonly quarantineError = signal<string | null>(null);
+  protected readonly quarantineForm = this.fb.nonNullable.group({
+    reason: ['', [Validators.required, Validators.maxLength(500)]],
+  });
 
   protected readonly nodeLabels = NODE_LABELS;
   protected readonly nodeIcons = NODE_ICONS;
@@ -87,5 +112,40 @@ export class GenealogyPageComponent implements OnInit {
 
   protected goToBatches(): void {
     this.router.navigate(['/production/batches']);
+  }
+
+  protected startQuarantine(): void {
+    this.quarantining.set(true);
+    this.quarantineError.set(null);
+    this.quarantineForm.reset({ reason: '' });
+  }
+
+  protected cancelQuarantine(): void {
+    this.quarantining.set(false);
+  }
+
+  /** Quarentena o nó raiz — o que está na tela é o que se contém. */
+  protected confirmQuarantine(): void {
+    const query = this.store.query();
+    if (!query || this.quarantineForm.invalid) {
+      this.quarantineForm.markAllAsTouched();
+      return;
+    }
+    this.quarantines
+      .open(query.nodeType, query.nodeId, this.quarantineForm.getRawValue().reason)
+      .subscribe({
+        next: () => {
+          this.quarantining.set(false);
+          this.toast.success('Quarentena aberta.');
+          // Levar para a lista é o passo seguinte natural: é lá que se vê o que ficou parado.
+          this.router.navigate(['/traceability/quarantines']);
+        },
+        error: (e: { code?: string; detail?: string }) =>
+          this.quarantineError.set(
+            e.code === 'already_quarantined'
+              ? 'Este item já está em quarentena. Abra a que existe em vez de criar outra.'
+              : (e.detail ?? 'Não foi possível abrir a quarentena.'),
+          ),
+      });
   }
 }

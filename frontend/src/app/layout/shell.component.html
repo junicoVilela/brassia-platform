@@ -121,6 +121,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('traceability.quarantine.read')) {
+            <li class="menu-item">
+              <a routerLink="/traceability/quarantines" routerLinkActive="active" class="menu-link">
+                <i class="ri-shield-cross-line menu-icon"></i>
+                <span class="title">Quarentenas</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('foodsafety.allergen.read')) {
             <li class="menu-item">
               <a routerLink="/food-safety/allergens" routerLinkActive="active" class="menu-link">

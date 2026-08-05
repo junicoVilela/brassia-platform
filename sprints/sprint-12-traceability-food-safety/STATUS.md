@@ -8,7 +8,7 @@ Estado: EM ANDAMENTO
 |---|---|---|---|---|
 | TRC-001 | Concluída | IA | V80 + `TraceabilityIT` (11 testes); PRs #142, #143, #144 | Novo módulo `traceability`; porta `LineageSource`. TRC-001-B fechada em #144 |
 | FDS-001 | Concluída | IA | V82 + `FoodSafetyIT` (9 testes) + 17 de domínio; PR #145 (backend) e a tela | Novo módulo `foodsafety`; fecha `PKG-004-A` |
-| FDS-002 | Backend concluído | IA | V83 + `QuarantineIT` (11 testes) + 11 de domínio | Bloqueio derivado do grafo; alçadas separadas. Tela em PR separado |
+| FDS-002 | Concluída | IA | V83 + `QuarantineIT` (11 testes) + 11 de domínio; PR #147 (backend) e a tela | Bloqueio derivado do grafo; alçadas separadas |
 | FDS-003 | A fazer | — | — | — |
 | FDS-004 | A fazer | — | — | — |
 
@@ -207,6 +207,12 @@ por extenso no próprio interceptor.
   padrão da genealogia. O corte é declarado (`truncated`) na consulta de detalhe, mas o bloqueio em
   si não avisa quando o nó ficou fora do alcance por profundidade. *Critério de remoção:* medir a
   profundidade real das cadeias em produção e, se seis for pouco, tornar o teto parâmetro (PRM-001).
+
+- **Quarentenar mora na genealogia, não numa tela de cadastro.** A investigação começa olhando a
+  cadeia do lote suspeito; obrigar a sair dali, abrir outra tela e recolar o id seria trocar o
+  contexto no pior momento. A lista de quarentenas responde à outra pergunta — o que está parado.
+- **O alcance é buscado do servidor a cada abertura, também no frontend.** Guardá-lo no store
+  recriaria no navegador a mesma cópia envelhecida que o backend recusa a manter.
 
 ### Antes de começar
 

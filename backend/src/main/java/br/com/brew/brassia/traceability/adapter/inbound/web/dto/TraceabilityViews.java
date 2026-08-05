@@ -3,8 +3,11 @@ package br.com.brew.brassia.traceability.adapter.inbound.web.dto;
 import br.com.brew.brassia.traceability.LineageSource;
 import br.com.brew.brassia.traceability.LineageSource.Node;
 import br.com.brew.brassia.traceability.application.port.inbound.QuarantineQueries;
+import br.com.brew.brassia.traceability.application.port.inbound.RecallQueries;
 import br.com.brew.brassia.traceability.domain.Genealogy;
 import br.com.brew.brassia.traceability.domain.Quarantine;
+import br.com.brew.brassia.traceability.domain.Recall;
+import br.com.brew.brassia.traceability.domain.RecallNotification;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -102,4 +105,78 @@ public final class TraceabilityViews {
             @NotBlank @Size(max = 500) String reason) {}
 
     public record ReleaseQuarantineRequest(@NotBlank @Size(max = 500) String justification) {}
+
+    // --- recall (FDS-003) ---
+
+    public record OpenRecallRequest(@NotNull LineageSource.NodeType nodeType, @NotNull UUID nodeId,
+            @NotBlank @Size(max = 1000) String reason) {}
+
+    public record NotifyRequest(@NotBlank @Size(max = 40) String channel,
+            @Size(max = 500) String note) {}
+
+    public record CloseRecallRequest(@NotBlank @Size(max = 1000) String summary) {}
+
+    public record RecallView(UUID id, String code, NodeView origin, String reason, String status,
+            Instant openedAt, Instant closedAt, String closingSummary) {
+
+        public static RecallView of(Recall recall) {
+            return new RecallView(recall.id(), recall.code(),
+                    new NodeView(recall.nodeType().name(), recall.nodeId(), recall.originLabel()),
+                    recall.reason(), recall.status().name(), recall.openedAt(), recall.closedAt(),
+                    recall.closingSummary());
+        }
+
+        public static List<RecallView> of(List<Recall> recalls) {
+            return recalls.stream().map(RecallView::of).toList();
+        }
+    }
+
+    /** Um destino do dossiê e o que se fez a respeito — a parte guardada do recall. */
+    public record NotificationView(UUID id, UUID shipmentId, String finishedLotCode, String destination,
+            String contact, int units, String status, String channel, String note, Instant notifiedAt) {
+
+        public static NotificationView of(RecallNotification notification) {
+            return new NotificationView(notification.id(), notification.shipmentId(),
+                    notification.finishedLotCode(), notification.destination(), notification.contact(),
+                    notification.units(), notification.status().name(), notification.channel(),
+                    notification.note(), notification.notifiedAt());
+        }
+    }
+
+    /**
+     * @param newDestinations expedições que hoje estão no escopo e não estavam na abertura — o lote
+     *                        saiu depois; aparecem separadas em vez de entrar caladas entre os avisados
+     * @param gaps            lotes do escopo sem expedição registrada: não se sabe onde estão
+     * @param coverage        percentual de destinos conhecidos já comunicados
+     */
+    public record RecallDossierView(RecallView recall, List<NotificationView> notifications,
+            int pending, int coverage, boolean truncated, List<AffectedView> scope,
+            List<NewDestinationView> newDestinations, List<GapView> gaps) {
+
+        public static RecallDossierView of(RecallQueries.Dossier dossier) {
+            var notifications = dossier.notifications().stream().map(NotificationView::of).toList();
+            var pending = (int) dossier.notifications().stream().filter(RecallNotification::pending).count();
+            var total = notifications.size();
+            var coverage = total == 0 ? 100 : (total - pending) * 100 / total;
+            return new RecallDossierView(RecallView.of(dossier.recall()), notifications, pending, coverage,
+                    dossier.spread().truncated(),
+                    dossier.spread().affected().stream()
+                            .map(affected -> new AffectedView(
+                                    new NodeView(affected.node().type().name(), affected.node().id(),
+                                            affected.node().label()),
+                                    affected.suspected()))
+                            .toList(),
+                    dossier.newDestinations().stream()
+                            .map(destination -> new NewDestinationView(destination.shipmentId(),
+                                    destination.destination(), destination.contact(), destination.units()))
+                            .toList(),
+                    dossier.gaps().stream()
+                            .map(gap -> new GapView(
+                                    new NodeView(gap.from().type().name(), gap.from().id(), gap.from().label()),
+                                    gap.expectedLink(), gap.reason()))
+                            .toList());
+        }
+    }
+
+    public record NewDestinationView(UUID shipmentId, String destination, String contact, int units) {}
 }

@@ -11,6 +11,8 @@ public interface FinishedLotRepository {
 
     List<FinishedLot> findAll(UUID breweryId);
 
+    Optional<FinishedLot> findById(UUID breweryId, UUID id);
+
     List<FinishedLot> findByBatch(UUID breweryId, UUID batchId);
 
     Optional<FinishedLot> findByRun(UUID breweryId, UUID runId);

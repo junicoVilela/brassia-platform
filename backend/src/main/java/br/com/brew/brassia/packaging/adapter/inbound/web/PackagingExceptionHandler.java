@@ -5,6 +5,7 @@ import br.com.brew.brassia.packaging.domain.LabelNotPrintableException;
 import br.com.brew.brassia.packaging.domain.OverCarbonationException;
 import br.com.brew.brassia.packaging.domain.PackagingBlockedException;
 import br.com.brew.brassia.packaging.domain.PackagingStockShortfallException;
+import br.com.brew.brassia.packaging.domain.ShipmentExceedsLotException;
 import br.com.brew.brassia.packaging.domain.VolumeBalanceException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import java.util.List;
@@ -32,6 +33,23 @@ class PackagingExceptionHandler {
                 .map(b -> Map.of("code", b.code(), "message", b.message()))
                 .toList();
         problem.setProperty("blockers", blockers);
+        return problem;
+    }
+
+    /**
+     * Expedição acima do que o lote tem (TRC-001-D). Os três números acompanham a recusa: num
+     * recall, a soma das expedições é o que diz quanto está na rua, e um destino com unidades
+     * inventadas faria procurar caixas que nunca saíram.
+     */
+    @ExceptionHandler(ShipmentExceedsLotException.class)
+    ProblemDetail handleShipmentExceedsLot(ShipmentExceedsLotException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "shipment_exceeds_lot",
+                "A expedição sairia com mais unidades do que o lote tem.");
+        problem.setProperty("shipment", Map.of(
+                "lotUnits", ex.lotUnits(),
+                "alreadyShipped", ex.alreadyShipped(),
+                "requested", ex.requested(),
+                "available", ex.available()));
         return problem;
     }
 

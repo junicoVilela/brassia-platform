@@ -3594,7 +3594,7 @@ paths:
         resultado que parece completo sem ser é pior do que um resultado declaradamente parcial.
       parameters:
         - {name: nodeType, in: query, required: true,
-           schema: {type: string, enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN, FINISHED_LOT]}}
+           schema: {type: string, enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN, FINISHED_LOT, SHIPMENT]}}
         - {name: nodeId, in: query, required: true, schema: {type: string, format: uuid}}
         - {name: direction, in: query, required: false,
            description: "BACKWARD responde de onde veio; FORWARD, para onde foi.",
@@ -3828,7 +3828,7 @@ paths:
               properties:
                 nodeType:
                   type: string
-                  enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN, FINISHED_LOT]
+                  enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN, FINISHED_LOT, SHIPMENT]
                 nodeId: {type: string, format: uuid}
                 reason: {type: string, maxLength: 500, description: "Contenção sem motivo não é investigação."}
       responses:
@@ -3902,6 +3902,194 @@ paths:
               schema: {type: object}
         '409':
           description: "`conflict` — a quarentena já foi liberada"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /packaging/shipments:
+    get:
+      tags: [Envase]
+      summary: Expedições registradas (TRC-001-D)
+      parameters:
+        - {name: finishedLotId, in: query, required: false, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Expedições
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Shipment'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Envase]
+      summary: Registrar saída de um lote de produto acabado
+      description: >-
+        Fecha a metade de fora da fábrica, aberta desde a TRC-001: sem destino, um recall identifica
+        a origem e não alcança ninguém.
+
+
+        **Fatia mínima, de propósito.** Não há pedido, nota nem cliente cadastrado — distribuição
+        comercial é assunto das sprints 19 e 20, e antecipá-la aqui criaria um cadastro de clientes
+        pela porta dos fundos. O destino é texto de quem expediu.
+
+
+        Duas recusas, e as duas existem por causa do recall: não se expede mais do que o lote tem
+        (409 `shipment_exceeds_lot`), e lote em quarentena não sai (409 `packaging_blocked`) — a
+        metade da contenção que faltava, porque até aqui a quarentena impedia envasar e deixava
+        passar o embarque.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [finishedLotId, destination, units, shippedOn]
+              properties:
+                finishedLotId: {type: string, format: uuid}
+                destination: {type: string, maxLength: 200}
+                contact: {type: string, maxLength: 200, description: "Opcional; ausente vira lacuna no dossiê."}
+                units: {type: integer, minimum: 1}
+                shippedOn: {type: string, format: date}
+                note: {type: string, maxLength: 500}
+      responses:
+        '201':
+          description: Expedição registrada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Shipment'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "`shipment_exceeds_lot` ou `packaging_blocked` (lote em quarentena)"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /traceability/recalls:
+    get:
+      tags: [Rastreabilidade]
+      summary: Recalls da cervejaria (FDS-003)
+      responses:
+        '200':
+          description: Recalls
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Recall'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Rastreabilidade]
+      summary: Abrir recall
+      description: >-
+        Deriva o escopo do grafo (TRC-001) e materializa **uma linha por destino alcançado**, tudo no
+        mesmo commit: um recall sem a lista de quem avisar é um recall que ninguém executa.
+
+
+        A divisão entre o que é derivado e o que é guardado é a decisão da história. O **escopo** é
+        recalculado a cada leitura — "escopo reproduzível" é isto: a mesma origem, a mesma
+        profundidade e o mesmo grafo respondem a mesma coisa. A **comunicação** é guardada, porque
+        avisar um cliente é fato sobre o que a cervejaria fez, e derivá-lo apagaria a prova.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nodeType, nodeId, reason]
+              properties:
+                nodeType:
+                  type: string
+                  enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN, FINISHED_LOT, SHIPMENT]
+                nodeId: {type: string, format: uuid}
+                reason: {type: string, maxLength: 1000}
+      responses:
+        '201':
+          description: Recall aberto
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Recall'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_node` — o nó não existe nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /traceability/recalls/{id}:
+    get:
+      tags: [Rastreabilidade]
+      summary: Dossiê do recall (FDS-003)
+      description: >-
+        As duas metades juntas e distinguíveis: `notifications` é o que foi comunicado (guardado),
+        `scope` é o alcance de hoje (derivado). `newDestinations` são expedições que hoje estão no
+        escopo e não estavam na abertura — o lote saiu depois, e elas aparecem separadas em vez de
+        entrar caladas entre os avisados. `gaps` são lotes do escopo sem expedição registrada: caixas
+        que ninguém sabe onde estão, e sem as quais a cobertura mediria só o que se conhece.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: depth, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 10, default: 6}}
+      responses:
+        '200':
+          description: Dossiê
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RecallDossier'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_recall`"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /traceability/recalls/{id}/notifications/{notificationId}:
+    post:
+      tags: [Rastreabilidade]
+      summary: Registrar a comunicação de um destino
+      description: >-
+        O canal é obrigatório: "avisamos" sem dizer como não é prova de nada. A mesma comunicação não
+        se registra duas vezes, senão o dossiê passa a contar avisos que não houve.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: notificationId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel]
+              properties:
+                channel: {type: string, maxLength: 40, description: "telefone, e-mail, visita…"}
+                note: {type: string, maxLength: 500}
+      responses:
+        '200': {description: Comunicação registrada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "`conflict` — recall encerrado, ou destino já comunicado"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /traceability/recalls/{id}/close:
+    post:
+      tags: [Rastreabilidade]
+      summary: Encerrar o recall
+      description: >-
+        Exige que **todos os destinos tenham comunicação registrada** (409
+        `recall_has_pending_notifications`). Encerrar com cliente pendente declararia terminada uma
+        operação que deixou cerveja na prateleira de quem não foi avisado — e o dossiê diria isso
+        para sempre. Quem precisa encerrar sem ter falado registra a comunicação com o canal e a
+        observação do que aconteceu; o que não se pode é omitir.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [summary]
+              properties:
+                summary: {type: string, maxLength: 1000}
+      responses:
+        '200': {description: Recall encerrado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "`recall_has_pending_notifications` — `pending` acompanha"
           content:
             application/problem+json:
               schema: {type: object}
@@ -5982,12 +6170,83 @@ components:
                   O caminho até este nó passa por intenção, não por fato registrado. Bloqueia igual —
                   num recall, o custo de bloquear a mais é estoque parado, e o de bloquear a menos é
                   produto na rua —, mas quem investiga precisa saber onde apertar primeiro.
+    Shipment:
+      type: object
+      description: "Saída de um lote de produto acabado (TRC-001-D)."
+      properties:
+        id: {type: string, format: uuid}
+        finishedLotId: {type: string, format: uuid}
+        destination: {type: string}
+        contact: {type: string, nullable: true}
+        units: {type: integer}
+        shippedOn: {type: string, format: date}
+        note: {type: string, nullable: true}
+    Recall:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string, description: "REC-<ano>-<sequência>, por cervejaria."}
+        origin: {$ref: '#/components/schemas/LineageNode'}
+        reason: {type: string}
+        status: {type: string, enum: [OPEN, CLOSED]}
+        openedAt: {type: string, format: date-time}
+        closedAt: {type: string, format: date-time, nullable: true}
+        closingSummary: {type: string, nullable: true}
+    RecallDossier:
+      type: object
+      properties:
+        recall: {$ref: '#/components/schemas/Recall'}
+        notifications:
+          type: array
+          description: "Destinos alcançados na abertura — pendentes primeiro, porque a lista é para trabalhar."
+          items: {$ref: '#/components/schemas/RecallNotification'}
+        pending: {type: integer}
+        coverage:
+          type: integer
+          description: >-
+            Percentual dos destinos conhecidos já comunicados. Mede o que se conhece: `gaps` diz o
+            que falta conhecer, e ler um sem o outro superestima a cobertura.
+        truncated: {type: boolean}
+        scope:
+          type: array
+          items:
+            type: object
+            properties:
+              node: {$ref: '#/components/schemas/LineageNode'}
+              suspected: {type: boolean}
+        newDestinations:
+          type: array
+          description: "Expedições que entraram no escopo depois da abertura: o lote saiu depois."
+          items:
+            type: object
+            properties:
+              shipmentId: {type: string, format: uuid}
+              destination: {type: string}
+              contact: {type: string, nullable: true}
+              units: {type: integer}
+        gaps:
+          type: array
+          description: "Lotes do escopo sem expedição registrada — não se sabe onde estão."
+          items: {$ref: '#/components/schemas/LineageGap'}
+    RecallNotification:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        shipmentId: {type: string, format: uuid}
+        finishedLotCode: {type: string}
+        destination: {type: string}
+        contact: {type: string, nullable: true}
+        units: {type: integer}
+        status: {type: string, enum: [PENDING, NOTIFIED]}
+        channel: {type: string, nullable: true}
+        note: {type: string, nullable: true}
+        notifiedAt: {type: string, format: date-time, nullable: true}
     LineageNode:
       type: object
       properties:
         type:
           type: string
-          enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN, FINISHED_LOT]
+          enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN, FINISHED_LOT, SHIPMENT]
         id: {type: string, format: uuid}
         label: {type: string, nullable: true}
     LineageEdge:

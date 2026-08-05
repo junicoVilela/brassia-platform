@@ -3,8 +3,10 @@ package br.com.brew.brassia.traceability.adapter.inbound.web;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import br.com.brew.brassia.traceability.domain.AlreadyQuarantinedException;
 import br.com.brew.brassia.traceability.domain.DepthExceededException;
+import br.com.brew.brassia.traceability.domain.PendingNotificationsException;
 import br.com.brew.brassia.traceability.domain.UnknownNodeException;
 import br.com.brew.brassia.traceability.domain.UnknownQuarantineException;
+import br.com.brew.brassia.traceability.domain.UnknownRecallException;
 import java.util.Map;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -50,6 +52,26 @@ class TraceabilityExceptionHandler {
         var problem = ProblemDetails.of(HttpStatus.NOT_FOUND, "unknown_quarantine",
                 "Esta quarentena não existe nesta cervejaria.");
         problem.setProperty("quarantineId", ex.id().toString());
+        return problem;
+    }
+
+    @ExceptionHandler(UnknownRecallException.class)
+    ProblemDetail handleUnknownRecall(UnknownRecallException ex) {
+        var problem = ProblemDetails.of(HttpStatus.NOT_FOUND, "unknown_recall",
+                "Este recall não existe nesta cervejaria.");
+        problem.setProperty("recallId", ex.id().toString());
+        return problem;
+    }
+
+    /**
+     * Encerrar com destino sem comunicação registrada é recusado: o dossiê passaria a declarar
+     * terminada uma operação que deixou cerveja na prateleira de quem não foi avisado.
+     */
+    @ExceptionHandler(PendingNotificationsException.class)
+    ProblemDetail handlePendingNotifications(PendingNotificationsException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "recall_has_pending_notifications",
+                "Há destinos sem comunicação registrada; o recall não pode ser encerrado.");
+        problem.setProperty("pending", ex.pending());
         return problem;
     }
 

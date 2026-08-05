@@ -1,15 +1,21 @@
 package br.com.brew.brassia.traceability.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.traceability.DestinationSource;
 import br.com.brew.brassia.traceability.LineageSource;
 import br.com.brew.brassia.traceability.QuarantineCheck;
 import br.com.brew.brassia.traceability.application.port.inbound.QuarantineCommands;
 import br.com.brew.brassia.traceability.application.port.inbound.QuarantineQueries;
+import br.com.brew.brassia.traceability.application.port.inbound.RecallCommands;
+import br.com.brew.brassia.traceability.application.port.inbound.RecallQueries;
 import br.com.brew.brassia.traceability.application.port.inbound.TraceabilityQueries;
 import br.com.brew.brassia.traceability.application.port.outbound.QuarantineRepository;
+import br.com.brew.brassia.traceability.application.port.outbound.RecallRepository;
 import br.com.brew.brassia.traceability.application.service.GenealogyQueryHandler;
 import br.com.brew.brassia.traceability.application.service.QuarantineHandlers;
 import br.com.brew.brassia.traceability.application.service.QuarantineQueryHandler;
+import br.com.brew.brassia.traceability.application.service.RecallHandlers;
+import br.com.brew.brassia.traceability.application.service.RecallQueryHandler;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -63,5 +69,45 @@ class TraceabilityConfiguration {
         var transaction = new TransactionTemplate(transactionManager);
         return (actorId, breweryId, quarantineId, justification) -> transaction.executeWithoutResult(
                 status -> handler.handle(actorId, breweryId, quarantineId, justification));
+    }
+
+    /** Consulta pura: o escopo é derivado, e o que está guardado é só a comunicação. */
+    @Bean
+    RecallQueries recallQueries(RecallRepository recalls, List<LineageSource> sources,
+            List<DestinationSource> destinations) {
+        return new RecallQueryHandler(recalls, sources, destinations);
+    }
+
+    /**
+     * Abrir o recall grava o cabeçalho e uma linha por destino alcançado no mesmo commit: um recall
+     * sem a lista de quem avisar seria um recall que ninguém consegue executar.
+     */
+    @Bean
+    RecallCommands.Open openRecallUseCase(RecallRepository recalls, List<LineageSource> sources,
+            List<DestinationSource> destinations, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new RecallHandlers.Open(recalls, sources, destinations, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return (actorId, breweryId, type, nodeId, reason) -> Objects.requireNonNull(
+                transaction.execute(status -> handler.handle(actorId, breweryId, type, nodeId, reason)));
+    }
+
+    @Bean
+    RecallCommands.RecordNotification recordRecallNotificationUseCase(RecallRepository recalls,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new RecallHandlers.RecordNotification(recalls, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return (actorId, breweryId, recallId, notificationId, channel, note) ->
+                transaction.executeWithoutResult(
+                        status -> handler.handle(actorId, breweryId, recallId, notificationId, channel, note));
+    }
+
+    @Bean
+    RecallCommands.Close closeRecallUseCase(RecallRepository recalls, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new RecallHandlers.Close(recalls, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return (actorId, breweryId, recallId, summary) -> transaction.executeWithoutResult(
+                status -> handler.handle(actorId, breweryId, recallId, summary));
     }
 }

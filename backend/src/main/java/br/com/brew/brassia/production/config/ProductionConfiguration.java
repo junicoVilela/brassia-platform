@@ -157,7 +157,8 @@ class ProductionConfiguration {
     @Bean
     BatchLookup batchLookup(BatchRepository batches, TransferRepository transfers) {
         return (breweryId, batchId) -> batches.findById(breweryId, batchId)
-                .map(batch -> new BatchLookup.Snapshot(batch.id().value(), batch.code(), batch.volumeLiters(),
+                .map(batch -> new BatchLookup.Snapshot(batch.id().value(), batch.orderId(), batch.code(),
+                        batch.volumeLiters(),
                         transfers.findByBatch(breweryId, batchId)
                                 .map(transfer -> transfer.volumeLiters())
                                 .orElse(batch.volumeLiters()),

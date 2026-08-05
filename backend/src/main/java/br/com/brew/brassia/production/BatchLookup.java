@@ -19,12 +19,15 @@ public interface BatchLookup {
     /**
      * Identificação, volume e estado do lote; {@code status} é o nome do estado de produção.
      *
+     * @param orderId                 a ordem que gerou o lote — quem custeia o dia de brassa
+     *                                (CST-001) precisa dela para achar o consumo no ledger
      * @param volumeLiters            volume planejado do lote, vindo da ordem
      * @param packageableVolumeLiters cerveja que existe de fato para envasar: o volume transferido
      *                                ao fermentador quando já houve transferência, senão o planejado.
      *                                São diferentes porque a transferência tem perdas, e envasar
      *                                contra o planejado inventaria cerveja que não está no tanque.
      */
-    record Snapshot(UUID batchId, String code, BigDecimal volumeLiters, BigDecimal packageableVolumeLiters,
-            String status, UUID recipeId, int recipeVersion, String recipeName) {}
+    record Snapshot(UUID batchId, UUID orderId, String code, BigDecimal volumeLiters,
+            BigDecimal packageableVolumeLiters, String status, UUID recipeId, int recipeVersion,
+            String recipeName) {}
 }

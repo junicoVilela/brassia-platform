@@ -4283,6 +4283,85 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /costing/batch-costs:
+    get:
+      tags: [Custos]
+      summary: Custos de lote já fechados (CST-001)
+      responses:
+        '200':
+          description: Custos fechados
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/BatchCost'}}
+        '403': {$ref: '#/components/responses/Problem'}
+  /costing/batches/{batchId}:
+    get:
+      tags: [Custos]
+      summary: Custo realizado de um lote (CST-001)
+      description: >-
+        Responde o custo **fechado** quando existe e o custo **de agora** quando não existe, e diz
+        em qual dos dois casos está — a diferença muda como o número deve ser lido. Enquanto ninguém
+        fechou, ele ainda muda porque a produção ainda muda: um envase a mais altera o custo por
+        litro.
+
+
+        Cada parcela traz a origem por extenso (`source`), que é o critério da história: um total
+        sem origem é um número que ninguém explica seis meses depois. O custo do insumo sai do
+        **preço do lote consumido**, não de média — o que só é possível desde que a brassagem passou
+        a confirmar o que usou (TRC-001-C).
+
+
+        `incomplete` e `gaps` andam junto com o total: hoje mão de obra e utilidade não têm fonte, e
+        somá-las como zero seria mentir por omissão.
+      parameters:
+        - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Custo
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BatchCost'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_batch` — o lote não existe nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /costing/batches/{batchId}/close:
+    post:
+      tags: [Custos]
+      summary: Fechar o custo do lote
+      description: >-
+        Congela o número com o que está somado agora, incluindo as lacunas. É um ato com autor:
+        alguém olha o total, aceita o que ficou de fora e assina. Terminar de produzir e terminar de
+        apurar são coisas diferentes, e por isso o custo não fecha sozinho quando o lote termina.
+
+
+        Fechar duas vezes é recusado (409): custo fechado é evidência, e evidência que se sobrescreve
+        não é evidência. Refazer é assunto de estorno, que ainda não existe.
+      parameters:
+        - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: {type: string, maxLength: 500}
+      responses:
+        '200':
+          description: Custo fechado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BatchCost'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "`conflict` — o custo deste lote já foi fechado"
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
     CleaningPolicy:
@@ -6500,6 +6579,53 @@ components:
                 description: "Como o operador reconhece o saco no chão."
               reserved: {type: number}
               unit: {type: string}
+    BatchCost:
+      type: object
+      description: "Custo realizado do lote (CST-001): derivado enquanto aberto, congelado ao fechar."
+      properties:
+        batchId: {type: string, format: uuid}
+        batchCode: {type: string}
+        closed:
+          type: boolean
+          description: "Falso enquanto o custo é derivado: ele ainda muda se a produção mudar."
+        incomplete:
+          type: boolean
+          description: "Verdadeiro quando alguma parcela conhecida ficou de fora; leia com `gaps`."
+        volumeLiters:
+          type: number
+          description: >-
+            Divisor do custo por litro: o volume transferido ao fermentador, não o planejado.
+            Dividir pelo planejado embelezaria justamente o lote que rendeu menos.
+        total: {type: number}
+        costPerLiter: {type: number}
+        totalByCategory:
+          type: object
+          additionalProperties: {type: number}
+          description: "Quanto foi insumo, quanto foi embalagem."
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              category: {type: string, enum: [INGREDIENT, PACKAGING, UTILITY, LABOR]}
+              description: {type: string}
+              source:
+                type: string
+                description: "De onde o número veio, em texto legível — a origem é rastreável por parcela."
+              quantity: {type: number}
+              unit: {type: string}
+              unitCost: {type: number}
+              total: {type: number}
+        gaps:
+          type: array
+          description: "Parcelas que ficaram de fora, com o motivo. Somá-las como zero mentiria."
+          items:
+            type: object
+            properties:
+              category: {type: string, enum: [INGREDIENT, PACKAGING, UTILITY, LABOR]}
+              reason: {type: string}
+        closedAt: {type: string, format: date-time, nullable: true}
+        note: {type: string, nullable: true}
     LineageNode:
       type: object
       properties:

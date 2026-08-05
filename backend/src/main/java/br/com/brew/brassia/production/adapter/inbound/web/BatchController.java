@@ -1,10 +1,12 @@
 package br.com.brew.brassia.production.adapter.inbound.web;
 
 import br.com.brew.brassia.production.adapter.inbound.web.dto.BatchView;
+import br.com.brew.brassia.production.adapter.inbound.web.dto.BrewConsumptionDtos;
 import br.com.brew.brassia.production.adapter.inbound.web.dto.MeasurementView;
 import br.com.brew.brassia.production.adapter.inbound.web.dto.RecordMeasurementRequest;
 import br.com.brew.brassia.production.adapter.inbound.web.dto.TransferRequest;
 import br.com.brew.brassia.production.adapter.inbound.web.dto.TransferView;
+import br.com.brew.brassia.production.application.port.inbound.BrewConsumptionUseCases;
 import br.com.brew.brassia.production.application.port.inbound.CompleteBatchStepUseCase;
 import br.com.brew.brassia.production.application.port.inbound.GetBatchTransferUseCase;
 import br.com.brew.brassia.production.application.port.inbound.GetBatchUseCase;
@@ -39,11 +41,14 @@ final class BatchController {
     private final ListMeasurementsUseCase listMeasurements;
     private final TransferBatchUseCase transferBatch;
     private final GetBatchTransferUseCase getTransfer;
+    private final BrewConsumptionUseCases.Proposal consumptionProposal;
+    private final BrewConsumptionUseCases.Register registerConsumption;
 
     BatchController(ListBatchesUseCase listBatches, GetBatchUseCase getBatch,
             CompleteBatchStepUseCase completeStep, RecordMeasurementUseCase recordMeasurement,
             ListMeasurementsUseCase listMeasurements, TransferBatchUseCase transferBatch,
-            GetBatchTransferUseCase getTransfer) {
+            GetBatchTransferUseCase getTransfer, BrewConsumptionUseCases.Proposal consumptionProposal,
+            BrewConsumptionUseCases.Register registerConsumption) {
         this.listBatches = listBatches;
         this.getBatch = getBatch;
         this.completeStep = completeStep;
@@ -51,6 +56,8 @@ final class BatchController {
         this.listMeasurements = listMeasurements;
         this.transferBatch = transferBatch;
         this.getTransfer = getTransfer;
+        this.consumptionProposal = consumptionProposal;
+        this.registerConsumption = registerConsumption;
     }
 
     @GetMapping
@@ -105,6 +112,34 @@ final class BatchController {
                 principal.userId(), principal.requireBrewery(), id, request.destinationEquipmentId(),
                 request.volumeLiters(), request.ogSg(), request.lossesLiters()));
         return TransferView.from(transfer);
+    }
+
+    /**
+     * O que a OP separou, para o operador confirmar ou corrigir antes de virar consumo (TRC-001-C).
+     */
+    @GetMapping("/{id}/consumption/proposal")
+    BrewConsumptionDtos.ProposalView consumptionProposal(@PathVariable UUID id,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("production.batch.read");
+        return BrewConsumptionDtos.ProposalView.from(
+                consumptionProposal.handle(principal.requireBrewery(), id));
+    }
+
+    /**
+     * Registra o consumo do dia de brassa, lote a lote. É o que transforma a reserva — intenção —
+     * no fato de que aquele malte entrou nesta cerveja.
+     */
+    @PostMapping("/{id}/consumption")
+    void registerConsumption(@PathVariable UUID id,
+            @Valid @RequestBody BrewConsumptionDtos.RegisterRequest request,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("production.batch.manage");
+        registerConsumption.handle(new BrewConsumptionUseCases.Register.Command(
+                principal.requireBrewery(), principal.userId(), id,
+                request.lines().stream()
+                        .map(line -> new BrewConsumptionUseCases.Register.Line(line.lotId(),
+                                line.quantity(), line.unit()))
+                        .toList()));
     }
 
     @GetMapping("/{id}/transfer")

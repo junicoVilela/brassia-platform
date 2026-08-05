@@ -31,4 +31,4 @@ envase. Brassagem e fermentação usam equipamento compartilhado e não consulta
 nenhuma das duas registra hoje qual lote ocupou o tanque antes. Uma cervejaria que produza com e sem
 alergênico no mesmo fermentador tem a troca checada só na última etapa da cadeia.
 
-- **Aceite:**
+- **Aceite:** **Valdemir Vilela Junior, 2026-08-05** — aceita com as ressalvas acima.

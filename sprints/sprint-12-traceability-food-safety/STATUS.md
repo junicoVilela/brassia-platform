@@ -1,6 +1,6 @@
 # Status — Sprint 12
 
-Estado: CONCLUÍDA — aguardando aceite
+Estado: CONCLUÍDA E ACEITA
 
 ## Controle das histórias
 
@@ -325,7 +325,10 @@ por extenso no próprio interceptor.
 - **Riscos remanescentes:** os débitos abaixo, nenhum bloqueando o uso das histórias entregues. O
   mais relevante para quem opera é o `FDS-001-B`: a troca de produto só é checada no envase, e
   brassagem e fermentação usam equipamento compartilhado sem consultar a matriz.
-- **Aceite:**
+- **Aceite:** **Valdemir Vilela Junior, 2026-08-05** — aceita com as ressalvas registradas em
+  `ACCEPTANCE.md`. Os sete débitos com identificador seguem abertos: o aceite libera a sprint, não
+  os débitos. A ressalva de operação a acompanhar é o `FDS-001-B` — a troca de produto só é checada
+  no envase.
 
 ## Débitos abertos ao fim da sprint
 

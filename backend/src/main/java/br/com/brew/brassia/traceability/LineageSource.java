@@ -59,7 +59,9 @@ public interface LineageSource {
         /** Execução do envase. */
         PACKAGING_RUN,
         /** Lote de produto acabado — o que um recall recolhe. */
-        FINISHED_LOT
+        FINISHED_LOT,
+        /** Expedição: para onde o lote saiu — a quem um recall se dirige (TRC-001-D). */
+        SHIPMENT
     }
 
     /**

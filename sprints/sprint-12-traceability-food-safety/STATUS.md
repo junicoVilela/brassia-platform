@@ -9,7 +9,7 @@ Estado: EM ANDAMENTO
 | TRC-001 | Concluída | IA | V80 + `TraceabilityIT` (11 testes); PRs #142, #143, #144 | Novo módulo `traceability`; porta `LineageSource`. TRC-001-B fechada em #144 |
 | FDS-001 | Concluída | IA | V82 + `FoodSafetyIT` (9 testes) + 17 de domínio; PR #145 (backend) e a tela | Novo módulo `foodsafety`; fecha `PKG-004-A` |
 | FDS-002 | Concluída | IA | V83 + `QuarantineIT` (11 testes) + 11 de domínio; PR #147 (backend) e a tela | Bloqueio derivado do grafo; alçadas separadas |
-| FDS-003 | A fazer | — | — | — |
+| FDS-003 | Backend concluído | IA | V84 + V85 + `RecallIT` (9 testes) + 9 de domínio | Fecha `TRC-001-D` e `FDS-002-A`. Tela em PR separado |
 | FDS-004 | A fazer | — | — | — |
 
 ## Decisões e bloqueios
@@ -213,6 +213,46 @@ por extenso no próprio interceptor.
   contexto no pior momento. A lista de quarentenas responde à outra pergunta — o que está parado.
 - **O alcance é buscado do servidor a cada abertura, também no frontend.** Guardá-lo no store
   recriaria no navegador a mesma cópia envelhecida que o backend recusa a manter.
+
+### FDS-003 — abrir recall (e a expedição que ela exigiu)
+
+- **A `TRC-001-D` foi fechada dentro desta história, e tinha de ser.** O critério pede "identificar
+  origem, destinos, contatos e ações", e sem expedição o recall identificava a origem e não
+  alcançava ninguém. A fatia é mínima de propósito: não há pedido, nota, preço nem cliente
+  cadastrado — distribuição comercial é assunto das sprints 19 e 20, e antecipá-la criaria um
+  cadastro de clientes pela porta dos fundos que aquelas sprints teriam de desmanchar. O destino é
+  texto de quem expediu; quem digita é quem responde.
+- **O escopo é derivado; a comunicação é guardada.** É a divisão que estrutura a história. O escopo
+  sai do grafo a cada leitura, como o da quarentena — "escopo reproduzível", que o critério pede, é
+  a mesma origem com a mesma profundidade dando a mesma resposta. Já notificar um cliente é *fato
+  sobre o que a cervejaria fez*: derivá-lo apagaria a prova de que ele foi avisado, então cada
+  destino alcançado na abertura vira linha própria, com os dados copiados da expedição. Aqui a cópia
+  é a coisa certa justamente porque o registro é sobre o passado.
+- **Destino descoberto depois não entra calado entre os avisados.** Um lote que sai *depois* da
+  abertura aparece em `newDestinations`, separado. Misturá-lo com os notificados faria a cobertura
+  subir sozinha e o dossiê afirmar comunicação que não houve.
+- **A cobertura mede o que se conhece, e as lacunas dizem o que falta conhecer.** Lote no escopo sem
+  expedição registrada é caixa de cerveja que ninguém sabe onde está; ler a cobertura sem as lacunas
+  superestima o alcance do recall.
+- **Não se encerra com destino pendente.** Encerrar assim declararia terminada uma operação que
+  deixou cerveja na prateleira de quem não foi avisado — e o dossiê diria isso para sempre. Quem
+  precisa encerrar sem ter falado registra a comunicação com o canal e a observação do que
+  aconteceu; o que não se pode é omitir. O canal é obrigatório: "avisamos" sem dizer como não prova
+  nada.
+- **`FDS-002-A` fechada de tabela.** Lote em quarentena não é expedido — era a metade da contenção
+  que faltava, porque a quarentena impedia envasar e deixava passar justamente o embarque.
+- **A porta dos destinos é da rastreabilidade, e o envase a implementa.** A primeira versão fazia o
+  contrário (o recall consultava uma porta publicada do envase) e o `ModularityTest` reprovou:
+  envase já depende de rastreabilidade, pela linhagem e pela quarentena, e a consulta fechava o
+  ciclo. Inverter resolveu, e trouxe o mesmo efeito colateral do `LineageSource`: quando existir
+  saída por outro caminho — venda direta, doação —, o módulo dono implementa `DestinationSource` e o
+  recall passa a alcançar aquele destino sem que uma linha da rastreabilidade mude.
+- **O recall não abre quarentena sozinho.** São decisões diferentes, com alçadas diferentes, e um
+  comando que dispara o outro em silêncio esconderia metade do que aconteceu. A tela oferece as
+  duas; quem decide é quem investiga.
+- **`FDS-003-A` — a expedição não tem correção nem estorno.** Registrar é fato; devolução, cancelamento
+  e transferência entre destinos não existem. *Critério de remoção:* as sprints 19/20 definirem
+  movimentação comercial, com o recall passando a enxergar a saída líquida.
 
 ### Antes de começar
 

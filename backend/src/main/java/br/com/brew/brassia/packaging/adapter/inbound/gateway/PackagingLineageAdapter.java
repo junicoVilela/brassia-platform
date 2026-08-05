@@ -10,11 +10,12 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
 /**
- * A ponta do envase na genealogia (TRC-001): lote → plano → execução.
+ * A ponta do envase na genealogia (TRC-001): lote → plano → execução → produto acabado → expedição.
  *
- * <p>Desde a TRC-001-B a cadeia segue até o lote de produto acabado — o objeto que um recall
- * recolhe. O que ainda falta é o passo seguinte: para onde esse lote foi. Sem expedição não há
- * destino, e sem destino não há a quem avisar; é a lacuna TRC-001-D, declarada em {@link #gapsOf}.
+ * <p>A TRC-001-B trouxe o lote de produto acabado — o objeto que um recall recolhe. A TRC-001-D
+ * fechou o passo seguinte: para onde ele foi. A lacuna que sobrou é por lote, e não da plataforma:
+ * lote de produto acabado <em>sem expedição registrada</em> ainda não se sabe onde está, e é isso
+ * que {@link #gapsOf} declara.
  */
 @Component
 class PackagingLineageAdapter implements LineageSource {
@@ -38,6 +39,14 @@ class PackagingLineageAdapter implements LineageSource {
                     .param("brewery", breweryId).param("id", id)
                     .query(String.class).optional()
                     .map(code -> new Node(NodeType.FINISHED_LOT, id, code));
+            case SHIPMENT -> jdbc.sql("""
+                    SELECT destination, units FROM packaging_shipment
+                    WHERE brewery_id = :brewery AND id = :id
+                    """)
+                    .param("brewery", breweryId).param("id", id)
+                    .query((rs, rowNum) -> new Node(NodeType.SHIPMENT, id,
+                            "%s — %d un".formatted(rs.getString("destination"), rs.getInt("units"))))
+                    .optional();
             case PACKAGING_RUN -> jdbc.sql("""
                     SELECT p.code, r.produced_units FROM packaging_run r
                     JOIN packaging_plan p ON p.id = r.plan_id
@@ -57,6 +66,7 @@ class PackagingLineageAdapter implements LineageSource {
             case BATCH -> plansOfBatch(breweryId, node.id());
             case PACKAGING_PLAN -> runsOfPlan(breweryId, "r.plan_id = :id", node.id());
             case PACKAGING_RUN -> finishedLots(breweryId, "run_id = :id", node.id());
+            case FINISHED_LOT -> shipments(breweryId, "finished_lot_id = :id", node.id());
             default -> List.of();
         };
     }
@@ -67,26 +77,51 @@ class PackagingLineageAdapter implements LineageSource {
             case PACKAGING_PLAN -> plansOfPlan(breweryId, node.id());
             case PACKAGING_RUN -> runsOfPlan(breweryId, "r.id = :id", node.id());
             case FINISHED_LOT -> finishedLots(breweryId, "id = :id", node.id());
+            case SHIPMENT -> shipments(breweryId, "id = :id", node.id());
             default -> List.of();
         };
     }
 
     /**
-     * A lacuna do destino (TRC-001-D).
+     * A lacuna do destino, agora por lote.
      *
-     * <p>Declarada no lote de produto acabado porque é o último nó que existe. A TRC-001-B fechou a
-     * metade de dentro da fábrica: o lote agora existe e tem identidade. A metade de fora continua
-     * aberta — não há expedição, então não se sabe para quem a cerveja foi, e é disso que a FDS-003
-     * vai precisar para dizer a quem o recall se dirige.
+     * <p>Antes da TRC-001-D ela era da plataforma: não existia expedição, e nenhum lote tinha
+     * destino. Agora existe, e a lacuna passou a ser um fato sobre <em>este</em> lote — ele saiu da
+     * linha e ninguém registrou para onde foi. É a diferença entre "o sistema não sabe registrar" e
+     * "ninguém registrou", e só a segunda é acionável: num recall, é a caixa de cerveja que não se
+     * sabe onde está.
      */
     @Override
     public List<Gap> gapsOf(UUID breweryId, Node node) {
         if (node.type() != NodeType.FINISHED_LOT) {
             return List.of();
         }
+        var shipped = jdbc.sql("SELECT 1 FROM packaging_shipment "
+                        + "WHERE brewery_id = :brewery AND finished_lot_id = :id LIMIT 1")
+                .param("brewery", breweryId).param("id", node.id())
+                .query(Integer.class).optional();
+        if (shipped.isPresent()) {
+            return List.of();
+        }
         return List.of(new Gap(node, "expedição e destino",
-                "o lote de produto acabado existe, mas a plataforma não registra para onde ele foi: "
-                        + "sem expedição não há destino nem a quem avisar num recall (TRC-001-D)"));
+                "este lote de produto acabado não tem expedição registrada: não se sabe para onde ele "
+                        + "foi, nem a quem avisar num recall"));
+    }
+
+    /** Produto acabado → expedição (TRC-001-D): a metade de fora da fábrica. */
+    private List<Edge> shipments(UUID breweryId, String filter, UUID id) {
+        return jdbc.sql("""
+                SELECT id, finished_lot_id, destination, units, shipped_on FROM packaging_shipment
+                WHERE brewery_id = :brewery AND %s
+                """.formatted(filter))
+                .param("brewery", breweryId).param("id", id)
+                .query((rs, rowNum) -> new Edge(
+                        Node.of(NodeType.FINISHED_LOT, rs.getObject("finished_lot_id", UUID.class)),
+                        new Node(NodeType.SHIPMENT, rs.getObject("id", UUID.class),
+                                "%s — %d un".formatted(rs.getString("destination"), rs.getInt("units"))),
+                        "expedição", EdgeStrength.CONFIRMED,
+                        rs.getDate("shipped_on").toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant()))
+                .list();
     }
 
     /** Execução → lote de produto acabado (TRC-001-B): um envase, um lote. */

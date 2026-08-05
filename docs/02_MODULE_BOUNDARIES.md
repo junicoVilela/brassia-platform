@@ -11,7 +11,7 @@
 | production | etapas, medições e correções | alterar versão da receita |
 | sanitation | POP, ciclo, verificação e liberação | inventar parâmetro químico |
 | fermentation | curvas, estágios, levedura e adega | envasar produto |
-| packaging | carbonatação, envase e lote final | ajustar saldo diretamente |
+| packaging | carbonatação, envase, lote final e expedição | ajustar saldo diretamente ou cadastrar cliente |
 | inventory | lotes e movimentos | decidir substituição técnica |
 | quality | especificações, amostras, CAPA e sensorial | reescrever medição histórica |
 | traceability | genealogia, quarentena e recall | ser origem de saldo |

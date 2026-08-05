@@ -36,6 +36,10 @@ import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.recipe.RecipeLookup;
 import br.com.brew.brassia.sanitation.CleaningPolicyLookup;
 import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
+import br.com.brew.brassia.packaging.application.port.inbound.ShipmentUseCases;
+import br.com.brew.brassia.packaging.application.port.outbound.ShipmentRepository;
+import br.com.brew.brassia.packaging.application.service.RecordShipmentHandler;
+import br.com.brew.brassia.packaging.application.service.ShipmentQueriesHandler;
 import br.com.brew.brassia.traceability.QuarantineCheck;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -106,6 +110,26 @@ class PackagingConfiguration {
     @Bean
     FinishedLotQueries finishedLotQueries(FinishedLotRepository finishedLots) {
         return new FinishedLotQueriesHandler(finishedLots);
+    }
+
+    /**
+     * Registrar expedição escreve uma linha só, mas as duas verificações que a antecedem — lote em
+     * quarentena e soma das unidades — precisam valer no mesmo commit: sem isso, duas saídas
+     * simultâneas do mesmo lote passariam as duas pela conferência.
+     */
+    @Bean
+    ShipmentUseCases.Record recordShipmentUseCase(ShipmentRepository shipments,
+            FinishedLotRepository finishedLots, QuarantineCheck quarantines, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new RecordShipmentHandler(shipments, finishedLots, quarantines, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    /** Consulta pura: expedição é fato registrado, não há estado a compor. */
+    @Bean
+    ShipmentUseCases.Queries shipmentQueries(ShipmentRepository shipments) {
+        return new ShipmentQueriesHandler(shipments);
     }
 
     @Bean

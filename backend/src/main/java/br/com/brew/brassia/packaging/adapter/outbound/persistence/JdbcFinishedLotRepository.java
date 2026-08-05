@@ -52,6 +52,13 @@ class JdbcFinishedLotRepository implements FinishedLotRepository {
     }
 
     @Override
+    public Optional<FinishedLot> findById(UUID breweryId, UUID id) {
+        return jdbc.sql("SELECT " + COLUMNS + " FROM packaging_finished_lot "
+                        + "WHERE brewery_id = :brewery AND id = :id")
+                .param("brewery", breweryId).param("id", id).query(this::map).optional();
+    }
+
+    @Override
     public List<FinishedLot> findByBatch(UUID breweryId, UUID batchId) {
         return jdbc.sql("SELECT " + COLUMNS + " FROM packaging_finished_lot "
                         + "WHERE brewery_id = :brewery AND batch_id = :batch ORDER BY code")

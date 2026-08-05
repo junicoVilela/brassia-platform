@@ -66,6 +66,7 @@ function packagingRun(): PackagingRun {
     id: 'r1', batchId: 'b1', inputVolumeLiters: 284, producedUnits: 780, rejectedUnits: 12,
     packagedVolumeLiters: 276.9, rejectedVolumeLiters: 4.26, lossesLiters: 2.84, lossPercent: 1,
     containersConsumed: 792, note: null, executedAt: '2026-08-20T15:00:00Z', executedBy: 'u1',
+    finishedLotCode: 'LOTE-100/1',
   };
 }
 

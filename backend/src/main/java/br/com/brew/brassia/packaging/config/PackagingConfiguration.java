@@ -19,9 +19,12 @@ import br.com.brew.brassia.packaging.application.port.outbound.CarbonationReposi
 import br.com.brew.brassia.packaging.application.port.outbound.FreshnessRepository;
 import br.com.brew.brassia.packaging.application.port.outbound.LabelRepository;
 import br.com.brew.brassia.packaging.application.port.outbound.PackagingPlanRepository;
+import br.com.brew.brassia.packaging.application.port.inbound.FinishedLotQueries;
+import br.com.brew.brassia.packaging.application.port.outbound.FinishedLotRepository;
 import br.com.brew.brassia.packaging.application.port.outbound.PackagingRunRepository;
 import br.com.brew.brassia.packaging.application.service.CarbonationHandlers;
 import br.com.brew.brassia.packaging.application.service.ExecutePackagingHandler;
+import br.com.brew.brassia.packaging.application.service.FinishedLotQueriesHandler;
 import br.com.brew.brassia.packaging.application.service.FreshnessHandlers;
 import br.com.brew.brassia.packaging.application.service.LabelHandlers;
 import br.com.brew.brassia.packaging.application.service.PackagingPlanHandlers;
@@ -86,11 +89,17 @@ class PackagingConfiguration {
      */
     @Bean
     ExecutePackagingUseCase executePackagingUseCase(PackagingPlanRepository plans, PackagingRunRepository runs,
-            BatchLookup batches, IngredientSpecLookup ingredients, PackagingStockGateway stock, AuditTrail audit,
-            PlatformTransactionManager transactionManager) {
-        var handler = new ExecutePackagingHandler(plans, runs, batches, ingredients, stock, audit);
+            FinishedLotRepository finishedLots, BatchLookup batches, IngredientSpecLookup ingredients,
+            PackagingStockGateway stock, AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new ExecutePackagingHandler(plans, runs, finishedLots, batches, ingredients, stock, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    /** Consulta pura: o lote de produto acabado nasce do envase, então não há transação a abrir. */
+    @Bean
+    FinishedLotQueries finishedLotQueries(FinishedLotRepository finishedLots) {
+        return new FinishedLotQueriesHandler(finishedLots);
     }
 
     @Bean

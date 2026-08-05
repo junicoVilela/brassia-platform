@@ -3544,6 +3544,29 @@ paths:
               schema: {$ref: '#/components/schemas/SensoryPolicy'}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /packaging/finished-lots:
+    get:
+      tags: [Envase]
+      summary: Lotes de produto acabado (TRC-001-B)
+      description: >-
+        O que saiu da linha, identificado — o objeto que um recall recolhe. Nasce automaticamente da
+        execução do envase, no mesmo commit: **não há comando de criação**, porque criar um à mão
+        seria afirmar que existe cerveja envasada que nenhuma execução registrou.
+
+
+        `units` conta **apenas as unidades boas**: rejeito consumiu embalagem e não virou produto.
+        A validade não vive aqui — ela vem da evidência de oxigênio (FSL-001), por plano, e pode ser
+        sobreposta com justificativa; duplicá-la criaria uma segunda verdade.
+      parameters:
+        - {name: batchId, in: query, required: false, schema: {type: string, format: uuid},
+           description: "Filtra pelos lotes de produto acabado de um lote de produção."}
+      responses:
+        '200':
+          description: Lotes de produto acabado
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/FinishedLot'}}
+        '403': {$ref: '#/components/responses/Problem'}
   /traceability/genealogy:
     get:
       tags: [Rastreabilidade]
@@ -3565,7 +3588,7 @@ paths:
         resultado que parece completo sem ser é pior do que um resultado declaradamente parcial.
       parameters:
         - {name: nodeType, in: query, required: true,
-           schema: {type: string, enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN]}}
+           schema: {type: string, enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN, FINISHED_LOT]}}
         - {name: nodeId, in: query, required: true, schema: {type: string, format: uuid}}
         - {name: direction, in: query, required: false,
            description: "BACKWARD responde de onde veio; FORWARD, para onde foi.",
@@ -5108,6 +5131,10 @@ components:
         note: {type: string, nullable: true}
         executedAt: {type: string, format: date-time}
         executedBy: {type: string, format: uuid}
+        finishedLotCode:
+          type: string
+          nullable: true
+          description: "Lote de produto acabado gerado pelo envase (TRC-001-B); nulo em execuções anteriores à história."
     PackagingRunProblem:
       type: object
       description: "Problem Details da recusa de execução; a extensão depende do `code`."
@@ -5589,6 +5616,23 @@ components:
               reason: {type: string, nullable: true}
               at: {type: string, format: date-time}
         consumedKg: {type: number, description: "Soma do consumo registrado nesta linha"}
+    FinishedLot:
+      type: object
+      description: "Lote de produto acabado (TRC-001-B): o que saiu da linha e o que um recall recolhe."
+      properties:
+        id: {type: string, format: uuid}
+        code:
+          type: string
+          description: "Derivado do lote de produção mais a ordem do envase (`LOTE-100/1`), para levar de volta à origem sem consulta."
+        runId: {type: string, format: uuid}
+        planId: {type: string, format: uuid}
+        batchId: {type: string, format: uuid}
+        batchCode: {type: string, description: "Código do lote de produção congelado no momento do envase."}
+        containerId: {type: string, format: uuid}
+        containerVolumeMl: {type: number}
+        units: {type: integer, description: "Somente unidades boas; rejeito não é produto."}
+        volumeLiters: {type: number}
+        packagedOn: {type: string, format: date}
     Genealogy:
       type: object
       description: "Grafo derivado (TRC-001). Nós e arestas alcançados, mais os elos ausentes."
@@ -5614,7 +5658,7 @@ components:
       properties:
         type:
           type: string
-          enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN]
+          enum: [STOCK_LOT, BREW_ORDER, BATCH, YEAST_HARVEST, PACKAGING_PLAN, PACKAGING_RUN, FINISHED_LOT]
         id: {type: string, format: uuid}
         label: {type: string, nullable: true}
     LineageEdge:

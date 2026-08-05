@@ -176,6 +176,13 @@
                     @if (run.note) {
                       <p class="small mb-0 mt-1">{{ run.note }}</p>
                     }
+                    @if (run.finishedLotCode) {
+                      <p class="small mb-0 mt-1">
+                        <i class="ri-barcode-line me-1" aria-hidden="true"></i>
+                        Lote de produto acabado <strong>{{ run.finishedLotCode }}</strong> — é este
+                        código que vai na embalagem e que um recall recolhe.
+                      </p>
+                    }
                     <p class="small mb-0 mt-1 text-muted">
                       Registrado em {{ run.executedAt | date:'short' }}
                     </p>

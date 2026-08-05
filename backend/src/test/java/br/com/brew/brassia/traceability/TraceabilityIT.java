@@ -113,10 +113,12 @@ class TraceabilityIT {
                         .param("nodeType", "BATCH").param("nodeId", scene.batchId)
                         .param("direction", "BOTH"))
                 .andExpect(status().isOk())
-                // Blend (TRC-001-A), produto acabado (TRC-001-B) e consumo no dia de brassa (TRC-001-C).
+                // Blend (TRC-001-A), consumo no dia de brassa (TRC-001-C) e destino (TRC-001-D).
                 .andExpect(jsonPath("$.gaps[*].expectedLink", hasItem("blend de lotes")))
-                .andExpect(jsonPath("$.gaps[*].expectedLink", hasItem("lote de produto acabado e destino")))
-                .andExpect(jsonPath("$.gaps[*].expectedLink", hasItem("consumo de insumo por lote")));
+                .andExpect(jsonPath("$.gaps[*].expectedLink", hasItem("consumo de insumo por lote")))
+                .andExpect(jsonPath("$.gaps[*].expectedLink", hasItem("expedição e destino")))
+                // A TRC-001-B fechou: o produto acabado deixou de ser lacuna e virou nó do grafo.
+                .andExpect(jsonPath("$.nodes[*].type", hasItem("FINISHED_LOT")));
     }
 
     @Test

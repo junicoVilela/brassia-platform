@@ -13,5 +13,10 @@ public interface ExecutePackagingUseCase {
     record Command(UUID actorId, UUID breweryId, UUID planId, BigDecimal inputVolumeLiters, int producedUnits,
             int rejectedUnits, String note) {}
 
-    record Result(UUID runId, BigDecimal packagedVolumeLiters, BigDecimal lossesLiters, int containersConsumed) {}
+    /**
+     * @param finishedLotCode código do lote de produto acabado criado pelo envase (TRC-001-B) — é o
+     *                        que vai impresso na embalagem e o que um recall recolhe
+     */
+    record Result(UUID runId, BigDecimal packagedVolumeLiters, BigDecimal lossesLiters,
+            int containersConsumed, String finishedLotCode) {}
 }

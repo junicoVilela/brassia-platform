@@ -8,6 +8,7 @@ import br.com.brew.brassia.packaging.adapter.inbound.web.dto.PlanPackagingReques
 import br.com.brew.brassia.packaging.application.port.inbound.CancelPackagingPlanUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.ConfirmChecklistItemUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.ExecutePackagingUseCase;
+import br.com.brew.brassia.packaging.application.port.inbound.FinishedLotQueries;
 import br.com.brew.brassia.packaging.application.port.inbound.GetPackagingRunUseCase;
 import br.com.brew.brassia.packaging.application.port.inbound.PackagingPlanQueries;
 import br.com.brew.brassia.packaging.application.port.inbound.PlanPackagingUseCase;
@@ -39,17 +40,20 @@ final class PackagingPlanController {
     private final CancelPackagingPlanUseCase cancel;
     private final ExecutePackagingUseCase execute;
     private final GetPackagingRunUseCase run;
+    private final FinishedLotQueries finishedLots;
     private final PackagingPlanQueries queries;
 
     PackagingPlanController(PlanPackagingUseCase plan, ConfirmChecklistItemUseCase confirm,
             ReservePackagingPlanUseCase reserve, CancelPackagingPlanUseCase cancel,
-            ExecutePackagingUseCase execute, GetPackagingRunUseCase run, PackagingPlanQueries queries) {
+            ExecutePackagingUseCase execute, GetPackagingRunUseCase run, FinishedLotQueries finishedLots,
+            PackagingPlanQueries queries) {
         this.plan = plan;
         this.confirm = confirm;
         this.reserve = reserve;
         this.cancel = cancel;
         this.execute = execute;
         this.run = run;
+        this.finishedLots = finishedLots;
         this.queries = queries;
     }
 
@@ -114,8 +118,13 @@ final class PackagingPlanController {
     PackagingRunDtos.PackagingRunView execution(@PathVariable UUID id,
             @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("packaging.plan.read");
-        return run.handle(principal.requireBrewery(), id)
-                .map(PackagingRunDtos.PackagingRunView::from)
+        var brewery = principal.requireBrewery();
+        return run.handle(brewery, id)
+                .map(execution -> PackagingRunDtos.PackagingRunView.from(execution,
+                        finishedLots.byBatch(brewery, execution.batchId()).stream()
+                                .filter(lot -> lot.runId().equals(execution.id()))
+                                .map(lot -> lot.code())
+                                .findFirst().orElse(null)))
                 .orElseThrow(() -> new IllegalArgumentException("plano sem execução registrada"));
     }
 

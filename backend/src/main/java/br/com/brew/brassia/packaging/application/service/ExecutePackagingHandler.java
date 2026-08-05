@@ -6,14 +6,18 @@ import br.com.brew.brassia.catalog.IngredientSpecLookup;
 import br.com.brew.brassia.packaging.PackagingStockGateway;
 import br.com.brew.brassia.packaging.application.port.inbound.ExecutePackagingUseCase;
 import br.com.brew.brassia.packaging.application.port.outbound.PackagingPlanRepository;
+import br.com.brew.brassia.packaging.application.port.outbound.FinishedLotRepository;
 import br.com.brew.brassia.packaging.application.port.outbound.PackagingRunRepository;
 import br.com.brew.brassia.packaging.domain.BatchVolumeExceededException;
+import br.com.brew.brassia.packaging.domain.FinishedLot;
 import br.com.brew.brassia.packaging.domain.PackagingPlanStatus;
 import br.com.brew.brassia.packaging.domain.PackagingRun;
 import br.com.brew.brassia.packaging.domain.PackagingStockShortfallException;
 import br.com.brew.brassia.production.BatchLookup;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
 
@@ -30,15 +34,18 @@ public final class ExecutePackagingHandler implements ExecutePackagingUseCase {
 
     private final PackagingPlanRepository plans;
     private final PackagingRunRepository runs;
+    private final FinishedLotRepository finishedLots;
     private final BatchLookup batches;
     private final IngredientSpecLookup ingredients;
     private final PackagingStockGateway stock;
     private final AuditTrail audit;
 
-    public ExecutePackagingHandler(PackagingPlanRepository plans, PackagingRunRepository runs, BatchLookup batches,
-            IngredientSpecLookup ingredients, PackagingStockGateway stock, AuditTrail audit) {
+    public ExecutePackagingHandler(PackagingPlanRepository plans, PackagingRunRepository runs,
+            FinishedLotRepository finishedLots, BatchLookup batches, IngredientSpecLookup ingredients,
+            PackagingStockGateway stock, AuditTrail audit) {
         this.plans = Objects.requireNonNull(plans);
         this.runs = Objects.requireNonNull(runs);
+        this.finishedLots = Objects.requireNonNull(finishedLots);
         this.batches = Objects.requireNonNull(batches);
         this.ingredients = Objects.requireNonNull(ingredients);
         this.stock = Objects.requireNonNull(stock);
@@ -85,6 +92,14 @@ public final class ExecutePackagingHandler implements ExecutePackagingUseCase {
         }
         runs.insert(run);
 
+        // O lote de produto acabado nasce aqui, no mesmo commit (TRC-001-B): não existe cerveja
+        // envasada sem lote de saída. A ordem dentro do lote de produção vem da contagem dos que já
+        // existem — um lote pode ser dividido em vários envases, e cada um tem identidade própria.
+        var sequence = finishedLots.countByBatch(plan.breweryId(), plan.batchId()) + 1;
+        var finishedLot = FinishedLot.from(run, batch.code(), plan.containerId(), sequence,
+                LocalDate.ofInstant(run.executedAt(), ZoneOffset.UTC));
+        finishedLots.insert(finishedLot);
+
         audit.record(AuditEvent.success(plan.breweryId(), command.actorId(), "packaging.plan.execute",
                 "packaging.plan", plan.id().toString(),
                 Map.of("code", plan.code(),
@@ -92,8 +107,10 @@ public final class ExecutePackagingHandler implements ExecutePackagingUseCase {
                         "rejectedUnits", String.valueOf(run.rejectedUnits()),
                         "packagedVolumeLiters", run.packagedVolumeLiters().toPlainString(),
                         "lossesLiters", run.lossesLiters().toPlainString(),
-                        "containersConsumed", String.valueOf(run.containersConsumed()))));
+                        "containersConsumed", String.valueOf(run.containersConsumed()),
+                        "finishedLot", finishedLot.code())));
 
-        return new Result(run.id(), run.packagedVolumeLiters(), run.lossesLiters(), run.containersConsumed());
+        return new Result(run.id(), run.packagedVolumeLiters(), run.lossesLiters(), run.containersConsumed(),
+                finishedLot.code());
     }
 }

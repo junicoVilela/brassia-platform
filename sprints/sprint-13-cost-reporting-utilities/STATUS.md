@@ -6,7 +6,7 @@ Estado: EM ANDAMENTO
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| CST-001 | Backend concluído | IA | V87 + `BatchCostIT` (10 testes) + 5 de domínio; `BrewConsumptionIT` (8) | Novo módulo `costing`; porta `CostContributor`. Fecha `TRC-001-C`. Tela em PR separado |
+| CST-001 | Concluída | IA | V87 + `BatchCostIT` (10) + 5 de domínio + `BrewConsumptionIT` (8); PRs #153, #154 e a tela | Novo módulo `costing`; porta `CostContributor`. Fecha `TRC-001-C` |
 | CST-002 | A fazer | — | — | — |
 | RPT-001 | A fazer | — | — | — |
 | UTL-001 | A fazer | — | — | — |
@@ -87,6 +87,10 @@ estoque, porque custo não lê tabela alheia.
   plataforma. Inventar um cadastro de horas aqui seria criar regra de negócio sem fonte; somar zero
   seria mentir por omissão. A parcela é declarada como lacuna. *Critério de remoção:* existir
   apontamento de hora por lote ou por etapa, e um contribuinte implementar a porta.
+- **A tela distingue o custo que ainda muda do que não muda mais.** Um aberto e um fechado com a
+  mesma cara fariam alguém decidir preço em cima de um total que ainda vai crescer. E as lacunas
+  ficam ao lado do total, não no rodapé: sem mão de obra e sem utilidade, o número é menor que a
+  verdade, e quem lê precisa saber disso enquanto lê.
 - **`CST-001-B` — utilidade não tem fonte por lote.** Água e energia são medidas por ciclo de
   limpeza, por equipamento (CLN-005); atribuí-las a um lote exigiria uma regra de rateio que ninguém
   definiu. O CO₂ não tem preço nem vínculo com lote — o `GAS-001-A` continua aberto, e o lugar dele

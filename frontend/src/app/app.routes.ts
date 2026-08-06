@@ -200,6 +200,12 @@ export const routes: Routes = [
           import('./features/traceability/traceability.routes').then(m => m.RECALL_ROUTES),
       },
       {
+        path: 'costing/batches',
+        canActivate: [permissionGuard],
+        data: { permission: 'costing.cost.read' },
+        loadChildren: () => import('./features/costing/costing.routes').then(m => m.COSTING_ROUTES),
+      },
+      {
         path: 'traceability/recall-drills',
         canActivate: [permissionGuard],
         data: { permission: 'traceability.drill.read' },

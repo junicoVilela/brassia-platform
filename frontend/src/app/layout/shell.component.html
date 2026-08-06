@@ -129,6 +129,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('costing.cost.read')) {
+            <li class="menu-item">
+              <a routerLink="/costing/batches" routerLinkActive="active" class="menu-link">
+                <i class="ri-money-dollar-circle-line menu-icon"></i>
+                <span class="title">Custo do lote</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('traceability.recall.read')) {
             <li class="menu-item">
               <a routerLink="/traceability/recalls" routerLinkActive="active" class="menu-link">

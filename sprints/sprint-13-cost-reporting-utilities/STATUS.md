@@ -8,7 +8,7 @@ Estado: EM ANDAMENTO
 |---|---|---|---|---|
 | CST-001 | Concluída | IA | V87 + `BatchCostIT` (10) + 5 de domínio + `BrewConsumptionIT` (8); PRs #153, #154 e a tela | Novo módulo `costing`; porta `CostContributor`. Fecha `TRC-001-C` |
 | CST-002 | Concluída | IA | V89 + `BatchVarianceIT` (10) + 9 de domínio + 9 de montagem + 6 de store + E2E (1); PR #157 e a tela | Sem tabela: a variação é derivada. Base de preço = lotes que a OP separou |
-| RPT-001 | Em andamento | IA | V90 + `BatchReportIT` (9) + 9 de montagem; PR do backend | Novo módulo `reporting`, só consumidor. Sem tabela: o dossiê é consolidação |
+| RPT-001 | Concluída | IA | V90 + `BatchReportIT` (9) + 9 de montagem + 7 de store + E2E (1); PR #158 e a tela | Novo módulo `reporting`, só consumidor. Sem tabela: o dossiê é consolidação |
 | UTL-001 | Concluída | IA | V88 + `UtilityIndicatorIT` (9) + 10 de domínio + 6 de store + E2E (2); PR #156 e a tela | Novo módulo `utilities`; portas `UtilityReadingSource` e `PackagedVolumeSource`. Sem tabela: o indicador é derivado |
 | RPT-002 | A fazer | — | — | — |
 | RPT-003 | A fazer | — | — | — |
@@ -125,6 +125,11 @@ estoque, porque custo não lê tabela alheia.
   calcula, mas pelo que ela permite. O registro sai depois de o relatório existir, e exportação
   recusada não deixa rastro de exportação — auditar uma que falhou seria afirmar que o documento
   saiu.
+- **A tela põe as lacunas antes das seções, não depois.** É o documento que sai da casa: quem
+  imprime precisa ver o que o relatório *não* prova antes de mandá-lo a um cliente que vai lê-lo
+  como se provasse tudo. A data de geração fica no topo pelo mesmo motivo.
+- **Exportar na tela passa pelo servidor, e não salva o que já está em memória.** O arquivo sairia
+  idêntico, e sem registro nenhum de que saiu — a chamada existe pelo rastro, não pelo conteúdo.
 - **`RPT-001-A` — a exportação é JSON, não PDF.** O critério da história é o documento sair com
   rastro, e isso o JSON entrega. PDF exigiria biblioteca de renderização, decisão de layout e
   identidade visual da cervejaria — escopo de apresentação, não de consolidação, e ampliar por

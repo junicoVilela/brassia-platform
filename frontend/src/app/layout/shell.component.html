@@ -137,6 +137,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('reporting.batch.read')) {
+            <li class="menu-item">
+              <a routerLink="/reporting/batches" routerLinkActive="active" class="menu-link">
+                <i class="ri-file-text-line menu-icon"></i>
+                <span class="title">Relatório do lote</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('costing.variance.read')) {
             <li class="menu-item">
               <a routerLink="/costing/variance" routerLinkActive="active" class="menu-link">

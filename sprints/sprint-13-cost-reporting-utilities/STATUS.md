@@ -1,6 +1,6 @@
 # Status — Sprint 13
 
-Estado: EM ANDAMENTO
+Estado: CONCLUÍDA
 
 ## Controle das histórias
 
@@ -354,9 +354,48 @@ estoque, porque custo não lê tabela alheia.
 
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- **Build/commit:** PRs #153 (TRC-001-C), #154 e #155 (CST-001), #156 (UTL-001), #157 (CST-002),
+  #158 (RPT-001), #159 (RPT-002) e #160 (RPT-003). Todos com os cinco checks da CI verdes —
+  backend, contratos, E2E, frontend e verificação de segredos.
+- **Testes executados:** backend **783** (domínio, integração com PostgreSQL real via Testcontainers,
+  autorização negativa, isolamento entre cervejarias e `ModularityTest`); frontend **342** em 64
+  arquivos; E2E **28** contra a stack real, em 14 specs.
+- **Migration aplicada:** V87 (custo do lote), V88 (permissão do indicador de utilidades), V89
+  (permissão da variação), V90 (permissões do relatório), V91 (permissão do painel) e V92
+  (relatórios salvos, execuções, links e entregas). Todas testadas em banco limpo pela CI.
+  **Quatro das seis criam só permissão:** indicador, variação, dossiê e painel são derivados, e a
+  única história que ganhou tabela foi a RPT-003, porque uma definição de relatório é acordo.
+- **Contratos atualizados:** OpenAPI com custo do lote, planejado × real, consumo por litro,
+  relatório do lote e sua exportação, painel operacional, relatórios salvos, execuções, link
+  temporário e download; Problem Details novos documentados junto das rotas que os produzem.
+- **Riscos remanescentes:** os débitos da tabela abaixo, nenhum bloqueando o uso do que foi
+  entregue. Os dois que mais afetam quem opera são o **`CST-001-A`/`CST-001-B`** — o custo do lote
+  não tem mão de obra nem utilidade, e portanto é sempre menor que a verdade, ainda que declare isso
+  — e o **`RPT-003-A`**: a entrega programada registra, mas não envia. Quem depender de receber o
+  relatório por e-mail vai precisar buscá-lo na tela.
+- **Aceite:** **Valdemir Vilela Junior, 2026-08-07** — aceita com as ressalvas registradas em
+  `ACCEPTANCE.md`. Um débito foi fechado (`TRC-001-C`) e sete foram abertos; o `GAS-001-A`, que esta
+  sprint previa fechar, segue aberto por decisão registrada. O aceite libera a sprint, não os
+  débitos.
+
+## Débitos abertos ao fim da sprint
+
+Todos com critério de remoção registrado nas seções acima.
+
+| Débito | O que falta |
+|---|---|
+| `CST-001-A` | Mão de obra não tem fonte: não há hora trabalhada na plataforma |
+| `CST-001-B` | Utilidade não tem fonte por lote: água e energia são medidas por equipamento |
+| `CST-002-A` | Não há perda esperada cadastrada, nem na transferência nem no envase |
+| `UTL-001-A` | O CO₂ não declara cobertura: não existe consumo esperado contra o qual comparar |
+| `RPT-001-A` | A exportação é JSON, não PDF: layout e identidade visual não foram decididos |
+| `RPT-003-A` | Não há transporte de entrega — a plataforma registra, não envia |
+| `RPT-003-B` | O agendador é de instância única: não duplica, mas não distribui carga |
+| `GAS-001-A` | Custo e estoque do gás — previsto para esta sprint e adiado por decisão |
+
+Fechado nesta sprint: **`TRC-001-C`** — o dia de brassa passou a registrar consumo por lote, o que
+era pré-requisito do custo realizado.
+
+Seguem abertos, herdados e sem relação com o escopo desta sprint: `TRC-001-A`, `FDS-001-A`,
+`FDS-001-B`, `FDS-002-B`, `FDS-003-A` e `FDS-004-A` (sprint 12), além dos anteriores registrados nos
+`STATUS.md` das sprints 08 a 11.

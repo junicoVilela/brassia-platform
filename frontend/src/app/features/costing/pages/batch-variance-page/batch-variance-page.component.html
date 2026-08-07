@@ -1,0 +1,255 @@
+<app-page-header
+  title="Planejado × real"
+  subtitle="Por que o lote custou o que custou — quanto foi preço e quanto foi consumo."
+/>
+
+@if (store.error(); as error) {
+  <div class="alert alert-warning" role="alert">{{ error }}</div>
+}
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando lotes…" /></div>
+  </div>
+} @else {
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="h6 mb-0">Lotes</h2>
+          <p class="text-muted small mb-0 mt-1">
+            A explicação é sempre de agora, mesmo com o custo já fechado.
+          </p>
+        </div>
+        <div class="list-group list-group-flush">
+          @for (batch of store.batches(); track batch.id) {
+            <button
+              type="button"
+              class="list-group-item list-group-item-action"
+              [class.active]="store.selected()?.batchId === batch.id"
+              (click)="store.select(batch.id)"
+            >
+              <span class="fw-medium">{{ batch.code }}</span>
+              <small class="d-block text-muted">{{ batch.recipeName }}</small>
+            </button>
+          } @empty {
+            <div class="list-group-item">
+              <app-empty-state
+                icon="ri-scales-3-line"
+                message="Nenhum lote para comparar."
+                hint="A variação aparece assim que existir lote de produção."
+              />
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      @if (store.selectedLoading()) {
+        <div class="card">
+          <div class="card-body p-4"><app-loading-indicator text="Comparando plano e fato…" /></div>
+        </div>
+      } @else if (store.selected(); as variance) {
+        <div class="card mb-3">
+          <div class="card-header">
+            <h2 class="h6 mb-0">{{ variance.batchCode }}</h2>
+          </div>
+          <div class="card-body">
+            <div class="row g-3 mb-3">
+              <div class="col-sm-4">
+                <span class="text-muted small d-block">Variação de preço</span>
+                <span class="h5 mb-0" [class]="moneyClass(variance.priceVariance)">
+                  {{ variance.priceVariance | number: '1.2-2' }}
+                </span>
+                <small class="text-muted d-block">pagou-se diferente pelo que se usou</small>
+              </div>
+              <div class="col-sm-4">
+                <span class="text-muted small d-block">Variação de consumo</span>
+                <span class="h5 mb-0" [class]="moneyClass(variance.consumptionVariance)">
+                  {{ variance.consumptionVariance | number: '1.2-2' }}
+                </span>
+                <small class="text-muted d-block">usou-se quantidade diferente do plano</small>
+              </div>
+              <div class="col-sm-4">
+                <span class="text-muted small d-block">Total</span>
+                <span class="h5 mb-0" [class]="moneyClass(variance.totalVariance)">
+                  {{ variance.totalVariance | number: '1.2-2' }}
+                </span>
+                <small class="text-muted d-block">
+                  {{ variance.plannedCost | number: '1.2-2' }} planejado →
+                  {{ variance.actualCost | number: '1.2-2' }} real
+                </small>
+              </div>
+            </div>
+
+            @if (!variance.reconciles) {
+              <div class="alert alert-danger py-2 mb-3" role="alert">
+                <strong>Este relatório não fecha.</strong>
+                Preço e consumo não explicam a diferença inteira — o número não deve ser usado para
+                decidir nada até isso ser investigado.
+              </div>
+            }
+
+            @if (variance.incomplete) {
+              <div class="alert alert-warning py-2 mb-0" role="alert">
+                <strong>Nem tudo tinha contra o que ser medido.</strong>
+                <ul class="mb-0 mt-1 small">
+                  @for (gap of variance.gaps; track gap.what + gap.reason) {
+                    <li><strong>{{ gap.what }}:</strong> {{ gap.reason }}</li>
+                  }
+                </ul>
+              </div>
+            }
+          </div>
+        </div>
+
+        @if (store.compared().length > 0) {
+          <div class="card mb-3">
+            <div class="card-header">
+              <h2 class="h6 mb-0">Insumos</h2>
+              <p class="text-muted small mb-0 mt-1">
+                O preço planejado é o dos lotes que a ordem separou — a casa não tem custo padrão.
+              </p>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th scope="col">Insumo</th>
+                    <th scope="col" class="text-end">Plano</th>
+                    <th scope="col" class="text-end">Real</th>
+                    <th scope="col" class="text-end">Preço</th>
+                    <th scope="col" class="text-end">Consumo</th>
+                    <th scope="col" class="text-end">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (material of store.compared(); track material.ingredientId) {
+                    <tr>
+                      <td>
+                        <span class="fw-medium">{{ material.name }}</span>
+                        <small class="d-block text-muted">
+                          {{ material.plannedUnitCost | number: '1.2-4' }} →
+                          {{ material.actualUnitCost | number: '1.2-4' }} por {{ material.unit }}
+                        </small>
+                      </td>
+                      <td class="text-end">
+                        {{ material.plannedQuantity | number: '1.0-3' }} {{ material.unit }}
+                      </td>
+                      <td class="text-end">
+                        {{ material.actualQuantity | number: '1.0-3' }} {{ material.unit }}
+                      </td>
+                      <td class="text-end" [class]="moneyClass(material.priceVariance)">
+                        {{ material.priceVariance | number: '1.2-2' }}
+                      </td>
+                      <td class="text-end" [class]="moneyClass(material.consumptionVariance)">
+                        {{ material.consumptionVariance | number: '1.2-2' }}
+                      </td>
+                      <td class="text-end" [class]="moneyClass(material.totalVariance)">
+                        {{ material.totalVariance | number: '1.2-2' }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+        @if (store.withoutBaseline().length > 0) {
+          <div class="card mb-3">
+            <div class="card-header">
+              <h2 class="h6 mb-0">Insumos sem base de comparação</h2>
+              <p class="text-muted small mb-0 mt-1">
+                Estes ficam fora do total. Somá-los sem par transformaria falta de base em desvio.
+              </p>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th scope="col">Insumo</th>
+                    <th scope="col" class="text-end">Plano</th>
+                    <th scope="col" class="text-end">Real</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (material of store.withoutBaseline(); track material.ingredientId) {
+                    <tr>
+                      <td>{{ material.name }}</td>
+                      <td class="text-end">
+                        @if (material.plannedQuantity === null) {
+                          <span class="text-muted">não se sabe</span>
+                        } @else {
+                          {{ material.plannedQuantity | number: '1.0-3' }} {{ material.unit }}
+                        }
+                      </td>
+                      <td class="text-end">
+                        @if (material.actualQuantity === null) {
+                          <span class="text-muted">não confirmado</span>
+                        } @else {
+                          {{ material.actualQuantity | number: '1.0-3' }} {{ material.unit }}
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+        @if (store.yields().length > 0 || store.losses().length > 0) {
+          <div class="card">
+            <div class="card-header"><h2 class="h6 mb-0">Volume</h2></div>
+            <div class="card-body">
+              @for (volume of store.yields(); track volume.what) {
+                <div class="d-flex justify-content-between align-items-baseline gap-2 border-bottom py-2">
+                  <span>
+                    {{ volume.what }}
+                    <small class="d-block text-muted">
+                      {{ volume.planned | number: '1.0-2' }} planejados →
+                      {{ volume.actual | number: '1.0-2' }} L
+                    </small>
+                  </span>
+                  <span [class]="volume.unfavorable ? 'text-danger' : 'text-success'">
+                    {{ volume.variance | number: '1.0-2' }} L
+                    @if (volume.variancePercent !== null) {
+                      ({{ volume.variancePercent | number: '1.2-2' }}%)
+                    }
+                  </span>
+                </div>
+              }
+              @for (volume of store.losses(); track volume.what) {
+                <div class="d-flex justify-content-between align-items-baseline gap-2 border-bottom py-2">
+                  <span>
+                    {{ volume.what }}
+                    @if (!volume.comparable) {
+                      <small class="d-block text-muted">
+                        sem perda esperada cadastrada: é fato, não desvio
+                      </small>
+                    }
+                  </span>
+                  <span [class]="volume.unfavorable ? 'text-danger' : ''">
+                    {{ volume.actual | number: '1.0-2' }} L
+                  </span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      } @else {
+        <div class="card">
+          <div class="card-body p-4">
+            <app-empty-state
+              icon="ri-scales-3-line"
+              message="Escolha um lote para comparar."
+              hint="A comparação é sempre sobre um lote: é ele que tem plano, consumo e volume."
+            />
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+}

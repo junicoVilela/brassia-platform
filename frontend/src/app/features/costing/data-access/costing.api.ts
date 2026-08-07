@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { BatchCost } from '../domain/batch-cost.model';
+import { BatchVariance } from '../domain/batch-variance.model';
 
 /** Opção de lote para a tela; o backend publica mais campos, usamos só estes. */
 export interface BatchOption {
@@ -30,5 +31,10 @@ export class CostingApi {
 
   batches(): Observable<BatchOption[]> {
     return this.http.get<BatchOption[]>('/api/v1/production/batches');
+  }
+
+  /** Planejado versus real (CST-002); alçada própria, separada da leitura do custo. */
+  variance(batchId: string): Observable<BatchVariance> {
+    return this.http.get<BatchVariance>(`${this.baseUrl}/batches/${batchId}/variance`);
   }
 }

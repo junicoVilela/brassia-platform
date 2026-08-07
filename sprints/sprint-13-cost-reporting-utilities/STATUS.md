@@ -7,7 +7,7 @@ Estado: EM ANDAMENTO
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
 | CST-001 | Concluída | IA | V87 + `BatchCostIT` (10) + 5 de domínio + `BrewConsumptionIT` (8); PRs #153, #154 e a tela | Novo módulo `costing`; porta `CostContributor`. Fecha `TRC-001-C` |
-| CST-002 | Em andamento | IA | V89 + `BatchVarianceIT` (10) + 9 de domínio + 9 de montagem; PR do backend | Sem tabela: a variação é derivada. Base de preço = lotes que a OP separou |
+| CST-002 | Concluída | IA | V89 + `BatchVarianceIT` (10) + 9 de domínio + 9 de montagem + 6 de store + E2E (1); PR #157 e a tela | Sem tabela: a variação é derivada. Base de preço = lotes que a OP separou |
 | RPT-001 | A fazer | — | — | — |
 | UTL-001 | Concluída | IA | V88 + `UtilityIndicatorIT` (9) + 10 de domínio + 6 de store + E2E (2); PR #156 e a tela | Novo módulo `utilities`; portas `UtilityReadingSource` e `PackagedVolumeSource`. Sem tabela: o indicador é derivado |
 | RPT-002 | A fazer | — | — | — |
@@ -144,6 +144,16 @@ estoque, porque custo não lê tabela alheia.
 - **Sem tabela, e derivada mesmo com o custo fechado.** O custo é a resposta daquele dia; a
   explicação é sobre os fatos, e os fatos continuam sendo corrigidos depois do fechamento. Congelar
   a explicação criaria uma segunda verdade ao lado do custo.
+- **A tela põe preço e consumo lado a lado, na primeira linha.** São causas diferentes com donos
+  diferentes: preço é conversa com fornecedor, consumo é conversa com a brassagem. Quem abre a tela
+  quer saber com quem falar.
+- **O que não tem base não é apresentado como desvio.** Insumo sem preço planejado sai da tabela do
+  dinheiro e ganha uma tabela própria, com "não se sabe" e "não confirmado" por extenso; perda sem
+  esperado aparece como fato, sem cor de alerta. Um relatório que chama de desvio o que não tem
+  contra o que medir ensina o brewer a ignorar o relatório.
+- **A tela avisa quando a conta não fecha.** Se `reconciles` vier falso, o aviso é vermelho e diz
+  para não decidir nada com aquele número. É o caso que nunca deveria acontecer — e justamente por
+  isso precisa ser barulhento se acontecer.
 - **Direção das dependências.** O estoque já depende do custo (contribui parcelas), então os fatos
   de material vêm por porta invertida (`costing.MaterialActualSource`, implementada pelo estoque). O
   plano, o rendimento e o envase vêm de consultas publicadas — `planning.OrderPlanLookup`,

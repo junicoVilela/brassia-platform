@@ -137,6 +137,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('costing.variance.read')) {
+            <li class="menu-item">
+              <a routerLink="/costing/variance" routerLinkActive="active" class="menu-link">
+                <i class="ri-scales-3-line menu-icon"></i>
+                <span class="title">Planejado × real</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('utilities.indicator.read')) {
             <li class="menu-item">
               <a routerLink="/utilities/indicators" routerLinkActive="active" class="menu-link">

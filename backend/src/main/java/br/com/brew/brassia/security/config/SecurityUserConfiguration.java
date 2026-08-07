@@ -8,7 +8,9 @@ import br.com.brew.brassia.security.application.port.inbound.InviteUserUseCase;
 import br.com.brew.brassia.security.application.port.inbound.ListUsersUseCase;
 import br.com.brew.brassia.security.application.port.outbound.AccountTokenRepository;
 import br.com.brew.brassia.security.application.port.outbound.BreweryAccessRepository;
+import br.com.brew.brassia.security.EffectivePermissionLookup;
 import br.com.brew.brassia.security.application.port.outbound.EffectivePermissionsRepository;
+import br.com.brew.brassia.security.application.service.EffectivePermissionService;
 import br.com.brew.brassia.security.application.port.outbound.NotificationGateway;
 import br.com.brew.brassia.security.application.port.outbound.PasswordCredentialRepository;
 import br.com.brew.brassia.security.application.port.outbound.PasswordHasher;
@@ -204,5 +206,11 @@ class SecurityUserConfiguration {
     br.com.brew.brassia.security.application.port.inbound.ManageOwnSessionsUseCase manageOwnSessionsUseCase(
             br.com.brew.brassia.security.application.port.outbound.UserSessionCatalog sessions) {
         return new br.com.brew.brassia.security.application.service.ManageOwnSessionsHandler(sessions);
+    }
+
+    /** Publica para fora as permissões que a sessão já resolve por dentro (RPT-003). */
+    @Bean
+    EffectivePermissionLookup effectivePermissionLookup(EffectivePermissionsRepository permissions) {
+        return new EffectivePermissionService(permissions);
     }
 }

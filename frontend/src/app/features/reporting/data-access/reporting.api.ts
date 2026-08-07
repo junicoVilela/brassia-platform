@@ -1,7 +1,8 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { BatchReport } from '../domain/batch-report.model';
+import { Dashboard } from '../domain/dashboard.model';
 
 /** Opção de lote para a tela; o backend publica mais campos, usamos só estes. */
 export interface BatchOption {
@@ -23,6 +24,11 @@ export class ReportingApi {
   /** POST porque exportar não é só ler: o documento sai do sistema e a saída fica auditada. */
   export(batchId: string): Observable<BatchReport> {
     return this.http.post<BatchReport>(`${this.baseUrl}/batches/${batchId}/export`, {});
+  }
+
+  dashboard(from: string, to: string): Observable<Dashboard> {
+    const params = new HttpParams().set('from', from).set('to', to);
+    return this.http.get<Dashboard>(`${this.baseUrl}/dashboard`, { params });
   }
 
   batches(): Observable<BatchOption[]> {

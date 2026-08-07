@@ -10,7 +10,7 @@ Estado: EM ANDAMENTO
 | CST-002 | Concluída | IA | V89 + `BatchVarianceIT` (10) + 9 de domínio + 9 de montagem + 6 de store + E2E (1); PR #157 e a tela | Sem tabela: a variação é derivada. Base de preço = lotes que a OP separou |
 | RPT-001 | Concluída | IA | V90 + `BatchReportIT` (9) + 9 de montagem + 7 de store + E2E (1); PR #158 e a tela | Novo módulo `reporting`, só consumidor. Sem tabela: o dossiê é consolidação |
 | UTL-001 | Concluída | IA | V88 + `UtilityIndicatorIT` (9) + 10 de domínio + 6 de store + E2E (2); PR #156 e a tela | Novo módulo `utilities`; portas `UtilityReadingSource` e `PackagedVolumeSource`. Sem tabela: o indicador é derivado |
-| RPT-002 | Em andamento | IA | V91 + `DashboardIT` (9) + 13 de domínio; PR do backend | Porta `IndicatorSource` no compartilhado; cinco módulos contribuem. Sem tabela |
+| RPT-002 | Concluída | IA | V91 + `DashboardIT` (9) + 13 de domínio + 7 de store + E2E (2); PR #159 e a tela | Porta `IndicatorSource` no compartilhado; cinco módulos contribuem. Sem tabela |
 | RPT-003 | A fazer | — | — | — |
 
 ## Decisões e bloqueios
@@ -129,6 +129,15 @@ estoque, porque custo não lê tabela alheia.
   a média avisa que é menor que a verdade.
 - **Média ponderada por volume, não média das médias** — senão o lote de 50 L pesaria igual ao de
   400 L.
+- **A tela são cartões, não gráficos.** Cada número é um valor atual, e valor atual é cartão — uma
+  barra sozinha não diz mais do que o número que ela representa. Não há série temporal nesta
+  história, então não há eixo a desenhar.
+- **A definição fica no cartão, não num tooltip.** É o que separa um painel de uma parede de
+  números: o texto que o backend obriga a existir não pode ficar escondido atrás de um passar de
+  mouse que ninguém faz.
+- **A ressalva usa cor, ícone e texto.** Cor sozinha não é informação para quem não a distingue.
+- **Recurso sem tela ainda vira cartão sem link**, e diz isso, em vez de link para lugar nenhum — é
+  o caso das não conformidades hoje.
 - **Sem tabela de painel e sem tabela de definição.** Materializar o painel mostraria a foto de
   ontem; uma tabela de definições editável por fora acabaria descrevendo um cálculo que o código não
   faz.

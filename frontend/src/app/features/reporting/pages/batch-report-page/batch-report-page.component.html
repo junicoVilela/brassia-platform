@@ -1,0 +1,305 @@
+<app-page-header
+  title="Relatório do lote"
+  subtitle="Plano, execução, qualidade, custo e genealogia num documento só."
+/>
+
+@if (store.error(); as error) {
+  <div class="alert alert-warning" role="alert">{{ error }}</div>
+}
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando lotes…" /></div>
+  </div>
+} @else {
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="h6 mb-0">Lotes</h2>
+          <p class="text-muted small mb-0 mt-1">
+            O documento é montado na hora: o mesmo lote responde diferente amanhã.
+          </p>
+        </div>
+        <div class="list-group list-group-flush">
+          @for (batch of store.batches(); track batch.id) {
+            <button
+              type="button"
+              class="list-group-item list-group-item-action"
+              [class.active]="store.selected()?.batchId === batch.id"
+              (click)="store.select(batch.id)"
+            >
+              <span class="fw-medium">{{ batch.code }}</span>
+              <small class="d-block text-muted">{{ batch.recipeName }}</small>
+            </button>
+          } @empty {
+            <div class="list-group-item">
+              <app-empty-state
+                icon="ri-file-text-line"
+                message="Nenhum lote para relatar."
+                hint="O relatório aparece assim que existir lote de produção."
+              />
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      @if (store.selectedLoading()) {
+        <div class="card">
+          <div class="card-body p-4"><app-loading-indicator text="Montando o documento…" /></div>
+        </div>
+      } @else if (store.selected(); as report) {
+        <div class="card mb-3">
+          <div class="card-header d-flex justify-content-between align-items-start gap-2 flex-wrap">
+            <div>
+              <h2 class="h6 mb-1">{{ report.batchCode }}</h2>
+              <p class="text-muted small mb-0">
+                {{ report.recipeName }} · versão {{ report.recipeVersion }} · {{ report.status }}
+                <span class="d-block">
+                  Documento gerado em {{ report.generatedAt | date: 'dd/MM/yyyy HH:mm' }}
+                </span>
+              </p>
+            </div>
+            @if (canExport) {
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-primary"
+                [disabled]="store.exporting()"
+                (click)="store.exportReport(report.batchId)"
+              >
+                <i class="ri-download-2-line me-1"></i>
+                {{ store.exporting() ? 'Exportando…' : 'Exportar' }}
+              </button>
+            }
+          </div>
+          <div class="card-body">
+            @if (report.incomplete) {
+              <div class="alert alert-warning py-2 mb-0" role="alert">
+                <strong>O que este relatório não prova.</strong>
+                <p class="small mb-1 mt-1">
+                  Leia antes de enviar: quem recebe um relatório tende a lê-lo como se ele
+                  afirmasse tudo o que não desmente.
+                </p>
+                <ul class="mb-0 small">
+                  @for (gap of report.gaps; track gap) {
+                    <li>{{ gap }}</li>
+                  }
+                </ul>
+              </div>
+            } @else {
+              <div class="alert alert-success py-2 mb-0" role="alert">
+                <strong>Dossiê completo.</strong>
+                As cinco seções foram preenchidas e a genealogia não tem elo faltando.
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="card mb-3">
+          <div class="card-header"><h2 class="h6 mb-0">Plano</h2></div>
+          <div class="card-body">
+            <p class="mb-2">
+              <span class="fw-medium">{{ report.plan.volumeLiters | number: '1.0-2' }} L</span>
+              <span class="text-muted small ms-1">planejados</span>
+            </p>
+            @if (report.plan.materials.length === 0) {
+              <p class="text-muted small mb-0">
+                Sem plano de material a mostrar — veja as lacunas acima.
+              </p>
+            } @else {
+              <ul class="list-inline mb-0">
+                @for (material of report.plan.materials; track material.ingredientId) {
+                  <li class="list-inline-item me-3">
+                    {{ material.quantity | number: '1.0-3' }} {{ material.unit }}
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        </div>
+
+        <div class="card mb-3">
+          <div class="card-header"><h2 class="h6 mb-0">Execução</h2></div>
+          <div class="card-body">
+            @if (report.execution.transferred) {
+              <p class="mb-2">
+                Transferido:
+                <span class="fw-medium">
+                  {{ report.execution.transferredVolumeLiters | number: '1.0-2' }} L
+                </span>
+                @if (report.execution.transferLossesLiters !== null) {
+                  <span class="text-muted small ms-1">
+                    · {{ report.execution.transferLossesLiters | number: '1.0-2' }} L de perda
+                  </span>
+                }
+              </p>
+            } @else {
+              <p class="text-muted mb-2">Ainda não transferido ao fermentador.</p>
+            }
+
+            @if (report.execution.packaged) {
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th scope="col">Envase</th>
+                      <th scope="col" class="text-end">Planejado</th>
+                      <th scope="col" class="text-end">Envasado</th>
+                      <th scope="col" class="text-end">Rejeito</th>
+                      <th scope="col" class="text-end">Perda</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (run of report.execution.packaging; track run.planCode) {
+                      <tr>
+                        <td>{{ run.planCode }}</td>
+                        <td class="text-end">{{ run.plannedVolumeLiters | number: '1.0-2' }} L</td>
+                        <td class="text-end">{{ run.packagedVolumeLiters | number: '1.0-2' }} L</td>
+                        <td class="text-end">{{ run.rejectedVolumeLiters | number: '1.0-2' }} L</td>
+                        <td class="text-end">{{ run.lossesLiters | number: '1.0-2' }} L</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <p class="text-muted mb-0">Ainda não envasado.</p>
+            }
+          </div>
+        </div>
+
+        <div class="card mb-3">
+          <div class="card-header"><h2 class="h6 mb-0">Qualidade</h2></div>
+          <div class="card-body">
+            @if (report.quality.unmeasured) {
+              <p class="text-muted mb-0">
+                <i class="ri-error-warning-line text-warning me-1"></i>
+                Nenhuma medição registrada — o que não é o mesmo que o lote ter passado no controle.
+              </p>
+            } @else {
+              <p class="mb-2">
+                <span class="fw-medium">
+                  {{ report.quality.withinSpec }} de {{ report.quality.measurements }}
+                </span>
+                <span class="text-muted small ms-1">medições dentro da faixa</span>
+              </p>
+
+              @if (report.quality.deviations.length > 0) {
+                <ul class="list-unstyled small mb-2">
+                  @for (deviation of report.quality.deviations; track deviation.parameter + deviation.openedAt) {
+                    <li class="mb-1">
+                      <span class="badge {{ severityClass(deviation.severity) }} me-1">
+                        {{ deviation.severity }}
+                      </span>
+                      {{ deviation.parameter }}:
+                      {{ deviation.measuredValue | number: '1.0-4' }} {{ deviation.unit }}
+                      (limite {{ deviation.limitValue | number: '1.0-4' }}) ·
+                      {{ deviation.status === 'OPEN' ? 'em aberto' : 'encerrado' }}
+                    </li>
+                  }
+                </ul>
+              }
+
+              @if (report.quality.nonConformities.length > 0) {
+                <ul class="list-unstyled small mb-0">
+                  @for (nc of report.quality.nonConformities; track nc.code) {
+                    <li>
+                      <span class="badge {{ severityClass(nc.severity) }} me-1">{{ nc.severity }}</span>
+                      <strong>{{ nc.code }}</strong> {{ nc.title }} · {{ nc.status }}
+                    </li>
+                  }
+                </ul>
+              }
+            }
+          </div>
+        </div>
+
+        <div class="card mb-3">
+          <div class="card-header"><h2 class="h6 mb-0">Custo</h2></div>
+          <div class="card-body">
+            @if (report.cost; as cost) {
+              <div class="d-flex align-items-baseline gap-3 flex-wrap">
+                <div>
+                  <span class="h5 mb-0">{{ cost.total | number: '1.2-2' }}</span>
+                  <span class="text-muted small ms-1">total</span>
+                </div>
+                <div>
+                  <span class="h6 mb-0">{{ cost.costPerLiter | number: '1.2-4' }}</span>
+                  <span class="text-muted small ms-1">
+                    por litro · {{ cost.volumeLiters | number: '1.0-2' }} L
+                  </span>
+                </div>
+                @if (cost.closed) {
+                  <span class="badge text-bg-success">Fechado</span>
+                } @else {
+                  <span class="badge text-bg-warning">Aberto — ainda muda</span>
+                }
+              </div>
+            } @else {
+              <p class="text-muted mb-0">O custo deste lote não pôde ser apurado.</p>
+            }
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="h6 mb-0">Genealogia</h2>
+            @if (!report.lineage.complete) {
+              <p class="text-muted small mb-0 mt-1">
+                <i class="ri-error-warning-line text-warning me-1"></i>
+                A cadeia tem elo faltando ou foi truncada: este documento não prova rastreabilidade
+                completa.
+              </p>
+            }
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <h3 class="small text-muted text-uppercase">De onde veio</h3>
+                @if (report.lineage.origins.length === 0) {
+                  <p class="text-muted small mb-0">Sem origem conhecida.</p>
+                } @else {
+                  <ul class="list-unstyled small mb-0">
+                    @for (origin of report.lineage.origins; track origin.type + origin.label) {
+                      <li>
+                        <span class="text-muted">{{ nodeLabel(origin.type) }}:</span>
+                        {{ origin.label }}
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+              <div class="col-md-6">
+                <h3 class="small text-muted text-uppercase">Para onde foi</h3>
+                @if (report.lineage.destinations.length === 0) {
+                  <p class="text-muted small mb-0">Ainda não saiu da fábrica.</p>
+                } @else {
+                  <ul class="list-unstyled small mb-0">
+                    @for (destination of report.lineage.destinations; track destination.type + destination.label) {
+                      <li>
+                        <span class="text-muted">{{ nodeLabel(destination.type) }}:</span>
+                        {{ destination.label }}
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      } @else {
+        <div class="card">
+          <div class="card-body p-4">
+            <app-empty-state
+              icon="ri-file-text-line"
+              message="Escolha um lote para ver o relatório."
+              hint="O dossiê é sempre sobre um lote: é ele que tem plano, execução, qualidade, custo e genealogia."
+            />
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+}

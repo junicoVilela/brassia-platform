@@ -4405,6 +4405,67 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /reporting/batches/{batchId}:
+    get:
+      tags: [Relatórios]
+      summary: Relatório do lote (RPT-001)
+      description: >-
+        O dossiê do lote num documento só: plano, execução, qualidade, custo e genealogia. É
+        **consolidação, não cálculo** — nada aqui soma o que outro módulo já não somou. Recalcular
+        custo ou rendimento criaria uma segunda aritmética que um dia divergiria da primeira, e a
+        divergência apareceria justamente no documento levado a auditor.
+
+
+        **Derivado, sem tabela.** O relatório é montado a cada pedido, e por isso `generatedAt` vai
+        no corpo: o mesmo lote responde diferente amanhã, e um documento impresso sem data seria
+        indefensável.
+
+
+        **Seção que não pôde ser preenchida vira lacuna nomeada em `gaps`.** Silêncio num documento
+        que sai da casa é lido como "não houve" — e "não houve" é forte demais para se afirmar por
+        omissão. Lote sem medição de qualidade diz `unmeasured`, que não é o mesmo que aprovado;
+        genealogia com elo faltando ou truncada diz que o relatório não prova rastreabilidade.
+      parameters:
+        - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Relatório do lote
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BatchReport'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_batch` — o lote não existe nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /reporting/batches/{batchId}/export:
+    post:
+      tags: [Relatórios]
+      summary: Exportar o relatório do lote
+      description: >-
+        Devolve o mesmo documento com `Content-Disposition: attachment` e **registra a exportação na
+        auditoria**.
+
+
+        É POST, e não GET, porque não é só leitura: exportar tira o documento de dentro do sistema, e
+        a partir dali ele vive num e-mail, num pen drive, na mão de um auditor — nada o traz de
+        volta. Por isso também é alçada separada da leitura: quem lê na tela não necessariamente
+        pode levar embora.
+
+
+        O registro sai depois de o relatório existir; exportação recusada não deixa rastro de
+        exportação, porque auditar uma que falhou seria afirmar que o documento saiu.
+      parameters:
+        - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Documento para download
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BatchReport'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
   /utilities/indicators:
     get:
       tags: [Utilidades]
@@ -6718,6 +6779,122 @@ components:
               reason: {type: string}
         closedAt: {type: string, format: date-time, nullable: true}
         note: {type: string, nullable: true}
+    BatchReport:
+      type: object
+      description: "Dossiê do lote (RPT-001): consolidação derivada, sem tabela própria."
+      properties:
+        batchId: {type: string, format: uuid}
+        batchCode: {type: string}
+        recipeName: {type: string}
+        recipeVersion: {type: integer}
+        status: {type: string}
+        generatedAt:
+          type: string
+          format: date-time
+          description: "Quando o documento foi montado. Relatório derivado sem data é indefensável."
+        incomplete: {type: boolean}
+        plan:
+          type: object
+          properties:
+            volumeLiters: {type: number}
+            materials:
+              type: array
+              description: "Vazio quando não há plano confiável; a lacuna correspondente diz por quê."
+              items:
+                type: object
+                properties:
+                  ingredientId: {type: string, format: uuid}
+                  quantity: {type: number}
+                  unit: {type: string}
+        execution:
+          type: object
+          properties:
+            transferredVolumeLiters: {type: number, nullable: true}
+            transferLossesLiters: {type: number, nullable: true}
+            transferred: {type: boolean}
+            packaged: {type: boolean}
+            packaging:
+              type: array
+              items:
+                type: object
+                properties:
+                  planCode: {type: string}
+                  plannedVolumeLiters: {type: number}
+                  packagedVolumeLiters: {type: number}
+                  rejectedVolumeLiters: {type: number}
+                  lossesLiters: {type: number}
+        quality:
+          type: object
+          properties:
+            measurements: {type: integer}
+            withinSpec: {type: integer}
+            unmeasured:
+              type: boolean
+              description: "Ninguém mediu nada — que não é o mesmo que o lote ter passado."
+            outOfSpec:
+              type: array
+              items:
+                type: object
+                properties:
+                  parameter: {type: string}
+                  value: {type: number}
+                  unit: {type: string}
+                  measuredAt: {type: string, format: date-time}
+            deviations:
+              type: array
+              items:
+                type: object
+                properties:
+                  parameter: {type: string}
+                  severity: {type: string, enum: [MINOR, MAJOR, CRITICAL]}
+                  status: {type: string, enum: [OPEN, CLOSED]}
+                  limitValue: {type: number}
+                  measuredValue: {type: number}
+                  unit: {type: string}
+                  openedAt: {type: string, format: date-time}
+            nonConformities:
+              type: array
+              items:
+                type: object
+                properties:
+                  code: {type: string}
+                  title: {type: string}
+                  severity: {type: string}
+                  status: {type: string}
+        cost:
+          type: object
+          nullable: true
+          description: "Nulo quando o custo não pôde ser apurado; a lacuna diz por quê."
+          properties:
+            total: {type: number}
+            costPerLiter: {type: number}
+            volumeLiters: {type: number}
+            closed: {type: boolean}
+            incomplete: {type: boolean}
+            gaps: {type: array, items: {type: string}}
+        lineage:
+          type: object
+          properties:
+            origins:
+              type: array
+              items: {$ref: '#/components/schemas/LineageReportEntry'}
+            destinations:
+              type: array
+              items: {$ref: '#/components/schemas/LineageReportEntry'}
+            gaps: {type: array, items: {type: string}}
+            truncated: {type: boolean}
+            complete:
+              type: boolean
+              description: "Falso com elo faltando ou travessia truncada: não prova rastreabilidade."
+        gaps:
+          type: array
+          description: "O que não pôde ser afirmado. Silêncio aqui seria lido como 'não houve'."
+          items: {type: string}
+    LineageReportEntry:
+      type: object
+      properties:
+        type: {type: string}
+        label: {type: string}
     BatchVariance:
       type: object
       description: "Planejado versus real do lote (CST-002): derivado, sem tabela própria."

@@ -8,7 +8,7 @@ Estado: EM ANDAMENTO
 |---|---|---|---|---|
 | CST-001 | Concluída | IA | V87 + `BatchCostIT` (10) + 5 de domínio + `BrewConsumptionIT` (8); PRs #153, #154 e a tela | Novo módulo `costing`; porta `CostContributor`. Fecha `TRC-001-C` |
 | CST-002 | Concluída | IA | V89 + `BatchVarianceIT` (10) + 9 de domínio + 9 de montagem + 6 de store + E2E (1); PR #157 e a tela | Sem tabela: a variação é derivada. Base de preço = lotes que a OP separou |
-| RPT-001 | A fazer | — | — | — |
+| RPT-001 | Concluída | IA | V90 + `BatchReportIT` (9) + 9 de montagem + 7 de store + E2E (1); PR #158 e a tela | Novo módulo `reporting`, só consumidor. Sem tabela: o dossiê é consolidação |
 | UTL-001 | Concluída | IA | V88 + `UtilityIndicatorIT` (9) + 10 de domínio + 6 de store + E2E (2); PR #156 e a tela | Novo módulo `utilities`; portas `UtilityReadingSource` e `PackagedVolumeSource`. Sem tabela: o indicador é derivado |
 | RPT-002 | A fazer | — | — | — |
 | RPT-003 | A fazer | — | — | — |
@@ -96,6 +96,45 @@ estoque, porque custo não lê tabela alheia.
   definiu. O CO₂ não tem preço nem vínculo com lote — o `GAS-001-A` continua aberto, e o lugar dele
   é a UTL-001 (consumo por litro), não o custo do lote. *Critério de remoção:* haver rateio definido
   pela casa, ou medição por lote.
+
+### RPT-001 — relatório do lote
+
+- **Consolidação, não cálculo.** Nada no relatório soma o que outro módulo já não somou; ele junta e
+  diz de onde veio cada pedaço. Recalcular custo ou rendimento aqui criaria uma segunda aritmética
+  que um dia divergiria da primeira — e a divergência apareceria justamente no documento levado a
+  auditor, que é o pior lugar possível.
+- **Sem tabela, pela terceira vez na sprint.** O dossiê é montado a cada pedido. Guardá-lo criaria
+  uma versão salva que discordaria da produção no dia seguinte, e seria essa a versão impressa. Por
+  isso `generatedAt` vai no corpo: relatório derivado sem data de geração é indefensável.
+- **Seção que não pôde ser preenchida vira lacuna nomeada.** Um relatório sem a seção de qualidade e
+  um com a seção vazia dizem coisas opostas — "não perguntei" e "não houve medição". Só o segundo é
+  aceitável, e ele diz isso com todas as letras: `unmeasured` não é aprovação. Vale igual para
+  genealogia com elo faltando ou truncada, que não prova rastreabilidade completa.
+- **`reporting` é o único módulo que pode depender de quase todos.** Ele só consome, e ninguém
+  consome ele. Se algum módulo passasse a consultar o relatório, o relatório viraria dependência de
+  produção e a plataforma inteira giraria em torno de um documento.
+- **O resumo do custo passa pela consulta do custo, não por SQL próprio.** Fosse por SQL, o
+  relatório responderia do que está gravado e a tela do que está derivado, e um lote aberto teria
+  dois custos diferentes na mesma casa.
+- **A genealogia entra resumida, nas duas pontas.** O relatório quer "de que insumos veio" e "para
+  onde foi"; a topologia do meio é assunto da tela de rastreabilidade, que existe para isso. São
+  duas travessias, porque subir e descer respondem perguntas diferentes.
+- **Ler e exportar são verbos diferentes, com alçadas diferentes.** Ler é consulta; **exportar tira
+  o documento de dentro do sistema** — a partir dali ele vive num e-mail, num pen drive, na mão de
+  um auditor, e nada o traz de volta. Por isso a exportação é POST e é auditada: não pelo que ela
+  calcula, mas pelo que ela permite. O registro sai depois de o relatório existir, e exportação
+  recusada não deixa rastro de exportação — auditar uma que falhou seria afirmar que o documento
+  saiu.
+- **A tela põe as lacunas antes das seções, não depois.** É o documento que sai da casa: quem
+  imprime precisa ver o que o relatório *não* prova antes de mandá-lo a um cliente que vai lê-lo
+  como se provasse tudo. A data de geração fica no topo pelo mesmo motivo.
+- **Exportar na tela passa pelo servidor, e não salva o que já está em memória.** O arquivo sairia
+  idêntico, e sem registro nenhum de que saiu — a chamada existe pelo rastro, não pelo conteúdo.
+- **`RPT-001-A` — a exportação é JSON, não PDF.** O critério da história é o documento sair com
+  rastro, e isso o JSON entrega. PDF exigiria biblioteca de renderização, decisão de layout e
+  identidade visual da cervejaria — escopo de apresentação, não de consolidação, e ampliar por
+  iniciativa própria seria contrariar a regra da sprint. *Critério de remoção:* a casa decidir o
+  layout do documento impresso e existir decisão sobre marca e assinatura.
 
 ### CST-002 — planejado versus real
 

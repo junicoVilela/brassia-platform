@@ -10,12 +10,14 @@ import br.com.brew.brassia.traceability.application.port.inbound.DrillCommands;
 import br.com.brew.brassia.traceability.application.port.inbound.DrillQueries;
 import br.com.brew.brassia.traceability.application.port.inbound.RecallCommands;
 import br.com.brew.brassia.traceability.application.port.inbound.RecallQueries;
+import br.com.brew.brassia.traceability.BatchLineageLookup;
 import br.com.brew.brassia.traceability.application.port.inbound.TraceabilityQueries;
 import br.com.brew.brassia.traceability.application.port.outbound.DrillRepository;
 import br.com.brew.brassia.traceability.application.port.outbound.QuarantineRepository;
 import br.com.brew.brassia.traceability.application.port.outbound.RecallRepository;
 import br.com.brew.brassia.traceability.application.service.DrillHandlers;
 import br.com.brew.brassia.traceability.application.service.DrillQueryHandler;
+import br.com.brew.brassia.traceability.application.service.BatchLineageService;
 import br.com.brew.brassia.traceability.application.service.GenealogyQueryHandler;
 import br.com.brew.brassia.traceability.application.service.QuarantineHandlers;
 import br.com.brew.brassia.traceability.application.service.QuarantineQueryHandler;
@@ -43,6 +45,11 @@ class TraceabilityConfiguration {
     @Bean
     TraceabilityQueries traceabilityQueries(List<LineageSource> sources) {
         return new GenealogyQueryHandler(sources);
+    }
+
+    @Bean
+    BatchLineageLookup batchLineageLookup(TraceabilityQueries queries) {
+        return new BatchLineageService(queries);
     }
 
     /**

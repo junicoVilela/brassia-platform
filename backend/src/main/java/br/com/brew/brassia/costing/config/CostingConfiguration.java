@@ -2,6 +2,7 @@ package br.com.brew.brassia.costing.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.catalog.IngredientPurchaseLookup;
+import br.com.brew.brassia.costing.BatchCostLookup;
 import br.com.brew.brassia.costing.CostContributor;
 import br.com.brew.brassia.costing.MaterialActualSource;
 import br.com.brew.brassia.costing.application.port.inbound.CostCommands;
@@ -9,6 +10,7 @@ import br.com.brew.brassia.costing.application.port.inbound.CostQueries;
 import br.com.brew.brassia.costing.application.port.inbound.VarianceQueries;
 import br.com.brew.brassia.costing.application.port.outbound.BatchCostRepository;
 import br.com.brew.brassia.costing.application.service.BatchCostAssembler;
+import br.com.brew.brassia.costing.application.service.BatchCostSummaryService;
 import br.com.brew.brassia.costing.application.service.BatchVarianceAssembler;
 import br.com.brew.brassia.costing.application.service.CostHandlers;
 import br.com.brew.brassia.packaging.PackagingOutcomeLookup;
@@ -39,6 +41,11 @@ class CostingConfiguration {
     @Bean
     CostQueries costQueries(BatchCostRepository costs, BatchCostAssembler assembler) {
         return new CostHandlers.Queries(costs, assembler);
+    }
+
+    @Bean
+    BatchCostLookup batchCostLookup(CostQueries queries) {
+        return new BatchCostSummaryService(queries);
     }
 
     @Bean

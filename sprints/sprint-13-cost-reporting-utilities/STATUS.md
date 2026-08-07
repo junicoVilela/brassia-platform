@@ -9,7 +9,7 @@ Estado: EM ANDAMENTO
 | CST-001 | Concluída | IA | V87 + `BatchCostIT` (10) + 5 de domínio + `BrewConsumptionIT` (8); PRs #153, #154 e a tela | Novo módulo `costing`; porta `CostContributor`. Fecha `TRC-001-C` |
 | CST-002 | A fazer | — | — | — |
 | RPT-001 | A fazer | — | — | — |
-| UTL-001 | A fazer | — | — | — |
+| UTL-001 | Em andamento | IA | V88 + `UtilityIndicatorIT` (9) + 10 de domínio; PR do backend | Novo módulo `utilities`; portas `UtilityReadingSource` e `PackagedVolumeSource`. Sem tabela: o indicador é derivado |
 | RPT-002 | A fazer | — | — | — |
 | RPT-003 | A fazer | — | — | — |
 
@@ -96,6 +96,49 @@ estoque, porque custo não lê tabela alheia.
   definiu. O CO₂ não tem preço nem vínculo com lote — o `GAS-001-A` continua aberto, e o lugar dele
   é a UTL-001 (consumo por litro), não o custo do lote. *Critério de remoção:* haver rateio definido
   pela casa, ou medição por lote.
+
+### UTL-001 — água, energia e CO₂ por litro envasado
+
+- **O indicador não tem tabela, e é a decisão da história.** Ele é aritmética sobre medições que já
+  estão guardadas nos módulos que medem. Persistir o número criaria uma terceira verdade que
+  envelheceria a cada ciclo lançado com atraso; o critério pede o contrário — o mesmo período
+  responde o mesmo enquanto os fatos não mudam, e muda quando eles mudam, porque a água foi gasta.
+  Mesma disciplina da sprint 12: o que é sobre o presente se deriva, o que é sobre o passado se
+  guarda. A V88 cria só permissão.
+- **Medido e estimado não somam num número só.** Um indicador que mistura leitura de hidrômetro com
+  conta de padeiro não prova nada a auditor nenhum e não diz se a fábrica melhorou. `measuredPerLiter`
+  é o que se leva a auditoria; `perLiter` existe para quem quiser somar os dois sabendo o que fez.
+  Hoje nada estima — o campo existe para o dia em que alguém estimar, e é o que impede a estimativa
+  de entrar disfarçada de medição.
+- **Sem litro envasado não há indicador, e não é zero.** A fábrica que limpou tanque sem envasar
+  gastou água sem produzir cerveja; responder "0 L/L" seria chamá-la de eficiente. O `perLiter` vem
+  nulo e o consumo aparece do mesmo jeito. Pela mesma razão, utilidade que ninguém mediu não é
+  listada zerada: listar as quatro faria a cervejaria que nunca mediu energia parecer uma que não
+  gasta energia.
+- **A cobertura é metade da resposta, e quem mede é quem a declara.** 3 L/L calculado sobre um terço
+  dos ciclos é um indicador de um terço da fábrica. Só a sanitização sabe quantos ciclos encerrou,
+  então a cobertura vem pela porta e não é estimada pelo indicador — e ela vale só para o que aquela
+  fonte mede: a cobertura dos ciclos de limpeza não diz nada sobre o CO₂. Sem cobertura declarada,
+  `fullyMeasured` é **falso**: não saber quanto foi medido não é o mesmo que ter medido tudo.
+- **`UtilityReadingSource` é a mesma inversão do `LineageSource` e do `CostContributor`**, e o
+  `PackagedVolumeSource` também. Se o indicador fosse buscar o volume numa consulta publicada do
+  envase, utilidades dependeria de envase, que depende de sanitização, que implementa a outra porta
+  daqui — o ciclo que o `ModularityTest` pegou no recall. Invertendo, utilidades não depende de
+  ninguém, e um medidor novo (água na brassagem, energia na câmara fria) entra implementando a porta.
+- **O divisor é o envasado, não o produzido**, e sai das execuções, não dos planos. Dividir pelo que
+  ficou no tanque melhoraria o número sem melhorar a cervejaria; dividir pelo planejado daria um
+  indicador que melhora quando a fábrica planeja demais.
+- **O instante que conta é o do registro do consumo**, não o do início do ciclo: é quando alguém leu
+  o instrumento. Um ciclo de julho com consumo lançado em agosto pertence a agosto — o contrário
+  faria o número de um mês já fechado mudar depois.
+- **`UTL-001-A` — o CO₂ não declara cobertura.** O consumo de gás é lançado à mão a partir da pesagem
+  do cilindro, e não existe "consumo esperado" contra o qual comparar; o gás que vazou sem ninguém
+  pesar não aparece. Declarar cobertura cheia seria afirmar completude que não se tem.
+  *Critério de remoção:* existir baseline de consumo esperado de CO₂ (por lote envasado ou por
+  período) contra o qual a pesagem possa ser comparada.
+- **`GAS-001-A` segue aberto, e adiado de propósito.** A sprint 13 previa fechá-lo, mas o critério
+  desta história é consumo por litro, não custo por litro: criar preço de cilindro é escopo
+  comercial (compra de gás), e enfiá-lo aqui ampliaria a história por iniciativa própria.
 
 ## Evidências de encerramento
 

@@ -4362,6 +4362,55 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /utilities/indicators:
+    get:
+      tags: [Utilidades]
+      summary: Água, energia e CO₂ por litro envasado (UTL-001)
+      description: >-
+        Indicador **derivado**, sem tabela própria: soma as medições que já existem — o consumo do
+        ciclo de limpeza (CLN-005) e o CO₂ pesado na conexão de gás (GAS-001) — e divide pelos
+        litros que o envase produziu no período. Guardá-lo criaria uma terceira verdade que
+        envelheceria a cada ciclo lançado com atraso; o mesmo período responde o mesmo enquanto os
+        fatos não mudarem, e muda quando eles mudam.
+
+
+        **Medido e estimado não viram um número só.** Um indicador que mistura leitura de
+        instrumento com conta de padeiro não prova nada a auditor nenhum: `measuredPerLiter` é o que
+        se leva a auditoria, `perLiter` é o total para quem quiser somar os dois sabendo o que fez.
+
+
+        **Período sem envase não tem indicador, e não tem zero** (`perLiter` nulo): a fábrica que
+        limpou tanque sem produzir cerveja gastou água, e dizer "0 L/L" seria chamá-la de eficiente.
+        Pela mesma razão, utilidade que ninguém mediu não aparece zerada — ela não aparece.
+
+
+        `coverage` diz por que parte da fábrica o número fala ("12 de 15 ciclos"), e é declarada por
+        quem mede, não estimada aqui. Sem cobertura declarada, `fullyMeasured` é falso: não saber
+        quanto foi medido não é o mesmo que ter medido tudo. O CO₂ é esse caso hoje (UTL-001-A) —
+        não existe consumo esperado de gás contra o qual comparar.
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema: {type: string, format: date-time}
+          description: "Início do período; padrão, 30 dias antes de `to`."
+        - name: to
+          in: query
+          required: false
+          schema: {type: string, format: date-time}
+          description: "Fim do período, exclusivo; padrão, agora."
+      responses:
+        '200':
+          description: Indicadores do período
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UtilityReport'}
+        '400':
+          description: "`bad_request` — o início do período é depois do fim"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
     CleaningPolicy:
@@ -6626,6 +6675,54 @@ components:
               reason: {type: string}
         closedAt: {type: string, format: date-time, nullable: true}
         note: {type: string, nullable: true}
+    UtilityReport:
+      type: object
+      description: "Consumo de utilidades por litro envasado num período (UTL-001)."
+      properties:
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        packagedLiters:
+          type: number
+          description: >-
+            Divisor do indicador: o volume das execuções de envase, não o dos planos. Dividir pelo
+            planejado daria um número que melhora quando a fábrica planeja demais.
+        indicators:
+          type: array
+          description: "Uma entrada por utilidade que alguém mediu — as outras não aparecem zeradas."
+          items: {$ref: '#/components/schemas/UtilityIndicator'}
+    UtilityIndicator:
+      type: object
+      properties:
+        type: {type: string, enum: [WATER, ENERGY, CO2, CLEANING_PRODUCT]}
+        unit: {type: string, description: "`L` para água, `kWh` para energia, `kg` para CO₂ e produto."}
+        measured: {type: number, description: "Somatório do que foi lido em instrumento."}
+        estimated: {type: number, description: "Somatório do que foi estimado por regra. Não se soma ao medido num número só."}
+        total: {type: number}
+        perLiter:
+          type: number
+          nullable: true
+          description: "Nulo quando nada foi envasado no período — zero diria que a fábrica foi eficiente."
+        measuredPerLiter:
+          type: number
+          nullable: true
+          description: "Só a parte lida de instrumento, por litro: é a que se leva a auditoria."
+        fullyMeasured:
+          type: boolean
+          description: "Falso também quando ninguém declarou cobertura; ver `coverage`."
+        coverage:
+          type: array
+          description: "Por qual parte da fábrica o número fala, declarado por quem mede."
+          items:
+            type: object
+            properties:
+              what: {type: string, description: "O que são os eventos contados, ex.: \"ciclos de limpeza encerrados\"."}
+              reported: {type: integer}
+              expected: {type: integer}
+              complete: {type: boolean}
+        sources:
+          type: array
+          description: "De onde vieram as medições, em texto legível — número de sustentabilidade sem procedência não prova nada."
+          items: {type: string}
     LineageNode:
       type: object
       properties:

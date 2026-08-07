@@ -4405,6 +4405,52 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /reporting/dashboard:
+    get:
+      tags: [Relatórios]
+      summary: Painel operacional (RPT-002)
+      description: >-
+        Produção, estoque, qualidade, fermentação e custo num painel só. Cada indicador chega com
+        **definição, período e destino de drill-down** — não por convenção da tela, mas porque o
+        domínio recusa construir um indicador sem os três. "Indicador sem definição" está listado
+        como risco da sprint, e a forma de um risco desses não voltar é tornar impossível criar o
+        objeto errado.
+
+
+        **Quem define é quem mede.** O que conta como "desvio em aberto" é assunto da qualidade; o
+        painel só coleta. Cada módulo contribui pelos próprios dados através de uma porta federada,
+        e um módulo novo aparece no painel sem que o painel mude.
+
+
+        `from` nulo num indicador significa **posição**, não ausência: estoque vencendo é a foto do
+        instante `to`, não um acumulado do intervalo. O campo `positional` diz isso de forma direta.
+
+
+        `drillDown` traz recurso e filtro, **não rota** — a rota é da interface, e mudá-la não pode
+        obrigar o backend a mudar junto.
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema: {type: string, format: date-time}
+          description: "Início do período; padrão, 30 dias antes de `to`."
+        - name: to
+          in: query
+          required: false
+          schema: {type: string, format: date-time}
+          description: "Fim do período, exclusivo; padrão, agora."
+      responses:
+        '200':
+          description: Painel do período
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Dashboard'}
+        '400':
+          description: "`bad_request` — o início do período é depois do fim"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
   /reporting/batches/{batchId}:
     get:
       tags: [Relatórios]
@@ -6779,6 +6825,52 @@ components:
               reason: {type: string}
         closedAt: {type: string, format: date-time, nullable: true}
         note: {type: string, nullable: true}
+    Dashboard:
+      type: object
+      description: "Painel operacional (RPT-002): derivado, sem tabela própria."
+      properties:
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        sources:
+          type: integer
+          description: >-
+            Quantos módulos contribuíram. Vai no contrato porque um painel com dois blocos a menos
+            parece um painel normal, e este número é o que permite notar que ele encolheu.
+        indicators:
+          type: array
+          items: {$ref: '#/components/schemas/OperationalIndicator'}
+    OperationalIndicator:
+      type: object
+      properties:
+        code:
+          type: string
+          description: "Identificador estável, em ponto. É por ele que a tela reconhece o indicador."
+        group: {type: string, enum: [PRODUCTION, STOCK, QUALITY, FERMENTATION, COST]}
+        label: {type: string}
+        definition:
+          type: string
+          description: "O que o número quer dizer. Nunca vazio — o domínio não constrói sem."
+        value: {type: number}
+        unit: {type: string}
+        from:
+          type: string
+          format: date-time
+          nullable: true
+          description: "Nulo significa posição, não ausência: é a foto do instante `to`."
+        to: {type: string, format: date-time}
+        positional: {type: boolean}
+        drillDown:
+          type: object
+          description: "Recurso e filtro onde o número se abre. A rota é da interface."
+          properties:
+            resource: {type: string}
+            filter:
+              type: object
+              additionalProperties: {type: string}
+        gap:
+          type: string
+          nullable: true
+          description: "O que este número não cobre; nulo quando não há o que ressalvar."
     BatchReport:
       type: object
       description: "Dossiê do lote (RPT-001): consolidação derivada, sem tabela própria."

@@ -10,7 +10,7 @@ Estado: EM ANDAMENTO
 | CST-002 | Concluída | IA | V89 + `BatchVarianceIT` (10) + 9 de domínio + 9 de montagem + 6 de store + E2E (1); PR #157 e a tela | Sem tabela: a variação é derivada. Base de preço = lotes que a OP separou |
 | RPT-001 | Concluída | IA | V90 + `BatchReportIT` (9) + 9 de montagem + 7 de store + E2E (1); PR #158 e a tela | Novo módulo `reporting`, só consumidor. Sem tabela: o dossiê é consolidação |
 | UTL-001 | Concluída | IA | V88 + `UtilityIndicatorIT` (9) + 10 de domínio + 6 de store + E2E (2); PR #156 e a tela | Novo módulo `utilities`; portas `UtilityReadingSource` e `PackagedVolumeSource`. Sem tabela: o indicador é derivado |
-| RPT-002 | A fazer | — | — | — |
+| RPT-002 | Em andamento | IA | V91 + `DashboardIT` (9) + 13 de domínio; PR do backend | Porta `IndicatorSource` no compartilhado; cinco módulos contribuem. Sem tabela |
 | RPT-003 | A fazer | — | — | — |
 
 ## Decisões e bloqueios
@@ -96,6 +96,42 @@ estoque, porque custo não lê tabela alheia.
   definiu. O CO₂ não tem preço nem vínculo com lote — o `GAS-001-A` continua aberto, e o lugar dele
   é a UTL-001 (consumo por litro), não o custo do lote. *Critério de remoção:* haver rateio definido
   pela casa, ou medição por lote.
+
+### RPT-002 — painel operacional
+
+- **Definição, período e drill-down são invariantes de construção, não convenção.** O construtor do
+  indicador recusa os três ausentes. "Indicador sem definição" está listado como risco da sprint, e
+  a única forma de um risco desses não voltar é tornar impossível criar o objeto errado: um número
+  de painel sem definição escrita vira, em três meses, um número que cada pessoa da fábrica
+  interpreta de um jeito.
+- **Quem define é quem mede.** O que conta como "desvio em aberto" é assunto da qualidade. Um painel
+  que escrevesse essas definições estaria legislando sobre domínio alheio, e a definição
+  envelheceria sem que ninguém percebesse quando a regra do outro módulo mudasse.
+- **A porta `IndicatorSource` mora no `shared`, e é a única posição que funciona.** O relatório já
+  depende de produção, envase, custo e qualidade; se esses módulos implementassem uma porta do
+  relatório, o ciclo apareceria. Com a forma no compartilhado — que é módulo `OPEN`, de apoio
+  técnico — ninguém depende de ninguém: cada módulo implementa, o painel coleta. É a mesma federação
+  do `LineageSource` e do `UtilityReadingSource`, com o ponto de encontro deslocado.
+- **`from` nulo significa posição, não ausência.** Estoque vencendo é foto do instante; lotes
+  iniciados é acumulado do intervalo. Tratar os dois como a mesma coisa faria a fábrica ler "3 lotes
+  em andamento" como "3 lotes começaram no mês", que é outro número inteiramente.
+- **O drill-down é recurso e filtro, não rota.** A rota é da interface, e o dia em que ela mudar não
+  pode obrigar o backend a mudar junto. O painel diz "isto se abre nos lotes, filtrados assim".
+- **Fonte que falha derruba o painel, de propósito.** A tentação é engolir a exceção e mostrar o
+  resto; o resultado seria um painel com dois blocos a menos, indistinguível de um painel normal, e
+  alguém decidiria sobre uma fábrica que acha que está vendo inteira. Pela mesma razão, a contagem
+  de fontes vai na resposta.
+- **Percentual sobre zero medição vem com ressalva.** Conformidade de 0% ou de 100% sobre nenhuma
+  medição engana igual: a fábrica que não mediu nada não é a fábrica que passou em tudo. Mesma
+  coisa para a média de custo por litro sem custo fechado no período.
+- **Só custo fechado entra no painel.** O custo aberto ainda muda, e somá-lo daria um total
+  diferente a cada visita sem nada ter acontecido. Quando algum dos fechados tem lacuna declarada,
+  a média avisa que é menor que a verdade.
+- **Média ponderada por volume, não média das médias** — senão o lote de 50 L pesaria igual ao de
+  400 L.
+- **Sem tabela de painel e sem tabela de definição.** Materializar o painel mostraria a foto de
+  ontem; uma tabela de definições editável por fora acabaria descrevendo um cálculo que o código não
+  faz.
 
 ### RPT-001 — relatório do lote
 

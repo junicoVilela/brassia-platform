@@ -9,7 +9,7 @@ Estado: EM ANDAMENTO
 | CST-001 | Concluída | IA | V87 + `BatchCostIT` (10) + 5 de domínio + `BrewConsumptionIT` (8); PRs #153, #154 e a tela | Novo módulo `costing`; porta `CostContributor`. Fecha `TRC-001-C` |
 | CST-002 | A fazer | — | — | — |
 | RPT-001 | A fazer | — | — | — |
-| UTL-001 | Em andamento | IA | V88 + `UtilityIndicatorIT` (9) + 10 de domínio; PR do backend | Novo módulo `utilities`; portas `UtilityReadingSource` e `PackagedVolumeSource`. Sem tabela: o indicador é derivado |
+| UTL-001 | Concluída | IA | V88 + `UtilityIndicatorIT` (9) + 10 de domínio + 6 de store + E2E (2); PR #156 e a tela | Novo módulo `utilities`; portas `UtilityReadingSource` e `PackagedVolumeSource`. Sem tabela: o indicador é derivado |
 | RPT-002 | A fazer | — | — | — |
 | RPT-003 | A fazer | — | — | — |
 
@@ -136,6 +136,15 @@ estoque, porque custo não lê tabela alheia.
   pesar não aparece. Declarar cobertura cheia seria afirmar completude que não se tem.
   *Critério de remoção:* existir baseline de consumo esperado de CO₂ (por lote envasado ou por
   período) contra o qual a pesagem possa ser comparada.
+- **A tela põe a cobertura ao lado do número, não no rodapé.** Um consumo por litro calculado sobre
+  um terço dos ciclos parece um indicador da fábrica; quem lê precisa saber que é de um terço dela
+  enquanto lê. Utilidade sem cobertura declarada diz isso por extenso em vez de exibir um selo de
+  completude que não tem lastro. Onde há estimativa, o texto repete qual é o número de auditoria.
+- **Sem envase, o cartão mostra "—" e não "0".** É a mesma decisão do domínio levada à interface: o
+  traço obriga a ler a explicação, o zero seria lido como resultado bom.
+- **O fim do período é inclusivo para quem pede e exclusivo para quem calcula.** Quem escolhe "até
+  31/08" quer o dia 31 inteiro; a conversão para a meia-noite seguinte é feita uma vez na store,
+  para a tela não ter de explicar essa aritmética a ninguém.
 - **`GAS-001-A` segue aberto, e adiado de propósito.** A sprint 13 previa fechá-lo, mas o critério
   desta história é consumo por litro, não custo por litro: criar preço de cilindro é escopo
   comercial (compra de gás), e enfiá-lo aqui ampliaria a história por iniciativa própria.

@@ -1,0 +1,187 @@
+<app-page-header
+  title="Consumo por litro"
+  subtitle="Água, energia e CO₂ por litro envasado — e o quanto disso é medição."
+/>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="row g-2 align-items-end" [formGroup]="periodForm" (ngSubmit)="apply()">
+      <div class="col-auto">
+        <label class="form-label" for="period-from">De</label>
+        <input id="period-from" type="date" class="form-control" formControlName="from" />
+      </div>
+      <div class="col-auto">
+        <label class="form-label" for="period-to">Até</label>
+        <input id="period-to" type="date" class="form-control" formControlName="to" />
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary" [disabled]="periodForm.invalid">
+          Aplicar
+        </button>
+      </div>
+      <div class="col-auto">
+        <div class="btn-group" role="group" aria-label="Períodos rápidos">
+          <button type="button" class="btn btn-outline-secondary" (click)="preset(30)">
+            30 dias
+          </button>
+          <button type="button" class="btn btn-outline-secondary" (click)="preset(90)">
+            90 dias
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Somando as medições…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else if (store.report(); as report) {
+  <div class="card mb-3">
+    <div class="card-body d-flex align-items-baseline gap-3 flex-wrap">
+      <div>
+        <span class="h4 mb-0">{{ report.packagedLiters | number: '1.0-2' }}</span>
+        <span class="text-muted small ms-1">litros envasados no período</span>
+      </div>
+      <p class="text-muted small mb-0">
+        É o divisor do indicador: o que saiu das execuções de envase, não o que os planos previam.
+      </p>
+    </div>
+  </div>
+
+  @if (store.withoutPackaging()) {
+    <div class="alert alert-info" role="alert">
+      <strong>Não houve envase neste período.</strong>
+      O consumo aparece abaixo, o consumo por litro não — dividir por zero litros e escrever
+      "0 por litro" faria a fábrica que limpou tanque sem produzir cerveja parecer eficiente.
+    </div>
+  }
+
+  @if (report.indicators.length === 0) {
+    <div class="card">
+      <div class="card-body p-4">
+        <app-empty-state
+          icon="ri-dashboard-3-line"
+          message="Nenhuma medição no período."
+          hint="Só aparece a utilidade que alguém mediu: listar as quatro zeradas diria que a fábrica não gasta o que ela apenas não mede."
+        />
+      </div>
+    </div>
+  } @else {
+    <div class="row g-3">
+      @for (indicator of report.indicators; track indicator.type) {
+        <div class="col-lg-6">
+          <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center gap-2">
+              <h2 class="h6 mb-0">
+                <i class="{{ icon(indicator.type) }} me-1"></i>{{ label(indicator.type) }}
+              </h2>
+              @if (indicator.fullyMeasured) {
+                <span class="badge text-bg-success">Medido por completo</span>
+              } @else {
+                <span class="badge text-bg-warning">Medição parcial</span>
+              }
+            </div>
+            <div class="card-body">
+              <div class="d-flex align-items-baseline gap-3 flex-wrap mb-3">
+                @if (indicator.perLiter !== null) {
+                  <div>
+                    <span class="h4 mb-0">{{ indicator.perLiter | number: '1.2-4' }}</span>
+                    <span class="text-muted small ms-1">{{ indicator.unit }}/L</span>
+                  </div>
+                } @else {
+                  <div>
+                    <span class="h4 mb-0 text-muted">—</span>
+                    <span class="text-muted small ms-1">{{ indicator.unit }}/L sem envase</span>
+                  </div>
+                }
+                <div>
+                  <span class="h6 mb-0">{{ indicator.total | number: '1.0-3' }}</span>
+                  <span class="text-muted small ms-1">{{ indicator.unit }} no período</span>
+                </div>
+              </div>
+
+              <ul class="list-inline mb-3">
+                <li class="list-inline-item me-3">
+                  <span class="text-muted small">Medido:</span>
+                  <strong>{{ indicator.measured | number: '1.0-3' }} {{ indicator.unit }}</strong>
+                  @if (indicator.measuredPerLiter !== null) {
+                    <small class="text-muted">
+                      ({{ indicator.measuredPerLiter | number: '1.2-4' }} {{ indicator.unit }}/L)
+                    </small>
+                  }
+                </li>
+                @if (hasEstimate(indicator)) {
+                  <li class="list-inline-item">
+                    <span class="text-muted small">Estimado:</span>
+                    <strong>{{ indicator.estimated | number: '1.0-3' }} {{ indicator.unit }}</strong>
+                  </li>
+                }
+              </ul>
+
+              @if (hasEstimate(indicator)) {
+                <p class="text-muted small">
+                  Medição e estimativa não viram um número só: é
+                  <strong>{{ indicator.measuredPerLiter | number: '1.2-4' }} {{ indicator.unit }}/L</strong>
+                  de leitura de instrumento que se leva a auditoria.
+                </p>
+              }
+
+              @if (indicator.coverage.length > 0) {
+                <ul class="list-unstyled small mb-2">
+                  @for (coverage of indicator.coverage; track coverage.what) {
+                    <li>
+                      @if (coverage.complete) {
+                        <i class="ri-check-line text-success me-1"></i>
+                      } @else {
+                        <i class="ri-error-warning-line text-warning me-1"></i>
+                      }
+                      {{ coverage.reported }} de {{ coverage.expected }} {{ coverage.what }}
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="text-muted small mb-2">
+                  <i class="ri-error-warning-line text-warning me-1"></i>
+                  Ninguém declarou quanto deveria ter sido medido, então o número não afirma
+                  completude — não saber quanto foi medido não é o mesmo que ter medido tudo.
+                </p>
+              }
+
+              @if (indicator.sources.length > 0) {
+                <details>
+                  <summary class="small text-muted">
+                    De onde vem ({{ indicator.sources.length }})
+                  </summary>
+                  <ul class="small text-muted mt-2 mb-0">
+                    @for (source of indicator.sources; track source) {
+                      <li>{{ source }}</li>
+                    }
+                  </ul>
+                </details>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+} @else {
+  <div class="card">
+    <div class="card-body p-4">
+      <app-empty-state
+        icon="ri-dashboard-3-line"
+        message="Escolha um período."
+        hint="O indicador é sempre de um recorte de tempo: é ele que tem litro envasado no divisor."
+      />
+    </div>
+  </div>
+}

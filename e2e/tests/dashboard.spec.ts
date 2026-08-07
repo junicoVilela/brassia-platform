@@ -21,7 +21,12 @@ test.describe('painel operacional', () => {
     expect(response.url()).toContain('from=');
     expect(response.url()).toContain('to=');
 
-    const body = await response.json();
+    // O corpo é relido pela API em vez de extraído da resposta interceptada: depois que a navegação
+    // termina, o Chrome pode ter descartado o buffer daquele recurso, e o teste falha por um motivo
+    // que não tem nada a ver com o que ele quer provar.
+    const api = await page.request.get(response.url());
+    expect(api.status()).toBe(200);
+    const body = await api.json();
     expect(body.indicators.length).toBeGreaterThan(0);
     for (const indicator of body.indicators) {
       expect(indicator.definition).not.toEqual('');

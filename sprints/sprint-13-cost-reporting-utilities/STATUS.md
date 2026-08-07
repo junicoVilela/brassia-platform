@@ -11,7 +11,7 @@ Estado: EM ANDAMENTO
 | RPT-001 | Concluída | IA | V90 + `BatchReportIT` (9) + 9 de montagem + 7 de store + E2E (1); PR #158 e a tela | Novo módulo `reporting`, só consumidor. Sem tabela: o dossiê é consolidação |
 | UTL-001 | Concluída | IA | V88 + `UtilityIndicatorIT` (9) + 10 de domínio + 6 de store + E2E (2); PR #156 e a tela | Novo módulo `utilities`; portas `UtilityReadingSource` e `PackagedVolumeSource`. Sem tabela: o indicador é derivado |
 | RPT-002 | Concluída | IA | V91 + `DashboardIT` (9) + 13 de domínio + 7 de store + E2E (2); PR #159 e a tela | Porta `IndicatorSource` no compartilhado; cinco módulos contribuem. Sem tabela |
-| RPT-003 | Em andamento | IA | V92 + `SavedReportIT` (12) + 20 de domínio; PR do backend | Aqui **tem** tabela: definição é acordo, não derivação. Execução usa a alçada do dono |
+| RPT-003 | Concluída | IA | V92 + `SavedReportIT` (12) + 20 de domínio + 8 de store + E2E (2); PR #160 e a tela | Aqui **tem** tabela: definição é acordo, não derivação. Execução usa a alçada do dono |
 
 ## Decisões e bloqueios
 
@@ -133,6 +133,15 @@ estoque, porque custo não lê tabela alheia.
 - **Redefinir sobe a versão.** Sem isso, uma execução de março diria ter saído da mesma definição
   depois de alguém trocar os filtros em agosto — e o relatório antigo passaria a mentir sobre a
   própria origem. Dono e tipo não se redefinem: mudá-los seria outro relatório.
+- **O formulário não tem campo de e-mail, e a ausência é a funcionalidade.** Destinatário é escolhido
+  de uma lista de usuários, porque só de usuário se sabe a alçada. Um campo livre convidaria a mandar
+  dado da fábrica para um endereço que ninguém verificou.
+- **Execução recusada aparece como execução, não como erro.** É o caso que a história existe para
+  tornar visível — o dono perdeu a permissão e o relatório parou de sair —, e escondê-lo atrás de um
+  alerta passageiro faria a fábrica achar que ele continua indo.
+- **Baixar sempre emite link novo.** A tela não guarda token: ele é pessoal, tem prazo e cada
+  abertura é auditada. Reaproveitar um token guardado seria transformar o link numa credencial
+  permanente.
 - **`RPT-003-A` — não há transporte de entrega.** A plataforma registra a entrega, com tentativa e
   motivo, mas não envia e-mail: não existe infraestrutura de correio aqui, e inventá-la nesta
   história seria ampliar o escopo por iniciativa própria. É a mesma disciplina das notificações de

@@ -1,0 +1,299 @@
+<app-page-header
+  title="Relatórios salvos"
+  subtitle="Recortes reutilizáveis, com periodicidade e destinatários autorizados."
+/>
+
+@if (store.error(); as error) {
+  <div class="alert alert-warning" role="alert">{{ error }}</div>
+}
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando relatórios…" /></div>
+  </div>
+} @else {
+  <div class="row g-3">
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-start gap-2">
+          <div>
+            <h2 class="h6 mb-0">Definições</h2>
+            <p class="text-muted small mb-0 mt-1">
+              Cada execução roda com a alçada do proprietário técnico, nunca com a de quem pede.
+            </p>
+          </div>
+          @if (canManage && !defining()) {
+            <button type="button" class="btn btn-sm btn-outline-primary" (click)="startDefining()">
+              Novo
+            </button>
+          }
+        </div>
+        <div class="list-group list-group-flush">
+          @for (report of store.reports(); track report.id) {
+            <button
+              type="button"
+              class="list-group-item list-group-item-action d-flex justify-content-between align-items-center gap-2"
+              [class.active]="store.selected()?.id === report.id"
+              (click)="store.select(report.id)"
+            >
+              <span>
+                <span class="fw-medium">{{ report.name }}</span>
+                <small class="d-block text-muted">
+                  {{ kindLabels[report.kind] }} · {{ scheduleLabels[report.schedule] }} · v{{
+                    report.definitionVersion
+                  }}
+                </small>
+              </span>
+              @if (report.active) {
+                <span class="badge text-bg-success">Ativo</span>
+              } @else {
+                <span class="badge text-bg-secondary">Suspenso</span>
+              }
+            </button>
+          } @empty {
+            <div class="list-group-item">
+              <app-empty-state
+                icon="ri-calendar-schedule-line"
+                message="Nenhum relatório salvo."
+                hint="Um relatório salvo guarda o recorte, a periodicidade e para quem ele vai."
+              />
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      @if (defining()) {
+        <div class="card">
+          <div class="card-header"><h2 class="h6 mb-0">Novo relatório salvo</h2></div>
+          <div class="card-body">
+            <form [formGroup]="form" (ngSubmit)="submit()">
+              <div class="row g-3">
+                <div class="col-md-8">
+                  <label class="form-label" for="rpt-name">Nome</label>
+                  <input id="rpt-name" class="form-control" formControlName="name" />
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label" for="rpt-kind">Relatório</label>
+                  <select id="rpt-kind" class="form-select" formControlName="kind">
+                    @for (kind of kinds; track kind) {
+                      <option [value]="kind">{{ kindLabels[kind] }}</option>
+                    }
+                  </select>
+                </div>
+
+                @if (form.controls.kind.value === 'BATCH_REPORT') {
+                  <div class="col-md-6">
+                    <label class="form-label" for="rpt-batch">Lote (filtro)</label>
+                    <input id="rpt-batch" class="form-control" formControlName="batchId"
+                           placeholder="id do lote" />
+                  </div>
+                }
+
+                <div class="col-md-4">
+                  <label class="form-label" for="rpt-schedule">Periodicidade</label>
+                  <select id="rpt-schedule" class="form-select" formControlName="schedule">
+                    @for (schedule of schedules; track schedule) {
+                      <option [value]="schedule">{{ scheduleLabels[schedule] }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label" for="rpt-tz">Fuso</label>
+                  <input id="rpt-tz" class="form-control" formControlName="timezone" />
+                  <small class="text-muted">O horário é o da fábrica, não o do servidor.</small>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label" for="rpt-retention">Retenção (dias)</label>
+                  <input id="rpt-retention" type="number" class="form-control"
+                         formControlName="retentionDays" />
+                  <small class="text-muted">Por quanto tempo o arquivo fica disponível.</small>
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label" for="rpt-owner">Proprietário técnico</label>
+                  <select id="rpt-owner" class="form-select" formControlName="ownerUserId">
+                    <option value="">Escolha…</option>
+                    @for (person of store.people(); track person.id) {
+                      <option [value]="person.id">{{ person.displayName }}</option>
+                    }
+                  </select>
+                  <small class="text-muted">
+                    É a alçada dele, na hora da execução, que decide se o relatório sai.
+                  </small>
+                </div>
+
+                <div class="col-12">
+                  <span class="form-label d-block">Destinatários</span>
+                  <p class="text-muted small mb-2">
+                    Só usuários da plataforma: é deles que se sabe a alçada. Não há campo de e-mail.
+                  </p>
+                  <div class="d-flex flex-wrap gap-2">
+                    @for (person of store.people(); track person.id) {
+                      <button
+                        type="button"
+                        class="btn btn-sm"
+                        [class.btn-primary]="isRecipient(person.id)"
+                        [class.btn-outline-secondary]="!isRecipient(person.id)"
+                        (click)="toggleRecipient(person.id)"
+                      >
+                        {{ person.displayName }}
+                      </button>
+                    } @empty {
+                      <span class="text-muted small">Nenhum usuário disponível.</span>
+                    }
+                  </div>
+                </div>
+              </div>
+
+              <div class="d-flex gap-2 mt-3">
+                <button type="submit" class="btn btn-primary" [disabled]="form.invalid">
+                  Salvar definição
+                </button>
+                <button type="button" class="btn btn-outline-secondary" (click)="cancelDefining()">
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      } @else if (store.selected(); as report) {
+        <div class="card mb-3">
+          <div class="card-header d-flex justify-content-between align-items-start gap-2 flex-wrap">
+            <div>
+              <h2 class="h6 mb-1">{{ report.name }}</h2>
+              <p class="text-muted small mb-0">
+                {{ kindLabels[report.kind] }} · {{ scheduleLabels[report.schedule] }} ·
+                versão {{ report.definitionVersion }} · {{ report.timezone }} ·
+                retenção de {{ report.retentionDays }} dias
+              </p>
+            </div>
+            @if (canManage) {
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-primary"
+                        [disabled]="store.running()" (click)="store.run(report.id)">
+                  {{ store.running() ? 'Executando…' : 'Executar agora' }}
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        (click)="store.activate(report.id, !report.active)">
+                  {{ report.active ? 'Suspender' : 'Ativar' }}
+                </button>
+              </div>
+            }
+          </div>
+          <div class="card-body">
+            <p class="mb-1">
+              <span class="text-muted small">Proprietário técnico:</span>
+              <strong>{{ store.nameOf()(report.ownerUserId) }}</strong>
+            </p>
+            <p class="mb-0">
+              <span class="text-muted small">Destinatários:</span>
+              @if (report.recipients.length === 0) {
+                <span class="text-muted">nenhum — o relatório é produzido e fica só aqui</span>
+              } @else {
+                @for (recipient of report.recipients; track recipient) {
+                  <span class="badge text-bg-light fw-normal me-1">
+                    {{ store.nameOf()(recipient) }}
+                  </span>
+                }
+              }
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="h6 mb-0">Execuções</h2>
+            <p class="text-muted small mb-0 mt-1">
+              O link é temporário e pessoal, e cada abertura fica registrada na auditoria.
+            </p>
+          </div>
+          <div class="card-body">
+            @if (store.runsLoading()) {
+              <app-loading-indicator text="Carregando execuções…" />
+            } @else if (store.runs().length === 0) {
+              <app-empty-state
+                icon="ri-history-line"
+                message="Este relatório ainda não foi executado."
+                hint="A execução programada acontece no fuso da definição; a manual, quando alguém pede."
+              />
+            } @else {
+              @for (run of store.runs(); track run.id) {
+                <div class="border-bottom py-2">
+                  <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                    <span>
+                      <span class="fw-medium">
+                        {{ run.executedAt | date: 'dd/MM/yyyy HH:mm' }}
+                      </span>
+                      <small class="text-muted ms-1">v{{ run.definitionVersion }}</small>
+                      @if (run.status === 'SUCCEEDED') {
+                        <span class="badge text-bg-success ms-1">Produzido</span>
+                      } @else {
+                        <span class="badge text-bg-warning ms-1">Recusado</span>
+                      }
+                      @if (run.expired) {
+                        <span class="badge text-bg-secondary ms-1">Arquivo vencido</span>
+                      }
+                    </span>
+                    @if (downloadable(run)) {
+                      <button type="button" class="btn btn-sm btn-outline-primary"
+                              (click)="store.download(run, report.name)">
+                        <i class="ri-download-2-line me-1"></i> Baixar
+                      </button>
+                    }
+                  </div>
+
+                  @if (run.refusalReason; as reason) {
+                    <p class="small text-warning-emphasis mb-1 mt-1">
+                      <i class="ri-error-warning-line me-1" aria-hidden="true"></i>
+                      <span class="visually-hidden">Motivo da recusa: </span>{{ reason }}
+                    </p>
+                  }
+
+                  @if (run.deliveries.length > 0) {
+                    <ul class="list-unstyled small mb-0 mt-1">
+                      @for (delivery of run.deliveries; track delivery.userId) {
+                        <li class="d-flex align-items-center gap-2">
+                          <span class="badge {{ deliveryClass(delivery.status) }}">
+                            {{ deliveryLabels[delivery.status] }}
+                          </span>
+                          <span>{{ store.nameOf()(delivery.userId) }}</span>
+                          @if (delivery.attempts > 0) {
+                            <span class="text-muted">
+                              {{ delivery.attempts }}
+                              {{ delivery.attempts === 1 ? 'tentativa' : 'tentativas' }}
+                            </span>
+                          }
+                          @if (delivery.detail; as detail) {
+                            <span class="text-muted">· {{ detail }}</span>
+                          }
+                          @if (canManage && delivery.status !== 'DELIVERED') {
+                            <button type="button" class="btn btn-sm btn-link p-0"
+                                    (click)="store.deliver(run.id, delivery.userId, true)">
+                              marcar entregue
+                            </button>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  }
+                </div>
+              }
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="card">
+          <div class="card-body p-4">
+            <app-empty-state
+              icon="ri-calendar-schedule-line"
+              message="Escolha um relatório salvo."
+              hint="Cada definição guarda o recorte, a periodicidade, a retenção e para quem ela vai."
+            />
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+}

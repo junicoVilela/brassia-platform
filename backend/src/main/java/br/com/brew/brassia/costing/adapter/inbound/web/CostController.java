@@ -1,8 +1,10 @@
 package br.com.brew.brassia.costing.adapter.inbound.web;
 
 import br.com.brew.brassia.costing.adapter.inbound.web.dto.CostDtos;
+import br.com.brew.brassia.costing.adapter.inbound.web.dto.VarianceDtos;
 import br.com.brew.brassia.costing.application.port.inbound.CostCommands;
 import br.com.brew.brassia.costing.application.port.inbound.CostQueries;
+import br.com.brew.brassia.costing.application.port.inbound.VarianceQueries;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -27,10 +29,12 @@ import org.springframework.web.bind.annotation.RestController;
 final class CostController {
 
     private final CostQueries queries;
+    private final VarianceQueries variances;
     private final CostCommands.Close close;
 
-    CostController(CostQueries queries, CostCommands.Close close) {
+    CostController(CostQueries queries, VarianceQueries variances, CostCommands.Close close) {
         this.queries = queries;
+        this.variances = variances;
         this.close = close;
     }
 
@@ -45,6 +49,18 @@ final class CostController {
             @PathVariable UUID batchId) {
         principal.requirePermission("costing.cost.read");
         return CostDtos.BatchCostView.from(queries.ofBatch(principal.requireBrewery(), batchId));
+    }
+
+    /**
+     * O planejado versus real (CST-002), sempre derivado — inclusive com o custo já fechado. O
+     * custo é a resposta daquele dia; a explicação dela é sobre os fatos, que continuam sendo
+     * corrigidos depois.
+     */
+    @GetMapping("/batches/{batchId}/variance")
+    VarianceDtos.VarianceView variance(@AuthenticationPrincipal SecurityPrincipal principal,
+            @PathVariable UUID batchId) {
+        principal.requirePermission("costing.variance.read");
+        return VarianceDtos.VarianceView.from(variances.ofBatch(principal.requireBrewery(), batchId));
     }
 
     @PostMapping("/batches/{batchId}/close")

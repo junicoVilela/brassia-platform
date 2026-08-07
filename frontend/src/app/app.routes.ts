@@ -213,6 +213,13 @@ export const routes: Routes = [
           import('./features/costing/costing.routes').then(m => m.VARIANCE_ROUTES),
       },
       {
+        path: 'reporting/saved-reports',
+        canActivate: [permissionGuard],
+        data: { permission: 'reporting.saved.read' },
+        loadChildren: () =>
+          import('./features/reporting/reporting.routes').then(m => m.SAVED_REPORTS_ROUTES),
+      },
+      {
         path: 'reporting/dashboard',
         canActivate: [permissionGuard],
         data: { permission: 'reporting.dashboard.read' },

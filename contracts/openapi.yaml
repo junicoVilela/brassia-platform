@@ -4405,6 +4405,242 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /reporting/saved-reports:
+    get:
+      tags: [Relatórios]
+      summary: Relatórios salvos (RPT-003)
+      responses:
+        '200':
+          description: Definições da cervejaria
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/SavedReport'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Relatórios]
+      summary: Definir um relatório salvo
+      description: >-
+        A definição registra **versão, filtros, tenant, fuso, formato e retenção** — o tenant vem da
+        sessão, não do corpo, e é o que impede definir relatório para outra cervejaria.
+
+
+        **Destinatários são usuários da plataforma, não e-mails digitados.** Não há campo de endereço
+        livre, e é deliberado: só de usuário se sabe a alçada. Mandar para um endereço que ninguém
+        verificou seria entregar dado da fábrica a quem quer que o tenha digitado.
+
+
+        O **proprietário técnico** é quem responde pela execução: é a alçada dele, resolvida a cada
+        execução, que decide se o relatório sai.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SavedReportRequest'}
+      responses:
+        '201':
+          description: Definição criada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SavedReport'}
+        '400':
+          description: "`bad_request` — fuso desconhecido, retenção fora da faixa ou nome em branco"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "`conflict` — já existe relatório com este nome na cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /reporting/saved-reports/{reportId}:
+    get:
+      tags: [Relatórios]
+      summary: Uma definição
+      parameters:
+        - {name: reportId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Definição
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SavedReport'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_saved_report`"
+          content:
+            application/problem+json:
+              schema: {type: object}
+    put:
+      tags: [Relatórios]
+      summary: Redefinir filtros, periodicidade, retenção e destinatários
+      description: >-
+        **Sobe a versão da definição.** Sem isso, uma execução de março e uma de agosto diriam ter
+        saído da mesma definição depois de alguém trocar os filtros no meio, e o relatório antigo
+        passaria a mentir sobre a própria origem. Dono e tipo não se redefinem — mudá-los seria
+        outro relatório.
+      parameters:
+        - {name: reportId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                filters: {type: object, additionalProperties: {type: string}}
+                timezone: {type: string}
+                schedule: {type: string, enum: [MANUAL, DAILY, WEEKLY, MONTHLY]}
+                retentionDays: {type: integer, minimum: 1, maximum: 3650}
+                recipients: {type: array, items: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Definição atualizada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SavedReport'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "`conflict` — a definição foi alterada por outra pessoa"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /reporting/saved-reports/{reportId}/active:
+    post:
+      tags: [Relatórios]
+      summary: Ativar ou suspender a programação
+      parameters:
+        - {name: reportId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active: {type: boolean}
+      responses:
+        '200':
+          description: Definição atualizada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SavedReport'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /reporting/saved-reports/{reportId}/runs:
+    get:
+      tags: [Relatórios]
+      summary: Execuções de um relatório salvo
+      parameters:
+        - {name: reportId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Execuções, da mais recente para a mais antiga
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ReportRun'}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Relatórios]
+      summary: Executar agora
+      description: >-
+        **Roda com a autorização efetiva do proprietário técnico**, resolvida neste instante — não a
+        de quem apertou o botão, não a que ele tinha quando salvou, e nunca um privilégio de sistema.
+        Um administrador que dispare o relatório de outra pessoa recebe o que a alçada *daquela
+        pessoa* permite: pedir a execução não é uma forma de ler o que não se pode ler.
+
+
+        Dono sem a alçada não faz a execução falhar — faz a execução **recusar** (`REFUSED`), com o
+        motivo registrado. Falhar em silêncio deixaria a fábrica achando que o relatório continua
+        indo.
+      parameters:
+        - {name: reportId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Execução (bem-sucedida ou recusada)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportRun'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /reporting/saved-reports/runs/{runId}/deliveries:
+    post:
+      tags: [Relatórios]
+      summary: Registrar a entrega a um destinatário
+      description: >-
+        **Idempotente por (execução, destinatário).** Reentregar atualiza a linha e conta a
+        tentativa; em nenhum caso refaz o relatório. É o que impede uma falha parcial de envio de
+        reenviar para quem já tinha recebido — e de gerar dado novo, que é o pior dos dois.
+      parameters:
+        - {name: runId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipientId, delivered]
+              properties:
+                recipientId: {type: string, format: uuid}
+                delivered: {type: boolean}
+                detail: {type: string, maxLength: 500}
+      responses:
+        '200':
+          description: Execução com as entregas atualizadas
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportRun'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /reporting/saved-reports/runs/{runId}/link:
+    post:
+      tags: [Relatórios]
+      summary: Emitir link temporário de download
+      description: >-
+        Emite um token com prazo, **pessoal**, para quem é destinatário ou dono. Ter alçada de gerir
+        relatórios não dá acesso ao conteúdo: gerir a programação e ler o que ela produziu são
+        coisas diferentes. O link nunca vive mais do que o artefato.
+      parameters:
+        - {name: runId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Token e prazo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: {type: string}
+                  expiresAt: {type: string, format: date-time}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '410':
+          description: A execução não produziu artefato, ou ele já expirou
+  /reporting/downloads/{token}:
+    get:
+      tags: [Relatórios]
+      summary: Abrir um link temporário
+      description: >-
+        O token diz **qual** artefato; a sessão diz **quem**. Um link que autenticasse sozinho
+        viraria uma senha em texto claro no corpo de um e-mail, repassável a qualquer um.
+
+
+        Cada abertura é auditada. Token vencido, token de outra pessoa e token inexistente respondem
+        a mesma coisa — a diferença entre eles só interessa a quem está testando tokens.
+      parameters:
+        - {name: token, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: O artefato, como anexo
+          content:
+            application/json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
+        '410':
+          description: Este link não vale mais
   /reporting/dashboard:
     get:
       tags: [Relatórios]
@@ -6825,6 +7061,81 @@ components:
               reason: {type: string}
         closedAt: {type: string, format: date-time, nullable: true}
         note: {type: string, nullable: true}
+    SavedReport:
+      type: object
+      description: "Definição de relatório salvo (RPT-003): um acordo, e por isso guardado."
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        kind: {type: string, enum: [DASHBOARD, BATCH_REPORT]}
+        definitionVersion:
+          type: integer
+          description: "Versão da definição. Sobe a cada redefinição, e a execução guarda contra qual rodou."
+        filters: {type: object, additionalProperties: {type: string}}
+        timezone:
+          type: string
+          description: "Fuso da definição, não do servidor: 'todo dia às 6h' é 6h na fábrica."
+        format: {type: string, enum: [JSON]}
+        schedule: {type: string, enum: [MANUAL, DAILY, WEEKLY, MONTHLY]}
+        retentionDays:
+          type: integer
+          description: "Por quantos dias o artefato fica disponível. É decisão de quem define."
+        ownerUserId:
+          type: string
+          format: uuid
+          description: "Proprietário técnico: a execução roda com a alçada dele, resolvida na hora."
+        recipients:
+          type: array
+          description: "Usuários da plataforma. Não há e-mail livre: só de usuário se sabe a alçada."
+          items: {type: string, format: uuid}
+        active: {type: boolean}
+        createdAt: {type: string, format: date-time}
+    SavedReportRequest:
+      type: object
+      required: [name, kind, timezone, format, schedule, retentionDays, ownerUserId]
+      properties:
+        name: {type: string, maxLength: 120}
+        kind: {type: string, enum: [DASHBOARD, BATCH_REPORT]}
+        filters: {type: object, additionalProperties: {type: string}}
+        timezone: {type: string, example: "America/Sao_Paulo"}
+        format: {type: string, enum: [JSON]}
+        schedule: {type: string, enum: [MANUAL, DAILY, WEEKLY, MONTHLY]}
+        retentionDays: {type: integer, minimum: 1, maximum: 3650}
+        ownerUserId: {type: string, format: uuid}
+        recipients: {type: array, items: {type: string, format: uuid}}
+    ReportRun:
+      type: object
+      description: "Uma execução: o que saiu, sob qual alçada e para quem foi."
+      properties:
+        id: {type: string, format: uuid}
+        reportId: {type: string, format: uuid}
+        definitionVersion: {type: integer}
+        status: {type: string, enum: [SUCCEEDED, REFUSED, FAILED]}
+        refusalReason:
+          type: string
+          nullable: true
+          description: "Por que não rodou. O caso que importa: o dono perdeu a alçada."
+        periodFrom: {type: string, format: date-time, nullable: true}
+        periodTo: {type: string, format: date-time, nullable: true}
+        expiresAt: {type: string, format: date-time, nullable: true}
+        executedAt: {type: string, format: date-time}
+        expired: {type: boolean}
+        deliveries:
+          type: array
+          items:
+            type: object
+            properties:
+              userId: {type: string, format: uuid}
+              status: {type: string, enum: [PENDING, DELIVERED, REFUSED]}
+              detail: {type: string, nullable: true}
+              attempts:
+                type: integer
+                description: "Sobe a cada tentativa; é o que distingue 'ainda não' de 'nunca vai'."
+              lastAttemptAt: {type: string, format: date-time, nullable: true}
+        downloadToken:
+          type: string
+          nullable: true
+          description: "Só vem para destinatário ou dono — o link é pessoal."
     Dashboard:
       type: object
       description: "Painel operacional (RPT-002): derivado, sem tabela própria."

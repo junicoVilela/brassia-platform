@@ -11,7 +11,7 @@ Estado: EM ANDAMENTO
 | RPT-001 | Concluída | IA | V90 + `BatchReportIT` (9) + 9 de montagem + 7 de store + E2E (1); PR #158 e a tela | Novo módulo `reporting`, só consumidor. Sem tabela: o dossiê é consolidação |
 | UTL-001 | Concluída | IA | V88 + `UtilityIndicatorIT` (9) + 10 de domínio + 6 de store + E2E (2); PR #156 e a tela | Novo módulo `utilities`; portas `UtilityReadingSource` e `PackagedVolumeSource`. Sem tabela: o indicador é derivado |
 | RPT-002 | Concluída | IA | V91 + `DashboardIT` (9) + 13 de domínio + 7 de store + E2E (2); PR #159 e a tela | Porta `IndicatorSource` no compartilhado; cinco módulos contribuem. Sem tabela |
-| RPT-003 | A fazer | — | — | — |
+| RPT-003 | Concluída | IA | V92 + `SavedReportIT` (12) + 20 de domínio + 8 de store + E2E (2); PR #160 e a tela | Aqui **tem** tabela: definição é acordo, não derivação. Execução usa a alçada do dono |
 
 ## Decisões e bloqueios
 
@@ -96,6 +96,61 @@ estoque, porque custo não lê tabela alheia.
   definiu. O CO₂ não tem preço nem vínculo com lote — o `GAS-001-A` continua aberto, e o lugar dele
   é a UTL-001 (consumo por litro), não o custo do lote. *Critério de remoção:* haver rateio definido
   pela casa, ou medição por lote.
+
+### RPT-003 — relatórios salvos e entrega programada
+
+- **Aqui tem tabela, e a diferença com as três histórias anteriores é o ponto.** Indicador, variação
+  e dossiê são sobre o presente e se derivam. Uma definição de relatório é um **acordo**: alguém
+  decidiu que este recorte, com esta periodicidade, vai para estas pessoas. Acordo não se deriva de
+  nada — ele foi feito, tem autor e data, e some se não for guardado. A execução também se guarda:
+  o que foi entregue, para quem e quando é passado, e refazer a consulta amanhã daria outro número.
+- **A execução roda com a autorização efetiva do proprietário técnico, resolvida no instante da
+  execução.** Não a de quem apertou o botão, não a que ele tinha quando salvou a definição, e nunca
+  um privilégio de sistema. Congelar as permissões na definição criaria um privilégio que sobrevive
+  à demissão do dono; rodar como sistema entregaria, todo mês, dados que ninguém autoriza mais.
+- **Quem pede não empresta a própria alçada.** Um administrador que dispare o relatório de outra
+  pessoa recebe o que a alçada *daquela pessoa* permite. Fosse o contrário, pedir a execução seria
+  uma forma de ler o que não se pode ler.
+- **Dono sem alçada recusa, não falha.** A execução acontece, registra `REFUSED` e o motivo. Sumir em
+  silêncio faria a fábrica achar que o relatório continua indo.
+- **Destinatários são usuários da plataforma, não e-mails digitados.** Não há campo de endereço
+  livre, e é deliberado: só de usuário se sabe a alçada. É o que "destinatários autorizados" quer
+  dizer, e o que evita entregar dado da fábrica a um endereço que ninguém verificou.
+- **O link é temporário, pessoal e auditado.** Um token com prazo, e não o id da execução: o id vive
+  no banco para sempre, o link tem de morrer. O token diz *qual* artefato e a sessão diz *quem* — um
+  link que autenticasse sozinho viraria senha em texto claro no corpo de um e-mail. Token vencido,
+  token de outro e token inexistente respondem a mesma coisa, porque a diferença entre eles só
+  interessa a quem está testando tokens.
+- **Ter alçada de gerir não dá acesso ao conteúdo.** Só destinatário e dono recebem link. Gerir a
+  programação e ler o que ela produziu são coisas diferentes.
+- **A idempotência é do banco, e a chave sai do calendário no fuso da definição.** O agendador não
+  guarda "quando rodou por último" — ele tenta a chave do período atual e o índice único decide.
+  Marcador de última execução seria uma segunda verdade que se perde numa restauração de backup, e
+  aí o relatório sairia duas vezes ou nenhuma. Por isso também é seguro rodar o agendador de hora em
+  hora: um relatório diário produz um artefato por dia, não vinte e quatro.
+- **Falha de entrega não regenera nem duplica.** A chave (execução, destinatário) faz a reentrega
+  atualizar a linha e contar a tentativa. O artefato já existe; reenviar nunca refaz a consulta.
+- **Redefinir sobe a versão.** Sem isso, uma execução de março diria ter saído da mesma definição
+  depois de alguém trocar os filtros em agosto — e o relatório antigo passaria a mentir sobre a
+  própria origem. Dono e tipo não se redefinem: mudá-los seria outro relatório.
+- **O formulário não tem campo de e-mail, e a ausência é a funcionalidade.** Destinatário é escolhido
+  de uma lista de usuários, porque só de usuário se sabe a alçada. Um campo livre convidaria a mandar
+  dado da fábrica para um endereço que ninguém verificou.
+- **Execução recusada aparece como execução, não como erro.** É o caso que a história existe para
+  tornar visível — o dono perdeu a permissão e o relatório parou de sair —, e escondê-lo atrás de um
+  alerta passageiro faria a fábrica achar que ele continua indo.
+- **Baixar sempre emite link novo.** A tela não guarda token: ele é pessoal, tem prazo e cada
+  abertura é auditada. Reaproveitar um token guardado seria transformar o link numa credencial
+  permanente.
+- **`RPT-003-A` — não há transporte de entrega.** A plataforma registra a entrega, com tentativa e
+  motivo, mas não envia e-mail: não existe infraestrutura de correio aqui, e inventá-la nesta
+  história seria ampliar o escopo por iniciativa própria. É a mesma disciplina das notificações de
+  recall na sprint 12, que registram a comunicação sem executá-la. *Critério de remoção:* existir
+  transporte configurado (SMTP ou serviço) e política de reenvio definida pela casa.
+- **`RPT-003-B` — o agendador é de instância única.** Duas instâncias rodando o mesmo cron tentam a
+  mesma chave e o índice único resolve, então não há duplicação; o que não há é distribuição de
+  carga nem eleição de líder. *Critério de remoção:* haver mais de uma instância em produção e
+  alguém medir que o trabalho do agendador pesa.
 
 ### RPT-002 — painel operacional
 

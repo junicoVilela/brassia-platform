@@ -4327,6 +4327,49 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /costing/batches/{batchId}/variance:
+    get:
+      tags: [Custos]
+      summary: Planejado versus real do lote (CST-002)
+      description: >-
+        Explica a diferença entre o custo que se esperava e o que aconteceu, separando **preço** de
+        **consumo** — e a conta fecha: `priceVariance + consumptionVariance = actualCost −
+        plannedCost`, exatamente. O campo `reconciles` vai no contrato para quem consome poder
+        conferir isso em vez de confiar.
+
+
+        **A plataforma não tem custo padrão**, e esta consulta não inventa um. A base de preço é o
+        que a ordem *separou*: lotes concretos a preços concretos, lidos dos movimentos de reserva
+        que sobrevivem no ledger mesmo depois de liberados pelo consumo. A base de quantidade é a
+        explosão da receita que a ordem congelou.
+
+
+        **Sem base confiável, declara em vez de comparar.** Receita republicada depois da ordem,
+        insumo que a ordem não separou, consumo ainda não confirmado, lote ainda não transferido —
+        cada um vira lacuna em `gaps`, e o insumo correspondente sai do dinheiro (`comparable`
+        falso) em vez de virar uma variação inteira de preço.
+
+
+        `plannedQuantity` nulo e zero são coisas diferentes: nulo é "não se sabe o que a receita
+        pedia"; zero é "não pedia nada e a brassagem usou assim mesmo".
+
+
+        Sempre derivada, inclusive com o custo já fechado: o custo é a resposta daquele dia, a
+        explicação é sobre os fatos, e os fatos continuam sendo corrigidos depois.
+      parameters:
+        - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Planejado versus real
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BatchVariance'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_batch` — o lote não existe nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
   /costing/batches/{batchId}/close:
     post:
       tags: [Custos]
@@ -6675,6 +6718,91 @@ components:
               reason: {type: string}
         closedAt: {type: string, format: date-time, nullable: true}
         note: {type: string, nullable: true}
+    BatchVariance:
+      type: object
+      description: "Planejado versus real do lote (CST-002): derivado, sem tabela própria."
+      properties:
+        batchId: {type: string, format: uuid}
+        batchCode: {type: string}
+        plannedCost:
+          type: number
+          description: "Só dos insumos comparáveis: quem não tem base não entra no total."
+        actualCost: {type: number}
+        priceVariance:
+          type: number
+          description: "`(preço real − preço planejado) × quantidade real`. Positivo é desfavorável."
+        consumptionVariance:
+          type: number
+          description: "`(quantidade real − planejada) × preço planejado`. Positivo é desfavorável."
+        totalVariance: {type: number}
+        reconciles:
+          type: boolean
+          description: >-
+            Verdadeiro quando preço + consumo explicam a diferença inteira. Exposto de propósito:
+            um relatório de variação que não fecha faz desconfiar até dos números certos.
+        incomplete:
+          type: boolean
+          description: "Verdadeiro quando há lacuna; leia com `gaps`."
+        materials:
+          type: array
+          items: {$ref: '#/components/schemas/MaterialVariance'}
+        volumes:
+          type: array
+          items: {$ref: '#/components/schemas/VolumeVariance'}
+        gaps:
+          type: array
+          description: "O que não deu para comparar, e por quê. Sem isso, silêncio viraria 'sem desvio'."
+          items:
+            type: object
+            properties:
+              what: {type: string}
+              reason: {type: string}
+    MaterialVariance:
+      type: object
+      properties:
+        ingredientId: {type: string, format: uuid}
+        name: {type: string}
+        unit: {type: string, description: "Unidade canônica: KG, L ou UNIT."}
+        plannedQuantity:
+          type: number
+          nullable: true
+          description: "Nulo é 'não se sabe o que a receita pedia'; zero é 'não pedia nada'."
+        actualQuantity:
+          type: number
+          nullable: true
+          description: "Nulo enquanto o consumo não foi confirmado — o lote pode estar na panela."
+        quantityVariance: {type: number, nullable: true}
+        plannedUnitCost:
+          type: number
+          nullable: true
+          description: "Preço médio dos lotes que a ordem separou; nulo quando ela não separou nada."
+        actualUnitCost: {type: number, nullable: true}
+        plannedCost: {type: number, nullable: true}
+        actualCost: {type: number, nullable: true}
+        priceVariance: {type: number, nullable: true}
+        consumptionVariance: {type: number, nullable: true}
+        totalVariance: {type: number, nullable: true}
+        comparable:
+          type: boolean
+          description: "Falso quando falta algum dos quatro números; os campos nulos dizem qual."
+    VolumeVariance:
+      type: object
+      properties:
+        kind: {type: string, enum: [YIELD, LOSS]}
+        what: {type: string}
+        planned:
+          type: number
+          nullable: true
+          description: "Nulo quando ninguém definiu o esperado — perda é assim hoje (CST-002-A)."
+        actual: {type: number}
+        variance: {type: number, nullable: true}
+        variancePercent: {type: number, nullable: true}
+        comparable: {type: boolean}
+        unfavorable:
+          type: boolean
+          description: >-
+            Render menos ou perder mais. O sinal sozinho não diz isso: −10 L de rendimento é ruim,
+            −2 L de perda é bom.
     UtilityReport:
       type: object
       description: "Consumo de utilidades por litro envasado num período (UTL-001)."

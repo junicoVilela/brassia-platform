@@ -1,13 +1,20 @@
 package br.com.brew.brassia.costing.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.catalog.IngredientPurchaseLookup;
 import br.com.brew.brassia.costing.CostContributor;
+import br.com.brew.brassia.costing.MaterialActualSource;
 import br.com.brew.brassia.costing.application.port.inbound.CostCommands;
 import br.com.brew.brassia.costing.application.port.inbound.CostQueries;
+import br.com.brew.brassia.costing.application.port.inbound.VarianceQueries;
 import br.com.brew.brassia.costing.application.port.outbound.BatchCostRepository;
 import br.com.brew.brassia.costing.application.service.BatchCostAssembler;
+import br.com.brew.brassia.costing.application.service.BatchVarianceAssembler;
 import br.com.brew.brassia.costing.application.service.CostHandlers;
+import br.com.brew.brassia.packaging.PackagingOutcomeLookup;
+import br.com.brew.brassia.planning.OrderPlanLookup;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.production.BatchOutcomeLookup;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -32,6 +39,18 @@ class CostingConfiguration {
     @Bean
     CostQueries costQueries(BatchCostRepository costs, BatchCostAssembler assembler) {
         return new CostHandlers.Queries(costs, assembler);
+    }
+
+    @Bean
+    BatchVarianceAssembler batchVarianceAssembler(BatchLookup batches, BatchOutcomeLookup outcomes,
+            OrderPlanLookup plans, MaterialActualSource actuals, PackagingOutcomeLookup packaging,
+            IngredientPurchaseLookup ingredients) {
+        return new BatchVarianceAssembler(batches, outcomes, plans, actuals, packaging, ingredients);
+    }
+
+    @Bean
+    VarianceQueries varianceQueries(BatchVarianceAssembler assembler) {
+        return assembler::assemble;
     }
 
     @Bean

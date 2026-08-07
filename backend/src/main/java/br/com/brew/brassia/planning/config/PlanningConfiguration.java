@@ -29,6 +29,8 @@ import br.com.brew.brassia.planning.application.service.ScheduleMaterialsHandler
 import br.com.brew.brassia.planning.application.service.SimulateScheduleHandler;
 import br.com.brew.brassia.planning.application.service.StartBrewOrderHandler;
 import br.com.brew.brassia.planning.OrderDemandLookup;
+import br.com.brew.brassia.planning.OrderPlanLookup;
+import br.com.brew.brassia.planning.application.service.OrderPlanService;
 import br.com.brew.brassia.planning.StockReservationGateway;
 import br.com.brew.brassia.planning.application.port.inbound.ReserveOrderMaterialsUseCase;
 import br.com.brew.brassia.planning.application.service.OrderDemandService;
@@ -120,6 +122,11 @@ class PlanningConfiguration {
     @Bean
     OrderDemandLookup orderDemandLookup(BrewOrderRepository orders, RecipeLookup recipes) {
         return new OrderDemandService(orders, recipes);
+    }
+
+    @Bean
+    OrderPlanLookup orderPlanLookup(BrewOrderRepository orders, RecipeLookup recipes) {
+        return new OrderPlanService(orders, recipes);
     }
 
     @Bean

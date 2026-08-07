@@ -206,6 +206,13 @@ export const routes: Routes = [
         loadChildren: () => import('./features/costing/costing.routes').then(m => m.COSTING_ROUTES),
       },
       {
+        path: 'costing/variance',
+        canActivate: [permissionGuard],
+        data: { permission: 'costing.variance.read' },
+        loadChildren: () =>
+          import('./features/costing/costing.routes').then(m => m.VARIANCE_ROUTES),
+      },
+      {
         path: 'utilities/indicators',
         canActivate: [permissionGuard],
         data: { permission: 'utilities.indicator.read' },

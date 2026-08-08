@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { AskRequest, GroundedAnswer } from '../domain/answer.model';
 import { Budget, GatewayStatus, ProbeResult } from '../domain/gateway.model';
 
 @Injectable({ providedIn: 'root' })
@@ -19,5 +20,10 @@ export class AiApi {
 
   redefineBudget(monthlyLimit: number, version: number): Observable<Budget> {
     return this.http.put<Budget>(`${this.baseUrl}/budget`, { monthlyLimit, version });
+  }
+
+  /** POST porque gasta: cada pergunta é uma chamada ao modelo, cobrada e registrada. */
+  ask(request: AskRequest): Observable<GroundedAnswer> {
+    return this.http.post<GroundedAnswer>('/api/v1/ai/copilot/ask', request);
   }
 }

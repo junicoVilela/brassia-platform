@@ -2,6 +2,7 @@ package br.com.brew.brassia.ai.config;
 
 import br.com.brew.brassia.ai.ModelGateway;
 import br.com.brew.brassia.ai.adapter.outbound.provider.ModelProviders;
+import br.com.brew.brassia.ai.application.port.inbound.AnswerCommands;
 import br.com.brew.brassia.ai.application.port.inbound.BudgetCommands;
 import br.com.brew.brassia.ai.application.port.inbound.GatewayCommands;
 import br.com.brew.brassia.ai.application.port.inbound.GatewayQueries;
@@ -11,9 +12,11 @@ import br.com.brew.brassia.ai.application.port.outbound.ModelProvider;
 import br.com.brew.brassia.ai.application.port.outbound.StructuredResponseReader;
 import br.com.brew.brassia.ai.application.service.BudgetHandler;
 import br.com.brew.brassia.ai.application.service.GatewayStatusService;
+import br.com.brew.brassia.ai.application.service.GroundedAnswerHandler;
 import br.com.brew.brassia.ai.application.service.ModelGatewayService;
 import br.com.brew.brassia.ai.application.service.ProbeHandler;
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.knowledge.KnowledgeRetrieval;
 import java.time.Clock;
 import java.util.Objects;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -51,6 +54,18 @@ class AiConfiguration {
     @Bean
     GatewayCommands gatewayCommands(ModelGateway gateway) {
         return new ProbeHandler(gateway);
+    }
+
+    /**
+     * Responder com fonte (RAG-002).
+     *
+     * <p>Sem transação: a pergunta não escreve nada de negócio. O que ela grava — a linha do ledger e o
+     * evento de auditoria — já é gravado em transação própria pelo gateway, porque o gasto aconteceu de
+     * verdade e não pode ser desfeito por rollback de quem perguntou.
+     */
+    @Bean
+    AnswerCommands answerCommands(KnowledgeRetrieval retrieval, ModelGateway gateway, AuditTrail audit) {
+        return new GroundedAnswerHandler(retrieval, gateway, audit, Clock.systemUTC());
     }
 
     @Bean

@@ -241,6 +241,12 @@ export const routes: Routes = [
           import('./features/knowledge/knowledge.routes').then(m => m.KNOWLEDGE_ROUTES),
       },
       {
+        path: 'ai/copilot',
+        canActivate: [permissionGuard],
+        data: { permission: 'ai.answer.ask' },
+        loadChildren: () => import('./features/ai/ai.routes').then(m => m.COPILOT_ROUTES),
+      },
+      {
         path: 'ai/gateway',
         canActivate: [permissionGuard],
         data: { permission: 'ai.gateway.read' },

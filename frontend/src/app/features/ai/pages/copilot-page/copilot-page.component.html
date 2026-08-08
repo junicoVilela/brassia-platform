@@ -1,0 +1,158 @@
+<app-page-header
+  title="Perguntar ao copiloto"
+  subtitle="Resposta com a fonte de cada afirmação — e com o que ela não cobre."
+/>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form [formGroup]="form" (ngSubmit)="ask()">
+      <div class="mb-3">
+        <label class="form-label" for="question">Pergunta</label>
+        <textarea
+          id="question"
+          class="form-control"
+          rows="3"
+          placeholder="qual a concentração de peracético para sanitizar o tanque de maturação?"
+          formControlName="question"
+        ></textarea>
+      </div>
+      <div class="row g-2 align-items-end">
+        <div class="col-auto">
+          <label class="form-label" for="onDate">Fontes vigentes em</label>
+          <input id="onDate" type="date" class="form-control" formControlName="onDate" />
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-primary" [disabled]="form.invalid || store.asking()">
+            {{ store.asking() ? 'Consultando…' : 'Perguntar' }}
+          </button>
+        </div>
+        <div class="col-12 mt-2">
+          <p class="text-muted small mb-0">
+            Cada pergunta é uma chamada ao modelo, e é cobrada. Deixe a data em branco para as fontes que
+            valem hoje; preencha para perguntar sobre o passado.
+          </p>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+@if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+}
+
+@if (store.asking()) {
+  <div class="card">
+    <div class="card-body p-4">
+      <app-loading-indicator text="Procurando nas fontes e consultando o modelo…" />
+    </div>
+  </div>
+} @else if (store.answer(); as answer) {
+  <!-- 1. Não havia fonte: pede indexar documento. -->
+  @if (store.withoutSources()) {
+    <div class="alert alert-secondary" role="alert">
+      <strong>Não há fonte indexada sobre isso.</strong>
+      @for (limitation of answer.limitations; track limitation) {
+        <span class="d-block small mt-1">{{ limitation }}</span>
+      }
+      <a routerLink="/knowledge" class="d-inline-block mt-2 small">Ir para a base de conhecimento</a>
+    </div>
+  }
+
+  <!-- 2. Havia fonte, mas a resposta não se sustentou: pede olhar o prompt, não indexar. -->
+  @if (store.unsupported()) {
+    <div class="alert alert-warning" role="alert">
+      <strong>A resposta não pôde ser sustentada pelas fontes.</strong>
+      @for (limitation of answer.limitations; track limitation) {
+        <span class="d-block small mt-1">{{ limitation }}</span>
+      }
+      <span class="d-block small mt-2 text-muted">
+        {{ answer.consultedSources }} trecho(s) foram consultados. O texto que o modelo produziu foi
+        descartado em vez de apresentado — uma afirmação sem fonte conferida não deve circular.
+      </span>
+    </div>
+  }
+
+  <!-- 3. Respondeu com fonte. -->
+  @if (store.grounded()) {
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">Resposta</div>
+      <div class="card-body">
+        <p class="mb-0" style="white-space: pre-line">{{ answer.answer }}</p>
+      </div>
+      <div class="card-footer text-muted small">
+        Sustentada por {{ answer.citations.length }} citação(ões) conferida(s) contra
+        {{ answer.consultedSources }} trecho(s) consultado(s).
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">
+        O que os documentos dizem
+        <span class="text-muted small fw-normal ms-1">— citação conferida contra a fonte</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        @for (citation of answer.citations; track citation.documentCode + '-' + citation.ordinal) {
+          <li class="list-group-item">
+            <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+              <span class="fw-semibold">{{ citation.title }}</span>
+              <code class="small">{{ citation.documentCode }}</code>
+              <span class="text-muted small">v{{ citation.version }} · trecho {{ citation.ordinal + 1 }}</span>
+              @if (citation.effectiveOnDate) {
+                <span class="badge bg-success">Vigente</span>
+              } @else {
+                <span class="badge bg-warning text-dark">Versão substituída</span>
+              }
+            </div>
+            <blockquote class="blockquote mb-0 ps-3 border-start border-3">
+              <p class="mb-0 small text-body-secondary" style="white-space: pre-line">{{ citation.quote }}</p>
+            </blockquote>
+          </li>
+        }
+      </ul>
+    </div>
+
+    @if (answer.inferences.length > 0) {
+      <div class="card mb-3 border-info">
+        <div class="card-header fw-semibold">
+          O que foi inferido
+          <span class="text-muted small fw-normal ms-1">— não está escrito em nenhum documento</span>
+        </div>
+        <ul class="list-group list-group-flush">
+          @for (inference of answer.inferences; track inference) {
+            <li class="list-group-item small">{{ inference }}</li>
+          }
+        </ul>
+        <div class="card-footer text-muted small">
+          Conclusão do modelo a partir das fontes. Confira antes de agir: não tem documento por trás.
+        </div>
+      </div>
+    }
+
+    @if (answer.limitations.length > 0) {
+      <div class="card mb-3">
+        <div class="card-header fw-semibold">O que esta resposta não cobre</div>
+        <ul class="list-group list-group-flush">
+          @for (limitation of answer.limitations; track limitation) {
+            <li class="list-group-item small">{{ limitation }}</li>
+          }
+        </ul>
+      </div>
+    }
+  }
+
+  <!-- Citações descartadas: aparecem em qualquer desfecho, porque falam da confiabilidade da resposta. -->
+  @if (answer.discarded.length > 0) {
+    <div class="card border-warning">
+      <div class="card-header fw-semibold">Citações descartadas na conferência</div>
+      <ul class="list-group list-group-flush">
+        @for (reason of answer.discarded; track reason) {
+          <li class="list-group-item small text-body-secondary">{{ reason }}</li>
+        }
+      </ul>
+      <div class="card-footer text-muted small">
+        O modelo alegou citações que não conferem com os trechos consultados. Elas não entraram na resposta.
+      </div>
+    </div>
+  }
+}

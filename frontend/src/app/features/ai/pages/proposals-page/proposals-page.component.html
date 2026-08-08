@@ -1,0 +1,216 @@
+<app-page-header
+  title="Propostas do copiloto"
+  subtitle="A IA sugere; uma pessoa com alçada decide. Nada acontece sem essa decisão."
+/>
+
+@if (store.actionError(); as actionError) {
+  <div class="alert alert-danger" role="alert">{{ actionError }}</div>
+}
+
+@if (store.lastProposed() === 0) {
+  <div class="alert alert-info" role="alert">
+    O copiloto não encontrou providência a propor para este lote. É resposta legítima — um copiloto que
+    sempre encontra algo a fazer ensina a ser ignorado.
+  </div>
+}
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando propostas…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else {
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">Aguardando decisão</div>
+    @if (store.awaiting().length === 0) {
+      <div class="card-body">
+        <app-empty-state
+          icon="ri-check-double-line"
+          message="Nenhuma proposta esperando decisão."
+          hint="Peça uma proposta para um lote abaixo."
+        />
+      </div>
+    } @else {
+      <ul class="list-group list-group-flush">
+        @for (proposal of store.awaiting(); track proposal.id) {
+          <li class="list-group-item">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+              <div>
+                <span class="fw-semibold">{{ proposal.label }}</span>
+                <span class="badge ms-2" [class]="statusBadges[proposal.status]">
+                  {{ statusLabels[proposal.status] }}
+                </span>
+              </div>
+              <span class="text-muted small">
+                Vence em {{ proposal.expiresAt | date: 'dd/MM/yyyy HH:mm' }}
+              </span>
+            </div>
+
+            <p class="mb-2 mt-2">{{ proposal.rationale }}</p>
+
+            <!-- Os parâmetros exatos na tela: quem confirma precisa ver o que será executado, não uma
+                 descrição do que será executado. -->
+            <div class="small mb-2 d-flex flex-wrap gap-3">
+              @for (parameter of parametersOf(proposal); track parameter.key) {
+                <span>
+                  <span class="text-muted">{{ parameter.key }}:</span>
+                  <span class="font-monospace ms-1">{{ parameter.value }}</span>
+                </span>
+              }
+            </div>
+
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+              @if (proposal.canConfirm) {
+                <span class="text-muted small">
+                  Confirmar registra a decisão e leva ao comando em
+                  <span class="font-monospace">{{ proposal.executionRoute }}</span>.
+                </span>
+              } @else {
+                <!-- Nomear a alçada que falta, e não só desabilitar: quem lê precisa saber a quem pedir. -->
+                <span class="text-warning small">
+                  Confirmar exige alçada para {{ store.missingPermissionLabel(proposal) }}
+                  (<span class="font-monospace">{{ proposal.requiredPermission }}</span>).
+                </span>
+              }
+              <span class="d-flex gap-2">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-primary"
+                  [disabled]="!proposal.canConfirm || store.deciding() !== null"
+                  (click)="store.accept(proposal.id)"
+                >
+                  {{ store.deciding() === proposal.id ? 'Confirmando…' : 'Confirmar' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-secondary"
+                  [disabled]="store.deciding() !== null"
+                  (click)="store.reject(proposal.id)"
+                >
+                  Descartar
+                </button>
+              </span>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+
+  @if (store.expired().length > 0) {
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">Vencidas sem decisão</div>
+      <div class="card-body pb-0">
+        <p class="text-muted small">
+          Estas propostas foram feitas sobre os fatos de um instante que já passou. Aceitá-las agora seria agir
+          sobre um retrato antigo — convincente justamente porque parece atual. Peça uma nova avaliação.
+        </p>
+      </div>
+      <ul class="list-group list-group-flush">
+        @for (proposal of store.expired(); track proposal.id) {
+          <li class="list-group-item d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+              <span class="fw-semibold">{{ proposal.label }}</span>
+              <span class="badge bg-secondary ms-2">Vencida</span>
+              <div class="text-muted small">
+                Venceu em {{ proposal.expiresAt | date: 'dd/MM/yyyy HH:mm' }}
+              </div>
+            </div>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              [disabled]="store.deciding() !== null"
+              (click)="store.reject(proposal.id)"
+            >
+              Descartar
+            </button>
+          </li>
+        }
+      </ul>
+    </div>
+  }
+
+  @if (store.decided().length > 0) {
+    <div class="card">
+      <div class="card-header fw-semibold">Decididas</div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Ação</th>
+              <th scope="col">Decisão</th>
+              <th scope="col">Quem decidiu</th>
+              <th scope="col">Quando</th>
+              <th scope="col">Observação</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (proposal of store.decided(); track proposal.id) {
+              <tr>
+                <td>{{ proposal.label }}</td>
+                <td>
+                  <span class="badge" [class]="statusBadges[proposal.status]">
+                    {{ statusLabels[proposal.status] }}
+                  </span>
+                </td>
+                <!-- Quem confirmou, que não é necessariamente quem pediu — é o registro que a história
+                     existe para produzir. -->
+                <td class="font-monospace small">{{ proposal.decidedBy }}</td>
+                <td class="small">{{ proposal.decidedAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td class="small">{{ proposal.decisionNote || '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer text-muted small">
+        Toda decisão fica auditada com quem consentiu, a ação e os parâmetros.
+      </div>
+    </div>
+  }
+}
+
+<!-- A ordem é deliberada: esta tela existe para DECIDIR, não para pedir. O pedido de proposta fica no
+     fim porque a lista de lotes é longa e, no topo, empurrava as propostas aguardando decisão para
+     muito abaixo da dobra — quem abre a tela precisa ver primeiro o que espera por ele. -->
+<div class="card mb-3">
+  <div class="card-header fw-semibold">Pedir proposta para um lote</div>
+  @if (store.batches().length === 0) {
+    <div class="card-body">
+      <app-empty-state
+        icon="ri-flask-line"
+        message="Nenhum lote de produção ainda."
+        hint="A proposta parte dos fatos calculados de um lote — precisa de um lote para partir."
+      />
+    </div>
+  } @else {
+    <ul class="list-group list-group-flush">
+      @for (batch of store.batches(); track batch.id) {
+        <li class="list-group-item d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <span class="fw-semibold">{{ batch.code }}</span>
+            <span class="text-muted small ms-2">{{ batch.recipeName }}</span>
+            <span class="badge bg-secondary ms-2">{{ batch.status }}</span>
+          </div>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-primary"
+            [disabled]="store.proposing() !== null"
+            (click)="store.propose(batch.id)"
+          >
+            {{ store.proposing() === batch.id ? 'Consultando…' : 'Pedir proposta' }}
+          </button>
+        </li>
+      }
+    </ul>
+    <div class="card-footer text-muted small">
+      Cada pedido é uma chamada ao modelo, e é cobrada. Pedir não dá direito de confirmar.
+    </div>
+  }
+</div>

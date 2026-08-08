@@ -16,5 +16,8 @@ public enum ModelPurpose {
     GROUNDED_ANSWER,
 
     /** Avaliação de risco de um lote a partir dos fatos que o domínio calculou (AIA-002). */
-    BATCH_ASSESSMENT
+    BATCH_ASSESSMENT,
+
+    /** Proposta de comando, sempre sujeita a confirmação humana (AIA-003). */
+    COMMAND_PROPOSAL
 }

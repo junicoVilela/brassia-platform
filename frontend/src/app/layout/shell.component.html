@@ -185,6 +185,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('ai.command.read')) {
+            <li class="menu-item">
+              <a routerLink="/ai/proposals" routerLinkActive="active" class="menu-link">
+                <i class="ri-git-pull-request-line menu-icon"></i>
+                <span class="title">Propostas do copiloto</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('knowledge.document.read')) {
             <li class="menu-item">
               <a routerLink="/knowledge" routerLinkActive="active" class="menu-link">

@@ -20,6 +20,28 @@ spring:
     jdbc:
       initialize-schema: never
 
+# Copiloto de IA (AIA-001). Desligado é o default: uma instalação nova não fala com provedor nenhum
+# até que alguém decida que fala, com que chave e sob que teto. `models` é ordenada — o primeiro é o
+# preferido, os seguintes são o fallback quando o provedor falha. Preço por milhão de tokens, porque é
+# assim que o provedor cobra e porque preço muda por contrato.
+brassia:
+  ai:
+    enabled: ${AI_ENABLED:false}
+    provider: anthropic
+    api-key: ${AI_API_KEY:}
+    timeout: 30s
+    currency: USD
+    monthly-budget: 50.00
+    effort: low
+    thinking: false
+    models:
+      - id: claude-opus-5
+        input-per-million: 5.00
+        output-per-million: 25.00
+      - id: claude-sonnet-5
+        input-per-million: 3.00
+        output-per-million: 15.00
+
 server:
   servlet:
     session:

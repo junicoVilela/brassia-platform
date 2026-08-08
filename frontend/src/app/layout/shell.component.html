@@ -169,6 +169,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('ai.gateway.read')) {
+            <li class="menu-item">
+              <a routerLink="/ai/gateway" routerLinkActive="active" class="menu-link">
+                <i class="ri-robot-2-line menu-icon"></i>
+                <span class="title">Copiloto de IA</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('utilities.indicator.read')) {
             <li class="menu-item">
               <a routerLink="/utilities/indicators" routerLinkActive="active" class="menu-link">

@@ -4797,6 +4797,131 @@ paths:
             application/problem+json:
               schema: {type: object}
         '403': {$ref: '#/components/responses/Problem'}
+  /ai/gateway:
+    get:
+      tags: [IA]
+      summary: Disponibilidade, custo do mês e últimas chamadas do copiloto (AIA-001)
+      description: >-
+        O estado do gateway de modelos: se há provedor, quais modelos serão tentados e em que ordem,
+        quanto do orçamento do mês já foi, e o que aconteceu nas últimas chamadas.
+
+
+        **`enabled: false` é estado normal, não erro.** Uma instalação sem provedor de IA opera
+        inteira — nenhuma recomendação é gerada e nenhum custo é lançado. É o default do produto.
+
+
+        **`models` é ordenada:** o primeiro é o modelo preferido, os seguintes são o fallback
+        tentado quando o provedor falha. Vazia quando não há provedor.
+
+
+        **`budget.version` é para devolver.** Ela viaja para o cliente e volta em
+        `PUT /ai/gateway/budget`: é assim que a alteração de uma pessoa não sobrescreve, sem aviso,
+        a de outra. `0` significa que a cervejaria ainda não definiu teto próprio e está sob o
+        padrão da instalação.
+
+
+        **`recent` traz sucesso e falha, e nunca conteúdo.** Uma resposta recusada por formato
+        aparece com custo — foi gerada, logo foi cobrada —, e é essa combinação que faz o total do
+        mês corresponder ao gasto real. Prompt, resposta e trecho de documento não saem do backend
+        em nenhum campo: são a parte sensível, e explicar custo e disponibilidade não precisa deles.
+      responses:
+        '200':
+          description: Estado do gateway
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AiGatewayStatus'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /ai/gateway/probe:
+    post:
+      tags: [IA]
+      summary: Verificar a conectividade do copiloto (AIA-001)
+      description: >-
+        Faz a menor chamada possível que ainda atravessa provedor, orçamento, contrato de resposta e
+        registro de custo. Serve para separar em segundos as quatro causas de "a IA não respondeu",
+        que pedem providências diferentes.
+
+
+        **É POST porque gasta.** Uma verificação não é consulta: ela chama o modelo de verdade, é
+        cobrada de verdade e gera linha no ledger como qualquer outra chamada. Tem permissão própria
+        (`ai.gateway.probe`), separada da de consultar.
+
+
+        Os status de erro dizem de quem é a providência: `501` provedor desligado (decisão de
+        instalação, nada a repetir), `503` provedor fora do ar (transitório), `402` orçamento
+        esgotado (subir o teto ou aguardar o mês) e `502` resposta fora do contrato (repetir não
+        resolve — o prompt ou o schema precisa mudar).
+      responses:
+        '200':
+          description: O modelo respondeu dentro do contrato
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AiProbeResult'}
+        '402':
+          description: "`ai_budget_exceeded` — o orçamento do mês foi esgotado; acompanha `monthlyLimit` e `spent`"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
+        '501':
+          description: "`ai_provider_disabled` — não há provedor configurado nesta instalação"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '502':
+          description: "`ai_response_rejected` — a resposta não satisfez o contrato e foi recusada inteira"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '503':
+          description: "`ai_provider_unavailable` — o provedor não respondeu em nenhum dos modelos"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /ai/gateway/budget:
+    put:
+      tags: [IA]
+      summary: Redefinir o teto de gasto mensal com IA (AIA-001)
+      description: >-
+        O teto é o freio contra custo imprevisível: uma chamada custa frações de centavo e um laço
+        que erra chama mil vezes. Acima do teto as chamadas são recusadas **antes** de gastar.
+
+
+        **Baixar o teto abaixo do que já foi gasto é permitido** e para as chamadas do resto do mês —
+        é o freio funcionando, não um erro de entrada.
+
+
+        `version` vem da leitura anterior (`GET /ai/gateway`). Divergência devolve `409` em vez de
+        sobrescrever: teto de gasto é decisão, e passar por cima da decisão de alguém sem que ela
+        saiba é pior do que pedir para tentar de novo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [monthlyLimit, version]
+              properties:
+                monthlyLimit:
+                  type: number
+                  minimum: 0
+                  description: "Teto do mês na moeda configurada da instalação."
+                version:
+                  type: integer
+                  format: int64
+                  description: "Versão lida; `0` quando ainda não havia teto próprio."
+      responses:
+        '200':
+          description: Teto redefinido
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AiBudget'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "`ai_budget_stale` — o teto foi alterado por outra pessoa"
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
     CleaningPolicy:
@@ -7553,6 +7678,83 @@ components:
             properties:
               procedureCode: {type: string}
               allergens: {type: array, items: {type: string}}
+    AiGatewayStatus:
+      type: object
+      description: "Estado do gateway de modelos (AIA-001)."
+      required: [provider, enabled, models, timeoutSeconds, budget, recent]
+      properties:
+        provider: {type: string, description: "Provedor configurado, ex.: `anthropic`."}
+        enabled:
+          type: boolean
+          description: "Falso é estado normal: o sistema opera sem IA."
+        models:
+          type: array
+          description: "Ordenada: o primeiro é o preferido, os seguintes são o fallback. Vazia quando desligado."
+          items: {type: string}
+        timeoutSeconds: {type: integer, description: "Prazo máximo de uma chamada."}
+        budget: {$ref: '#/components/schemas/AiBudget'}
+        recent:
+          type: array
+          items: {$ref: '#/components/schemas/AiInvocation'}
+    AiBudget:
+      type: object
+      description: >-
+        Teto do mês e consumo. O teto é guardado porque é decisão de alguém; o gasto é somado do
+        ledger a cada consulta, porque dois números sobre o mesmo fato divergem.
+      required: [monthlyLimit, spentThisMonth, remaining, exhausted, currency, version]
+      properties:
+        monthlyLimit: {type: number}
+        spentThisMonth: {type: number}
+        remaining:
+          type: number
+          minimum: 0
+          description: "Nunca negativo: baixar o teto abaixo do gasto devolve zero, não dívida."
+        exhausted:
+          type: boolean
+          description: "Verdadeiro quando novas chamadas serão recusadas antes de gastar."
+        currency: {type: string}
+        version:
+          type: integer
+          format: int64
+          description: "Devolver em `PUT /ai/gateway/budget`. `0` = ainda sob o teto padrão da instalação."
+    AiInvocation:
+      type: object
+      description: >-
+        Uma chamada registrada. Sem prompt, sem resposta e sem trecho de documento — este registro
+        explica custo e disponibilidade, não guarda texto.
+      required: [purpose, model, status, inputTokens, outputTokens, cost, currency, latencyMillis, occurredAt]
+      properties:
+        purpose: {type: string, enum: [CONNECTIVITY_PROBE]}
+        model:
+          type: string
+          description: "Modelo desta tentativa; `-` quando não houve chamada."
+        status:
+          type: string
+          enum: [SUCCEEDED, PROVIDER_DISABLED, PROVIDER_FAILED, REJECTED_CONTRACT, BUDGET_EXCEEDED]
+        inputTokens: {type: integer, format: int64}
+        outputTokens: {type: integer, format: int64}
+        cost:
+          type: number
+          description: >-
+            Seis casas decimais. Zero quando não houve geração (provedor desligado, orçamento
+            esgotado); maior que zero numa recusa por contrato, porque gerar já custou.
+        currency: {type: string}
+        latencyMillis: {type: integer, format: int64}
+        failureReason:
+          type: string
+          nullable: true
+          description: "Motivo por extenso, sem conteúdo. Nulo — e só — quando `status` é `SUCCEEDED`."
+        occurredAt: {type: string, format: date-time}
+    AiProbeResult:
+      type: object
+      description: "Resposta da verificação, já validada contra o contrato."
+      required: [ready, note]
+      properties:
+        ready: {type: boolean}
+        note:
+          type: string
+          maxLength: 200
+          description: "Frase curta gerada pelo modelo — prova que houve geração, não só conexão."
     GasConnectionProblem:
       type: object
       description: "Problem Details da recusa de conexão; `blockers` acompanha gas_connection_blocked."

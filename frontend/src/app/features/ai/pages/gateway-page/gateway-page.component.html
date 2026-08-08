@@ -1,0 +1,237 @@
+<app-page-header
+  title="Copiloto de IA"
+  subtitle="Disponibilidade, custo do mês e o que aconteceu nas últimas chamadas."
+/>
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Consultando o gateway…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else if (store.status(); as status) {
+  <!-- 1. Há copiloto? -->
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+        <div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="badge bg-{{ status.enabled ? 'success' : 'secondary' }}">
+              {{ status.enabled ? 'Ativo' : 'Sem provedor' }}
+            </span>
+            <span class="text-muted small">provedor: {{ status.provider }}</span>
+          </div>
+          @if (status.enabled) {
+            <p class="mb-0">
+              Modelo preferido
+              <code>{{ store.primaryModel() }}</code>
+              @if (store.fallbackModels().length > 0) {
+                <span class="text-muted">
+                  — se ele falhar, a chamada tenta
+                  @for (model of store.fallbackModels(); track model) {
+                    <code>{{ model }}</code>
+                  }
+                </span>
+              }
+            </p>
+            <p class="text-muted small mb-0">
+              Prazo máximo de uma chamada: {{ status.timeoutSeconds }}s.
+            </p>
+          }
+        </div>
+
+        @if (auth.hasPermission('ai.gateway.probe')) {
+          <div class="text-end">
+            <button
+              type="button"
+              class="btn btn-outline-primary"
+              [disabled]="store.probing()"
+              (click)="store.probe()"
+            >
+              {{ store.probing() ? 'Verificando…' : 'Verificar conectividade' }}
+            </button>
+            <p class="text-muted small mb-0 mt-1">Faz uma chamada real, e ela é cobrada.</p>
+          </div>
+        }
+      </div>
+
+      @if (!status.enabled) {
+        <div class="alert alert-secondary mt-3 mb-0" role="alert">
+          <strong>Esta instalação não tem copiloto habilitado.</strong>
+          Não é uma falha: o sistema opera inteiro sem IA. Nenhuma recomendação é gerada e nenhum
+          custo é lançado enquanto um provedor não for configurado.
+        </div>
+      }
+
+      @if (store.probeResult(); as probe) {
+        <div class="alert alert-success mt-3 mb-0" role="alert">
+          <strong>O copiloto respondeu no formato exigido.</strong>
+          <span class="d-block small mt-1">{{ probe.note }}</span>
+        </div>
+      }
+      @if (store.probeError(); as probeError) {
+        <div class="alert alert-warning mt-3 mb-0" role="alert">{{ probeError }}</div>
+      }
+    </div>
+  </div>
+
+  <!-- 2. Quanto já custou este mês? -->
+  <div class="card mb-3">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <span class="fw-semibold">Orçamento do mês</span>
+      @if (auth.hasPermission('ai.budget.manage')) {
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          data-bs-toggle="collapse"
+          data-bs-target="#budget-form"
+          (click)="editBudget()"
+        >
+          Alterar teto
+        </button>
+      }
+    </div>
+    <div class="card-body">
+      <div class="d-flex align-items-baseline gap-3 flex-wrap mb-2">
+        <div>
+          <span class="h4 mb-0">
+            {{ status.budget.spentThisMonth | number: '1.2-2' }}
+          </span>
+          <span class="text-muted small ms-1">
+            de {{ status.budget.monthlyLimit | number: '1.2-2' }} {{ status.budget.currency }}
+          </span>
+        </div>
+        <span class="text-muted small">
+          restam {{ status.budget.remaining | number: '1.2-2' }} {{ status.budget.currency }}
+        </span>
+      </div>
+
+      <div
+        class="progress"
+        role="progressbar"
+        aria-label="Consumo do orçamento do mês"
+        [attr.aria-valuenow]="store.spentPercent()"
+        aria-valuemin="0"
+        aria-valuemax="100"
+      >
+        <div
+          class="progress-bar bg-{{ status.budget.exhausted ? 'danger' : 'primary' }}"
+          [style.width.%]="store.spentPercent()"
+        ></div>
+      </div>
+
+      @if (status.budget.exhausted) {
+        <div class="alert alert-warning mt-3 mb-0" role="alert">
+          <strong>O orçamento deste mês foi esgotado.</strong>
+          As chamadas ao modelo são recusadas antes de gastar até que o teto suba ou o mês vire. O
+          resto do sistema continua funcionando normalmente.
+        </div>
+      }
+
+      @if (auth.hasPermission('ai.budget.manage')) {
+        <div class="collapse mt-3" id="budget-form">
+          <form class="row g-2 align-items-end" [formGroup]="budgetForm" (ngSubmit)="saveBudget()">
+            <div class="col-auto">
+              <label class="form-label" for="monthly-limit">
+                Teto mensal ({{ status.budget.currency }})
+              </label>
+              <input
+                id="monthly-limit"
+                type="number"
+                min="0"
+                step="0.01"
+                class="form-control"
+                formControlName="monthlyLimit"
+              />
+            </div>
+            <div class="col-auto">
+              <button
+                type="submit"
+                class="btn btn-primary"
+                [disabled]="budgetForm.invalid || store.savingBudget()"
+              >
+                {{ store.savingBudget() ? 'Salvando…' : 'Salvar teto' }}
+              </button>
+            </div>
+            <div class="col-12">
+              <p class="text-muted small mb-0">
+                Baixar o teto abaixo do que já foi gasto é permitido e para as chamadas do resto do
+                mês — é o freio funcionando.
+              </p>
+            </div>
+          </form>
+          @if (store.budgetError(); as budgetError) {
+            <div class="alert alert-danger mt-2 mb-0" role="alert">{{ budgetError }}</div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- 3. O que aconteceu nas últimas chamadas? -->
+  <div class="card">
+    <div class="card-header fw-semibold">Últimas chamadas</div>
+    @if (status.recent.length === 0) {
+      <div class="card-body">
+        <app-empty-state
+          icon="ri-robot-2-line"
+          message="Nenhuma chamada ao modelo ainda."
+          hint="Cada chamada aparece aqui com custo e desfecho — inclusive as que falharam."
+        />
+      </div>
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <caption class="visually-hidden">
+            Últimas chamadas ao modelo, com desfecho, custo e latência
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Quando</th>
+              <th scope="col">Finalidade</th>
+              <th scope="col">Modelo</th>
+              <th scope="col">Desfecho</th>
+              <th scope="col" class="text-end">Tokens</th>
+              <th scope="col" class="text-end">Custo</th>
+              <th scope="col" class="text-end">Latência</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (call of status.recent; track call.occurredAt) {
+              <tr>
+                <td class="text-nowrap">{{ call.occurredAt | date: 'dd/MM HH:mm:ss' }}</td>
+                <td>{{ call.purpose }}</td>
+                <td><code>{{ call.model }}</code></td>
+                <td>
+                  <span class="badge {{ statusBadges[call.status] }}">
+                    {{ statusLabels[call.status] }}
+                  </span>
+                  @if (call.failureReason) {
+                    <span class="d-block text-muted small">{{ call.failureReason }}</span>
+                  }
+                </td>
+                <td class="text-end text-nowrap">
+                  {{ call.inputTokens | number: '1.0-0' }} /
+                  {{ call.outputTokens | number: '1.0-0' }}
+                </td>
+                <td class="text-end text-nowrap">
+                  {{ call.cost | number: '1.2-6' }} {{ call.currency }}
+                </td>
+                <td class="text-end text-nowrap">{{ call.latencyMillis | number: '1.0-0' }} ms</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer text-muted small">
+        Uma resposta recusada por formato aparece com custo: ela foi gerada e cobrada. É por isso que
+        o total do mês corresponde ao gasto real.
+      </div>
+    }
+  </div>
+}

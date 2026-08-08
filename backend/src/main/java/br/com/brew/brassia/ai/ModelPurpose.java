@@ -13,5 +13,8 @@ public enum ModelPurpose {
     CONNECTIVITY_PROBE,
 
     /** Resposta a uma pergunta com base em trechos de documento recuperados (RAG-002). */
-    GROUNDED_ANSWER
+    GROUNDED_ANSWER,
+
+    /** Avaliação de risco de um lote a partir dos fatos que o domínio calculou (AIA-002). */
+    BATCH_ASSESSMENT
 }

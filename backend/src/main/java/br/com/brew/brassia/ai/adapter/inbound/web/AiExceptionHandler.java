@@ -4,6 +4,7 @@ import br.com.brew.brassia.ai.domain.AiBudgetExceededException;
 import br.com.brew.brassia.ai.domain.AiUnavailableException;
 import br.com.brew.brassia.ai.domain.InvalidModelResponseException;
 import br.com.brew.brassia.ai.domain.StaleAiBudgetException;
+import br.com.brew.brassia.ai.domain.UnknownBatchException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -53,6 +54,21 @@ class AiExceptionHandler {
     ProblemDetail handleInvalidResponse(InvalidModelResponseException ex) {
         return ProblemDetails.of(HttpStatus.BAD_GATEWAY, "ai_response_rejected",
                 "A resposta do modelo não atendeu ao formato exigido e foi recusada.");
+    }
+
+    /**
+     * Lote inexistente (AIA-002).
+     *
+     * <p>404, e não 400: a requisição está bem formada, o recurso é que não existe nesta cervejaria — e a
+     * resposta é a mesma para "não existe" e "existe em outra cervejaria", porque distinguir as duas contaria
+     * que ele existe em algum lugar.
+     */
+    @ExceptionHandler(UnknownBatchException.class)
+    ProblemDetail handleUnknownBatch(UnknownBatchException ex) {
+        var problem = ProblemDetails.of(HttpStatus.NOT_FOUND, "unknown_batch",
+                "Este lote não existe nesta cervejaria.");
+        problem.setProperty("batchId", ex.batchId().toString());
+        return problem;
     }
 
     @ExceptionHandler(StaleAiBudgetException.class)

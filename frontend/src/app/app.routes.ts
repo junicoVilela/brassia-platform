@@ -247,6 +247,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/ai/ai.routes').then(m => m.COPILOT_ROUTES),
       },
       {
+        path: 'ai/assessments',
+        canActivate: [permissionGuard],
+        data: { permission: 'ai.assessment.batch' },
+        loadChildren: () => import('./features/ai/ai.routes').then(m => m.ASSESSMENT_ROUTES),
+      },
+      {
         path: 'ai/gateway',
         canActivate: [permissionGuard],
         data: { permission: 'ai.gateway.read' },

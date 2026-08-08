@@ -1,0 +1,199 @@
+<app-page-header
+  title="Avaliar lote"
+  subtitle="Os números são calculados pelo sistema; o copiloto lê e aponta o risco."
+/>
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando lotes…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else {
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">Lotes</div>
+    @if (store.batches().length === 0) {
+      <div class="card-body">
+        <app-empty-state
+          icon="ri-flask-line"
+          message="Nenhum lote de produção ainda."
+          hint="A avaliação lê volume, qualidade e custo de um lote — precisa de um lote para ler."
+        />
+      </div>
+    } @else {
+      <ul class="list-group list-group-flush">
+        @for (batch of store.batches(); track batch.id) {
+          <li class="list-group-item d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+              <span class="fw-semibold">{{ batch.code }}</span>
+              <span class="text-muted small ms-2">{{ batch.recipeName }}</span>
+              <span class="badge bg-secondary ms-2">{{ batch.status }}</span>
+            </div>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-primary"
+              [disabled]="store.assessing() !== null"
+              (click)="store.assess(batch.id)"
+            >
+              {{ store.assessing() === batch.id ? 'Avaliando…' : 'Avaliar' }}
+            </button>
+          </li>
+        }
+      </ul>
+      <div class="card-footer text-muted small">
+        Cada avaliação é uma chamada ao modelo, e é cobrada.
+      </div>
+    }
+  </div>
+
+  @if (store.assessError(); as assessError) {
+    <div class="alert alert-danger" role="alert">{{ assessError }}</div>
+  }
+
+  @if (store.assessing() !== null) {
+    <div class="card">
+      <div class="card-body p-4">
+        <app-loading-indicator text="Reunindo os fatos e consultando o modelo…" />
+      </div>
+    </div>
+  } @else if (store.assessment(); as assessment) {
+    @if (store.unusable()) {
+      <div class="alert alert-warning" role="alert">
+        <strong>A análise não pôde ser aproveitada.</strong>
+        Nada do que o modelo escreveu resistiu à conferência de números — as afirmações usavam valores que
+        nenhum serviço calculou. Os fatos abaixo continuam válidos: eles são do sistema, não do modelo.
+      </div>
+    } @else {
+      @if (assessment.summary) {
+        <div class="card mb-3">
+          <div class="card-header fw-semibold">Leitura do copiloto</div>
+          <div class="card-body">
+            <p class="mb-0" style="white-space: pre-line">{{ assessment.summary }}</p>
+          </div>
+        </div>
+      }
+
+      @if (assessment.risks.length > 0) {
+        <div class="card mb-3">
+          <div class="card-header fw-semibold">
+            Riscos apontados
+            <span class="text-muted small fw-normal ms-1">— severidade é juízo do modelo, não medição</span>
+          </div>
+          <ul class="list-group list-group-flush">
+            @for (risk of assessment.risks; track risk.statement) {
+              <li class="list-group-item">
+                <div class="d-flex align-items-start gap-2 flex-wrap">
+                  <span class="badge {{ severityBadges[risk.severity] }}">
+                    {{ severityLabels[risk.severity] }}
+                  </span>
+                  <span class="flex-grow-1">{{ risk.statement }}</span>
+                </div>
+                @if (risk.factRefs.length > 0) {
+                  <div class="mt-1">
+                    @for (ref of risk.factRefs; track ref) {
+                      <code class="small me-1">{{ ref }}</code>
+                    }
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+          <div class="card-footer text-muted small">
+            Cada risco cita os fatos que o sustentam. Todo número acima foi conferido contra eles.
+          </div>
+        </div>
+      }
+
+      @if (assessment.assumptions.length > 0) {
+        <div class="card mb-3 border-info">
+          <div class="card-header fw-semibold">
+            Suposições
+            <span class="text-muted small fw-normal ms-1">— não são fato e não são risco</span>
+          </div>
+          <ul class="list-group list-group-flush">
+            @for (assumption of assessment.assumptions; track assumption) {
+              <li class="list-group-item small">{{ assumption }}</li>
+            }
+          </ul>
+        </div>
+      }
+    }
+
+    <!-- Os fatos, sempre: são do domínio e valem independentemente do que o modelo disse. -->
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">
+        Fatos calculados
+        <span class="text-muted small fw-normal ms-1">— cada número, e quem o calculou</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <caption class="visually-hidden">Fatos calculados pelos serviços de domínio</caption>
+          <thead>
+            <tr>
+              <th scope="col">Fato</th>
+              <th scope="col" class="text-end">Valor</th>
+              <th scope="col">Calculado por</th>
+              <th scope="col">Identificador</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (fact of store.knownFacts(); track fact.id) {
+              <tr>
+                <td>{{ fact.label }}</td>
+                <td class="text-end text-nowrap">
+                  {{ fact.value | number: '1.0-4' }}
+                  @if (fact.unit) {
+                    <span class="text-muted small ms-1">{{ fact.unit }}</span>
+                  }
+                </td>
+                <td><span class="badge bg-light text-dark">{{ fact.source }}</span></td>
+                <td><code class="small">{{ fact.id }}</code></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer text-muted small">
+        Nenhum destes números veio do modelo. Ele leu e interpretou; quem calculou está na coluna ao lado.
+      </div>
+    </div>
+
+    @if (store.absentFacts().length > 0) {
+      <div class="card mb-3">
+        <div class="card-header fw-semibold">O que não se sabe deste lote</div>
+        <ul class="list-group list-group-flush">
+          @for (fact of store.absentFacts(); track fact.id) {
+            <li class="list-group-item small">
+              {{ fact.label }}
+              <span class="text-muted">— não disponível</span>
+            </li>
+          }
+        </ul>
+        <div class="card-footer text-muted small">
+          Ausência não é zero: "ninguém mediu" não é "tudo dentro da faixa", e "não houve transferência" não é
+          "transferiu zero litro".
+        </div>
+      </div>
+    }
+
+    @if (assessment.discarded.length > 0) {
+      <div class="card border-warning">
+        <div class="card-header fw-semibold">Afirmações descartadas na conferência</div>
+        <ul class="list-group list-group-flush">
+          @for (reason of assessment.discarded; track reason) {
+            <li class="list-group-item small text-body-secondary">{{ reason }}</li>
+          }
+        </ul>
+        <div class="card-footer text-muted small">
+          O modelo escreveu números que não correspondem aos fatos citados. Essas frases não entraram na
+          avaliação.
+        </div>
+      </div>
+    }
+  }
+}

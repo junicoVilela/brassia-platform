@@ -3,6 +3,7 @@ package br.com.brew.brassia.ai.config;
 import br.com.brew.brassia.ai.ModelGateway;
 import br.com.brew.brassia.ai.adapter.outbound.provider.ModelProviders;
 import br.com.brew.brassia.ai.application.port.inbound.AnswerCommands;
+import br.com.brew.brassia.ai.application.port.inbound.AssessmentCommands;
 import br.com.brew.brassia.ai.application.port.inbound.BudgetCommands;
 import br.com.brew.brassia.ai.application.port.inbound.GatewayCommands;
 import br.com.brew.brassia.ai.application.port.inbound.GatewayQueries;
@@ -10,13 +11,20 @@ import br.com.brew.brassia.ai.application.port.outbound.AiBudgetRepository;
 import br.com.brew.brassia.ai.application.port.outbound.ModelInvocationLedger;
 import br.com.brew.brassia.ai.application.port.outbound.ModelProvider;
 import br.com.brew.brassia.ai.application.port.outbound.StructuredResponseReader;
+import br.com.brew.brassia.ai.application.service.BatchAssessmentHandler;
+import br.com.brew.brassia.ai.application.service.BatchFactsAssembler;
 import br.com.brew.brassia.ai.application.service.BudgetHandler;
 import br.com.brew.brassia.ai.application.service.GatewayStatusService;
 import br.com.brew.brassia.ai.application.service.GroundedAnswerHandler;
 import br.com.brew.brassia.ai.application.service.ModelGatewayService;
 import br.com.brew.brassia.ai.application.service.ProbeHandler;
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.costing.BatchCostLookup;
 import br.com.brew.brassia.knowledge.KnowledgeRetrieval;
+import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.production.BatchOutcomeLookup;
+import br.com.brew.brassia.quality.BatchQualityLookup;
+import br.com.brew.brassia.recipe.RecipeLookup;
 import java.time.Clock;
 import java.util.Objects;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -66,6 +74,21 @@ class AiConfiguration {
     @Bean
     AnswerCommands answerCommands(KnowledgeRetrieval retrieval, ModelGateway gateway, AuditTrail audit) {
         return new GroundedAnswerHandler(retrieval, gateway, audit, Clock.systemUTC());
+    }
+
+    /**
+     * Avaliar lote (AIA-002).
+     *
+     * <p>O montador recebe as consultas publicadas de cinco módulos, e é assim de propósito: cada número da
+     * avaliação vem de quem responde por ele. Recalcular qualquer um aqui criaria uma segunda opinião sobre o
+     * mesmo fato.
+     */
+    @Bean
+    AssessmentCommands assessmentCommands(BatchLookup batches, BatchOutcomeLookup outcomes,
+            BatchQualityLookup quality, BatchCostLookup costs, RecipeLookup recipes,
+            ModelGateway gateway, AuditTrail audit) {
+        var facts = new BatchFactsAssembler(batches, outcomes, quality, costs, recipes);
+        return new BatchAssessmentHandler(facts, gateway, audit, Clock.systemUTC());
     }
 
     @Bean

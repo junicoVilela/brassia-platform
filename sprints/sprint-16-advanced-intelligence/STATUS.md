@@ -7,7 +7,7 @@ Estado: EM ANDAMENTO
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
 | DTW-001 | Concluída | Claude | `backend/.../digitaltwin`, `V103__digital_twin_profile.sql`, `frontend/.../features/digital-twin` | Estimativa com faixa e confiança explícitas; amostra informada e gravada, o que torna o número reproduzível. Ver DEC-DTW-001/002/003. |
-| SPC-001 | A fazer | — | — | — |
+| SPC-001 | Concluída | Claude | `digitaltwin/domain/ControlLimits`, `ControlSignal`, `production/BatchMeasurementLookup` | Limite de controle é calculado e não pode ser injetado; deslocamento e tendência detectados. Ver DEC-SPC-001/002. |
 | EXP-001 | A fazer | — | — | — |
 | BLD-001 | A fazer | — | — | — |
 | FLD-001 | A fazer | — | — | — |
@@ -16,6 +16,66 @@ Estado: EM ANDAMENTO
 ## Decisões e bloqueios
 
 Registre aqui somente decisões temporárias, bloqueios e dependências. Decisão arquitetural permanente deve virar ADR; débito técnico deve ter identificador e critério de remoção.
+
+### DEC-SPC-001 (SPC-001) — Limite de controle não é especificação, e a fronteira é estrutural
+
+A diferença não é de fórmula, é de **origem**. Especificação vem de uma *decisão* (o estilo pede FG ≤ 1.014;
+está em `quality.SpecLimits` e se escolhe). Controle vem de *observação* (é o que este processo produz
+quando nada de anormal acontece; calcula-se do histórico e não se escolhe).
+
+As duas combinações que a confusão esconde são as que importam:
+
+- **Sob controle e fora de especificação** — o processo é estável e está estavelmente errado. Nenhum ponto
+  dispara alarme e a cerveja está fora do prometido. Ajustar ponto a ponto não resolve: o processo inteiro
+  precisa mudar. Há teste montando exatamente esse caso.
+- **Fora de controle e dentro de especificação** — tudo passa na inspeção e o processo está mudando. É o
+  aviso que chega antes do problema, e é justamente ele que se perde quando alguém usa o limite da
+  especificação como se fosse de controle.
+
+A fronteira ficou **estrutural, não documental**: `ControlLimits` não tem caminho público que aceite um
+limite de fora — só `from(observações)`. Um teste por reflexão afirma que o único método estático público é
+esse. E `ControlChartQueries.Chart` não tem campo para especificação, também afirmado por teste.
+
+Duas constantes com justificativa:
+
+- **20 observações no mínimo.** Com poucos pontos o desvio é instável e os limites oscilam a cada medição —
+  disparando alarme ora por variação real, ora porque o próprio limite se mexeu. Um limite que se move não
+  serve para dizer que algo mudou. Histórico curto é **recusado**, porque limites sobre cinco pontos passam
+  qualquer coisa e um controle que nunca dispara parece um processo saudável.
+- **Três sigmas.** ~99,7% dos pontos de um processo estável caem dentro, então um ponto fora tem ~0,3% de
+  chance de ser acaso. Limites de 2σ alarmariam a cada vinte medições, e alarme falso frequente treina quem
+  opera a ignorar o alarme — pior que não ter alarme.
+
+### DEC-SPC-002 (SPC-001) — A série é do processo, e a ordem é cronológica
+
+Uma carta de controle é sobre o **processo**, não sobre um lote: o momento em que ele muda cai entre dois
+lotes tanto quanto dentro de um. Por isso a série atravessa a amostra e é ordenada por instante de medição.
+A ordem é parte do contrato — uma lista ordenada por outra coisa produziria sinais que o processo nunca deu.
+
+Três sinais, com sete pontos como comprimento de sequência (a chance de sete pontos caírem do mesmo lado por
+acaso é ~1 em 128; menos alarmaria coincidência, mais atrasaria o aviso):
+
+- **Ponto além de 3σ** — o mais forte.
+- **Deslocamento** — sete do mesmo lado da linha central, **nenhum precisando estar perto de um limite**. É
+  o caso que a inspeção ponto a ponto não pega: o processo mudou de patamar e continua estável nele.
+- **Tendência** — sete seguidos subindo ou descendo. O aviso mais antecipado: descreve algo mudando agora,
+  antes de qualquer ponto sair da faixa.
+
+Detalhes que os testes fixaram: ponto exatamente na linha central não pertence a lado nenhum e interrompe a
+sequência (contá-lo inventaria um deslocamento que ele não sustenta); empate interrompe a tendência (processo
+parado não vai a lugar nenhum); e a sequência olhada é a **mais recente** — uma que terminou há trinta pontos
+é história, não aviso.
+
+**Unidades misturadas são recusadas, não convertidas.** °C e °F na mesma carta produziriam limites que não
+descrevem nada, e a conversão pertence a quem registrou a medição.
+
+**A carta não é persistida.** Ela é leitura da série que já existe — as medições são o registro. Guardá-la
+criaria uma cópia que envelhece: uma medição corrigida amanhã deixaria a carta de hoje afirmando um limite
+que os dados não sustentam mais.
+
+**Nota de fronteira:** foi publicada `production.BatchMeasurementLookup`. `quality.BatchQualityLookup` só
+devolve medições **fora** da faixa, porque responde a pergunta da qualidade — e um controle alimentado
+apenas com os piores pontos calcula limites que não descrevem processo nenhum.
 
 ### DEC-DTW-001 — A média nunca viaja sozinha
 

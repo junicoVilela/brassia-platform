@@ -1,6 +1,8 @@
 package br.com.brew.brassia.digitaltwin.adapter.inbound.web;
 
 import br.com.brew.brassia.digitaltwin.application.service.ComputeProfileHandler;
+import br.com.brew.brassia.digitaltwin.application.service.ControlChartService;
+import br.com.brew.brassia.digitaltwin.domain.ControlLimits;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -31,4 +33,38 @@ class DigitalTwinExceptionHandler {
         problem.setProperty("recipeId", ex.recipeId().toString());
         return problem;
     }
+
+    /**
+     * Histórico curto demais para limites de controle (SPC-001).
+     *
+     * <p>422: o pedido está bem formado, faltam dados. E a resposta diz **quantos faltam**, porque a
+     * providência é concreta — medir mais, ou incluir mais lotes na amostra.
+     *
+     * <p>Recusar é melhor que devolver limites frouxos: limites calculados sobre cinco pontos passam
+     * qualquer coisa, e um controle que nunca dispara parece um processo saudável.
+     */
+    @ExceptionHandler(ControlLimits.InsufficientHistoryException.class)
+    ProblemDetail handleInsufficientHistory(ControlLimits.InsufficientHistoryException ex) {
+        var problem = ProblemDetails.of(HttpStatus.UNPROCESSABLE_ENTITY, "insufficient_control_history",
+                "Não há medições suficientes para calcular limites de controle que signifiquem algo.");
+        problem.setProperty("available", ex.available());
+        problem.setProperty("required", ex.required());
+        return problem;
+    }
+
+    /**
+     * A série mistura unidades (SPC-001).
+     *
+     * <p>Converter em silêncio seria pior: a conversão pertence a quem registrou a medição, e uma carta
+     * montada sobre °C e °F juntos produz limites que não descrevem processo nenhum.
+     */
+    @ExceptionHandler(ControlChartService.MixedUnitsException.class)
+    ProblemDetail handleMixedUnits(ControlChartService.MixedUnitsException ex) {
+        var problem = ProblemDetails.of(HttpStatus.UNPROCESSABLE_ENTITY, "mixed_units_in_series",
+                "As medições selecionadas estão em unidades diferentes. "
+                        + "Padronize a unidade no registro antes de analisar a série.");
+        problem.setProperty("kind", ex.kind());
+        return problem;
+    }
+
 }

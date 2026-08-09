@@ -4,6 +4,70 @@
   PWA-001. O aviso diz o que a pessoa está vendo, não só que faltou rede: sem esta frase, um roteiro salvo
   de seis horas atrás parece o estado de agora — e alguém executa a etapa errada com confiança.
 -->
+<!--
+  PWA-002. O painel só aparece quando há algo na fila. Pendente e conflito ficam separados porque exigem
+  coisas diferentes: pendente resolve sozinho quando a rede voltar; conflito espera uma decisão de quem
+  registrou, e é isso que impede a sobrescrita silenciosa.
+-->
+@if (queue.hasPending() || queue.hasConflicts()) {
+  <div class="card border-0 rounded-10 mb-3">
+    <div class="card-body">
+      @if (queue.hasPending()) {
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div>
+            <i class="ri-time-line me-1" aria-hidden="true"></i>
+            <span class="fw-semibold">
+              {{ queue.pendingCount() }}
+              {{ queue.pendingCount() === 1 ? 'apontamento aguardando' : 'apontamentos aguardando' }}
+              envio
+            </span>
+            <div class="small text-muted">
+              Registrados neste aparelho. Vão sozinhos quando a rede voltar — não é preciso lembrar de nada.
+            </div>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-primary"
+                  [disabled]="queue.syncing() || !queue.online()"
+                  (click)="syncNow()">
+            {{ queue.syncing() ? 'Sincronizando…' : 'Sincronizar agora' }}
+          </button>
+        </div>
+      }
+
+      @if (queue.hasConflicts()) {
+        <div class="alert alert-danger mb-0" role="alert">
+          <div class="fw-semibold mb-2">
+            <i class="ri-error-warning-line me-1" aria-hidden="true"></i>
+            {{ queue.conflicts().length }}
+            {{ queue.conflicts().length === 1 ? 'apontamento em conflito' : 'apontamentos em conflito' }}
+          </div>
+          <p class="small mb-2">
+            O estado mudou no servidor depois que você registrou. Nada foi sobrescrito e nada foi
+            descartado — a decisão é sua.
+          </p>
+          <ul class="list-unstyled mb-0">
+            @for (entry of queue.conflicts(); track entry.clientRequestId) {
+              <li class="d-flex align-items-start justify-content-between gap-2 border-top pt-2 mt-2">
+                <div class="small">
+                  <div class="fw-medium">{{ entry.batchCode }}</div>
+                  <div>{{ entry.conflict }}</div>
+                  <div class="text-muted">
+                    Registrado em {{ entry.recordedAt | date: 'dd/MM HH:mm' }} ·
+                    {{ entry.attempts }} {{ entry.attempts === 1 ? 'tentativa' : 'tentativas' }}
+                  </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger flex-shrink-0"
+                        (click)="discardConflict(entry.clientRequestId)">
+                  Descartar
+                </button>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+  </div>
+}
+
 @if (!offline.online()) {
   <div class="alert alert-warning d-flex align-items-start gap-2" role="status">
     <i class="ri-wifi-off-line fs-5" aria-hidden="true"></i>

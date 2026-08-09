@@ -7215,6 +7215,22 @@ components:
         temperatureC: {type: number}
         method: {type: string, maxLength: 120}
         source: {type: string, enum: [MANUAL, DEVICE, IMPORTED]}
+        clientRequestId:
+          type: string
+          maxLength: 80
+          description: >-
+            **Identidade do apontamento (PWA-002).** Gerada no aparelho no instante em que a pessoa
+            registrou — não no envio. É o que permite ao servidor reconhecer o reenvio da fila offline como
+            o mesmo fato: uma chave gerada no envio seria diferente a cada tentativa e criaria duas medições
+            da mesma leitura.
+
+
+            Com a chave, o reenvio responde **200 com `duplicate: true`** e devolve a medição já gravada, em
+            vez de criar outra. Sem a chave (registro pela tela, com rede), todo envio é um registro novo —
+            a requisição é síncrona e quem a fez viu a resposta.
+
+
+            A garantia deste lado é "ao menos uma vez"; a chave é o que a transforma em "exatamente uma".
     StockBalance:
       type: object
       properties:

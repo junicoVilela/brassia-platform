@@ -1,5 +1,6 @@
 package br.com.brew.brassia.production;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -17,6 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -67,6 +69,84 @@ class MeasurementIT {
                 .andExpect(jsonPath("$[0].unit", is("SG")))
                 .andExpect(jsonPath("$[0].value", is(1.048)))
                 .andExpect(jsonPath("$[*].stepId", hasItem(stepId)));
+    }
+
+    @Test
+    @DisplayName("PWA-002: o mesmo apontamento reenviado responde 200 e não cria segunda medição")
+    void offlineQueueRetryIsIdempotent() throws Exception {
+        // A fila do aparelho reenvia até receber confirmação — é assim que ela não perde o apontamento de
+        // quem estava sem rede. "Ao menos uma vez" só vira "exatamente uma vez" porque este lado reconhece
+        // a repetição pela chave gerada NO REGISTRO, não no envio.
+        var session = login();
+        var batchId = startedBatch(session).get("id").asText();
+        var clientRequestId = "apontamento-" + UUID.randomUUID();
+
+        var body = "{\"kind\":\"TEMPERATURE\",\"value\":66,\"unit\":\"C\",\"source\":\"MANUAL\","
+                + "\"clientRequestId\":\"" + clientRequestId + "\"}";
+
+        var primeira = mockMvc.perform(post("/api/v1/production/batches/" + batchId + "/measurements")
+                        .session(session).with(csrf()).contentType("application/json").content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.duplicate", is(false)))
+                .andReturn().getResponse().getContentAsString();
+        var primeiroId = JSON.readTree(primeira).get("id").asText();
+
+        // Reenvio: a resposta do primeiro envio se perdeu e a fila tentou de novo.
+        mockMvc.perform(post("/api/v1/production/batches/" + batchId + "/measurements")
+                        .session(session).with(csrf()).contentType("application/json").content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.duplicate", is(true)))
+                // Devolve a medição GRAVADA: responder um id novo faria a fila guardar um id que não
+                // existe no servidor.
+                .andExpect(jsonPath("$.id", is(primeiroId)));
+
+        var listadas = JSON.readTree(mockMvc.perform(
+                        get("/api/v1/production/batches/" + batchId + "/measurements").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(listadas.size()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("PWA-002: apontamentos diferentes com o mesmo valor são medições diferentes")
+    void offlineQueueDistinctKeysAreDistinctMeasurements() throws Exception {
+        // Duas leituras iguais tiradas em sequência são dois fatos. Deduplicar por conteúdo descartaria
+        // uma medição verdadeira — por isso a chave identifica o apontamento, não o valor.
+        var session = login();
+        var batchId = startedBatch(session).get("id").asText();
+
+        for (var chave : new String[] {"a-" + UUID.randomUUID(), "b-" + UUID.randomUUID()}) {
+            mockMvc.perform(post("/api/v1/production/batches/" + batchId + "/measurements")
+                            .session(session).with(csrf()).contentType("application/json")
+                            .content("{\"kind\":\"TEMPERATURE\",\"value\":66,\"unit\":\"C\","
+                                    + "\"source\":\"MANUAL\",\"clientRequestId\":\"" + chave + "\"}"))
+                    .andExpect(status().isCreated());
+        }
+
+        var listadas = JSON.readTree(mockMvc.perform(
+                        get("/api/v1/production/batches/" + batchId + "/measurements").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(listadas.size()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("PWA-002: registro sem chave continua funcionando e nunca é tratado como repetição")
+    void withoutClientRequestIdEveryRecordIsNew() throws Exception {
+        // Registro pela tela, com rede: a requisição é síncrona e quem a fez viu a resposta.
+        var session = login();
+        var batchId = startedBatch(session).get("id").asText();
+        var body = "{\"kind\":\"TEMPERATURE\",\"value\":66,\"unit\":\"C\",\"source\":\"MANUAL\"}";
+
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(post("/api/v1/production/batches/" + batchId + "/measurements")
+                            .session(session).with(csrf()).contentType("application/json").content(body))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.duplicate", is(false)));
+        }
+
+        var listadas = JSON.readTree(mockMvc.perform(
+                        get("/api/v1/production/batches/" + batchId + "/measurements").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(listadas.size()).isEqualTo(2);
     }
 
     @Test

@@ -5836,8 +5836,154 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /digital-twin/profiles:
+    post:
+      tags: [Perfil aprendido]
+      summary: Calcular uma versão do perfil aprendido de uma receita (DTW-001)
+      description: >-
+        **A amostra é informada, não descoberta.** Parece limitação e é propriedade: quem conhece a operação
+        pode excluir o lote em que a bomba falhou, e o perfil registra exatamente quais lotes entraram — o
+        que torna a exclusão visível em vez de silenciosa. Um cálculo sobre "todos os lotes" esconderia essa
+        decisão dentro de uma consulta.
+
+
+        **Nenhum número é recalculado.** Volume planejado, transferido e perda vêm das consultas publicadas
+        da produção; recalcular criaria uma segunda opinião sobre o mesmo fato. Este endpoint *resume*.
+
+
+        **Lote sem transferência é excluído, nunca contado como zero.** Um lote que ainda está fervendo não
+        rendeu 0% — ele ainda não rendeu. Contá-lo como zero arrastaria a média para baixo e, pior,
+        encolheria a faixa, dando aparência de certeza a um número envenenado. O mesmo vale para lote de
+        outra receita ou de outra cervejaria.
+
+
+        **A versão é derivada**, nunca informada: deixar o cliente escolher abriria a porta para duas
+        "versão 3" do mesmo perfil. E versão nova nunca sobrescreve a anterior — um perfil calculado em maio
+        guiou decisões em maio.
+
+
+        Exige `digitaltwin.profile.compute`, separada de ler: **calcular escolhe a amostra, e a amostra
+        decide o número.**
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ComputeLearnedProfile'}
+      responses:
+        '201':
+          description: Versão nova do perfil
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LearnedProfile'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '422':
+          description: >-
+            `empty_learning_sample` — nenhum dos lotes informados serve. 422 e não 400: a requisição está
+            bem formada, o que não serve é a amostra, e a distinção importa para quem opera
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /digital-twin/profiles/{recipeId}:
+    get:
+      tags: [Perfil aprendido]
+      summary: Perfil vigente de uma receita (DTW-001)
+      description: >-
+        **204 quando não há perfil.** Um corpo vazio ou um perfil de zeros diria que a receita foi analisada
+        e não rendeu nada — que é diferente de nunca ter sido analisada.
+      parameters:
+        - {name: recipeId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Perfil vigente
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LearnedProfile'}
+        '204': {description: Esta receita ainda não tem perfil}
+        '403': {$ref: '#/components/responses/Problem'}
+  /digital-twin/profiles/{recipeId}/history:
+    get:
+      tags: [Perfil aprendido]
+      summary: Histórico de versões do perfil (DTW-001)
+      description: >-
+        É onde se vê o perfil mudar conforme a operação muda. Versões antigas nunca são sobrescritas nem
+        apagadas.
+      parameters:
+        - {name: recipeId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Da versão mais recente para a mais antiga
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/LearnedProfile'}}
+        '403': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    ComputeLearnedProfile:
+      type: object
+      required: [recipeId, batchIds]
+      properties:
+        recipeId: {type: string, format: uuid}
+        batchIds:
+          type: array
+          minItems: 1
+          items: {type: string, format: uuid}
+          description: >-
+            A amostra. Lotes de outra receita, de outra cervejaria ou ainda não transferidos são
+            silenciosamente excluídos — e os que sobraram ficam gravados em `observedBatchIds`
+    LearnedProfileEstimate:
+      type: object
+      description: >-
+        **A média nunca viaja sozinha.** Ela vem sempre com `sampleSize`, `confidence` e a faixa — quem
+        consome a API não consegue pegar o número sem ver sobre quantas observações ele foi construído.
+        "Rendimento de 92%" pode vir de trinta lotes agrupados ou de dois, um de 84 e um de 100
+      properties:
+        metric: {type: string, enum: [VOLUME_YIELD_PERCENT, TRANSFER_LOSS_LITERS]}
+        label:
+          type: string
+          description: >-
+            Descreve uma grandeza OBSERVADA, nunca uma causa. O rendimento não se chama "eficiência":
+            quem lê "eficiência 74%" pensa em extração de açúcar do malte, que é outra grandeza
+        mean: {type: number, nullable: true, description: Nula quando não houve amostra suficiente}
+        standardDeviation:
+          type: number
+          nullable: true
+          description: Dispersão entre os lotes. Amostral (n-1) — uma amostra não é o universo
+        lowerBound:
+          type: number
+          nullable: true
+          description: >-
+            Intervalo de confiança da MÉDIA (~95%), não a variação observada. É ele que encolhe conforme
+            se acumula histórico, e é ele que denuncia que dois lotes não bastam
+        upperBound: {type: number, nullable: true}
+        sampleSize: {type: integer}
+        confidence:
+          type: string
+          enum: [INSUFFICIENT, LOW, MODERATE, HIGH]
+          description: >-
+            Existe porque uma faixa numérica não basta: um intervalo estreito sobre três lotes parece
+            confiável e não é. INSUFFICIENT (menos de 2) não é confiança baixa — é ausência de estimativa
+        usable: {type: boolean}
+    LearnedProfile:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        recipeId: {type: string, format: uuid}
+        version: {type: integer, description: Derivada, nunca informada. Versão nova não sobrescreve}
+        estimates:
+          type: array
+          items: {$ref: '#/components/schemas/LearnedProfileEstimate'}
+          description: >-
+            Todas as métricas conhecidas aparecem, inclusive as sem amostra suficiente. Ausência declarada
+            é informação; ausência silenciosa faria alguém concluir que a perda é zero
+        observedBatchIds:
+          type: array
+          items: {type: string, format: uuid}
+          description: >-
+            Os lotes efetivamente lidos. Não é metadado: é o que torna o número reproduzível, e o que torna
+            visível a exclusão de um lote anômalo
+        computedAt: {type: string, format: date-time}
+        hasAnyUsableEstimate: {type: boolean}
     ScanResolution:
       type: object
       properties:

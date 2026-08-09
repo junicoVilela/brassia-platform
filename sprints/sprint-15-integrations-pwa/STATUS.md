@@ -10,7 +10,7 @@ Estado: NÃO INICIADA
 | INT-002 | Concluída | Claude | `backend/.../integration`, `V99__integration_webhooks.sql`, `frontend/.../features/webhooks` | Módulo `integration` novo. Outbox no mesmo commit do comando, HMAC com instante assinado, retry com backoff exponencial. Ver DEC-INT-005/006/007/008. |
 | PWA-001 | Concluída | Claude | `frontend/.../core/offline`, `ngsw-config.json`, `manifest.webmanifest` | Service worker só para a aplicação; o roteiro é guardado por escolha explícita, carimbado com dono e cervejaria, vence em 12 h e é apagado no logout. Ver DEC-PWA-001/002 e DEB-PWA-001. |
 | PWA-002 | Concluída | Claude | `frontend/.../core/offline/offline-queue.store.ts`, `V100__production_client_request_id.sql` | Fila com garantia "ao menos uma vez"; a chave gerada no registro (não no envio) a transforma em "exatamente uma" do lado do servidor. Conflito sai do ciclo automático e espera decisão. Ver DEC-PWA-003/004. |
-| INT-003 | A fazer | — | — | — |
+| INT-003 | Concluída | Claude | `integration/domain/ScanReference`, `ScanController`, `frontend/.../features/scan` | O código carrega só o quê; a permissão do tipo apontado é verificada depois da leitura. Sem leitor de câmera: o QR é um link. Ver DEC-INT-009/010. |
 | INT-006 | A fazer | — | — | — |
 | SEC-B07 | A fazer | — | — | — |
 | ~~INT-004~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
@@ -187,6 +187,51 @@ Mais três escolhas:
   problema, e só o *tipo* do erro é registrado — a mensagem pode conter a URL inteira.
 - **Só o desfecho é auditado**, não cada tentativa: retry é comportamento esperado, não fato a guardar, e
   auditar todas encheria a trilha com o ruído de um destino instável.
+
+### DEC-INT-009 (INT-003) — O código carrega o quê, nunca a credencial
+
+Um QR colado num tanque é legível por qualquer pessoa que entre na sala, fotografável de longe e copiável
+para outra etiqueta. **Qualquer segredo impresso nele é um segredo público.** Por isso `ScanReference`
+contém apenas tipo e identificador — nada de token, assinatura ou credencial.
+
+A consequência é a ordem das verificações: a sessão é exigida antes de tudo pelo filtro de segurança, e a
+permissão é verificada **depois** de interpretar o código, porque só aí se sabe qual permissão é. Ler o
+código não é ganhar acesso; é fazer uma pergunta que ainda precisa ser autorizada.
+
+A alçada exigida é a **do tipo apontado**, declarada em `ScanTarget` junto do próprio tipo — não num mapa na
+borda HTTP, que protegeria só o caminho que passa por ela. Quem pode ver equipamento não passa a ver lote
+por ter lido um QR de lote.
+
+**403 e não 404.** A pessoa apontou a câmera para uma etiqueta real; a resposta honesta é que ela não pode
+ver aquilo, não que aquilo não existe. Já o código *ilegível* responde **422 com mensagem uniforme** para
+todos os motivos — distinguir "formato inválido" de "tipo inexistente" ensinaria quais tipos existem a quem
+sonda.
+
+Duas escolhas de robustez:
+
+- **O identificador tem alfabeto fechado** (letras, dígitos, hífen, sublinhado, ponto). A etiqueta é entrada
+  de terceiro tanto quanto um formulário: qualquer um imprime um QR e cola no tanque. `../../admin`,
+  `1?admin=true` e `<script>` são recusados.
+- **Segmentos extras são ignorados**, porque PKG-004 já imprime `brassia://lote/<código>/envase/<plano>`.
+  Recusar o sufixo invalidaria toda etiqueta já colada numa caixa.
+
+### DEC-INT-010 (INT-003) — Não há leitor de câmera, e o endpoint é um roteador
+
+**Sem biblioteca de leitura.** O QR contém um link para `/scan?code=…`, e quem lê é o aplicativo de câmera
+que já vem no telefone — o mesmo que qualquer pessoa usa para ler um QR de restaurante. Embutir um leitor
+significaria uma dependência a mais, permissão de câmera a pedir e uma experiência pior que a nativa em
+troca de nada. A tela também aceita o código digitado, que cobre etiqueta rasgada e uso no computador.
+
+É por isso que o endpoint é `GET`: ler não altera nada, e só um `GET` pode ser aberto por um link.
+
+**O endpoint não carrega o recurso.** Quem responde pelo equipamento, pelo lote, pela OP e pela embalagem
+são os módulos donos deles, e é lá que a cervejaria e o estado são verificados. Duplicar a verificação aqui
+criaria uma segunda autoridade sobre a mesma pergunta — e duas autoridades divergem com o tempo. O scan
+resolve *para onde ir*; a tela de destino faz o resto, como sempre fez.
+
+Consequência: a rota `/scan` do frontend **não tem `permissionGuard`**. A alçada depende do tipo apontado,
+que só se conhece depois de interpretar o código — e um guard fixo teria de escolher uma permissão antes de
+saber qual.
 
 ### DEC-PWA-001 (PWA-001) — O service worker não cacheia a API, e a ausência é a decisão
 

@@ -46,7 +46,7 @@
               </div>
               <div class="small opacity-75 mt-1">
                 {{ measureLabels[device.measure] }} em {{ unitLabels[device.unit] ?? device.unit }},
-                {{ intervalLabel(device) }}
+                {{ intervalLabel(device) }} · {{ formatLabels[device.payloadFormat] }}
               </div>
             </button>
           }
@@ -111,6 +111,19 @@
                     <option [value]="unit">{{ unitLabels[unit] ?? unit }}</option>
                   }
                 </select>
+              </div>
+            </div>
+
+            <div class="mb-2">
+              <label class="form-label" for="format">Formato do payload</label>
+              <select id="format" class="form-select" formControlName="payloadFormat">
+                @for (format of formats; track format) {
+                  <option [value]="format">{{ formatLabels[format] }}</option>
+                }
+              </select>
+              <div class="form-text">
+                Como o aparelho fala. Fica no cadastro, não na mensagem: se dependesse do que o payload
+                declara, uma atualização de firmware mudaria a interpretação sem ninguém decidir.
               </div>
             </div>
 

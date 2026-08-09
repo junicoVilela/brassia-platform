@@ -1,6 +1,6 @@
 # Status — Sprint 15
 
-Estado: NÃO INICIADA
+Estado: CONCLUÍDA COM PENDÊNCIAS DECLARADAS (5 completas, 2 parciais)
 
 ## Controle das histórias
 
@@ -10,9 +10,9 @@ Estado: NÃO INICIADA
 | INT-002 | Concluída | Claude | `backend/.../integration`, `V99__integration_webhooks.sql`, `frontend/.../features/webhooks` | Módulo `integration` novo. Outbox no mesmo commit do comando, HMAC com instante assinado, retry com backoff exponencial. Ver DEC-INT-005/006/007/008. |
 | PWA-001 | Concluída | Claude | `frontend/.../core/offline`, `ngsw-config.json`, `manifest.webmanifest` | Service worker só para a aplicação; o roteiro é guardado por escolha explícita, carimbado com dono e cervejaria, vence em 12 h e é apagado no logout. Ver DEC-PWA-001/002 e DEB-PWA-001. |
 | PWA-002 | Concluída | Claude | `frontend/.../core/offline/offline-queue.store.ts`, `V100__production_client_request_id.sql` | Fila com garantia "ao menos uma vez"; a chave gerada no registro (não no envio) a transforma em "exatamente uma" do lado do servidor. Conflito sai do ciclo automático e espera decisão. Ver DEC-PWA-003/004. |
-| INT-003 | A fazer | — | — | — |
-| INT-006 | A fazer | — | — | — |
-| SEC-B07 | A fazer | — | — | — |
+| INT-003 | Concluída | Claude | `integration/domain/ScanReference`, `ScanController`, `frontend/.../features/scan` | O código carrega só o quê; a permissão do tipo apontado é verificada depois da leitura. Sem leitor de câmera: o QR é um link. Ver DEC-INT-009/010. |
+| INT-006 | Parcial | Claude | `sensor/domain/PayloadFormat`, `CanonicalReading`, `V101__sensor_payload_format.sql` | Adapters de payload (canônico, iSpindel, Tilt) por HTTP. **Transporte MQTT não entregou** — ver DEB-INT-003. |
+| SEC-B07 | Parcial | Claude | `security/domain/SsoHandshake`, `AccountLinkDecision`, `SsoLoginHandler`, `V102__sso_handshake.sql` | Fluxo SP-initiated com state/nonce/PKCE, uso único no banco e vínculo que recusa sequestro. **Troca com IdP real não exercitada** — ver DEB-SEC-001. |
 | ~~INT-004~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
 | ~~INT-005~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
 | ~~INT-007~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
@@ -188,6 +188,189 @@ Mais três escolhas:
 - **Só o desfecho é auditado**, não cada tentativa: retry é comportamento esperado, não fato a guardar, e
   auditar todas encheria a trilha com o ruído de um destino instável.
 
+### DEC-SEC-001 (SEC-B07) — Três amarras, cada uma contra um ataque diferente
+
+Um login federado é uma conversa que sai da aplicação, passa por um terceiro e volta. **Entre a ida e a
+volta não há nada ligando as duas pontas**: o navegador que volta pode ser outro, a resposta pode ter sido
+fabricada, e a mesma resposta pode voltar duas vezes. `SsoHandshake` é o que amarra.
+
+- **`state`** — contra CSRF de login. Sem ele, um atacante inicia um fluxo com a própria conta e induz a
+  vítima a completá-lo: ela fica logada como ele e digita dados dele achando que são seus. Comparado em
+  **tempo constante** — um `equals` sai no primeiro byte diferente, e essa diferença é medível pela rede.
+- **`nonce`** — contra replay do token. Viaja ao provedor e volta dentro do token assinado.
+- **PKCE (S256)** — contra interceptação do código. O verificador **nunca sai daqui**; só o desafio
+  derivado vai ao provedor, e é essa assimetria que faz o mecanismo valer. `plain` não é aceito: com ele o
+  desafio *é* o verificador.
+
+**Uso único, decidido pelo banco.** O `UPDATE ... WHERE consumed_at IS NULL` é o ponto: duas voltas
+simultâneas com a mesma resposta — duplo clique, retry do navegador, aba duplicada — passariam as duas por
+uma checagem feita em memória. Vence exatamente uma.
+
+**Dez minutos de validade**: cobre digitar senha e segundo fator do outro lado, e não cobre a aba esquecida
+aberta ontem — que é onde um handshake vivo vira janela de ataque.
+
+**SP-initiated apenas.** Um fluxo IdP-initiated chega sem ida, e por isso não tem como ser distinguido de
+uma resposta fabricada.
+
+**O destino pós-login é só caminho interno.** Aceitar URL absoluta faria do login um redirecionador aberto:
+um link para o nosso domínio que, depois de autenticar, joga a pessoa num site de terceiro — com a barra de
+endereço tendo mostrado o nosso domínio o tempo todo. `//evil.example.com` também é recusado: é URL
+absoluta protocol-relative.
+
+### DEC-SEC-002 (SEC-B07) — E-mail nunca vincula sozinho a uma conta que já existe
+
+Esta é **a parte perigosa de todo SSO**. O caminho tentador — "o provedor disse que é ana@cervejaria.com,
+então logue como a nossa ana@cervejaria.com" — entrega qualquer conta local a quem controlar ou enganar um
+provedor configurado. É o *account takeover por asserção de e-mail*, e já derrubou sistemas grandes.
+
+`AccountLinkDecision` tem três desfechos e nenhum outro:
+
+| Situação | Desfecho |
+|---|---|
+| Já existe vínculo provedor+subject | **Entra.** É o segundo login de quem já provou os dois lados |
+| Existe conta local de mesmo e-mail, sem vínculo | **RECUSA.** Nem com JIT ligado e e-mail verificado |
+| Não existe nada, JIT ligado, e-mail verificado | **Cria.** Não há o que sequestrar |
+
+O caminho legítimo para quem tem conta local é entrar por ela e vincular o provedor de dentro — provando os
+dois lados. **A recusa é auditada** com o e-mail asserido e o motivo: se tivesse passado, seria um sequestro
+de conta, e quem investiga precisa encontrá-la.
+
+**E-mail não verificado não provisiona**, mesmo com JIT: sem verificação, quem consegue um cadastro no
+provedor escolhe com qual e-mail aparece aqui.
+
+**A ordem das verificações é a segurança.** Aperto de mão → verificação do provedor → decisão de vínculo.
+Decidir o vínculo antes de verificar seria acreditar num e-mail que ninguém provou ter vindo do provedor.
+Fixado em teste.
+
+**A conta provisionada nasce sem senha local e sem cervejaria.** Sem senha porque quem entra por federação
+entra pelo provedor — uma senha aleatória seria uma credencial que ninguém conhece mas que existe para ser
+adivinhada. Sem cervejaria porque acesso é concedido por quem administra: provisionamento automático não
+pode virar concessão automática.
+
+### DEB-SEC-001 (SEC-B07) — A troca com o provedor real não foi exercitada
+
+O que está entregue: o fluxo SP-initiated completo do nosso lado — montagem da URL de autorização com
+state, nonce e desafio PKCE, o aperto de mão persistido, o uso único no banco, a decisão de vínculo, a
+criação de sessão com rotação de identificador, e a borda HTTP com endpoints públicos e redirecionamento
+para a aplicação.
+
+O que **não** está: a troca do código por token contra o endpoint real do provedor (OIDC) e a checagem de
+assinatura XML da assertion (SAML). As duas exigem um IdP de verdade para serem exercitadas, e escrevê-las
+sem esse exercício produziria código que compila e que ninguém sabe se funciona.
+
+**O adaptador recusa a volta explicitamente** (`UnsupportedFederationExchangeException`) em vez de aparentar
+autenticar. Uma recusa honesta é infinitamente melhor que um caminho que cria sessão sobre uma verificação
+que nunca aconteceu.
+
+Os validadores estruturais de SEC-014/015 (`OidcTokenClaimsValidator`, `SamlAssertionValidator`) estão
+ligados e serão usados pela troca quando ela existir — a história pedia reaproveitá-los, e a integração
+está pronta para recebê-los.
+
+**Critério de remoção:** Keycloak em Testcontainers com um realm de teste, e um IT cobrindo login bem
+sucedido, nonce de outra conversa, código já usado e token com assinatura inválida.
+
+### DEC-INT-009 (INT-003) — O código carrega o quê, nunca a credencial
+
+Um QR colado num tanque é legível por qualquer pessoa que entre na sala, fotografável de longe e copiável
+para outra etiqueta. **Qualquer segredo impresso nele é um segredo público.** Por isso `ScanReference`
+contém apenas tipo e identificador — nada de token, assinatura ou credencial.
+
+A consequência é a ordem das verificações: a sessão é exigida antes de tudo pelo filtro de segurança, e a
+permissão é verificada **depois** de interpretar o código, porque só aí se sabe qual permissão é. Ler o
+código não é ganhar acesso; é fazer uma pergunta que ainda precisa ser autorizada.
+
+A alçada exigida é a **do tipo apontado**, declarada em `ScanTarget` junto do próprio tipo — não num mapa na
+borda HTTP, que protegeria só o caminho que passa por ela. Quem pode ver equipamento não passa a ver lote
+por ter lido um QR de lote.
+
+**403 e não 404.** A pessoa apontou a câmera para uma etiqueta real; a resposta honesta é que ela não pode
+ver aquilo, não que aquilo não existe. Já o código *ilegível* responde **422 com mensagem uniforme** para
+todos os motivos — distinguir "formato inválido" de "tipo inexistente" ensinaria quais tipos existem a quem
+sonda.
+
+Duas escolhas de robustez:
+
+- **O identificador tem alfabeto fechado** (letras, dígitos, hífen, sublinhado, ponto). A etiqueta é entrada
+  de terceiro tanto quanto um formulário: qualquer um imprime um QR e cola no tanque. `../../admin`,
+  `1?admin=true` e `<script>` são recusados.
+- **Segmentos extras são ignorados**, porque PKG-004 já imprime `brassia://lote/<código>/envase/<plano>`.
+  Recusar o sufixo invalidaria toda etiqueta já colada numa caixa.
+
+### DEC-INT-010 (INT-003) — Não há leitor de câmera, e o endpoint é um roteador
+
+**Sem biblioteca de leitura.** O QR contém um link para `/scan?code=…`, e quem lê é o aplicativo de câmera
+que já vem no telefone — o mesmo que qualquer pessoa usa para ler um QR de restaurante. Embutir um leitor
+significaria uma dependência a mais, permissão de câmera a pedir e uma experiência pior que a nativa em
+troca de nada. A tela também aceita o código digitado, que cobre etiqueta rasgada e uso no computador.
+
+É por isso que o endpoint é `GET`: ler não altera nada, e só um `GET` pode ser aberto por um link.
+
+**O endpoint não carrega o recurso.** Quem responde pelo equipamento, pelo lote, pela OP e pela embalagem
+são os módulos donos deles, e é lá que a cervejaria e o estado são verificados. Duplicar a verificação aqui
+criaria uma segunda autoridade sobre a mesma pergunta — e duas autoridades divergem com o tempo. O scan
+resolve *para onde ir*; a tela de destino faz o resto, como sempre fez.
+
+Consequência: a rota `/scan` do frontend **não tem `permissionGuard`**. A alçada depende do tipo apontado,
+que só se conhece depois de interpretar o código — e um guard fixo teria de escolher uma permissão antes de
+saber qual.
+
+### DEC-INT-011 (INT-006) — O adapter traduz e delega; ele não grava
+
+`AdapterIngestionHandler` converte o payload do fabricante para o formato canônico e chama o caso de uso de
+INT-001. Reimplementar a gravação aqui criaria uma **segunda forma de gravar leitura** — e duas formas
+divergem: uma ganharia uma regra que a outra não tem, e o caminho por onde a leitura entrou passaria a mudar
+o que ela significa.
+
+Três consequências:
+
+- **As chaves das leituras derivam do identificador da mensagem** (`externalReadingId:GRANDEZA`), nunca
+  sorteadas. É o que faz a idempotência de INT-001 valer aqui: reenviar a mensagem inteira reconhece as
+  leituras como repetição. Uma chave sorteada por leitura faria do adapter **o furo por onde a idempotência
+  vaza**. O sufixo com a grandeza existe porque uma mensagem vira várias leituras — sem ele, densidade e
+  temperatura do mesmo envio disputariam a mesma chave e uma seria descartada como duplicata.
+- **Só a grandeza cadastrada é gravada.** Um iSpindel manda densidade e temperatura juntas; um dispositivo
+  cadastrado como termômetro não começa a gravar densidade porque o firmware passou a incluí-la — a série
+  mudaria de assunto sozinha.
+- **O dispositivo vem da URL, não do payload.** O `deviceId` de dentro da mensagem é informação do
+  fabricante e serve para conferência; deixá-lo escolher permitiria a um gateway gravar na série de outro
+  aparelho da mesma cervejaria.
+
+### DEC-INT-012 (INT-006) — A conversão de unidade acontece na borda
+
+Fahrenheit vira Celsius e kPa vira bar dentro do `PayloadFormat`, antes de qualquer coisa entrar no
+domínio. Guardar a unidade do fabricante e converter na leitura espalharia a conversão por toda consulta que
+tocasse a série — e uma delas acabaria esquecida.
+
+Pelo mesmo motivo o **formato é atributo do cadastro, não da mensagem**: deixar o payload declarar o próprio
+formato seria confiar num campo que o firmware preenche, e uma atualização que mudasse a declaração passaria
+a ser interpretada de outro jeito sem que ninguém decidisse isso.
+
+Duas escolhas de leitura defensiva, porque payload de dispositivo é entrada de terceiro:
+
+- **Número como texto é aceito.** Muitos firmwares serializam tudo como string, e recusar isso rejeitaria
+  aparelhos que funcionam perfeitamente. Texto que **não** é número é recusado — aí o campo está errado, e
+  dizer isso é melhor que gravar zero.
+- **O erro nomeia o campo.** "Payload inválido" mandaria quem configura o gateway adivinhar.
+
+### DEB-INT-003 (INT-006) — O transporte MQTT não foi entregue
+
+O título da história diz "adapters HTTP/MQTT". O que está entregue são os **adapters de payload** (canônico,
+iSpindel, Tilt) com transporte **HTTP**; o transporte MQTT não existe.
+
+MQTT exigiria cliente Paho, um broker em Testcontainers e um modelo de assinatura de tópico por dispositivo
+— é uma fatia com peso próprio. Entregá-la sem teste de integração contra um broker real repetiria
+exatamente o erro que motivou `DEC-INT-001`: marcar como concluído o que não foi verificado.
+
+**O que já está pronto para quando ele entrar:** a tradução é independente do transporte. Um assinante MQTT
+só precisa chamar `AdapterIngestionCommands.ingest` com o payload recebido — a conversão, a idempotência, a
+qualidade e o atraso já acontecem sem saber por onde a mensagem chegou.
+
+**Critério de remoção:** cliente MQTT configurado por cervejaria, tópico por dispositivo, e `SensorMqttIT`
+com broker real em Testcontainers cobrindo entrega, reentrega (QoS 1) e credencial revogada.
+
+**Consequência para o aceite da sprint:** metade do título desta história fica pendente. A decisão de tratar
+INT-006 como concluída ou de abrir uma história própria para o transporte é do mantenedor.
+
 ### DEC-PWA-001 (PWA-001) — O service worker não cacheia a API, e a ausência é a decisão
 
 `ngsw-config.json` tem `assetGroups` e **nenhum `dataGroup`**. Cachear respostas de API por padrão de URL
@@ -310,9 +493,34 @@ de um à do outro.
 
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- **Build/commit:** `mvnw verify` verde; `eslint` e `ng build` limpos; E2E contra API real
+- **Testes executados (INT-001):** 40 unitários novos; `SensorIngestionIT` 23/23 com PostgreSQL 18 real,
+  incluindo **oito requisições simultâneas** com a mesma identidade de mensagem (1×201 + 7×200, uma linha);
+  frontend 12 novos; `sensors.spec.ts` 4/4
+- **Testes executados (INT-002):** 28 unitários novos; `WebhookIT` 13/13 — **rollback do outbox provado**,
+  restrição única, isolamento, alçadas assimétricas, auditoria sem caminho nem segredo; frontend 11 novos;
+  `webhooks.spec.ts` 5/5
+- **Testes executados (PWA-001):** 18 novos de frontend; `offline-runbook.spec.ts` com offline real via
+  `context.setOffline` e logout esvaziando o armazenamento; um teste afirma que o gravado **não contém**
+  custo, preço, fornecedor, CPF ou e-mail
+- **Testes executados (PWA-002):** 23 novos de frontend; `MeasurementIT` 7/7 com 3 casos novos de
+  idempotência do apontamento offline
+- **Testes executados (INT-003):** 11 unitários; `ScanIT` 9/9 — sem a permissão do tipo é 403, e a
+  permissão é *do tipo* e não genérica; `scan.spec.ts` 6/6
+- **Testes executados (INT-006):** 12 unitários; 5 casos novos no `SensorIngestionIT`, incluindo que a
+  idempotência sobrevive ao adapter
+- **Testes executados (SEC-B07):** 29 unitários (`SsoHandshakeTest` 8, `AccountLinkDecisionTest` 9,
+  `SsoLoginHandlerTest` 12); `SsoLoginIT` 7/7 — endpoints públicos, verificador PKCE que não viaja na URL,
+  e **uso único decidido pelo banco**
+- **Migrations aplicadas:** `V98__sensor_ingestion.sql`, `V99__integration_webhooks.sql`,
+  `V100__production_client_request_id.sql`, `V101__sensor_payload_format.sql`, `V102__sso_handshake.sql`
+- **Contratos atualizados:** `contracts/openapi.yaml` (`/sensors/**`, `/integration/webhooks*`,
+  `/integration/scan`, `clientRequestId` em `RecordMeasurement`) e `contracts/security.openapi.yaml`
+  (`/security/sso/**`)
+- **Riscos remanescentes:** dois, ambos declarados e com critério de remoção —
+  **`DEB-INT-003`** (transporte MQTT não entregue) e **`DEB-SEC-001`** (troca com IdP real não exercitada).
+  Os demais débitos estão registrados acima.
+- **Aceite:** **5 histórias completas** (INT-001, INT-002, PWA-001, PWA-002, INT-003) e **2 parciais com
+  pendência declarada** (INT-006 sem MQTT, SEC-B07 sem a troca real). Nenhuma pendência foi escondida em
+  TODO: as duas têm identificador, motivo e critério de remoção. **A decisão de aceitar a sprint com as duas
+  parciais, ou de abrir histórias próprias para elas, é do mantenedor.**

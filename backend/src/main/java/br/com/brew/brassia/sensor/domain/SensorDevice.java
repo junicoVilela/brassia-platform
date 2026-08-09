@@ -27,14 +27,15 @@ public final class SensorDevice {
     private final String unit;
     private final UUID equipmentId;
     private final Duration expectedInterval;
+    private final PayloadFormat payloadFormat;
     private final DeviceStatus status;
     private final UUID registeredBy;
     private final Instant registeredAt;
     private final long version;
 
     private SensorDevice(UUID id, UUID breweryId, String code, String name, Measure measure, String unit,
-            UUID equipmentId, Duration expectedInterval, DeviceStatus status, UUID registeredBy,
-            Instant registeredAt, long version) {
+            UUID equipmentId, Duration expectedInterval, PayloadFormat payloadFormat, DeviceStatus status,
+            UUID registeredBy, Instant registeredAt, long version) {
         this.id = Objects.requireNonNull(id, "id");
         this.breweryId = Objects.requireNonNull(breweryId, "breweryId");
         this.code = Objects.requireNonNull(code, "code");
@@ -43,6 +44,7 @@ public final class SensorDevice {
         this.unit = Objects.requireNonNull(unit, "unit");
         this.equipmentId = equipmentId;
         this.expectedInterval = expectedInterval;
+        this.payloadFormat = Objects.requireNonNull(payloadFormat, "payloadFormat");
         this.status = Objects.requireNonNull(status, "status");
         this.registeredBy = Objects.requireNonNull(registeredBy, "registeredBy");
         this.registeredAt = Objects.requireNonNull(registeredAt, "registeredAt");
@@ -52,6 +54,14 @@ public final class SensorDevice {
     /** Cadastra um dispositivo. O código é normalizado porque é a identidade externa dele. */
     public static SensorDevice register(UUID breweryId, String rawCode, String name, Measure measure,
             String rawUnit, UUID equipmentId, Duration expectedInterval, UUID actorId, Instant now) {
+        return register(breweryId, rawCode, name, measure, rawUnit, equipmentId, expectedInterval,
+                PayloadFormat.CANONICAL, actorId, now);
+    }
+
+    /** Cadastra declarando de que jeito o dispositivo fala (INT-006). */
+    public static SensorDevice register(UUID breweryId, String rawCode, String name, Measure measure,
+            String rawUnit, UUID equipmentId, Duration expectedInterval, PayloadFormat payloadFormat,
+            UUID actorId, Instant now) {
         var code = normalizeCode(rawCode);
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("nome do dispositivo é obrigatório");
@@ -63,7 +73,8 @@ public final class SensorDevice {
             throw new IllegalArgumentException("intervalo esperado deve ser positivo");
         }
         return new SensorDevice(UUID.randomUUID(), breweryId, code, name.trim(), measure, unit, equipmentId,
-                expectedInterval, DeviceStatus.ACTIVE, actorId, now, 0L);
+                expectedInterval, payloadFormat == null ? PayloadFormat.CANONICAL : payloadFormat,
+                DeviceStatus.ACTIVE, actorId, now, 0L);
     }
 
     /**
@@ -85,10 +96,10 @@ public final class SensorDevice {
     }
 
     public static SensorDevice reconstitute(UUID id, UUID breweryId, String code, String name, Measure measure,
-            String unit, UUID equipmentId, Duration expectedInterval, DeviceStatus status, UUID registeredBy,
-            Instant registeredAt, long version) {
+            String unit, UUID equipmentId, Duration expectedInterval, PayloadFormat payloadFormat,
+            DeviceStatus status, UUID registeredBy, Instant registeredAt, long version) {
         return new SensorDevice(id, breweryId, code, name, measure, unit, equipmentId, expectedInterval,
-                status, registeredBy, registeredAt, version);
+                payloadFormat, status, registeredBy, registeredAt, version);
     }
 
     /** Muda o estado operacional. Revogado é terminal. */
@@ -101,7 +112,7 @@ public final class SensorDevice {
             throw new IllegalStateException("dispositivo já está em " + target);
         }
         return new SensorDevice(id, breweryId, code, name, measure, unit, equipmentId, expectedInterval,
-                target, registeredBy, registeredAt, version);
+                payloadFormat, target, registeredBy, registeredAt, version);
     }
 
     /**
@@ -135,6 +146,7 @@ public final class SensorDevice {
     public String unit() { return unit; }
     public UUID equipmentId() { return equipmentId; }
     public Duration expectedInterval() { return expectedInterval; }
+    public PayloadFormat payloadFormat() { return payloadFormat; }
     public DeviceStatus status() { return status; }
     public UUID registeredBy() { return registeredBy; }
     public Instant registeredAt() { return registeredAt; }

@@ -372,6 +372,94 @@ paths:
     get:
       summary: Stub ServiceProviderConfig SCIM
       security: []
+  /security/sso/{providerCode}/start:
+    get:
+      tags: [Segurança]
+      summary: Iniciar login federado no navegador (SEC-B07)
+      description: >-
+        **SP-initiated: o fluxo começa aqui, não no provedor.** É o que permite exigir o aperto de mão — sem
+        uma ida nossa não haveria `state`, `nonce` nem verificador PKCE guardados, e a volta seria uma
+        resposta sem nada a que se ligar. Um fluxo IdP-initiated é justamente o que não se aceita: chega sem
+        ida, e por isso não pode ser distinguido de uma resposta fabricada.
+
+
+        **Público**: quem chama ainda não tem sessão, está tentando criar uma. A proteção não é
+        autenticação — é o aperto de mão de uso único, validade de 10 minutos e `state` conferido em tempo
+        constante.
+
+
+        Responde **302** para o provedor. O verificador PKCE **não** viaja na URL: só o desafio S256
+        derivado dele. É essa assimetria que faz o mecanismo valer — quem intercepta o redirect vê o
+        desafio, e do desafio não se volta ao verificador.
+
+
+        `redirect` aceita **apenas caminho interno**. URL absoluta faria do login um redirecionador aberto:
+        um link para o nosso domínio que, depois de autenticar, joga a pessoa num site de terceiro.
+      parameters:
+        - {name: providerCode, in: path, required: true, schema: {type: string}}
+        - {name: breweryId, in: query, required: true, schema: {type: string, format: uuid}}
+        - name: redirect
+          in: query
+          schema: {type: string}
+          description: Caminho interno para depois do login. Qualquer outra coisa vira "/"
+      responses:
+        '302':
+          description: Redireciona ao provedor
+          headers:
+            Location: {schema: {type: string}}
+        '400':
+          description: >-
+            `sso_handshake_invalid` — provedor inexistente ou desativado. **Mensagem única**: distinguir os
+            dois contaria a quem sonda quais provedores a cervejaria tem configurados
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /security/sso/{providerCode}/callback:
+    get:
+      tags: [Segurança]
+      summary: Volta do provedor — OIDC (SEC-B07)
+      description: >-
+        Recebe `code` e `state`. Confere o aperto de mão (state, validade, uso único **decidido pelo
+        banco**), verifica a resposta do provedor e só então decide o vínculo — nessa ordem. Decidir o
+        vínculo antes de verificar seria acreditar num e-mail que ninguém provou ter vindo do provedor.
+
+
+        **E-mail nunca vincula sozinho a uma conta que já existe.** Se houver conta local com o e-mail
+        asserido e nenhum vínculo, a tentativa é **recusada e auditada** — vincular entregaria a conta a
+        quem apenas afirmou um e-mail (*account takeover por asserção de e-mail*). O caminho legítimo é
+        entrar pela conta local e vincular o provedor de dentro dela.
+
+
+        Termina sempre em **302 para a aplicação**, com ou sem sucesso — devolver JSON deixaria a pessoa
+        numa página em branco no meio de um login. Em caso de falha, `?sso=falhou` (motivo único: dizer qual
+        amarra falhou ensinaria o que contornar) ou `?sso=vinculo-recusado`.
+
+
+        A sessão criada **rotaciona o identificador**, o que impede fixação de sessão.
+      parameters:
+        - {name: providerCode, in: path, required: true, schema: {type: string}}
+      responses:
+        '302':
+          description: Redireciona à aplicação, autenticado ou com o motivo da falha
+          headers:
+            Location: {schema: {type: string}}
+    post:
+      tags: [Segurança]
+      summary: Volta do provedor — SAML (SEC-B07)
+      description: >-
+        SAML volta por form POST com a assertion no corpo e o nosso `state` em `RelayState`. **Isento de
+        CSRF**: o IdP faz o POST de outro domínio e não tem como carregar o nosso token — a proteção aqui é
+        o aperto de mão de uso único, não o token.
+
+
+        Mesmas regras de vínculo e mesmo desfecho em redirect do fluxo OIDC.
+      parameters:
+        - {name: providerCode, in: path, required: true, schema: {type: string}}
+      responses:
+        '302':
+          description: Redireciona à aplicação
+          headers:
+            Location: {schema: {type: string}}
 components:
   securitySchemes:
     sessionCookie:

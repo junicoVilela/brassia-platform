@@ -34,6 +34,11 @@ class SecurityConfiguration {
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         .ignoringRequestMatchers(
                                 "/api/v1/security/users/accept-invitation",
+                                // Callback SAML: o IdP faz form POST de outro domínio e não tem como
+                                // carregar o nosso token CSRF. A proteção aqui não é o token — é o aperto
+                                // de mão de uso único, cujo `state` viaja no RelayState e é conferido em
+                                // tempo constante contra o que foi guardado na ida (SEC-B07).
+                                "/api/v1/security/sso/*/callback",
                                 "/scim/v2/**"))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST,
@@ -43,6 +48,10 @@ class SecurityConfiguration {
                                 "/api/v1/security/password/reset",
                                 "/api/v1/security/email-verification/confirm",
                                 "/api/v1/security/users/accept-invitation").permitAll()
+                        // SSO: quem chama ainda NÃO TEM SESSÃO — está tentando criar uma. A proteção não
+                        // é autenticação, é o aperto de mão de uso único e curta validade (SEC-B07).
+                        .requestMatchers("/api/v1/security/sso/*/start",
+                                "/api/v1/security/sso/*/callback").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/api/v1/security/csrf",
                                 "/scim/v2/ServiceProviderConfig",

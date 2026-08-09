@@ -280,4 +280,26 @@ class SecurityExtendedConfiguration {
             }
         };
     }
+
+    /**
+     * Login federado no browser (SEC-B07).
+     *
+     * <p>Sem transação em volta: o aperto de mão é gravado na ida, e a volta consome, verifica e — no
+     * caminho de provisionamento — cria conta e vínculo. Amarrar tudo numa transação faria o consumo do
+     * aperto de mão reverter junto com uma falha posterior, e a mesma resposta do provedor voltaria a ser
+     * aceitável. Uso único tem que sobreviver ao erro.
+     */
+    @Bean
+    br.com.brew.brassia.security.application.port.inbound.SsoLoginUseCase ssoLoginUseCase(
+            br.com.brew.brassia.security.application.port.outbound.FederationProviderRepository providers,
+            br.com.brew.brassia.security.application.port.outbound.SsoHandshakeRepository handshakes,
+            br.com.brew.brassia.security.application.port.outbound.FederatedIdentityProvider identityProvider,
+            br.com.brew.brassia.security.application.port.outbound.ExternalIdentityRepository identities,
+            br.com.brew.brassia.security.application.port.outbound.SecurityUserRepository users,
+            br.com.brew.brassia.audit.AuditTrail audit) {
+        return new br.com.brew.brassia.security.application.service.SsoLoginHandler(
+                providers, handshakes, identityProvider, identities, users, audit,
+                java.time.Clock.systemUTC());
+    }
+
 }

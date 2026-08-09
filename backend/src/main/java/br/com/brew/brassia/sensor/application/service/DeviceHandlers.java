@@ -8,6 +8,7 @@ import br.com.brew.brassia.sensor.application.port.inbound.SensorQueries;
 import br.com.brew.brassia.sensor.application.port.outbound.DeviceRepository;
 import br.com.brew.brassia.sensor.application.port.outbound.ReadingRepository;
 import br.com.brew.brassia.sensor.domain.Measure;
+import br.com.brew.brassia.sensor.domain.PayloadFormat;
 import br.com.brew.brassia.sensor.domain.SensorDevice;
 import br.com.brew.brassia.sensor.domain.SensorReading;
 import br.com.brew.brassia.sensor.domain.UnknownDeviceException;
@@ -50,7 +51,10 @@ public final class DeviceHandlers {
 
             var device = SensorDevice.register(request.breweryId(), request.code(), request.name(),
                     Measure.of(request.measure()), request.unit(), request.equipmentId(),
-                    request.expectedInterval(), request.actorId(), clock.instant());
+                    request.expectedInterval(),
+                    request.payloadFormat() == null ? PayloadFormat.CANONICAL
+                            : PayloadFormat.of(request.payloadFormat()),
+                    request.actorId(), clock.instant());
 
             // O código é único por cervejaria e quem verifica é o banco, não uma consulta daqui: duas
             // requisições simultâneas cadastrando "TANK-01" passariam as duas por uma checagem prévia.
@@ -61,6 +65,7 @@ public final class DeviceHandlers {
             metadata.put("measure", device.measure().name());
             metadata.put("unit", device.unit());
             metadata.put("expectedInterval", String.valueOf(device.expectedInterval()));
+            metadata.put("payloadFormat", device.payloadFormat().name());
             if (device.equipmentId() != null) {
                 metadata.put("equipmentId", device.equipmentId().toString());
             }

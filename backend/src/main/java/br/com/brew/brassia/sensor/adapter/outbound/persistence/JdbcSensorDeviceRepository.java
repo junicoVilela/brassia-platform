@@ -3,6 +3,7 @@ package br.com.brew.brassia.sensor.adapter.outbound.persistence;
 import br.com.brew.brassia.sensor.application.port.outbound.DeviceRepository;
 import br.com.brew.brassia.sensor.domain.DeviceStatus;
 import br.com.brew.brassia.sensor.domain.Measure;
+import br.com.brew.brassia.sensor.domain.PayloadFormat;
 import br.com.brew.brassia.sensor.domain.SensorDevice;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -20,7 +21,7 @@ class JdbcSensorDeviceRepository implements DeviceRepository {
 
     private static final String COLUMNS = """
             id, brewery_id, code, name, measure, unit, equipment_id, expected_interval_seconds,
-            status, registered_by, registered_at, version
+            payload_format, status, registered_by, registered_at, version
             """;
 
     private final JdbcClient jdbc;
@@ -33,9 +34,10 @@ class JdbcSensorDeviceRepository implements DeviceRepository {
     public void insert(SensorDevice device) {
         jdbc.sql("""
                 INSERT INTO sensor_device (id, brewery_id, code, name, measure, unit, equipment_id,
-                        expected_interval_seconds, status, registered_by, registered_at, version)
-                VALUES (:id, :brewery, :code, :name, :measure, :unit, :equipment, :interval, :status,
-                        :by, :at, :version)
+                        expected_interval_seconds, payload_format, status, registered_by, registered_at,
+                        version)
+                VALUES (:id, :brewery, :code, :name, :measure, :unit, :equipment, :interval, :format,
+                        :status, :by, :at, :version)
                 """)
                 .param("id", device.id())
                 .param("brewery", device.breweryId())
@@ -46,6 +48,7 @@ class JdbcSensorDeviceRepository implements DeviceRepository {
                 .param("equipment", device.equipmentId())
                 .param("interval", device.expectedInterval() == null
                         ? null : (int) device.expectedInterval().toSeconds())
+                .param("format", device.payloadFormat().name())
                 .param("status", device.status().name())
                 .param("by", device.registeredBy())
                 .param("at", Timestamp.from(device.registeredAt()))
@@ -67,6 +70,7 @@ class JdbcSensorDeviceRepository implements DeviceRepository {
                 UPDATE sensor_device SET status = :status, version = version + 1
                 WHERE id = :id AND brewery_id = :brewery AND version = :expected
                 """)
+                .param("format", device.payloadFormat().name())
                 .param("status", device.status().name())
                 .param("id", device.id())
                 .param("brewery", device.breweryId())
@@ -109,6 +113,7 @@ class JdbcSensorDeviceRepository implements DeviceRepository {
                 rs.getString("unit"),
                 rs.getObject("equipment_id", UUID.class),
                 interval == null ? null : Duration.ofSeconds(interval),
+                PayloadFormat.valueOf(rs.getString("payload_format")),
                 DeviceStatus.valueOf(rs.getString("status")),
                 rs.getObject("registered_by", UUID.class),
                 rs.getTimestamp("registered_at").toInstant(),

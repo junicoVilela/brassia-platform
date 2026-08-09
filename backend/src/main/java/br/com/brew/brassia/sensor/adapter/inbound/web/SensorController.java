@@ -1,6 +1,7 @@
 package br.com.brew.brassia.sensor.adapter.inbound.web;
 
 import br.com.brew.brassia.sensor.adapter.inbound.web.dto.SensorDtos;
+import br.com.brew.brassia.sensor.application.port.inbound.AdapterIngestionCommands;
 import br.com.brew.brassia.sensor.application.port.inbound.DeviceCommands;
 import br.com.brew.brassia.sensor.application.port.inbound.DeviceStatusCommands;
 import br.com.brew.brassia.sensor.application.port.inbound.ReadingCommands;
@@ -12,6 +13,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -36,14 +38,16 @@ final class SensorController {
     private final DeviceCommands register;
     private final DeviceStatusCommands status;
     private final ReadingCommands ingestion;
+    private final AdapterIngestionCommands adapterIngestion;
     private final SensorQueries queries;
     private final Clock clock;
 
     SensorController(DeviceCommands register, DeviceStatusCommands status, ReadingCommands ingestion,
-            SensorQueries queries) {
+            AdapterIngestionCommands adapterIngestion, SensorQueries queries) {
         this.register = register;
         this.status = status;
         this.ingestion = ingestion;
+        this.adapterIngestion = adapterIngestion;
         this.queries = queries;
         this.clock = Clock.systemUTC();
     }
@@ -63,7 +67,8 @@ final class SensorController {
                 principal.userId(), principal.requireBrewery(), request.code(), request.name(),
                 request.measure(), request.unit(), request.equipmentId(),
                 request.expectedIntervalSeconds() == null
-                        ? null : Duration.ofSeconds(request.expectedIntervalSeconds()))));
+                        ? null : Duration.ofSeconds(request.expectedIntervalSeconds()),
+                request.payloadFormat())));
     }
 
     /**
@@ -102,6 +107,29 @@ final class SensorController {
                 request.value(), request.unit(), request.measuredAt()));
         var body = SensorDtos.IngestResponse.from(result.reading(), result.duplicate());
         return ResponseEntity.status(result.duplicate() ? HttpStatus.OK : HttpStatus.CREATED).body(body);
+    }
+
+    /**
+     * Recebe o payload no formato do fabricante (INT-006).
+     *
+     * <p>Endpoint separado do canônico de propósito: aqui o corpo é <strong>opaco</strong> — é o que o
+     * aparelho mandou, e quem sabe interpretá-lo é o formato cadastrado no dispositivo. Um endpoint só,
+     * tentando adivinhar o formato pelo conteúdo, acertaria quase sempre e erraria em silêncio quando dois
+     * fabricantes usassem o mesmo nome de campo com significados diferentes.
+     *
+     * <p>Sempre 202: quem responde por criado ou repetido é a resposta de cada leitura derivada, e uma
+     * mensagem pode virar mais de uma. Um 201 aqui prometeria uma criação que nem sempre houve.
+     */
+    @PostMapping("/devices/{deviceCode}/payload")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    SensorDtos.AdapterIngestResponse ingestPayload(
+            @AuthenticationPrincipal SecurityPrincipal principal,
+            @PathVariable String deviceCode,
+            @RequestBody Map<String, Object> payload) {
+        principal.requirePermission("sensor.reading.ingest");
+        var result = adapterIngestion.ingest(new AdapterIngestionCommands.Request(
+                principal.requireBrewery(), deviceCode, payload));
+        return SensorDtos.AdapterIngestResponse.from(result);
     }
 
     /**

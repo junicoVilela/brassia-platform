@@ -1,6 +1,7 @@
 package br.com.brew.brassia.sensor.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.sensor.application.port.inbound.AdapterIngestionCommands;
 import br.com.brew.brassia.sensor.application.port.inbound.DeviceCommands;
 import br.com.brew.brassia.sensor.application.port.inbound.DeviceStatusCommands;
 import br.com.brew.brassia.sensor.application.port.inbound.ReadingCommands;
@@ -8,6 +9,7 @@ import br.com.brew.brassia.sensor.application.port.inbound.SensorQueries;
 import br.com.brew.brassia.sensor.application.port.outbound.DeviceRepository;
 import br.com.brew.brassia.sensor.application.port.outbound.ReadingRepository;
 import br.com.brew.brassia.sensor.application.service.DeviceHandlers;
+import br.com.brew.brassia.sensor.application.service.AdapterIngestionHandler;
 import br.com.brew.brassia.sensor.application.service.IngestionHandler;
 import java.time.Clock;
 import java.util.Objects;
@@ -50,6 +52,19 @@ class SensorConfiguration {
         var handler = new IngestionHandler(devices, readings, Clock.systemUTC());
         var transaction = new TransactionTemplate(transactionManager);
         return request -> Objects.requireNonNull(transaction.execute(status -> handler.ingest(request)));
+    }
+
+    /**
+     * O adapter reusa o caso de uso de ingestão, não a transação.
+     *
+     * <p>Cada leitura derivada da mensagem grava na própria transação, e é o certo: uma mensagem com
+     * densidade e temperatura em que só a segunda é inválida deve gravar a primeira. Uma transação em
+     * volta das duas descartaria a leitura boa por causa da ruim.
+     */
+    @Bean
+    AdapterIngestionCommands sensorAdapterIngestionCommands(DeviceRepository devices,
+            ReadingCommands readingCommands) {
+        return new AdapterIngestionHandler(devices, readingCommands);
     }
 
     @Bean

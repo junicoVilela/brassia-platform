@@ -5538,6 +5538,74 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /sensors/devices/{deviceCode}/payload:
+    post:
+      tags: [Sensores]
+      summary: Receber payload no formato do fabricante (INT-006)
+      description: >-
+        O corpo é **opaco**: é o que o aparelho mandou, e quem sabe interpretá-lo é o `payloadFormat`
+        cadastrado no dispositivo. Um endpoint só, adivinhando o formato pelo conteúdo, acertaria quase
+        sempre e erraria em silêncio quando dois fabricantes usassem o mesmo nome de campo com significados
+        diferentes.
+
+
+        **O formato é atributo do cadastro, não da mensagem.** Deixar o payload declarar o próprio formato
+        seria confiar num campo que o firmware preenche — e uma atualização que mudasse a declaração passaria
+        a ser interpretada de outro jeito sem que ninguém decidisse isso.
+
+
+        **O dispositivo vem da URL, não do payload.** O `deviceId` de dentro da mensagem é informação do
+        fabricante e serve para conferência; deixá-lo escolher permitiria a um gateway gravar na série de
+        outro aparelho da mesma cervejaria.
+
+
+        A tradução converte para o formato canônico (`contracts/sensor-reading.schema.json`) e delega a
+        gravação ao caso de uso de INT-001 — com a idempotência, a qualidade e o atraso que já estavam lá.
+        **As chaves das leituras derivam do identificador da mensagem**, então reenviar a mensagem inteira é
+        reconhecido como repetição; uma chave sorteada por leitura faria do adapter o furo por onde a
+        idempotência vaza.
+
+
+        Sempre **202**: uma mensagem pode virar mais de uma leitura, e quem responde por criada ou repetida é
+        cada leitura derivada. Um 201 prometeria uma criação que nem sempre houve.
+      parameters:
+        - {name: deviceCode, in: path, required: true, schema: {type: string, maxLength: 40}}
+      requestBody:
+        required: true
+        description: O corpo como o aparelho manda. Formatos aceitos - CANONICAL, ISPINDEL, TILT
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '202':
+          description: Mensagem traduzida; uma resposta por leitura derivada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  readings:
+                    type: array
+                    items: {$ref: '#/components/schemas/SensorIngestResponse'}
+        '400':
+          description: >-
+            Campo obrigatório ausente, valor não numérico, ou mensagem sem a grandeza que o dispositivo
+            está cadastrado para medir. O erro nomeia o CAMPO — quem configura um gateway precisa saber
+            qual está errado
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_sensor_device`"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '409':
+          description: "`sensor_device_inactive`"
+          content:
+            application/problem+json:
+              schema: {type: object}
   /sensors/devices/{deviceId}/readings:
     get:
       tags: [Sensores]
@@ -5868,6 +5936,10 @@ components:
           type: integer
           nullable: true
           description: Régua do atraso. Nulo = atraso medido e informado, mas não julgado
+        payloadFormat:
+          type: string
+          enum: [CANONICAL, ISPINDEL, TILT]
+          description: De que jeito o dispositivo fala (INT-006). Atributo do cadastro, não da mensagem
         status: {type: string, enum: [ACTIVE, PAUSED, REVOKED]}
         registeredAt: {type: string, format: date-time}
         version: {type: integer, format: int64, description: Para o bloqueio otimista}
@@ -5883,6 +5955,11 @@ components:
           description: Precisa ser compatível com a grandeza; incompatível é recusada
         equipmentId: {type: string, format: uuid, nullable: true}
         expectedIntervalSeconds: {type: integer, minimum: 1, nullable: true}
+        payloadFormat:
+          type: string
+          enum: [CANONICAL, ISPINDEL, TILT]
+          default: CANONICAL
+          description: Ausente = formato da casa
     ChangeSensorDeviceStatus:
       type: object
       required: [status, expectedVersion]

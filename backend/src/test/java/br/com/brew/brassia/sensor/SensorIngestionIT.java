@@ -395,7 +395,112 @@ class SensorIngestionIT {
         assertThat(audit.toString()).contains("sensor.device.register");
     }
 
+    @Test
+    @DisplayName("INT-006: payload de iSpindel é traduzido e vira leitura da grandeza cadastrada")
+    void adapterIspindel() throws Exception {
+        var session = login();
+        var code = uniqueCode("SPINDEL");
+        var device = registerDeviceWithFormat(session, code, "DENSITY", "SG", "ISPINDEL");
+
+        mockMvc.perform(post(SENSORS + "/devices/" + code + "/payload").with(csrf()).session(session)
+                        .contentType("application/json")
+                        .content("{\"name\":\"" + code + "\",\"ID\":\"4242\","
+                                + "\"temperature\":18.5,\"gravity\":1.048}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.readings[0].reading.measure").value("DENSITY"))
+                .andExpect(jsonPath("$.readings[0].reading.unit").value("SG"))
+                .andExpect(jsonPath("$.readings[0].duplicate").value(false));
+
+        assertThat(readingsOf(session, device)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("INT-006: a idempotência sobrevive ao adapter — chave derivada, não sorteada")
+    void adapterMantemIdempotencia() throws Exception {
+        // Se a chave fosse sorteada por leitura, o adapter seria o furo por onde a idempotência de INT-001
+        // vaza: cada reenvio criaria uma leitura nova.
+        var session = login();
+        var code = uniqueCode("TANK");
+        var device = registerDeviceWithFormat(session, code, "TEMPERATURE", "C", "CANONICAL");
+
+        var body = "{\"deviceId\":\"" + code + "\",\"externalReadingId\":\"msg-adapter\","
+                + "\"measuredAt\":\"" + mediu() + "\",\"temperatureC\":18.5}";
+
+        mockMvc.perform(post(SENSORS + "/devices/" + code + "/payload").with(csrf()).session(session)
+                        .contentType("application/json").content(body))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.readings[0].duplicate").value(false));
+
+        mockMvc.perform(post(SENSORS + "/devices/" + code + "/payload").with(csrf()).session(session)
+                        .contentType("application/json").content(body))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.readings[0].duplicate").value(true));
+
+        assertThat(readingsOf(session, device)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("INT-006: mensagem sem a grandeza cadastrada é recusada, não gravada em branco")
+    void adapterExigeAGrandezaCadastrada() throws Exception {
+        // Um dispositivo cadastrado como termômetro não começa a gravar densidade porque o firmware passou
+        // a incluí-la — a série mudaria de assunto sozinha.
+        var session = login();
+        var code = uniqueCode("TANK");
+        registerDeviceWithFormat(session, code, "TEMPERATURE", "C", "ISPINDEL");
+
+        mockMvc.perform(post(SENSORS + "/devices/" + code + "/payload").with(csrf()).session(session)
+                        .contentType("application/json")
+                        .content("{\"name\":\"" + code + "\",\"gravity\":1.048}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("INT-006: o dispositivo vem da URL, não do que o payload diz ser")
+    void adapterResolveDispositivoPelaUrl() throws Exception {
+        // Deixar o payload escolher permitiria a um gateway gravar na série de outro aparelho da mesma
+        // cervejaria.
+        var session = login();
+        var code = uniqueCode("TANK");
+        var device = registerDeviceWithFormat(session, code, "TEMPERATURE", "C", "CANONICAL");
+
+        mockMvc.perform(post(SENSORS + "/devices/" + code + "/payload").with(csrf()).session(session)
+                        .contentType("application/json")
+                        .content("{\"deviceId\":\"OUTRO-APARELHO\",\"externalReadingId\":\"m-1\","
+                                + "\"measuredAt\":\"" + mediu() + "\",\"temperatureC\":18.5}"))
+                .andExpect(status().isAccepted());
+
+        // Gravou na série do dispositivo da URL.
+        assertThat(readingsOf(session, device)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("INT-006: dispositivo desconhecido no adapter é 404")
+    void adapterDispositivoDesconhecido() throws Exception {
+        var session = login();
+
+        mockMvc.perform(post(SENSORS + "/devices/NAO-EXISTE/payload").with(csrf()).session(session)
+                        .contentType("application/json")
+                        .content("{\"deviceId\":\"x\",\"externalReadingId\":\"m-1\","
+                                + "\"measuredAt\":\"" + mediu() + "\",\"temperatureC\":18.5}"))
+                .andExpect(status().isNotFound());
+    }
+
     // --- infraestrutura ---
+
+    private UUID registerDeviceWithFormat(MockHttpSession session, String code, String measure, String unit,
+            String format) throws Exception {
+        var node = JSON.createObjectNode();
+        node.put("code", code);
+        node.put("name", "Dispositivo " + code);
+        node.put("measure", measure);
+        node.put("unit", unit);
+        node.put("payloadFormat", format);
+        var body = read(mockMvc.perform(post(SENSORS + "/devices").with(csrf()).session(session)
+                        .contentType("application/json").content(JSON.writeValueAsString(node)))
+                .andExpect(status().isCreated()));
+        return UUID.fromString(body.get("id").asText());
+    }
+
 
     private UUID registerDevice(MockHttpSession session, String code, String measure, String unit,
             Integer interval) throws Exception {

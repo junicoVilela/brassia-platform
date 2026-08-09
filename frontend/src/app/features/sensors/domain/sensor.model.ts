@@ -4,6 +4,21 @@ export type Measure = 'DENSITY' | 'TEMPERATURE' | 'PRESSURE' | 'FLOW';
 export type DeviceStatus = 'ACTIVE' | 'PAUSED' | 'REVOKED';
 
 /**
+ * De que jeito o dispositivo fala (INT-006).
+ *
+ * É atributo do cadastro e não da mensagem: deixar o payload declarar o próprio formato seria confiar num
+ * campo que o firmware preenche, e um firmware atualizado passaria a ser interpretado de outro jeito sem
+ * que ninguém decidisse isso.
+ */
+export type PayloadFormat = 'CANONICAL' | 'ISPINDEL' | 'TILT';
+
+export const PAYLOAD_FORMAT_LABELS: Record<PayloadFormat, string> = {
+  CANONICAL: 'Formato BrassIA (canônico)',
+  ISPINDEL: 'iSpindel',
+  TILT: 'Tilt',
+};
+
+/**
  * Qualidade de uma leitura.
  *
  * Nenhum destes valores significa "recusada": a leitura ruim foi gravada e marcada. Recusar deixaria um
@@ -19,6 +34,7 @@ export interface SensorDevice {
   unit: string;
   equipmentId: string | null;
   expectedIntervalSeconds: number | null;
+  payloadFormat: PayloadFormat;
   status: DeviceStatus;
   registeredAt: string;
   version: number;
@@ -48,6 +64,7 @@ export interface RegisterDeviceRequest {
   unit: string;
   equipmentId: string | null;
   expectedIntervalSeconds: number | null;
+  payloadFormat: PayloadFormat;
 }
 
 export const MEASURE_LABELS: Record<Measure, string> = {

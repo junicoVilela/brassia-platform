@@ -1,0 +1,254 @@
+<app-page-header
+  title="Base de conhecimento"
+  subtitle="Manuais, fichas de segurança e laudos — o que o copiloto pode citar como fonte."
+/>
+
+<!-- Busca: é o que a base serve para fazer. -->
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="row g-2 align-items-end" [formGroup]="searchForm" (ngSubmit)="search()">
+      <div class="col-md">
+        <label class="form-label" for="question">Pergunta</label>
+        <input
+          id="question"
+          type="search"
+          class="form-control"
+          placeholder="qual a concentração de peracético para sanitizar tanque"
+          formControlName="question"
+        />
+      </div>
+      <div class="col-auto">
+        <label class="form-label" for="onDate">Vigente em</label>
+        <input id="onDate" type="date" class="form-control" formControlName="onDate" />
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary" [disabled]="searchForm.invalid || store.searching()">
+          {{ store.searching() ? 'Buscando…' : 'Buscar' }}
+        </button>
+      </div>
+      <div class="col-12">
+        <p class="text-muted small mb-0">
+          Deixe a data em branco para o que vale hoje. Preencha para perguntar sobre o passado — o que a
+          ficha dizia quando o lote foi produzido.
+        </p>
+      </div>
+    </form>
+  </div>
+</div>
+
+@if (store.searchError(); as searchError) {
+  <div class="alert alert-danger" role="alert">{{ searchError }}</div>
+}
+
+@if (store.searching()) {
+  <div class="card mb-3">
+    <div class="card-body p-4"><app-loading-indicator text="Procurando nas fontes…" /></div>
+  </div>
+} @else if (store.searchedWithoutResult()) {
+  <!-- Resposta legítima, não erro: significa que não há fonte na base para isto. -->
+  <div class="alert alert-secondary" role="alert">
+    <strong>Nenhuma fonte na base responde a isso.</strong>
+    O copiloto não vai inventar uma: sem documento, a resposta declara a limitação. Indexe o manual, a
+    ficha ou o laudo que trate do assunto.
+  </div>
+} @else if (store.hits().length > 0) {
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">
+      Trechos encontrados
+      <span class="text-muted small fw-normal ms-1">— citações de terceiros, não fala do sistema</span>
+    </div>
+    <ul class="list-group list-group-flush">
+      @for (hit of store.hits(); track hit.documentId + '-' + hit.ordinal) {
+        <li class="list-group-item">
+          <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+            <i class="{{ typeIcons[hit.type] }}" aria-hidden="true"></i>
+            <span class="fw-semibold">{{ hit.title }}</span>
+            <span class="badge bg-secondary">{{ typeLabels[hit.type] }}</span>
+            <code class="small">{{ hit.code }}</code>
+            <span class="text-muted small">v{{ hit.version }} · trecho {{ hit.ordinal + 1 }}</span>
+            @if (!hit.effectiveOnDate) {
+              <span class="badge bg-warning text-dark">Fora de vigência na data</span>
+            }
+          </div>
+          <!-- Citação, com aspas e recuo: quem lê vê que é o documento falando. -->
+          <blockquote class="blockquote mb-0 ps-3 border-start border-3">
+            <p class="mb-0 small text-body-secondary" style="white-space: pre-line">{{ hit.text }}</p>
+          </blockquote>
+        </li>
+      }
+    </ul>
+    <div class="card-footer text-muted small">
+      O texto acima foi escrito por fabricante, laboratório ou fornecedor. Confira no documento original
+      antes de agir sobre ele.
+    </div>
+  </div>
+}
+
+<!-- Indexação: alçada própria, porque muda a fonte das respostas de todo mundo. -->
+@if (auth.hasPermission('knowledge.document.index')) {
+  <div class="card mb-3">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <span class="fw-semibold">Indexar documento</span>
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        data-bs-toggle="collapse"
+        data-bs-target="#index-form"
+      >
+        Novo documento
+      </button>
+    </div>
+    <div class="collapse" id="index-form">
+      <div class="card-body">
+        <form class="row g-3" [formGroup]="indexForm" (ngSubmit)="index()">
+          <div class="col-md-4">
+            <label class="form-label" for="doc-type">Tipo</label>
+            <select id="doc-type" class="form-select" formControlName="type">
+              @for (type of types; track type) {
+                <option [value]="type">{{ typeLabels[type] }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="doc-code">Código</label>
+            <input id="doc-code" type="text" class="form-control" formControlName="code" />
+            <div class="form-text">
+              Estável entre versões: é o que liga a versão nova à antiga.
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="doc-from">Vigente a partir de</label>
+            <input id="doc-from" type="date" class="form-control" formControlName="effectiveFrom" />
+            <div class="form-text">A versão anterior é encerrada no dia anterior a esta data.</div>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label" for="doc-title">Título</label>
+            <input id="doc-title" type="text" class="form-control" formControlName="title" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="doc-permission">Permissão exigida</label>
+            <input
+              id="doc-permission"
+              type="text"
+              class="form-control"
+              formControlName="requiredPermission"
+            />
+            <div class="form-text">Quem não tiver esta permissão não recupera o documento.</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="doc-source">Origem do arquivo (opcional)</label>
+            <input id="doc-source" type="text" class="form-control" formControlName="sourceUri" />
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="doc-text">Texto do documento</label>
+            <textarea id="doc-text" class="form-control" rows="8" formControlName="text"></textarea>
+            <div class="form-text">
+              Cole o texto. O corte em trechos é automático e respeita parágrafo e frase.
+            </div>
+          </div>
+          <div class="col-12">
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="indexForm.invalid || store.indexing()"
+            >
+              {{ store.indexing() ? 'Indexando…' : 'Indexar' }}
+            </button>
+          </div>
+        </form>
+        @if (store.indexError(); as indexError) {
+          <div class="alert alert-danger mt-3 mb-0" role="alert">{{ indexError }}</div>
+        }
+      </div>
+    </div>
+  </div>
+}
+
+<!-- O acervo. -->
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando o acervo…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else {
+  <div class="card">
+    <div class="card-header fw-semibold">Acervo</div>
+    @if (store.documents().length === 0) {
+      <div class="card-body">
+        <app-empty-state
+          icon="ri-book-read-line"
+          message="Nenhum documento indexado ainda."
+          hint="Sem fonte na base, o copiloto declara a limitação em vez de responder."
+        />
+      </div>
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <caption class="visually-hidden">Documentos indexados, vigentes e substituídos</caption>
+          <thead>
+            <tr>
+              <th scope="col">Documento</th>
+              <th scope="col">Tipo</th>
+              <th scope="col" class="text-center">Versão</th>
+              <th scope="col">Vigência</th>
+              <th scope="col">Permissão</th>
+              <th scope="col" class="text-end">Trechos</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (doc of store.currentDocuments(); track doc.id) {
+              <tr>
+                <td>
+                  <span class="fw-semibold">{{ doc.title }}</span>
+                  <code class="d-block small text-muted">{{ doc.code }}</code>
+                </td>
+                <td class="text-nowrap">
+                  <i class="{{ typeIcons[doc.type] }} me-1" aria-hidden="true"></i>
+                  {{ typeLabels[doc.type] }}
+                </td>
+                <td class="text-center">
+                  <span class="badge bg-success">v{{ doc.version }}</span>
+                </td>
+                <td class="text-nowrap small">
+                  desde {{ doc.effectiveFrom | date: 'dd/MM/yyyy' }}
+                  <span class="text-muted d-block">vigente</span>
+                </td>
+                <td><code class="small">{{ doc.requiredPermission }}</code></td>
+                <td class="text-end">{{ doc.chunks }}</td>
+              </tr>
+            }
+            @for (doc of store.supersededDocuments(); track doc.id) {
+              <tr class="text-body-secondary">
+                <td>
+                  <span>{{ doc.title }}</span>
+                  <code class="d-block small text-muted">{{ doc.code }}</code>
+                </td>
+                <td class="text-nowrap">{{ typeLabels[doc.type] }}</td>
+                <td class="text-center">
+                  <span class="badge bg-secondary">v{{ doc.version }}</span>
+                </td>
+                <td class="text-nowrap small">
+                  {{ doc.effectiveFrom | date: 'dd/MM/yyyy' }} a
+                  {{ doc.effectiveTo | date: 'dd/MM/yyyy' }}
+                  <span class="text-muted d-block">substituída</span>
+                </td>
+                <td><code class="small">{{ doc.requiredPermission }}</code></td>
+                <td class="text-end">{{ doc.chunks }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer text-muted small">
+        Versão substituída não é apagada: ela continua respondendo sobre o período em que valeu, que é o
+        que permite investigar um lote antigo.
+      </div>
+    }
+  </div>
+}

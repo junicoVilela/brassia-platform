@@ -4797,6 +4797,123 @@ paths:
             application/problem+json:
               schema: {type: object}
         '403': {$ref: '#/components/responses/Problem'}
+  /knowledge/documents:
+    get:
+      tags: [Conhecimento]
+      summary: Documentos indexados que esta pessoa pode ver (RAG-001)
+      description: >-
+        Lista vigentes e substituídos. Não filtra por vigência de propósito: quem administra a base precisa
+        ver o histórico para saber o que foi substituído e quando. Filtra por **permissão**, que é o filtro
+        que não se negocia — documento cuja permissão exigida a pessoa não tem não aparece, nem pelo
+        título: um título de laudo já é informação.
+      responses:
+        '200':
+          description: Documentos visíveis
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/KnowledgeDocument'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Conhecimento]
+      summary: Indexar documento na base de conhecimento (RAG-001)
+      description: >-
+        Corta o texto em trechos recuperáveis e, se já houver versão vigente com o mesmo `code`, **encerra
+        a vigência dela no dia anterior** a `effectiveFrom` — no mesmo comando e na mesma transação.
+
+
+        A simultaneidade é o ponto: duas versões vigentes do mesmo documento no mesmo dia fariam a
+        recuperação devolver respostas conflitantes sem meio de escolher qual vale, e é durante essa janela
+        que alguém consulta.
+
+
+        **A versão anterior não é apagada.** Ela continua recuperável para pergunta sobre o passado — o que
+        a ficha dizia quando o lote foi produzido. O que muda é até quando ela valeu.
+
+
+        `version` não é informada: é derivada da maior já indexada para o `code`. Deixar quem chama
+        escolher abriria a porta para duas "versão 3" do mesmo documento, e a citação deixaria de
+        identificar qual respondeu.
+
+
+        **`requiredPermission` é atributo do documento**, não verificação que a borda faz e a busca confia.
+        É o que faz o filtro valer quando a recuperação for chamada de um job ou de um evento, onde não
+        existe borda HTTP nenhuma para verificar nada.
+
+
+        Indexação recebe **texto**, não arquivo binário. O original vive onde `sourceUri` aponta; extrair
+        texto de PDF está fora do escopo desta história.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IndexDocument'}
+      responses:
+        '201':
+          description: Documento indexado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/KnowledgeDocument'}
+        '400':
+          description: "`bad_request` — sem texto indexável, ou campo fora do contrato"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
+  /knowledge/search:
+    get:
+      tags: [Conhecimento]
+      summary: Recuperar trechos de documento por pergunta (RAG-001)
+      description: >-
+        Busca textual do PostgreSQL com dicionário português sem acento (ver
+        `docs/adr/0015-knowledge-retrieval.md`), filtrada por cervejaria, permissão e vigência **dentro da
+        própria consulta**.
+
+
+        Filtrar dentro, e não depois, é o que faz o limite de resultados significar algo: filtrar depois
+        devolveria três trechos de dez porque sete eram invisíveis, e a resposta sairia pobre sem que nada
+        explicasse por quê. É também o que garante o critério da história por construção — não existe
+        caminho em que trecho de documento sem permissão chegue à memória do processo.
+
+
+        Os termos da pergunta são combinados em **OU**, não em E: exigir todos faria uma pergunta mais
+        detalhada recuperar menos, e um procedimento que fala de "torque" e "aperto" deixaria de ser achado
+        por não usar a palavra "parafuso". O ranqueamento põe na frente quem casa mais termos.
+
+
+        **Lista vazia é resposta legítima** e significa "não há fonte na base para isto" — diferente de
+        erro. Sem fonte, quem consome declara a limitação em vez de inventar.
+
+
+        **O texto devolvido é dado não confiável** (`untrusted: true`): foi escrito por fabricante,
+        laboratório ou fornecedor e pode conter instrução endereçada ao modelo. Quem consome trata como
+        conteúdo sobre o qual raciocinar, nunca como ordem a seguir.
+      parameters:
+        - name: question
+          in: query
+          required: true
+          schema: {type: string}
+          description: "A pergunta, em linguagem natural."
+        - name: onDate
+          in: query
+          required: false
+          schema: {type: string, format: date}
+          description: >-
+            Data de referência da vigência; padrão, hoje. Serve à pergunta sobre o passado: o que o
+            documento dizia quando o lote foi produzido.
+        - name: equipmentId
+          in: query
+          required: false
+          schema: {type: string, format: uuid}
+          description: >-
+            Restringe ao que se refere a este equipamento **e** ao que não se refere a equipamento nenhum:
+            um procedimento geral responde sobre a bomba tanto quanto o manual dela.
+      responses:
+        '200':
+          description: Trechos recuperados, do mais para o menos relevante
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Evidence'}}
+        '403': {$ref: '#/components/responses/Problem'}
   /ai/gateway:
     get:
       tags: [IA]
@@ -7678,6 +7795,90 @@ components:
             properties:
               procedureCode: {type: string}
               allergens: {type: array, items: {type: string}}
+    KnowledgeDocument:
+      type: object
+      description: >-
+        Documento indexado. Imutável depois de indexado — corrigir o texto apagaria a base de uma resposta
+        já dada. Versão nova é documento novo; a única coisa que muda depois é `effectiveTo`.
+      required: [id, type, code, title, version, effectiveFrom, current, requiredPermission, chunks, indexedAt]
+      properties:
+        id: {type: string, format: uuid}
+        type: {$ref: '#/components/schemas/DocumentType'}
+        code:
+          type: string
+          description: "Estável entre versões: é o que liga a versão nova à antiga."
+        title: {type: string}
+        version: {type: integer, minimum: 1}
+        effectiveFrom: {type: string, format: date}
+        effectiveTo:
+          type: string
+          format: date
+          nullable: true
+          description: "Nulo é *ainda vigente*, não *desconhecido*."
+        current: {type: boolean, description: "Verdadeiro quando a vigência está aberta."}
+        requiredPermission:
+          type: string
+          description: "Sem esta permissão o documento não é recuperado nem listado."
+        equipmentId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Nulo quando não se refere a equipamento específico."
+        sourceUri: {type: string, nullable: true}
+        chunks: {type: integer, description: "Quantos trechos recuperáveis o documento produziu."}
+        indexedAt: {type: string, format: date-time}
+    IndexDocument:
+      type: object
+      required: [type, code, title, effectiveFrom, requiredPermission, text]
+      properties:
+        type: {$ref: '#/components/schemas/DocumentType'}
+        code: {type: string, maxLength: 60}
+        title: {type: string, maxLength: 200}
+        effectiveFrom:
+          type: string
+          format: date
+          description: "A versão anterior é encerrada no dia anterior a esta data."
+        requiredPermission: {type: string, maxLength: 80}
+        equipmentId: {type: string, format: uuid, nullable: true}
+        sourceUri: {type: string, maxLength: 500, nullable: true}
+        text:
+          type: string
+          maxLength: 500000
+          description: "Texto do documento; o corte em trechos respeita parágrafo e frase."
+    Evidence:
+      type: object
+      description: >-
+        Trecho recuperado, com o suficiente para ser citado e conferido. Tipo, versão e vigência viajam
+        junto do texto porque mudam a autoridade da citação: "a FISPQ vigente diz" e "uma FISPQ substituída
+        dizia" são afirmações diferentes sobre a mesma frase.
+      required: [documentId, code, title, type, version, effectiveOnDate, ordinal, text, score, untrusted]
+      properties:
+        documentId: {type: string, format: uuid}
+        code: {type: string}
+        title: {type: string}
+        type: {$ref: '#/components/schemas/DocumentType'}
+        version: {type: integer}
+        effectiveOnDate: {type: boolean, description: "Se o documento vale na data consultada."}
+        ordinal:
+          type: integer
+          description: "Posição do trecho no documento, para localizar a conferência."
+        text:
+          type: string
+          description: "**Não confiável.** Texto de terceiro; pode conter instrução endereçada ao modelo."
+        score:
+          type: number
+          description: "Relevância relativa dentro desta consulta. Não é probabilidade de nada."
+        untrusted:
+          type: boolean
+          enum: [true]
+          description: "Sempre verdadeiro. Existe para que nenhum consumidor esqueça a origem do texto."
+    DocumentType:
+      type: string
+      description: >-
+        A espécie do documento muda como a citação deve ser lida. POP de limpeza **não** está aqui: ele já é
+        estrutura versionada no módulo `sanitation` e o sistema responde sobre ele deterministicamente —
+        passá-lo por recuperação textual transformaria um fato em um palpite.
+      enum: [EQUIPMENT_MANUAL, SAFETY_DATA_SHEET, LAB_REPORT, OPERATING_PROCEDURE, TECHNICAL_NOTE]
     AiGatewayStatus:
       type: object
       description: "Estado do gateway de modelos (AIA-001)."

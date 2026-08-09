@@ -234,6 +234,13 @@ export const routes: Routes = [
           import('./features/reporting/reporting.routes').then(m => m.REPORTING_ROUTES),
       },
       {
+        path: 'knowledge',
+        canActivate: [permissionGuard],
+        data: { permission: 'knowledge.document.read' },
+        loadChildren: () =>
+          import('./features/knowledge/knowledge.routes').then(m => m.KNOWLEDGE_ROUTES),
+      },
+      {
         path: 'ai/gateway',
         canActivate: [permissionGuard],
         data: { permission: 'ai.gateway.read' },

@@ -1,5 +1,22 @@
 <app-page-header title="Lotes de produção" subtitle="Lotes iniciados a partir das ordens liberadas" />
 
+<!--
+  PWA-001. O aviso diz o que a pessoa está vendo, não só que faltou rede: sem esta frase, um roteiro salvo
+  de seis horas atrás parece o estado de agora — e alguém executa a etapa errada com confiança.
+-->
+@if (!offline.online()) {
+  <div class="alert alert-warning d-flex align-items-start gap-2" role="status">
+    <i class="ri-wifi-off-line fs-5" aria-hidden="true"></i>
+    <div>
+      <div class="fw-semibold">Sem rede — mostrando os roteiros salvos neste aparelho.</div>
+      <div class="small">
+        Só leitura, e só o que foi baixado antes. Cada roteiro mostra de quando é o retrato; o lote pode ter
+        avançado desde então.
+      </div>
+    </div>
+  </div>
+}
+
 <div class="card border-0 rounded-10">
   <div class="card-body p-4">
     @if (store.loading()) {
@@ -34,6 +51,21 @@
                   <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="store.toggle(batch.id)">
                     <i class="ri-list-check-2 me-1"></i> {{ batch.steps.length }} etapas
                   </button>
+                  @if (isOfflineAvailable(batch.id)) {
+                    <button type="button" class="btn btn-sm btn-success me-1"
+                            (click)="discardOffline(batch.id)"
+                            [attr.aria-label]="'Remover roteiro offline de ' + batch.code"
+                            title="Roteiro salvo neste aparelho. Clique para remover.">
+                      <i class="ri-download-cloud-2-fill me-1"></i> Offline
+                    </button>
+                  } @else {
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-1"
+                            (click)="saveOffline(batch.id)"
+                            [attr.aria-label]="'Salvar roteiro de ' + batch.code + ' para uso sem rede'"
+                            title="Guarda o roteiro neste aparelho para leitura sem rede. Vence em 12 horas e some ao sair da conta.">
+                      <i class="ri-download-cloud-2-line me-1"></i> Salvar offline
+                    </button>
+                  }
                   <button type="button" class="btn btn-sm btn-outline-secondary me-1" (click)="startMeasurements(batch.id)">
                     <i class="ri-test-tube-line me-1"></i> Medições
                   </button>

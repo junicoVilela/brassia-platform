@@ -1,0 +1,259 @@
+<app-page-header
+  title="Webhooks"
+  subtitle="Eventos assinados enviados para sistemas de fora, com retry controlado."
+/>
+
+<!--
+  O segredo, exibido uma única vez. Fica no topo e destacado porque quem acabou de criar precisa copiá-lo
+  agora — não há caminho para vê-lo de novo.
+-->
+@if (store.revealedSecret(); as secret) {
+  <div class="alert alert-warning d-flex flex-column gap-2" role="alert">
+    <div class="fw-semibold">
+      <i class="ri-key-2-line me-1" aria-hidden="true"></i>
+      Guarde este segredo agora — ele não será exibido novamente.
+    </div>
+    <code class="user-select-all d-block p-2 bg-body rounded border">{{ secret }}</code>
+    <div class="small">
+      Configure-o no sistema de destino para conferir o cabeçalho
+      <code>X-Brassia-Signature</code>. Se perdê-lo, crie outro webhook.
+    </div>
+    <div>
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="store.dismissSecret()">
+        Já copiei
+      </button>
+    </div>
+  </div>
+}
+
+@if (store.error(); as loadError) {
+  <div class="alert alert-danger" role="alert">{{ loadError }}</div>
+}
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header"><h2 class="card-title h6 mb-0">Webhooks</h2></div>
+
+      @if (store.loading()) {
+        <div class="card-body p-4"><app-loading-indicator text="Carregando webhooks…" /></div>
+      } @else if (store.subscriptions().length === 0) {
+        <div class="card-body">
+          <app-empty-state
+            icon="ri-share-forward-line"
+            title="Nenhum webhook configurado"
+            message="Configure abaixo para que um sistema externo receba eventos desta cervejaria."
+          />
+        </div>
+      } @else {
+        <div class="list-group list-group-flush">
+          @for (subscription of store.subscriptions(); track subscription.id) {
+            <button
+              type="button"
+              class="list-group-item list-group-item-action"
+              [class.active]="store.selectedId() === subscription.id"
+              (click)="select(subscription)"
+            >
+              <div class="d-flex align-items-center gap-2">
+                <div class="flex-grow-1 min-w-0">
+                  <div class="fw-semibold text-truncate">{{ subscription.name }}</div>
+                  <div class="small text-truncate opacity-75">{{ subscription.endpoint }}</div>
+                </div>
+                <span class="badge {{ statusClass(subscription.status) }}">
+                  {{ statusLabels[subscription.status] }}
+                </span>
+              </div>
+              <div class="small opacity-75 mt-1">
+                {{ subscription.events.length }}
+                {{ subscription.events.length === 1 ? 'evento' : 'eventos' }} · segredo
+                {{ subscription.secretHint }}
+              </div>
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    @if (auth.hasPermission('integration.webhook.manage')) {
+      <div class="card mb-3">
+        <div class="card-header"><h2 class="card-title h6 mb-0">Novo webhook</h2></div>
+        <div class="card-body">
+          @if (store.createError(); as createError) {
+            <div class="alert alert-danger" role="alert">{{ createError }}</div>
+          }
+
+          <form [formGroup]="form" (ngSubmit)="create()">
+            <div class="mb-2">
+              <label class="form-label" for="name">Nome</label>
+              <input id="name" class="form-control" placeholder="ERP da cervejaria" formControlName="name" />
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label" for="endpoint">Destino</label>
+              <input
+                id="endpoint"
+                class="form-control"
+                placeholder="https://erp.exemplo.com/hooks/brassia"
+                formControlName="endpoint"
+              />
+              <div class="form-text">
+                Só <code>https</code>. A assinatura garante que a mensagem é nossa e não foi alterada, mas
+                não esconde o conteúdo — em <code>http</code>, o que acontece na cervejaria trafega em
+                texto claro.
+              </div>
+            </div>
+
+            <fieldset class="mb-3">
+              <legend class="form-label fs-6">Eventos</legend>
+              @for (event of store.eventTypes(); track event) {
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    [id]="'evt-' + event"
+                    [checked]="isChosen(event)"
+                    (change)="toggleEvent(event)"
+                  />
+                  <label class="form-check-label" [for]="'evt-' + event">
+                    {{ labelFor(event) }}
+                    <code class="small text-muted ms-1">{{ event }}</code>
+                  </label>
+                </div>
+              }
+              <div class="form-text">Ao menos um. O nome técnico é o que chega no cabeçalho do evento.</div>
+            </fieldset>
+
+            <button type="submit" class="btn btn-primary" [disabled]="store.creating()">
+              {{ store.creating() ? 'Criando…' : 'Criar webhook' }}
+            </button>
+          </form>
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="col-lg-7">
+    @if (store.selected(); as subscription) {
+      <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <h2 class="card-title h6 mb-0">{{ subscription.name }}</h2>
+            <span class="small text-muted">Entregas recentes</span>
+          </div>
+
+          <div class="btn-group btn-group-sm">
+            @if (subscription.status === 'ACTIVE') {
+              <button type="button" class="btn btn-outline-secondary" (click)="pause(subscription)">
+                Pausar
+              </button>
+            } @else if (subscription.status === 'PAUSED') {
+              @if (auth.hasPermission('integration.webhook.manage')) {
+                <button type="button" class="btn btn-outline-secondary" (click)="resume(subscription)">
+                  Reativar
+                </button>
+              }
+            }
+            @if (subscription.status !== 'REVOKED') {
+              <button type="button" class="btn btn-outline-danger" (click)="revoke(subscription)">
+                Revogar
+              </button>
+            }
+          </div>
+        </div>
+
+        @if (subscription.status !== 'ACTIVE') {
+          <div class="alert alert-warning rounded-0 mb-0" role="status">
+            @if (subscription.status === 'PAUSED') {
+              Pausado — eventos novos não são enfileirados. O que já está na fila continua sendo entregue.
+            } @else {
+              Revogado — nada mais é entregue. Para retomar, crie outro webhook, com novo segredo.
+            }
+          </div>
+        }
+
+        @if (store.deliveriesError(); as deliveriesError) {
+          <div class="alert alert-danger rounded-0 mb-0" role="alert">{{ deliveriesError }}</div>
+        }
+
+        @if (store.loadingDeliveries()) {
+          <div class="card-body p-4"><app-loading-indicator text="Carregando entregas…" /></div>
+        } @else if (store.deliveries().length === 0) {
+          <div class="card-body">
+            <app-empty-state
+              icon="ri-send-plane-line"
+              title="Nenhuma entrega ainda"
+              message="Assim que um dos eventos assinados acontecer, a entrega aparece aqui."
+            />
+          </div>
+        } @else {
+          @if (store.hasFailures()) {
+            <div class="alert alert-danger rounded-0 mb-0" role="status">
+              {{ store.failedDeliveries().length }}
+              {{ store.failedDeliveries().length === 1 ? 'entrega desistiu' : 'entregas desistiram' }}
+              após 5 tentativas. O destino não recebeu esses eventos.
+            </div>
+          }
+
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle">
+              <caption class="visually-hidden">Entregas do webhook {{ subscription.name }}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Evento</th>
+                  <th scope="col">Situação</th>
+                  <th scope="col" class="text-end">Tentativas</th>
+                  <th scope="col">Quando</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (delivery of store.deliveries(); track delivery.id) {
+                  <tr>
+                    <td>
+                      <div>{{ labelFor(delivery.eventType) }}</div>
+                      <code class="small text-muted">{{ delivery.eventId }}</code>
+                    </td>
+                    <td>
+                      <span class="badge {{ deliveryClass(delivery.status) }}">
+                        {{ deliveryLabels[delivery.status] }}
+                      </span>
+                      @if (delivery.lastError; as lastError) {
+                        <div class="small text-muted">
+                          {{ lastError }}
+                          @if (delivery.lastResponseStatus; as code) {
+                            <span>(HTTP {{ code }})</span>
+                          }
+                        </div>
+                      }
+                    </td>
+                    <td class="text-end text-nowrap">{{ attemptsLabel(delivery) }}</td>
+                    <td class="text-nowrap small">
+                      @if (delivery.deliveredAt; as deliveredAt) {
+                        {{ deliveredAt | date: 'dd/MM HH:mm' }}
+                      } @else if (delivery.nextAttemptAt; as nextAttemptAt) {
+                        <span class="text-muted">
+                          próxima {{ nextAttemptAt | date: 'dd/MM HH:mm' }}
+                        </span>
+                      } @else {
+                        <span class="text-muted">{{ delivery.createdAt | date: 'dd/MM HH:mm' }}</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="card">
+        <div class="card-body">
+          <app-empty-state
+            icon="ri-send-plane-line"
+            title="Selecione um webhook"
+            message="As entregas recentes aparecem aqui, com o que falhou e quantas tentativas foram feitas."
+          />
+        </div>
+      </div>
+    }
+  </div>
+</div>

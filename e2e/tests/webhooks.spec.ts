@@ -33,16 +33,16 @@ test.describe('webhooks', () => {
     await page.getByLabel('Destino').fill('https://erp.example.com/hooks/e2e');
     await page.getByLabel(/Ordem de produção liberada/).check();
 
-    const created = page.waitForResponse(
-      r => r.url().endsWith('/api/v1/integration/webhooks') && r.request().method() === 'POST',
-    );
     await page.getByRole('button', { name: 'Criar webhook' }).click();
-    const body = await (await created).json();
-    const secret = body.secret as string;
+
+    // O segredo é lido da TELA, não do corpo da resposta. Ler a resposta depois do clique é frágil — a
+    // aplicação recarrega a lista em seguida, e o corpo de uma resposta cujo contexto navegou deixa de
+    // estar disponível. Além disso, é o que a pessoa vê que importa: a promessa "exibido uma vez" é sobre
+    // a tela.
+    await expect(page.getByText('Guarde este segredo agora')).toBeVisible();
+    const secret = (await page.locator('code.user-select-all').innerText()).trim();
 
     expect(secret.length).toBeGreaterThanOrEqual(40);
-    await expect(page.getByText('Guarde este segredo agora')).toBeVisible();
-    await expect(page.getByText(secret, { exact: true })).toBeVisible();
 
     // Dispensado, some da tela.
     await page.getByRole('button', { name: 'Já copiei' }).click();

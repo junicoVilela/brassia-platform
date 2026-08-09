@@ -193,6 +193,12 @@
               </a>
             </li>
           }
+          <li class="menu-item">
+            <a routerLink="/scan" routerLinkActive="active" class="menu-link">
+              <i class="ri-qr-scan-2-line menu-icon"></i>
+              <span class="title">Abrir código</span>
+            </a>
+          </li>
           @if (auth.hasPermission('integration.webhook.read')) {
             <li class="menu-item">
               <a routerLink="/integration/webhooks" routerLinkActive="active" class="menu-link">

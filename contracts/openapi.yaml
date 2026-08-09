@@ -5706,8 +5706,81 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /integration/scan:
+    get:
+      tags: [Integrações]
+      summary: Resolver um código lido de etiqueta (INT-003)
+      description: >-
+        **O código não concede acesso, e essa é a história.** Ele carrega apenas *o quê* — tipo e
+        identificador —, nunca um token, uma assinatura ou uma credencial. A razão é física: um QR colado
+        num tanque é legível por qualquer pessoa que entre na sala, fotografável de longe e copiável para
+        outra etiqueta. Qualquer segredo impresso nele é um segredo público.
+
+
+        Ler o código é fazer uma pergunta que **ainda precisa ser autorizada**: a sessão é exigida antes de
+        tudo, e a permissão é verificada *depois* de interpretar o código — porque só aí se sabe qual
+        permissão é. A alçada exigida é a do **tipo apontado** (`equipment.read`, `production.batch.read`,
+        `planning.order.read`, `packaging.plan.read`), a mesma de quem chega pelo menu.
+
+
+        Código legível por alguém sem a alçada responde **403**, não uma lista vazia nem 404. A pessoa
+        apontou a câmera para uma etiqueta real; a resposta honesta é que ela não pode ver aquilo, não que
+        aquilo não existe.
+
+
+        **Este endpoint é um roteador, não uma porta.** Ele não carrega o recurso: quem responde pelo
+        equipamento, pelo lote, pela OP e pela embalagem são os módulos donos deles, e é lá que a cervejaria
+        e o estado são verificados. Duplicar a verificação aqui criaria uma segunda autoridade sobre a mesma
+        pergunta — e duas autoridades divergem com o tempo.
+
+
+        **Formato:** `brassia://<tipo>/<identificador>`, com segmentos extras ignorados. O esquema já
+        existia nas etiquetas de envase (PKG-004), que imprimem
+        `brassia://lote/<código>/envase/<plano>` — a tolerância ao sufixo é o que permite ler as etiquetas
+        já coladas em vez de invalidá-las.
+
+
+        É `GET` porque ler não altera nada, e é isso que permite ao QR conter um link que o aplicativo de
+        câmera do telefone abre sozinho — sem instalar nada e sem biblioteca de leitura do nosso lado.
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema: {type: string, maxLength: 200}
+          example: brassia://equipamento/TANQUE-01
+      responses:
+        '200':
+          description: Código reconhecido e autorizado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScanResolution'}
+        '403':
+          description: >-
+            O código é válido, mas falta a permissão do tipo apontado. Dito assim de propósito — mandar
+            para uma tela vazia faria quem leu procurar o problema na etiqueta
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '422':
+          description: >-
+            `unknown_scan_code` — conteúdo ilegível, tipo desconhecido ou identificador inválido. A mensagem
+            é a mesma para todos os motivos: distingui-los ensinaria quais tipos existem a quem sonda
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
+    ScanResolution:
+      type: object
+      properties:
+        type: {type: string, enum: [equipamento, lote, op, embalagem]}
+        identifier:
+          type: string
+          description: >-
+            Só letras, dígitos, hífen, sublinhado e ponto. É o que impede uma etiqueta impressa de carregar
+            caminho, query ou script para dentro da aplicação — a etiqueta é entrada de terceiro tanto
+            quanto um formulário
+        route: {type: string, description: Para onde a interface leva depois de resolver}
     WebhookSubscription:
       type: object
       properties:

@@ -241,6 +241,12 @@ export const routes: Routes = [
           import('./features/knowledge/knowledge.routes').then(m => m.KNOWLEDGE_ROUTES),
       },
       {
+        path: 'sensors',
+        canActivate: [permissionGuard],
+        data: { permission: 'sensor.reading.read' },
+        loadChildren: () => import('./features/sensors/sensors.routes').then(m => m.SENSORS_ROUTES),
+      },
+      {
         path: 'ai/copilot',
         canActivate: [permissionGuard],
         data: { permission: 'ai.answer.ask' },

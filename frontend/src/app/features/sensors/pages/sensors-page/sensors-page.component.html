@@ -1,0 +1,266 @@
+<app-page-header
+  title="Sensores"
+  subtitle="Dispositivos que reportam densidade, temperatura, pressão e vazão — e o que eles mediram."
+/>
+
+@if (store.error(); as loadError) {
+  <div class="alert alert-danger" role="alert">{{ loadError }}</div>
+}
+
+<div class="row g-3">
+  <!-- Dispositivos -->
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header">
+        <h2 class="card-title h6 mb-0">Dispositivos</h2>
+      </div>
+
+      @if (store.loading()) {
+        <div class="card-body p-4"><app-loading-indicator text="Carregando dispositivos…" /></div>
+      } @else if (store.devices().length === 0) {
+        <div class="card-body">
+          <app-empty-state
+            icon="ri-sensor-line"
+            title="Nenhum dispositivo cadastrado"
+            message="Cadastre o primeiro sensor abaixo. O código é o que o firmware envia — o mesmo da etiqueta no tanque."
+          />
+        </div>
+      } @else {
+        <div class="list-group list-group-flush">
+          @for (device of store.devices(); track device.id) {
+            <button
+              type="button"
+              class="list-group-item list-group-item-action"
+              [class.active]="store.selectedId() === device.id"
+              (click)="select(device)"
+            >
+              <div class="d-flex align-items-center gap-2">
+                <i class="{{ measureIcons[device.measure] }} fs-5" aria-hidden="true"></i>
+                <div class="flex-grow-1 min-w-0">
+                  <div class="fw-semibold text-truncate">{{ device.code }}</div>
+                  <div class="small text-truncate opacity-75">{{ device.name }}</div>
+                </div>
+                <span class="badge {{ statusClass(device.status) }}">
+                  {{ statusLabels[device.status] }}
+                </span>
+              </div>
+              <div class="small opacity-75 mt-1">
+                {{ measureLabels[device.measure] }} em {{ unitLabels[device.unit] ?? device.unit }},
+                {{ intervalLabel(device) }}
+              </div>
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Cadastro -->
+    @if (auth.hasPermission('sensor.device.manage')) {
+      <div class="card mb-3">
+        <div class="card-header">
+          <h2 class="card-title h6 mb-0">Cadastrar dispositivo</h2>
+        </div>
+        <div class="card-body">
+          @if (store.registerError(); as registerError) {
+            <div class="alert alert-danger" role="alert">{{ registerError }}</div>
+          }
+
+          <form [formGroup]="registerForm" (ngSubmit)="register()">
+            <div class="mb-2">
+              <label class="form-label" for="code">Código</label>
+              <input
+                id="code"
+                class="form-control"
+                placeholder="TANQUE-01-TEMP"
+                formControlName="code"
+              />
+              <div class="form-text">
+                O que está escrito na etiqueta e o que o firmware envia. Maiúsculas e minúsculas são
+                tratadas como o mesmo código.
+              </div>
+            </div>
+
+            <div class="mb-2">
+              <label class="form-label" for="name">Nome</label>
+              <input id="name" class="form-control" placeholder="Termômetro do tanque 1" formControlName="name" />
+            </div>
+
+            <div class="row g-2 mb-2">
+              <div class="col-7">
+                <label class="form-label" for="measure">Grandeza</label>
+                <select
+                  id="measure"
+                  class="form-select"
+                  formControlName="measure"
+                  (change)="onMeasureChange()"
+                >
+                  @for (measure of measures; track measure) {
+                    <option [value]="measure">{{ measureLabels[measure] }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-5">
+                <label class="form-label" for="unit">Unidade</label>
+                <select id="unit" class="form-select" formControlName="unit">
+                  <!--
+                    `track $index` e não `track unit`: trocar a grandeza substitui a lista inteira de
+                    unidades (°C/°F viram SG/°P), o que é legítimo mas faz o Angular avisar sobre
+                    recriação total quando a chave é a identidade do item. São duas opções estáticas.
+                  -->
+                  @for (unit of unitsFor(registerForm.controls.measure.value); track $index) {
+                    <option [value]="unit">{{ unitLabels[unit] ?? unit }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label" for="interval">Frequência esperada (segundos)</label>
+              <input
+                id="interval"
+                type="number"
+                min="1"
+                class="form-control"
+                formControlName="expectedIntervalSeconds"
+              />
+              <div class="form-text">
+                É a régua do atraso: uma leitura que demora mais que isso para chegar é sinalizada. Deixe
+                em branco se o dispositivo não tem frequência fixa.
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" [disabled]="store.registering()">
+              {{ store.registering() ? 'Cadastrando…' : 'Cadastrar' }}
+            </button>
+          </form>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Leituras -->
+  <div class="col-lg-7">
+    @if (store.selected(); as device) {
+      <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <h2 class="card-title h6 mb-0">{{ device.code }}</h2>
+            <span class="small text-muted">Últimas 24 horas, por instante de medição</span>
+          </div>
+
+          @if (auth.hasPermission('sensor.device.manage')) {
+            <div class="btn-group btn-group-sm">
+              @if (device.status === 'ACTIVE') {
+                <button type="button" class="btn btn-outline-secondary" (click)="pause(device)">
+                  Pausar
+                </button>
+              } @else if (device.status === 'PAUSED') {
+                <button type="button" class="btn btn-outline-secondary" (click)="resume(device)">
+                  Retomar
+                </button>
+              }
+              @if (device.status !== 'REVOKED' && auth.hasPermission('sensor.device.revoke')) {
+                <button type="button" class="btn btn-outline-danger" (click)="revoke(device)">
+                  Revogar
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        @if (device.status !== 'ACTIVE') {
+          <div class="alert alert-warning rounded-0 mb-0" role="status">
+            @if (device.status === 'PAUSED') {
+              Pausado — leituras enviadas agora são recusadas. O histórico abaixo continua válido.
+            } @else {
+              Revogado — a identidade foi descontinuada e não volta a operar. O histórico abaixo continua
+              no registro.
+            }
+          </div>
+        }
+
+        @if (store.readingsError(); as readingsError) {
+          <div class="alert alert-danger rounded-0 mb-0" role="alert">{{ readingsError }}</div>
+        }
+
+        @if (store.loadingReadings()) {
+          <div class="card-body p-4"><app-loading-indicator text="Carregando leituras…" /></div>
+        } @else if (store.readings().length === 0) {
+          <div class="card-body">
+            <app-empty-state
+              icon="ri-pulse-line"
+              title="Nenhuma leitura nas últimas 24 horas"
+              message="O dispositivo está cadastrado, mas não enviou nada nessa janela."
+            />
+          </div>
+        } @else {
+          @if (store.hasFlagged()) {
+            <div class="alert alert-warning rounded-0 mb-0" role="status">
+              {{ store.flaggedReadings().length }} de {{ store.readings().length }} leituras estão
+              sinalizadas — fora da faixa, com relógio adiantado ou atrasadas. Elas continuam na série,
+              marcadas.
+            </div>
+          }
+
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle">
+              <caption class="visually-hidden">
+                Leituras do dispositivo {{ device.code }} nas últimas 24 horas
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Medido em</th>
+                  <th scope="col" class="text-end">Valor</th>
+                  <th scope="col">Qualidade</th>
+                  <th scope="col">Chegada</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (reading of store.readings(); track reading.id) {
+                  <tr>
+                    <td class="text-nowrap">{{ reading.measuredAt | date: 'dd/MM HH:mm:ss' }}</td>
+                    <td class="text-end text-nowrap">
+                      <span class="fw-semibold">{{ reading.value | number: '1.0-4' }}</span>
+                      <span class="text-muted ms-1">{{ unitLabels[reading.unit] ?? reading.unit }}</span>
+                    </td>
+                    <td>
+                      <span class="badge {{ qualityClass(reading) }}">
+                        {{ qualityLabels[reading.quality] }}
+                      </span>
+                      @if (reading.qualityReason; as reason) {
+                        <div class="small text-muted">{{ reason }}</div>
+                      }
+                    </td>
+                    <td class="text-nowrap">
+                      @if (reading.late) {
+                        <span class="badge bg-warning-subtle text-warning-emphasis">
+                          atrasada {{ humanDelay(reading.delaySeconds) }}
+                        </span>
+                      } @else if (reading.delaySeconds < 0) {
+                        <span class="text-muted small">
+                          {{ humanDelay(reading.delaySeconds) }} no futuro
+                        </span>
+                      } @else {
+                        <span class="text-muted small">{{ humanDelay(reading.delaySeconds) }}</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="card">
+        <div class="card-body">
+          <app-empty-state
+            icon="ri-pulse-line"
+            title="Selecione um dispositivo"
+            message="As leituras das últimas 24 horas aparecem aqui, com qualidade e atraso de cada uma."
+          />
+        </div>
+      </div>
+    }
+  </div>
+</div>

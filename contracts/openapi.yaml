@@ -5395,8 +5395,281 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /sensors/devices:
+    get:
+      tags: [Sensores]
+      summary: Dispositivos cadastrados nesta cervejaria (INT-001)
+      responses:
+        '200':
+          description: Dispositivos
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/SensorDevice'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Sensores]
+      summary: Cadastrar dispositivo (INT-001)
+      description: >-
+        O dispositivo define **o que se espera receber**: grandeza, unidade e frequência.
+
+
+        Deixar isso na mensagem seria confiar no que o dispositivo diz sobre si mesmo a cada envio, e um
+        firmware atualizado que passasse a mandar Fahrenheit sem avisar trocaria a escala da série
+        histórica inteira sem nenhum sinal. A mensagem que discorda do cadastro é **recusada, não
+        convertida**.
+
+
+        `expectedIntervalSeconds` é a régua do atraso: uma leitura que demora mais que isso para chegar é
+        sinalizada como atrasada. Ausente, o atraso é medido e informado mas não julgado — afirmar atraso
+        sem régua seria inventar um limiar.
+
+
+        `code` é a identidade externa do aparelho — o que o firmware envia e o que está na etiqueta. É
+        normalizado para maiúsculas: `ispindel-01` e `ISPINDEL-01` são o mesmo aparelho para quem instalou,
+        e sem normalizar viram dois cadastros, duas séries e nenhuma completa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterSensorDevice'}
+      responses:
+        '201':
+          description: Dispositivo cadastrado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensorDevice'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /sensors/devices/{deviceId}/status:
+    post:
+      tags: [Sensores]
+      summary: Pausar, retomar ou revogar dispositivo (INT-001)
+      description: >-
+        **A alçada depende do destino.** Pausar e retomar exigem `sensor.device.manage`; revogar exige
+        `sensor.device.revoke`. Pausar é manutenção — o dispositivo volta com a mesma identidade e a mesma
+        série. Revogar diz que aquela identidade não é mais confiável, e por isso é **terminal**: não há
+        transição de saída, e o caminho de volta é cadastrar outro dispositivo.
+
+
+        `expectedVersion` é bloqueio otimista: dois operadores decidindo o destino do mesmo dispositivo ao
+        mesmo tempo não podem terminar com um deles achando que revogou algo que o outro reativou.
+      parameters:
+        - {name: deviceId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChangeSensorDeviceStatus'}
+      responses:
+        '200':
+          description: Estado alterado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensorDevice'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_sensor_device` — não existe nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '409':
+          description: >-
+            `conflict` — versão desatualizada, transição inválida, ou dispositivo revogado
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /sensors/readings:
+    post:
+      tags: [Sensores]
+      summary: Receber leitura de um dispositivo (INT-001)
+      description: >-
+        **201 para leitura nova, 200 para repetida.** A distinção é a resposta certa a um reenvio: o
+        dispositivo que não recebeu o ACK e tentou de novo fez a coisa certa, e responder erro o ensinaria
+        a continuar tentando. O 200 diz "está registrado, pode parar" sem criar uma segunda linha, e
+        devolve a leitura **original** — não a recém-montada —, preservando o `receivedAt` do primeiro
+        envio.
+
+
+        **A idempotência é decidida pela restrição única `(device_id, message_id)`**, não por uma consulta
+        prévia. Verificar antes e inserir depois deixa uma janela entre as duas operações, e é exatamente
+        nela que cai o reenvio de um gateway que despachou a mesma mensagem duas vezes em milissegundos —
+        o cenário para o qual a idempotência existe.
+
+
+        `messageId` é carimbado pelo dispositivo e **não** é hash do conteúdo: um hash trataria duas
+        medições legitimamente idênticas — sensor parado, mesmo segundo, mesmo valor — como repetição, e
+        descartaria uma leitura verdadeira.
+
+
+        **Qualidade e atraso são sinalizados, nunca motivo de recusa.** Recusar uma leitura ruim não deixa
+        "nada": deixa um buraco na curva, indistinguível de "o sensor não mediu". O que **é** recusado é o
+        que não corresponde ao cadastro (grandeza ou unidade divergente, `400`) e o dispositivo que não
+        está aceitando leituras (`409`) — erro de configuração e de estado não descrevem medição nenhuma.
+
+
+        Não há `receivedAt` no corpo, de propósito: o instante de recebimento é nosso, e aceitá-lo do
+        dispositivo permitiria a ele mascarar o próprio atraso.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IngestSensorReading'}
+      responses:
+        '201':
+          description: Leitura nova registrada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensorIngestResponse'}
+        '200':
+          description: Mensagem já registrada; devolve a leitura original sem criar outra
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SensorIngestResponse'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_sensor_device` — não cadastrado nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '409':
+          description: "`sensor_device_inactive` — dispositivo pausado ou revogado"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /sensors/devices/{deviceId}/readings:
+    get:
+      tags: [Sensores]
+      summary: Leituras de um dispositivo numa janela (INT-001)
+      description: >-
+        **A janela é por instante de medição, não de chegada.** Quem pergunta "o que aconteceu no tanque
+        entre 8h e 12h" quer os fatos daquele intervalo, não as mensagens que chegaram nele. Uma leitura
+        das 9h represada por queda de rede e entregue às 14h pertence à janela da manhã — filtrar pela
+        chegada a esconderia justamente de quem investiga por que a curva tem um buraco.
+
+
+        Ausentes, `from` e `to` cobrem as últimas 24 horas. Uma série de sensor não tem fim, e um endpoint
+        sem recorte padrão fica lento em produção três meses depois de entrar no ar.
+      parameters:
+        - {name: deviceId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: from, in: query, schema: {type: string, format: date-time}}
+        - {name: to, in: query, schema: {type: string, format: date-time}}
+        - {name: limit, in: query, schema: {type: integer, default: 500, maximum: 1000}}
+      responses:
+        '200':
+          description: Leituras, da mais recente para a mais antiga
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/SensorReading'}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_sensor_device` — não existe nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
+    SensorDevice:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code:
+          type: string
+          description: Identidade externa do aparelho, normalizada para maiúsculas
+        name: {type: string}
+        measure: {type: string, enum: [DENSITY, TEMPERATURE, PRESSURE, FLOW]}
+        unit: {type: string, enum: [SG, PLATO, C, F, PSI, BAR, L_MIN, HL_H]}
+        equipmentId: {type: string, format: uuid, nullable: true}
+        expectedIntervalSeconds:
+          type: integer
+          nullable: true
+          description: Régua do atraso. Nulo = atraso medido e informado, mas não julgado
+        status: {type: string, enum: [ACTIVE, PAUSED, REVOKED]}
+        registeredAt: {type: string, format: date-time}
+        version: {type: integer, format: int64, description: Para o bloqueio otimista}
+    RegisterSensorDevice:
+      type: object
+      required: [code, name, measure, unit]
+      properties:
+        code: {type: string, maxLength: 40}
+        name: {type: string, maxLength: 120}
+        measure: {type: string, enum: [DENSITY, TEMPERATURE, PRESSURE, FLOW]}
+        unit:
+          type: string
+          description: Precisa ser compatível com a grandeza; incompatível é recusada
+        equipmentId: {type: string, format: uuid, nullable: true}
+        expectedIntervalSeconds: {type: integer, minimum: 1, nullable: true}
+    ChangeSensorDeviceStatus:
+      type: object
+      required: [status, expectedVersion]
+      properties:
+        status: {type: string, enum: [ACTIVE, PAUSED, REVOKED]}
+        expectedVersion: {type: integer, format: int64}
+    IngestSensorReading:
+      type: object
+      required: [deviceCode, messageId, measure, value, unit, measuredAt]
+      properties:
+        deviceCode: {type: string, maxLength: 40}
+        messageId:
+          type: string
+          maxLength: 80
+          description: >-
+            Identidade da mensagem, carimbada pelo dispositivo. É o que torna a repetição reconhecível.
+            Não deve ser derivada do conteúdo
+        measure: {type: string, enum: [DENSITY, TEMPERATURE, PRESSURE, FLOW]}
+        value:
+          type: number
+          description: Decimal; fora da faixa plausível é sinalizado, não recusado
+        unit: {type: string}
+        measuredAt:
+          type: string
+          format: date-time
+          description: Relógio do DISPOSITIVO. Datado no futuro vira quality=FUTURE_CLOCK
+    SensorReading:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        deviceId: {type: string, format: uuid}
+        messageId: {type: string}
+        measure: {type: string, enum: [DENSITY, TEMPERATURE, PRESSURE, FLOW]}
+        value: {type: number}
+        unit: {type: string}
+        measuredAt: {type: string, format: date-time, description: Relógio do dispositivo}
+        receivedAt: {type: string, format: date-time, description: Nosso relógio}
+        quality:
+          type: string
+          enum: [GOOD, OUT_OF_RANGE, FUTURE_CLOCK]
+          description: >-
+            Nenhum destes valores significa "recusada". FUTURE_CLOCK tem precedência sobre OUT_OF_RANGE:
+            quando o instante não é confiável, o problema da leitura não é o número, é que ela não pode
+            ser posicionada na série
+        qualityReason:
+          type: string
+          nullable: true
+          description: Nulo quando GOOD; sempre presente quando não é
+        delaySeconds:
+          type: integer
+          format: int64
+          description: >-
+            receivedAt menos measuredAt. Negativo quando o relógio do dispositivo está adiantado, e o
+            negativo é preservado — normalizar para zero apagaria a evidência
+        late:
+          type: boolean
+          description: >-
+            Atraso maior que o intervalo esperado do dispositivo. Independente de `quality`: uma leitura
+            pode ter valor perfeito e ter chegado tarde. Negativo nunca é atrasado
+    SensorIngestResponse:
+      type: object
+      properties:
+        reading: {$ref: '#/components/schemas/SensorReading'}
+        duplicate:
+          type: boolean
+          description: >-
+            Verdadeiro quando a mensagem já estava registrada. Permite distinguir "o gateway está
+            reenviando demais" de "estou recebendo o dobro de leituras" — mesmo sintoma no gráfico,
+            soluções opostas
     CleaningPolicy:
       type: object
       required: [expiresByTime]

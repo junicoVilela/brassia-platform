@@ -53,6 +53,20 @@ export const test = base.extend<Record<string, never>>({
 
 export { expect };
 
+/**
+ * Cabeçalho CSRF que o Angular mandaria.
+ *
+ * <p>Chamada direta pela `page.request` não passa pelo `HttpClient`, então o interceptor que copia o
+ * cookie `XSRF-TOKEN` para o cabeçalho não roda — e o servidor responde 403. É um 403 de proteção CSRF,
+ * não de permissão, e a confusão entre os dois custa tempo: parece que falta alçada quando falta
+ * cabeçalho.
+ */
+export async function csrfHeaders(page: Page): Promise<Record<string, string>> {
+  const cookies = await page.context().cookies();
+  const token = cookies.find(cookie => cookie.name === 'XSRF-TOKEN');
+  return token ? { 'X-XSRF-TOKEN': token.value } : {};
+}
+
 /** Faz login e espera o shell da aplicação aparecer. */
 export async function login(page: Page): Promise<void> {
   await page.goto('/login');

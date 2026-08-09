@@ -11,7 +11,7 @@ Estado: NÃO INICIADA
 | PWA-001 | Concluída | Claude | `frontend/.../core/offline`, `ngsw-config.json`, `manifest.webmanifest` | Service worker só para a aplicação; o roteiro é guardado por escolha explícita, carimbado com dono e cervejaria, vence em 12 h e é apagado no logout. Ver DEC-PWA-001/002 e DEB-PWA-001. |
 | PWA-002 | Concluída | Claude | `frontend/.../core/offline/offline-queue.store.ts`, `V100__production_client_request_id.sql` | Fila com garantia "ao menos uma vez"; a chave gerada no registro (não no envio) a transforma em "exatamente uma" do lado do servidor. Conflito sai do ciclo automático e espera decisão. Ver DEC-PWA-003/004. |
 | INT-003 | Concluída | Claude | `integration/domain/ScanReference`, `ScanController`, `frontend/.../features/scan` | O código carrega só o quê; a permissão do tipo apontado é verificada depois da leitura. Sem leitor de câmera: o QR é um link. Ver DEC-INT-009/010. |
-| INT-006 | A fazer | — | — | — |
+| INT-006 | Parcial | Claude | `sensor/domain/PayloadFormat`, `CanonicalReading`, `V101__sensor_payload_format.sql` | Adapters de payload (canônico, iSpindel, Tilt) por HTTP. **Transporte MQTT não entregou** — ver DEB-INT-003. |
 | SEC-B07 | A fazer | — | — | — |
 | ~~INT-004~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
 | ~~INT-005~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
@@ -232,6 +232,63 @@ resolve *para onde ir*; a tela de destino faz o resto, como sempre fez.
 Consequência: a rota `/scan` do frontend **não tem `permissionGuard`**. A alçada depende do tipo apontado,
 que só se conhece depois de interpretar o código — e um guard fixo teria de escolher uma permissão antes de
 saber qual.
+
+### DEC-INT-011 (INT-006) — O adapter traduz e delega; ele não grava
+
+`AdapterIngestionHandler` converte o payload do fabricante para o formato canônico e chama o caso de uso de
+INT-001. Reimplementar a gravação aqui criaria uma **segunda forma de gravar leitura** — e duas formas
+divergem: uma ganharia uma regra que a outra não tem, e o caminho por onde a leitura entrou passaria a mudar
+o que ela significa.
+
+Três consequências:
+
+- **As chaves das leituras derivam do identificador da mensagem** (`externalReadingId:GRANDEZA`), nunca
+  sorteadas. É o que faz a idempotência de INT-001 valer aqui: reenviar a mensagem inteira reconhece as
+  leituras como repetição. Uma chave sorteada por leitura faria do adapter **o furo por onde a idempotência
+  vaza**. O sufixo com a grandeza existe porque uma mensagem vira várias leituras — sem ele, densidade e
+  temperatura do mesmo envio disputariam a mesma chave e uma seria descartada como duplicata.
+- **Só a grandeza cadastrada é gravada.** Um iSpindel manda densidade e temperatura juntas; um dispositivo
+  cadastrado como termômetro não começa a gravar densidade porque o firmware passou a incluí-la — a série
+  mudaria de assunto sozinha.
+- **O dispositivo vem da URL, não do payload.** O `deviceId` de dentro da mensagem é informação do
+  fabricante e serve para conferência; deixá-lo escolher permitiria a um gateway gravar na série de outro
+  aparelho da mesma cervejaria.
+
+### DEC-INT-012 (INT-006) — A conversão de unidade acontece na borda
+
+Fahrenheit vira Celsius e kPa vira bar dentro do `PayloadFormat`, antes de qualquer coisa entrar no
+domínio. Guardar a unidade do fabricante e converter na leitura espalharia a conversão por toda consulta que
+tocasse a série — e uma delas acabaria esquecida.
+
+Pelo mesmo motivo o **formato é atributo do cadastro, não da mensagem**: deixar o payload declarar o próprio
+formato seria confiar num campo que o firmware preenche, e uma atualização que mudasse a declaração passaria
+a ser interpretada de outro jeito sem que ninguém decidisse isso.
+
+Duas escolhas de leitura defensiva, porque payload de dispositivo é entrada de terceiro:
+
+- **Número como texto é aceito.** Muitos firmwares serializam tudo como string, e recusar isso rejeitaria
+  aparelhos que funcionam perfeitamente. Texto que **não** é número é recusado — aí o campo está errado, e
+  dizer isso é melhor que gravar zero.
+- **O erro nomeia o campo.** "Payload inválido" mandaria quem configura o gateway adivinhar.
+
+### DEB-INT-003 (INT-006) — O transporte MQTT não foi entregue
+
+O título da história diz "adapters HTTP/MQTT". O que está entregue são os **adapters de payload** (canônico,
+iSpindel, Tilt) com transporte **HTTP**; o transporte MQTT não existe.
+
+MQTT exigiria cliente Paho, um broker em Testcontainers e um modelo de assinatura de tópico por dispositivo
+— é uma fatia com peso próprio. Entregá-la sem teste de integração contra um broker real repetiria
+exatamente o erro que motivou `DEC-INT-001`: marcar como concluído o que não foi verificado.
+
+**O que já está pronto para quando ele entrar:** a tradução é independente do transporte. Um assinante MQTT
+só precisa chamar `AdapterIngestionCommands.ingest` com o payload recebido — a conversão, a idempotência, a
+qualidade e o atraso já acontecem sem saber por onde a mensagem chegou.
+
+**Critério de remoção:** cliente MQTT configurado por cervejaria, tópico por dispositivo, e `SensorMqttIT`
+com broker real em Testcontainers cobrindo entrega, reentrega (QoS 1) e credencial revogada.
+
+**Consequência para o aceite da sprint:** metade do título desta história fica pendente. A decisão de tratar
+INT-006 como concluída ou de abrir uma história própria para o transporte é do mantenedor.
 
 ### DEC-PWA-001 (PWA-001) — O service worker não cacheia a API, e a ausência é a decisão
 

@@ -17,6 +17,7 @@ public interface DeviceCommands {
             String measure,
             String unit,
             UUID equipmentId,
-            Duration expectedInterval) {
+            Duration expectedInterval,
+            String payloadFormat) {
     }
 }

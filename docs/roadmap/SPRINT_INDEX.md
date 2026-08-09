@@ -30,7 +30,7 @@ As capacidades de segurança da Sprint 01 foram entregues como "fatia 1" (só ba
 - Sprint 12 — [Rastreabilidade, segurança e recall](../../sprints/sprint-12-traceability-food-safety/README.md): Localizar e conter qualquer lote afetado.
 - Sprint 13 — [Custos, relatórios e sustentabilidade](../../sprints/sprint-13-cost-reporting-utilities/README.md): Fechar lote e transformar histórico em indicadores.
 - Sprint 14 — [Copiloto de IA e RAG](../../sprints/sprint-14-ai-rag/README.md): Responder e recomendar com fontes e guardrails.
-- Sprint 15 — [Integrações, sensores e PWA offline](../../sprints/sprint-15-integrations-pwa/README.md): Operar em campo e receber dados externos com segurança.
+- Sprint 15 — [Integrações, sensores e PWA offline](../../sprints/sprint-15-integrations-pwa/README.md): Operar em campo e receber dados externos com segurança. Os conectores de terceiro (INT-004, INT-005, INT-007) saíram para a Sprint 21.
 - Sprint 16 — [Inteligência, experimentos e blend](../../sprints/sprint-16-advanced-intelligence/README.md): Aprender com histórico e testar melhorias controladas.
 - Sprint 17 — [Hardening e primeira produção](../../sprints/sprint-17-hardening-release/README.md): Preparar operação real, restauração e suporte.
 
@@ -39,3 +39,4 @@ As capacidades de segurança da Sprint 01 foram entregues como "fatia 1" (só ba
 - Sprint 18 — [Comunidade e colaboração](../../sprints/sprint-18-community-collaboration/README.md): Compartilhar e evoluir receitas com privacidade, autoria e moderação.
 - Sprint 19 — [Operação comercial e CRM](../../sprints/sprint-19-commercial-operations/README.md): Ligar produção, pedidos, clientes, preços e previsão de demanda.
 - Sprint 20 — [Contêineres e distribuição](../../sprints/sprint-20-containers-distribution/README.md): Rastrear kegs, retornáveis, rotas, entregas e prova de entrega.
+- Sprint 21 — [Conectores externos](../../sprints/sprint-21-external-connectors/README.md): Importar receitas de Brewfather e Brewer's Friend sob credencial do usuário, com sincronização e conflito visíveis. Bloqueada até haver credencial de teste dos provedores (INT-004, INT-005 e INT-007, vindas da Sprint 15 por DEC-INT-001).

@@ -4,7 +4,9 @@ Você está implementando a Sprint 15 — Integrações, sensores e PWA offline 
 
 Leia, nesta ordem: `AGENTS.md`, `docs/00_PRODUCT_IDENTITY.md`, `.ai/PROJECT_CONTEXT.md`, `.ai/DEVELOPMENT_RULES.md`, `docs/01_ARCHITECTURE.md`, `docs/02_MODULE_BOUNDARIES.md`, esta pasta e os documentos de domínio relacionados.
 
-Histórias disponíveis: INT-001, INT-002, PWA-001, PWA-002, INT-003.
+Histórias disponíveis: INT-001, INT-002, PWA-001, PWA-002, INT-003, INT-006, SEC-B07.
+
+INT-004, INT-005 e INT-007 não pertencem mais a esta sprint — foram para a Sprint 21 por DEC-INT-001.
 
 Trabalhe em uma história por vez. Antes de editar, apresente invariantes, contrato, dados, eventos, autorização, riscos e testes. Implemente uma fatia vertical mínima. Não crie microserviço, não acesse tabela de outro módulo e não antecipe sprint futura.
 

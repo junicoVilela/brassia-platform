@@ -19,11 +19,10 @@ Sprints 07–14
 - `PWA-001` — Roteiro offline
 - `PWA-002` — Fila offline
 - `INT-003` — QR code
-- `INT-004` — Conector Brewfather API v2
-- `INT-005` — Conector Brewer's Friend API v1
 - `INT-006` — Adapters HTTP/MQTT para dispositivos
-- `INT-007` — Central de sincronização e conflitos
 - `SEC-B07` — Login SSO no browser (SAML/OIDC) — fecha o ciclo de federação (SEC-014/015)
+
+INT-004, INT-005 e INT-007 saíram para a Sprint 21 — ver DEC-INT-001 em `STATUS.md`.
 
 ## Entregáveis técnicos
 

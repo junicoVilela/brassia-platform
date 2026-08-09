@@ -1,12 +1,15 @@
 package br.com.brew.brassia.digitaltwin.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.digitaltwin.application.port.inbound.ControlChartQueries;
 import br.com.brew.brassia.digitaltwin.application.port.inbound.ProfileCommands;
 import br.com.brew.brassia.digitaltwin.application.port.inbound.ProfileQueries;
 import br.com.brew.brassia.digitaltwin.application.port.outbound.LearnedProfileRepository;
 import br.com.brew.brassia.digitaltwin.application.service.ComputeProfileHandler;
+import br.com.brew.brassia.digitaltwin.application.service.ControlChartService;
 import br.com.brew.brassia.digitaltwin.application.service.ProfileQueryService;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.production.BatchMeasurementLookup;
 import br.com.brew.brassia.production.BatchOutcomeLookup;
 import java.time.Clock;
 import java.util.Objects;
@@ -32,6 +35,19 @@ class DigitalTwinConfiguration {
         var handler = new ComputeProfileHandler(profiles, batches, outcomes, audit, Clock.systemUTC());
         var transaction = new TransactionTemplate(transactionManager);
         return request -> Objects.requireNonNull(transaction.execute(status -> handler.compute(request)));
+    }
+
+    /**
+     * A carta de controle não é transacional porque não grava nada.
+     *
+     * <p>Uma carta é uma leitura da série que já existe — as medições são o registro, e elas estão na
+     * produção. Persistir a carta criaria uma cópia que envelhece: uma medição corrigida amanhã deixaria a
+     * carta de hoje afirmando um limite que os dados não sustentam mais.
+     */
+    @Bean
+    ControlChartQueries twinControlChartQueries(BatchLookup batches,
+            BatchMeasurementLookup measurements) {
+        return new ControlChartService(batches, measurements);
     }
 
     @Bean

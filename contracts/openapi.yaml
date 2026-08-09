@@ -5917,8 +5917,121 @@ paths:
             application/json:
               schema: {type: array, items: {$ref: '#/components/schemas/LearnedProfile'}}
         '403': {$ref: '#/components/responses/Problem'}
+  /digital-twin/control-charts:
+    post:
+      tags: [Perfil aprendido]
+      summary: Carta de controle de uma grandeza ao longo de vários lotes (SPC-001)
+      description: >-
+        **Limite de controle não é especificação, e a diferença não é de fórmula — é de origem.**
+
+
+        *Especificação* vem de uma **decisão**: o estilo pede FG entre 1.010 e 1.014, o cliente aceita no
+        máximo 50 ppb de oxigênio. Está no plano de controle da qualidade e não se calcula, se escolhe.
+
+
+        *Controle* vem de **observação**: é o que este processo, com este equipamento e esta equipe, produz
+        quando nada de anormal acontece. Calcula-se do histórico e não se escolhe.
+
+
+        As duas combinações que a confusão esconde são as que importam. **Sob controle e fora de
+        especificação**: o processo é estável e está estavelmente errado — nenhum ponto dispara alarme e a
+        cerveja está fora do prometido. **Fora de controle e dentro de especificação**: tudo passa na
+        inspeção e o processo está mudando — é o aviso que chega antes do problema, e é justamente ele que
+        se perde quando se usa o limite da especificação como limite de controle.
+
+
+        Por isso **a resposta não tem campo para especificação**: os limites vêm calculados da própria
+        série, e não há como injetar um número escolhido.
+
+
+        **A série atravessa os lotes**, ordenada pelo instante da medição: uma carta é sobre o *processo*,
+        e o momento em que ele muda cai entre dois lotes tanto quanto dentro de um.
+
+
+        Três sinais são procurados: ponto além de 3σ; **sete pontos seguidos do mesmo lado da linha
+        central** (deslocamento — nenhum precisa estar perto de um limite, e é o caso que a inspeção ponto a
+        ponto não pega); e **sete pontos seguidos subindo ou descendo** (tendência — o aviso mais
+        antecipado, geralmente antes de qualquer ponto sair da faixa).
+
+
+        É `POST` e não `GET` por causa do tamanho da amostra: dezenas de lotes numa query string estouram
+        limite de URL em produção. Nada é gravado — uma carta é leitura da série que já existe.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AnalyzeControlChart'}
+      responses:
+        '200':
+          description: A carta, com limites calculados e sinais encontrados
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ControlChart'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '422':
+          description: >-
+            `insufficient_control_history` — menos de 20 medições. Recusar é melhor que devolver limites
+            frouxos: limites sobre cinco pontos passam qualquer coisa, e um controle que nunca dispara
+            parece um processo saudável. Ou `mixed_units_in_series` — converter em silêncio pertence a quem
+            registrou a medição, não a quem lê a série
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
+    AnalyzeControlChart:
+      type: object
+      required: [recipeId, kind, batchIds]
+      properties:
+        recipeId: {type: string, format: uuid}
+        kind: {type: string, enum: [DENSITY, TEMPERATURE, VOLUME, PH, COLOR, IBU]}
+        batchIds:
+          type: array
+          minItems: 1
+          items: {type: string, format: uuid}
+    ControlLimits:
+      type: object
+      description: >-
+        Calculados da série, três sigmas em volta da média. Três sigmas não é arbitrário: num processo
+        estável ~99,7% dos pontos caem dentro, então um ponto fora tem ~0,3% de chance de ser acaso.
+        Limites mais estreitos (2σ) alarmariam a cada vinte medições, e alarme falso frequente treina quem
+        opera a ignorar o alarme
+      properties:
+        centerLine: {type: number}
+        lowerControlLimit: {type: number}
+        upperControlLimit: {type: number}
+        sigma: {type: number}
+        sampleSize: {type: integer, description: Mínimo de 20 — abaixo disso os limites oscilam a cada medição}
+    ControlSignal:
+      type: object
+      description: >-
+        Um sinal diz que a variação é grande demais para ser acaso — **não** que a cerveja está ruim, e
+        muito menos por quê. A causa é investigada por quem conhece o processo
+      properties:
+        kind: {type: string, enum: [BEYOND_LIMIT, RUN_ON_ONE_SIDE, TREND]}
+        description: {type: string}
+        firstIndex: {type: integer}
+        length: {type: integer}
+    ControlChart:
+      type: object
+      properties:
+        kind: {type: string}
+        unit: {type: string}
+        points:
+          type: array
+          items:
+            type: object
+            properties:
+              batchId: {type: string, format: uuid}
+              value: {type: number}
+              measuredAt: {type: string, format: date-time}
+          description: Em ordem cronológica, atravessando os lotes
+        controlLimits: {$ref: '#/components/schemas/ControlLimits'}
+        signals:
+          type: array
+          items: {$ref: '#/components/schemas/ControlSignal'}
+        inControl: {type: boolean, description: Nenhum sinal encontrado}
     ComputeLearnedProfile:
       type: object
       required: [recipeId, batchIds]

@@ -271,6 +271,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('digitaltwin.profile.read')) {
+            <li class="menu-item">
+              <a routerLink="/digital-twin" routerLinkActive="active" class="menu-link">
+                <i class="ri-line-chart-line menu-icon"></i>
+                <span class="title">Gêmeo digital</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('fermentation.profile.read')) {
             <li class="menu-item">
               <a routerLink="/fermentation/profiles" routerLinkActive="active" class="menu-link">

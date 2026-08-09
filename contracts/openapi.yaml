@@ -4914,6 +4914,97 @@ paths:
             application/json:
               schema: {type: array, items: {$ref: '#/components/schemas/Evidence'}}
         '403': {$ref: '#/components/responses/Problem'}
+  /ai/copilot/ask:
+    post:
+      tags: [IA]
+      summary: Perguntar ao copiloto com base nas fontes indexadas (RAG-002)
+      description: >-
+        Recupera trechos da base de conhecimento, pergunta ao modelo e devolve a resposta com **a fonte de
+        cada afirmação separada do que foi inferido**.
+
+
+        **Sem fonte, o modelo não é chamado.** Recuperação vazia devolve `answered: false` com a limitação
+        declarada e `consultedSources: 0`. Um modelo que não é perguntado não pode inventar resposta — a
+        garantia é estrutural, não confiança no comportamento dele — e ainda não custa nada.
+
+
+        **Toda citação é conferida contra os trechos que foram ao prompt.** Documento que não estava entre as
+        fontes, número de trecho que não existe e frase que não está no trecho são descartados, e o motivo vai
+        em `discarded`. Formato válido não é conteúdo verdadeiro: um JSON impecável pode citar um manual
+        inexistente ou atribuir a um manual real uma frase que ele nunca disse, e nenhum validador de schema
+        vê a diferença.
+
+
+        **Quem afirma tem de sustentar.** Se o modelo devolve `answered: true` e nenhuma citação confere, a
+        resposta é descartada — o texto dele **não** é apresentado com ressalva, porque uma afirmação sem
+        fonte conferida não deve circular. Devolver `answered: false` sem citação é legítimo: declinar
+        corretamente não é falha.
+
+
+        **Prompt injection.** O trecho de documento vai no turno do usuário, rotulado como dado; a instrução
+        do sistema é escrita por nós. A garantia não é o modelo obedecer a essa separação: é que nesta
+        chamada não existe ferramenta a conceder e o contrato de resposta **não tem campo de comando** —
+        propor comando é AIA-003, com confirmação humana e nova autorização. Um comando que o modelo tente
+        devolver é campo desconhecido e faz a resposta ser recusada inteira (`502`).
+
+
+        Duas pessoas podem receber respostas legitimamente diferentes para a mesma pergunta: a recuperação
+        filtra pelas permissões de quem perguntou.
+
+
+        `ai.answer.ask` é permissão própria e crítica — cada pergunta custa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: {type: string, maxLength: 1000}
+                onDate:
+                  type: string
+                  format: date
+                  description: >-
+                    Vigência das fontes; hoje quando ausente. Serve à pergunta sobre o passado — o que o
+                    documento dizia quando o lote foi produzido.
+                equipmentId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: "Restringe às fontes daquele equipamento e às que não são de equipamento nenhum."
+      responses:
+        '200':
+          description: >-
+            Resposta do copiloto. `answered: false` é resposta legítima — sem fonte, ou sem sustentação — e
+            não erro.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GroundedAnswer'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '402':
+          description: "`ai_budget_exceeded` — o orçamento do mês foi esgotado"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
+        '501':
+          description: "`ai_provider_disabled` — não há provedor configurado nesta instalação"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '502':
+          description: >-
+            `ai_response_rejected` — a resposta do modelo não satisfez o contrato e foi recusada inteira.
+            É também o que acontece quando ele tenta devolver um comando.
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '503':
+          description: "`ai_provider_unavailable` — o provedor não respondeu em nenhum dos modelos"
+          content:
+            application/problem+json:
+              schema: {type: object}
   /ai/gateway:
     get:
       tags: [IA]
@@ -7879,6 +7970,66 @@ components:
         estrutura versionada no módulo `sanitation` e o sistema responde sobre ele deterministicamente —
         passá-lo por recuperação textual transformaria um fato em um palpite.
       enum: [EQUIPMENT_MANUAL, SAFETY_DATA_SHEET, LAB_REPORT, OPERATING_PROCEDURE, TECHNICAL_NOTE]
+    GroundedAnswer:
+      type: object
+      description: >-
+        A resposta com a fonte de cada afirmação. Os três blocos de texto são deliberadamente distintos e
+        **não devem ser juntados na apresentação**: "o documento diz", "daí se conclui" e "isto não está em
+        fonte nenhuma" têm pesos diferentes para quem vai agir sobre a resposta — que é justamente a
+        informação mais importante quando o assunto é concentração química ou torque de aperto.
+      required: [answered, answer, citations, inferences, limitations, consultedSources, discarded]
+      properties:
+        answered:
+          type: boolean
+          description: >-
+            Falso quando as fontes não sustentam resposta. Com `consultedSources: 0` significa que não havia
+            fonte; com `consultedSources` maior que zero significa que havia e a resposta não se sustentou —
+            e as duas pedem providências opostas.
+        answer:
+          type: string
+          description: "Vazio quando `answered` é falso. O texto descartado nunca é devolvido."
+        citations:
+          type: array
+          description: "Citações **conferidas** contra os trechos que foram ao prompt."
+          items: {$ref: '#/components/schemas/VerifiedCitation'}
+        inferences:
+          type: array
+          description: "O que o modelo concluiu e não está escrito em fonte nenhuma."
+          items: {type: string}
+        limitations:
+          type: array
+          description: "O que a resposta não cobre, e por quê."
+          items: {type: string}
+        consultedSources:
+          type: integer
+          description: "Quantos trechos foram consultados — inclusive quando nada sustentou a resposta."
+        discarded:
+          type: array
+          description: >-
+            Citações que o modelo alegou e não conferiram, com o motivo. Chega ao cliente de propósito: é
+            informação sobre a confiabilidade daquela resposta, e esconder deixaria uma resposta enfraquecida
+            com a mesma aparência de uma sólida. Vazio é o caso normal.
+          items: {type: string}
+    VerifiedCitation:
+      type: object
+      description: >-
+        Uma citação que existe e confere. Os metadados vêm **da fonte**, não da resposta do modelo — deixá-lo
+        informar o título do que citou seria dar a ele a chance de errar sobre um dado que o sistema já sabe.
+      required: [documentCode, title, type, version, effectiveOnDate, ordinal, quote]
+      properties:
+        documentCode: {type: string}
+        title: {type: string}
+        type: {$ref: '#/components/schemas/DocumentType'}
+        version: {type: integer}
+        effectiveOnDate:
+          type: boolean
+          description: >-
+            Falso é aviso, não erro: a citação vem de versão substituída, e "a ficha vigente diz" não é a
+            mesma afirmação que "uma ficha substituída dizia".
+        ordinal: {type: integer, description: "Trecho citado, para localizar a conferência."}
+        quote:
+          type: string
+          description: "A frase do documento, conferida contra o trecho — não uma paráfrase."
     AiGatewayStatus:
       type: object
       description: "Estado do gateway de modelos (AIA-001)."

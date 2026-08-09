@@ -10,5 +10,8 @@ package br.com.brew.brassia.ai;
 public enum ModelPurpose {
 
     /** Verificação de conectividade e contrato — o menor pedido possível que ainda prova o caminho. */
-    CONNECTIVITY_PROBE
+    CONNECTIVITY_PROBE,
+
+    /** Resposta a uma pergunta com base em trechos de documento recuperados (RAG-002). */
+    GROUNDED_ANSWER
 }

@@ -169,6 +169,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('ai.answer.ask')) {
+            <li class="menu-item">
+              <a routerLink="/ai/copilot" routerLinkActive="active" class="menu-link">
+                <i class="ri-chat-search-line menu-icon"></i>
+                <span class="title">Perguntar ao copiloto</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('knowledge.document.read')) {
             <li class="menu-item">
               <a routerLink="/knowledge" routerLinkActive="active" class="menu-link">

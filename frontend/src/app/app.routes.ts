@@ -234,6 +234,13 @@ export const routes: Routes = [
           import('./features/reporting/reporting.routes').then(m => m.REPORTING_ROUTES),
       },
       {
+        // Sem `permissionGuard`: a alçada depende do TIPO apontado pelo código, que só se conhece depois
+        // de interpretá-lo. Quem verifica é o servidor, na resolução — e a tela diz com todas as letras
+        // quando falta permissão, em vez de mandar para uma tela vazia.
+        path: 'scan',
+        loadChildren: () => import('./features/scan/scan.routes').then(m => m.SCAN_ROUTES),
+      },
+      {
         path: 'integration/webhooks',
         canActivate: [permissionGuard],
         data: { permission: 'integration.webhook.read' },

@@ -7,6 +7,7 @@ import { AuthService } from '../../../../core/auth/auth.service';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
 import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator.component';
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
+import { OfflineRunbookFacade } from '../../data-access/offline-runbook.facade';
 import { BatchesStore } from '../../data-access/batches.store';
 import { ALERT_KINDS } from '../../domain/alert.model';
 import { MEASUREMENT_KINDS, MEASUREMENT_SOURCES } from '../../domain/measurement.model';
@@ -26,6 +27,9 @@ export class BatchesPageComponent implements OnInit {
   private readonly auth = inject(AuthService);
 
   protected readonly canTrace = this.auth.hasPermission('traceability.genealogy.read');
+
+  /** Roteiro offline (PWA-001). */
+  protected readonly offline = inject(OfflineRunbookFacade);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -204,4 +208,30 @@ export class BatchesPageComponent implements OnInit {
     const ss = (seconds % 60).toString().padStart(2, '0');
     return `${mm}:${ss}`;
   }
+
+  /**
+   * Guarda o roteiro deste lote para leitura sem rede (PWA-001).
+   *
+   * <p>É uma ação explícita e não um cache automático: o que fica no aparelho é escolhido por quem vai
+   * usá-lo, e só isso. Um cache que decide sozinho o que guardar acaba guardando o que ninguém pediu.
+   */
+  protected saveOffline(batchId: string): void {
+    const batch = this.store.items().find(item => item.id === batchId);
+    if (batch) {
+      this.offline.save(batch);
+    }
+  }
+
+  protected discardOffline(batchId: string): void {
+    this.offline.discard(batchId);
+  }
+
+  protected isOfflineAvailable(batchId: string): boolean {
+    return this.offline.isAvailable(batchId);
+  }
+
+  protected offlineSavedAt(batchId: string): Date | null {
+    return this.offline.savedAt(batchId);
+  }
+
 }

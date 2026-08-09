@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, catchError, map, of, switchMap, tap } from 'rxjs';
+import { Observable, catchError, finalize, map, of, switchMap, tap } from 'rxjs';
+import { OfflineRunbookStore } from '../offline/offline-runbook.store';
 import { AuthApi } from './auth.api';
 import { LoginRequest, LoginResult, MfaLoginRequest, SessionUser, isMfaRequired } from './session-user.model';
 
@@ -7,6 +8,7 @@ import { LoginRequest, LoginResult, MfaLoginRequest, SessionUser, isMfaRequired 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly api = inject(AuthApi);
+  private readonly offlineRunbooks = inject(OfflineRunbookStore);
   private readonly userState = signal<SessionUser | null>(null);
   /** true quando a sessão já foi consultada ao menos uma vez. */
   private readonly resolved = signal(false);
@@ -53,18 +55,37 @@ export class AuthService {
     }
   }
 
+  /**
+   * Encerra a sessão e **apaga o que ficou no aparelho** (PWA-001).
+   *
+   * As verificações de dono e cervejaria do `OfflineRunbookStore` já impediriam outra pessoa de ler os
+   * roteiros salvos, mas impedir a leitura não basta: o dado continuaria no disco, e um tablet de chão de
+   * fábrica se perde. Sair da conta tem que significar que não sobrou nada.
+   *
+   * A limpeza acontece mesmo se a chamada ao servidor falhar — o `finalize` cobre erro e sucesso. Ficar
+   * sem rede na hora de sair é justamente quando alguém entrega o aparelho para o próximo turno.
+   */
   logout(): Observable<void> {
     return this.api.csrf().pipe(
       switchMap(() => this.api.logout()),
       tap(() => this.userState.set(null)),
+      finalize(() => this.offlineRunbooks.clearAll()),
     );
   }
 
-  /** Troca a cervejaria ativa da sessão. */
+  /**
+   * Troca a cervejaria ativa da sessão.
+   *
+   * Os roteiros salvos são apagados junto: eles pertencem à cervejaria anterior, e deixá-los no disco
+   * guardaria dado de uma cervejaria enquanto se opera outra.
+   */
   switchBrewery(breweryId: string): Observable<SessionUser> {
     return this.api.csrf().pipe(
       switchMap(() => this.api.switchBrewery(breweryId)),
-      tap(user => this.userState.set(user)),
+      tap(user => {
+        this.userState.set(user);
+        this.offlineRunbooks.clearAll();
+      }),
     );
   }
 

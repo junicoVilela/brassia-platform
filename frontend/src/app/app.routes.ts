@@ -234,6 +234,12 @@ export const routes: Routes = [
           import('./features/reporting/reporting.routes').then(m => m.REPORTING_ROUTES),
       },
       {
+        path: 'integration/webhooks',
+        canActivate: [permissionGuard],
+        data: { permission: 'integration.webhook.read' },
+        loadChildren: () => import('./features/webhooks/webhooks.routes').then(m => m.WEBHOOKS_ROUTES),
+      },
+      {
         path: 'knowledge',
         canActivate: [permissionGuard],
         data: { permission: 'knowledge.document.read' },

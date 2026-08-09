@@ -5569,8 +5569,217 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /integration/webhooks:
+    get:
+      tags: [Integrações]
+      summary: Webhooks configurados nesta cervejaria (INT-002)
+      responses:
+        '200':
+          description: Assinaturas. Nunca inclui o segredo — só a dica dele
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/WebhookSubscription'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Integrações]
+      summary: Criar webhook (INT-002)
+      description: >-
+        **Devolve o segredo uma única vez.** Mesmo raciocínio de uma API key: ele precisa chegar a quem vai
+        configurar o outro lado, e depois disso não há motivo legítimo para lê-lo de volta. Manter um
+        caminho de leitura seria manter uma porta que só serve para vazar. Quem o perde cria outro webhook.
+
+
+        O segredo é **gerado pelo servidor**, não recebido: aceitá-lo do cliente significaria aceitar
+        "senha123" com aparência de configuração legítima, e a assinatura HMAC só prova alguma coisa
+        enquanto o segredo é imprevisível.
+
+
+        **Só `https`.** A assinatura protege a integridade do corpo, não o sigilo dele: um webhook em HTTP
+        puro entrega em texto claro o que aconteceu na cervejaria para qualquer um no caminho.
+
+
+        `events` é uma **allowlist fechada** (ver `/integration/webhooks/event-types`). Publicar "todo
+        evento de domínio" pareceria flexível e seria o contrário — cada evento novo vazaria para fora sem
+        ninguém decidir que deveria.
+
+
+        Esta é a operação **crítica** da história: ela aponta um fluxo de dados da cervejaria para um
+        endereço de fora. Por isso exige `integration.webhook.manage`, enquanto pausar e revogar, que
+        *interrompem* esse fluxo, exigem apenas `integration.webhook.read`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateWebhook'}
+      responses:
+        '201':
+          description: Criado. O campo `secret` não volta a aparecer em nenhuma outra resposta
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CreatedWebhook'}
+        '400':
+          description: "`bad_request` — destino não-https, sem evento, ou tipo fora da allowlist"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
+  /integration/webhooks/event-types:
+    get:
+      tags: [Integrações]
+      summary: Tipos de evento que podem ser assinados (INT-002)
+      description: >-
+        A allowlist fechada. O nome externo é separado do nome da classe de domínio de propósito: renomear
+        `BrewOrderReleased` é refatoração nossa e não pode quebrar o endpoint de um cliente.
+      responses:
+        '200':
+          description: Nomes externos estáveis
+          content:
+            application/json:
+              schema: {type: array, items: {type: string}}
+        '403': {$ref: '#/components/responses/Problem'}
+  /integration/webhooks/{subscriptionId}/status:
+    post:
+      tags: [Integrações]
+      summary: Pausar, reativar ou revogar webhook (INT-002)
+      description: >-
+        **Pausar e revogar exigem só leitura; reativar exige `integration.webhook.manage`.** A assimetria é
+        deliberada: uma alçada difícil para "parar de mandar" produziria o incentivo errado exatamente no
+        momento em que se descobre que o destino foi comprometido. Reativar volta a mandar dados para fora,
+        e por isso tem a alçada de criar.
+
+
+        **Pausar não descarta a fila.** Diz "pare de me mandar coisa nova", não "esqueça o que já
+        aconteceu" — descartar entregas pendentes faria uma pausa de cinco minutos para manutenção perder
+        eventos em silêncio.
+
+
+        Revogar é **terminal**: nada mais é entregue, inclusive o que estava na fila, e não há transição de
+        volta.
+      parameters:
+        - {name: subscriptionId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChangeWebhookStatus'}
+      responses:
+        '200':
+          description: Estado alterado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WebhookSubscription'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_webhook_subscription` — não existe nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '409':
+          description: "`conflict` — versão desatualizada ou transição inválida"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /integration/webhooks/{subscriptionId}/deliveries:
+    get:
+      tags: [Integrações]
+      summary: Entregas recentes de um webhook (INT-002)
+      description: >-
+        É onde se vê o que falhou, quantas vezes e por quê.
+
+
+        **Entrega `EXHAUSTED` não é apagada.** Uma entrega que desiste em silêncio é a pior forma de falha
+        de integração: o outro lado nunca soube do evento, e nós também não sabemos que ele não soube. A
+        linha fica, com o último erro e a contagem.
+      parameters:
+        - {name: subscriptionId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: limit, in: query, schema: {type: integer, default: 50, maximum: 200}}
+      responses:
+        '200':
+          description: Entregas, da mais recente para a mais antiga
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/WebhookDelivery'}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_webhook_subscription`"
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
+    WebhookSubscription:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        endpoint: {type: string, format: uri, description: Sempre https}
+        events: {type: array, items: {type: string}}
+        status: {type: string, enum: [ACTIVE, PAUSED, REVOKED]}
+        secretHint:
+          type: string
+          description: >-
+            Os primeiros caracteres do segredo. Serve para conferir "é este mesmo o que configurei do outro
+            lado?" sem revelar o valor — mostrar nada tornaria impossível distinguir duas assinaturas mal
+            configuradas
+        createdAt: {type: string, format: date-time}
+        version: {type: integer, format: int64}
+    CreateWebhook:
+      type: object
+      required: [name, endpoint, events]
+      properties:
+        name: {type: string, maxLength: 120}
+        endpoint:
+          type: string
+          format: uri
+          maxLength: 500
+          description: Precisa começar com https://
+        events:
+          type: array
+          minItems: 1
+          items: {type: string}
+          description: Nomes externos da allowlist; ao menos um
+    CreatedWebhook:
+      type: object
+      properties:
+        subscription: {$ref: '#/components/schemas/WebhookSubscription'}
+        secret:
+          type: string
+          description: >-
+            O segredo do HMAC, em claro. **Aparece apenas nesta resposta** e em nenhuma outra, nunca. Use-o
+            para validar o cabeçalho X-Brassia-Signature no destino
+        warning: {type: string}
+    ChangeWebhookStatus:
+      type: object
+      required: [status, expectedVersion]
+      properties:
+        status: {type: string, enum: [ACTIVE, PAUSED, REVOKED]}
+        expectedVersion: {type: integer, format: int64}
+    WebhookDelivery:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        eventType: {type: string}
+        eventId:
+          type: string
+          description: >-
+            Identidade do fato. Viaja no cabeçalho X-Brassia-Event-Id para que o destino possa deduplicar o
+            retry — a garantia deste lado é "ao menos uma vez", e a deduplicação do outro é o que a torna
+            "exatamente uma" na prática
+        status: {type: string, enum: [PENDING, DELIVERED, EXHAUSTED]}
+        attempts: {type: integer}
+        nextAttemptAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Backoff exponencial (30s, 1min, 2min, 4min). Nulo quando terminal
+        deliveredAt: {type: string, format: date-time, nullable: true}
+        lastResponseStatus:
+          type: integer
+          nullable: true
+          description: Nulo quando o destino não respondeu — timeout, DNS, conexão recusada
+        lastError: {type: string, nullable: true, description: Truncado em 200 caracteres}
+        createdAt: {type: string, format: date-time}
     SensorDevice:
       type: object
       properties:

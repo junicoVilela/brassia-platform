@@ -7,7 +7,7 @@ Estado: NÃO INICIADA
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
 | INT-001 | Concluída | Claude | `backend/.../sensor`, `V98__sensor_ingestion.sql`, `frontend/.../features/sensors` | Módulo `sensor` novo. Idempotência pela restrição única do banco, qualidade e atraso sinalizados como eixos independentes. Ver DEC-INT-002/003 e DEB-INT-001. |
-| INT-002 | A fazer | — | — | — |
+| INT-002 | Concluída | Claude | `backend/.../integration`, `V99__integration_webhooks.sql`, `frontend/.../features/webhooks` | Módulo `integration` novo. Outbox no mesmo commit do comando, HMAC com instante assinado, retry com backoff exponencial. Ver DEC-INT-005/006/007/008. |
 | PWA-001 | A fazer | — | — | — |
 | PWA-002 | A fazer | — | — | — |
 | INT-003 | A fazer | — | — | — |
@@ -100,6 +100,102 @@ resposta até alguém descobrir que o dispositivo estava pausado, e quem o pauso
 
 A leitura em si é o próprio registro — imutável, com os dois relógios e a qualidade gravados. O repositório
 não expõe `UPDATE` nem `DELETE`.
+
+### DEC-INT-005 (INT-002) — O outbox grava na mesma transação do comando
+
+`DomainEventOutboxListener` escuta em `BEFORE_COMMIT`, e essa escolha é a história inteira. A entrega é
+gravada **dentro** da transação do comando que originou o evento: se a liberação da OP reverter, a entrega
+reverte junto — e o webhook "ordem liberada" não sai para uma ordem que não existe. **Um webhook não se
+desmanda; a única defesa é ele nunca ter saído.** `WebhookIT.outboxReverteComOComando` prova com um
+rollback explícito contra PostgreSQL real.
+
+`AFTER_COMMIT` pareceria mais seguro e seria pior de duas formas: a gravação ficaria fora da transação,
+criando a janela em que o fato está commitado e a intenção de entregar não — evento perdido se o processo
+cair no meio —, e um erro ali deixaria de ser reversível junto com o comando.
+
+O que **não** acontece no listener é o envio. Enfileirar é barato e local; entregar depende de um servidor
+de terceiro e roda depois, noutro processo. É essa separação que faz **"falha não bloqueia domínio" ser
+estrutural em vez de intenção**: nada que aconteça com o destino — 500, timeout, DNS, certificado vencido —
+tem caminho de volta até a liberação da OP, que já foi confirmada e respondida muito antes.
+
+Duas consequências:
+
+- **O payload é congelado no enfileiramento**, montado a partir do evento e não relido do banco.
+  Recalculá-lo no reenvio entregaria o estado de agora sob o nome de um fato de antes — o retry de "ordem
+  liberada" descreveria a ordem como ela está hoje, possivelmente já cancelada.
+- **A identidade do fato inclui o que o distingue**: `recipeId:version`, porque publicar a v2 é outro fato
+  e a restrição única trataria a segunda publicação como repetição da primeira.
+
+### DEC-INT-006 (INT-002) — O instante entra dentro da assinatura, não ao lado dela
+
+A assinatura HMAC prova que a mensagem saiu de quem conhece o segredo e que o corpo não mudou. Não prova
+que ela é recente — por isso o formato assinado é `<timestamp>.<corpo>` e não só o corpo. Um instante que
+viajasse apenas num cabeçalho não assinado seria reescrito por quem intercepta, e um replay de ontem
+passaria por atual.
+
+O separador não é enfeite: sem ele, `timestamp=1` + corpo `"23…"` e `timestamp=12` + corpo `"3…"`
+alimentariam o HMAC com a mesma sequência de bytes — duas mensagens diferentes com a mesma assinatura
+válida. O ponto não aparece em dígitos de época, então a divisão é sempre inequívoca. Fixado em
+`WebhookSignatureTest.separadorDesfazAmbiguidade`.
+
+Três decisões que acompanham:
+
+- **Só `https`**, verificado no domínio e com `CHECK` no banco. A assinatura protege *integridade*, não
+  sigilo: em HTTP puro, o que acontece na cervejaria trafega em texto claro. Aceitar `http` "só para teste"
+  é exatamente como uma URL de teste vai para produção.
+- **Redirecionamento é recusado** (`Redirect.NEVER`). Seguir um 302 mandaria o corpo assinado e os
+  cabeçalhos para um endereço que ninguém cadastrou; um destino comprometido redirecionaria os eventos da
+  cervejaria para onde quisesse.
+- **O segredo é gerado pelo servidor**, nunca recebido. Aceitá-lo do cliente seria aceitar "senha123" com
+  aparência de configuração legítima, e a assinatura só prova algo enquanto o segredo é imprevisível.
+
+### DEC-INT-007 (INT-002) — Alçadas assimétricas: parar de mandar não pode ser difícil
+
+Criar e **reativar** exigem `integration.webhook.manage`; **pausar e revogar exigem apenas
+`integration.webhook.read`**. Parece invertido e não é: criar aponta um fluxo de dados da cervejaria para
+um endereço de fora, e é esse ato que precisa de alçada e de trilha. Pausar e revogar *interrompem* o
+fluxo — e uma permissão difícil para "parar de mandar" produz o incentivo errado exatamente no momento em
+que se descobre que o destino foi comprometido.
+
+Consequências deliberadas:
+
+- **Pausar não descarta a fila.** Diz "pare de me mandar coisa nova", não "esqueça o que já aconteceu":
+  descartar pendentes faria uma pausa de cinco minutos para manutenção perder eventos em silêncio.
+- **O segredo é devolvido uma única vez**, na criação. Mesmo raciocínio de uma API key — ele precisa
+  chegar a quem configura o outro lado, e depois disso não há motivo legítimo para lê-lo de volta. Manter
+  um caminho de leitura seria manter uma porta que só serve para vazar. O acessor do domínio chama-se
+  `secretForPersistence()` com nome desconfortável de propósito: um `secret()` curto seria chamado por
+  engano na montagem de um DTO, que é como um segredo vaza para uma resposta HTTP.
+- **A auditoria guarda o host, não a URL.** O caminho de um webhook às vezes carrega token.
+
+### DEC-INT-008 (INT-002) — Retry com backoff exponencial, e o que desiste não some
+
+Cinco tentativas (30 s, 1 min, 2 min, 4 min) cobrem cerca de meia hora — a ordem de grandeza de um deploy
+ou de uma queda curta do outro lado. Backoff fixo martelaria um destino caído a cada 30 s, atrapalhando
+justamente a recuperação dele; com muitas cervejarias apontando para o mesmo destino, viraria uma negação
+de serviço acidental.
+
+`EXHAUSTED` é terminal e **a linha não é apagada**. Uma entrega que desiste em silêncio é a pior forma de
+falha de integração: o outro lado nunca soube do evento, e nós também não sabemos que ele não soube.
+
+Mais três escolhas:
+
+- **`FOR UPDATE SKIP LOCKED`** no `claimDue`, com a rodada inteira dentro de uma transação. É o que torna
+  o despachante seguro com mais de uma instância — sem ele, duas instâncias pegariam as mesmas entregas e
+  o destino receberia o evento em duplicidade, que ele não distingue de dois fatos iguais.
+- **Destino inalcançável não tem status.** "Respondeu 500" e "não respondeu" apontam lados diferentes do
+  problema, e só o *tipo* do erro é registrado — a mensagem pode conter a URL inteira.
+- **Só o desfecho é auditado**, não cada tentativa: retry é comportamento esperado, não fato a guardar, e
+  auditar todas encheria a trilha com o ruído de um destino instável.
+
+### DEB-INT-002 (INT-002) — O caminho "evento real → webhook" não é exercido por IT
+
+`WebhookIT` prova o outbox, a restrição única, o isolamento e as alçadas chamando o `EventEnqueuer` direto.
+O caminho completo — liberar uma OP de verdade e ver a entrega aparecer — exigiria montar uma ordem
+completa (~200 linhas já escritas em `BrewOrderIT`), e duplicá-las aqui testaria o planejamento, não a
+integração. A tradução de evento em entrega é coberta por unidade.
+**Critério de remoção:** quando houver um IT de jornada que já monte uma OP liberada, acrescentar a ele uma
+asserção sobre a fila de webhooks em vez de montar a OP de novo aqui.
 
 ### DEB-INT-001 (INT-001) — A leitura de sensor não alimenta a curva de fermentação
 

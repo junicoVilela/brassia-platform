@@ -253,6 +253,14 @@ export const routes: Routes = [
         loadChildren: () => import('./features/ai/ai.routes').then(m => m.ASSESSMENT_ROUTES),
       },
       {
+        // `ai.command.read` e não `ai.command.propose`: a tela serve para decidir e para auditar, e quem
+        // confirma não é necessariamente quem pede a proposta.
+        path: 'ai/proposals',
+        canActivate: [permissionGuard],
+        data: { permission: 'ai.command.read' },
+        loadChildren: () => import('./features/ai/ai.routes').then(m => m.PROPOSAL_ROUTES),
+      },
+      {
         path: 'ai/gateway',
         canActivate: [permissionGuard],
         data: { permission: 'ai.gateway.read' },

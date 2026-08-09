@@ -7,17 +7,22 @@ import br.com.brew.brassia.ai.application.port.inbound.AssessmentCommands;
 import br.com.brew.brassia.ai.application.port.inbound.BudgetCommands;
 import br.com.brew.brassia.ai.application.port.inbound.GatewayCommands;
 import br.com.brew.brassia.ai.application.port.inbound.GatewayQueries;
+import br.com.brew.brassia.ai.application.port.inbound.ProposalCommands;
+import br.com.brew.brassia.ai.application.port.inbound.ProposalQueries;
 import br.com.brew.brassia.ai.application.port.outbound.AiBudgetRepository;
+import br.com.brew.brassia.ai.application.port.outbound.CommandProposalRepository;
 import br.com.brew.brassia.ai.application.port.outbound.ModelInvocationLedger;
 import br.com.brew.brassia.ai.application.port.outbound.ModelProvider;
 import br.com.brew.brassia.ai.application.port.outbound.StructuredResponseReader;
 import br.com.brew.brassia.ai.application.service.BatchAssessmentHandler;
 import br.com.brew.brassia.ai.application.service.BatchFactsAssembler;
 import br.com.brew.brassia.ai.application.service.BudgetHandler;
+import br.com.brew.brassia.ai.application.service.CommandProposalHandler;
 import br.com.brew.brassia.ai.application.service.GatewayStatusService;
 import br.com.brew.brassia.ai.application.service.GroundedAnswerHandler;
 import br.com.brew.brassia.ai.application.service.ModelGatewayService;
 import br.com.brew.brassia.ai.application.service.ProbeHandler;
+import br.com.brew.brassia.ai.application.service.ProposalQueryService;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.costing.BatchCostLookup;
 import br.com.brew.brassia.knowledge.KnowledgeRetrieval;
@@ -89,6 +94,30 @@ class AiConfiguration {
             ModelGateway gateway, AuditTrail audit) {
         var facts = new BatchFactsAssembler(batches, outcomes, quality, costs, recipes);
         return new BatchAssessmentHandler(facts, gateway, audit, Clock.systemUTC());
+    }
+
+    /**
+     * Propor comando (AIA-003).
+     *
+     * <p>Sem {@code TransactionTemplate} envolvendo a proposta: a chamada ao modelo é efeito externo já
+     * consumado, e uma transação em volta dela só criaria a ilusão de que dá para desfazer o gasto. Cada
+     * proposta válida é gravada por si — se a terceira for malformada, as duas primeiras continuam propostas
+     * legítimas, e descartá-las por causa dela seria perder trabalho pago.
+     *
+     * <p>A decisão também não precisa de transação: é uma linha, atualizada condicionalmente ao estado
+     * pendente. É a condição no {@code UPDATE}, e não o isolamento, que impede dois aceites da mesma proposta.
+     */
+    @Bean
+    ProposalCommands proposalCommands(BatchLookup batches, BatchOutcomeLookup outcomes,
+            BatchQualityLookup quality, BatchCostLookup costs, RecipeLookup recipes,
+            ModelGateway gateway, CommandProposalRepository proposals, AuditTrail audit) {
+        var facts = new BatchFactsAssembler(batches, outcomes, quality, costs, recipes);
+        return new CommandProposalHandler(facts, gateway, proposals, audit, Clock.systemUTC());
+    }
+
+    @Bean
+    ProposalQueries proposalQueries(CommandProposalRepository proposals) {
+        return new ProposalQueryService(proposals);
     }
 
     @Bean

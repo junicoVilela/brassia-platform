@@ -2,9 +2,12 @@ package br.com.brew.brassia.ai.adapter.inbound.web;
 
 import br.com.brew.brassia.ai.domain.AiBudgetExceededException;
 import br.com.brew.brassia.ai.domain.AiUnavailableException;
+import br.com.brew.brassia.ai.domain.ExpiredProposalException;
 import br.com.brew.brassia.ai.domain.InvalidModelResponseException;
+import br.com.brew.brassia.ai.domain.ProposalNotPendingException;
 import br.com.brew.brassia.ai.domain.StaleAiBudgetException;
 import br.com.brew.brassia.ai.domain.UnknownBatchException;
+import br.com.brew.brassia.ai.domain.UnknownProposalException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -68,6 +71,44 @@ class AiExceptionHandler {
         var problem = ProblemDetails.of(HttpStatus.NOT_FOUND, "unknown_batch",
                 "Este lote não existe nesta cervejaria.");
         problem.setProperty("batchId", ex.batchId().toString());
+        return problem;
+    }
+
+    /** Proposta inexistente nesta cervejaria (AIA-003) — mesma resposta para "não existe" e "é de outra". */
+    @ExceptionHandler(UnknownProposalException.class)
+    ProblemDetail handleUnknownProposal(UnknownProposalException ex) {
+        var problem = ProblemDetails.of(HttpStatus.NOT_FOUND, "unknown_proposal",
+                "Esta proposta não existe nesta cervejaria.");
+        problem.setProperty("proposalId", ex.proposalId().toString());
+        return problem;
+    }
+
+    /**
+     * Já decidida (AIA-003).
+     *
+     * <p>409 e não 400: o pedido está correto, o estado é que mudou — normalmente porque outra pessoa decidiu
+     * primeiro. A resposta diz qual foi a decisão, porque quem chegou depois precisa saber o que já valeu.
+     */
+    @ExceptionHandler(ProposalNotPendingException.class)
+    ProblemDetail handleNotPending(ProposalNotPendingException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "proposal_not_pending",
+                "Esta proposta já foi decidida.");
+        problem.setProperty("status", ex.status().name());
+        return problem;
+    }
+
+    /**
+     * Prazo vencido (AIA-003).
+     *
+     * <p>410 Gone: a proposta existiu e não existe mais como oferta. 409 diria "tente de novo", e tentar de
+     * novo a mesma proposta é justamente o que não se deve fazer — os fatos que a motivaram envelheceram. O
+     * caminho é pedir outra, sobre os fatos de agora.
+     */
+    @ExceptionHandler(ExpiredProposalException.class)
+    ProblemDetail handleExpired(ExpiredProposalException ex) {
+        var problem = ProblemDetails.of(HttpStatus.GONE, "proposal_expired",
+                "O prazo desta proposta venceu. Peça uma nova avaliação para decidir sobre os fatos atuais.");
+        problem.setProperty("expiresAt", ex.expiresAt().toString());
         return problem;
     }
 

@@ -5077,6 +5077,199 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /ai/proposals:
+    get:
+      tags: [IA]
+      summary: Propostas de comando do copiloto e as decisões tomadas (AIA-003)
+      description: >-
+        As propostas da cervejaria, das mais recentes para as mais antigas, com a decisão de cada uma quando
+        houve. `ai.command.read` é alçada de auditoria: deixa ver o que foi proposto e quem consentiu, sem
+        deixar propor nem confirmar nada.
+
+
+        Cada item traz `requiredPermission` e `canConfirm`. O segundo é conveniência de apresentação — a
+        verificação que vale é a do aceite, feita no domínio contra as permissões de então; o primeiro existe
+        para que a interface possa dizer *qual* alçada falta, porque desabilitar o botão sem nomear a permissão
+        deixa quem lê sem o que fazer a respeito.
+      responses:
+        '200':
+          description: Propostas da cervejaria.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/CommandProposal'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /ai/proposals/batches/{batchId}:
+    parameters:
+      - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [IA]
+      summary: Pedir ao copiloto propostas de comando para um lote (AIA-003)
+      description: >-
+        **A proposta não é um comando.** Ela é gravada pendente e espera a decisão de uma pessoa; nada no
+        sistema muda por causa dela. É a única história da sprint que grava tabela, e por um motivo preciso: a
+        proposta tem de sobreviver entre o instante em que a IA sugere e o instante em que alguém decide, para
+        que exista onde registrar quem consentiu.
+
+
+        **A allowlist é fechada.** O modelo só pode propor `CLOSE_BATCH_COST`, `OPEN_NON_CONFORMITY` ou
+        `SCHEDULE_CLEANING_CYCLE`, cada uma com o conjunto exato de parâmetros que exige — nenhum faltando e
+        nenhum a mais. Ação fora da lista não sobrevive ao contrato de resposta; parâmetro inesperado faz a
+        proposta ser descartada em vez de guardada, porque proposta malformada guardada é proposta que alguém
+        acaba confirmando. O caso concreto: o modelo mandando a concentração do sanitizante junto, que é
+        justamente o parâmetro químico que o POP dita e ninguém inventa.
+
+
+        **Pedir não exige a alçada do comando**, e não deve: pedir uma sugestão sobre o que fazer é diferente de
+        fazer, e quem não pode fechar custo ainda precisa poder descobrir que o custo está aberto para pedir a
+        quem pode. `ai.command.propose` é crítica e não dá direito de confirmar nada.
+
+
+        Lista vazia é resposta legítima. Um copiloto que sempre encontra algo a fazer ensina a ser ignorado.
+      responses:
+        '200':
+          description: >-
+            Propostas gravadas, pendentes de decisão. Pode ser vazia — e ser vazia não é falha.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/CommandProposal'}
+        '402':
+          description: "`ai_budget_exceeded` — o orçamento do mês foi esgotado"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_batch` — o lote não existe nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '501':
+          description: "`ai_provider_disabled` — não há provedor configurado nesta instalação"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '502':
+          description: "`ai_response_rejected` — a resposta do modelo não satisfez o contrato"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '503':
+          description: "`ai_provider_unavailable` — o provedor não respondeu em nenhum dos modelos"
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /ai/proposals/{proposalId}/acceptance:
+    parameters:
+      - {name: proposalId, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [IA]
+      summary: Confirmar uma proposta — exige a alçada do comando proposto (AIA-003)
+      description: >-
+        **A permissão exigida aqui é a do comando, não a de propor.** `CLOSE_BATCH_COST` exige
+        `costing.cost.close`; `OPEN_NON_CONFORMITY` exige `quality.nc.manage`; `SCHEDULE_CLEANING_CYCLE` exige
+        `sanitation.cycle.execute`. Ela é conferida no instante do aceite, contra as permissões de *quem está
+        confirmando* — quem propôs pode ter perdido a alçada, e quem confirma pode nunca tê-la tido. Sem essa
+        separação, "propor" seria um caminho lateral para fazer pela IA o que a pessoa não pode fazer pela porta
+        da frente.
+
+
+        A verificação mora no caso de uso e não na borda HTTP, para valer para qualquer chamador que apareça
+        depois — inclusive um que não passe por requisição nenhuma.
+
+
+        **O corpo não traz ação nem parâmetros.** Eles vêm da proposta gravada. É o que impede confirmar uma
+        coisa na tela e executar outra no servidor.
+
+
+        **A proposta vence em 12 horas.** Ela foi feita sobre os fatos de um instante — custo incompleto,
+        medição fora da faixa, tanque sujo — e aceitá-la dias depois é agir sobre um retrato antigo, convincente
+        justamente porque parece atual. Doze horas cobrem um turno e a leitura do turno seguinte, e não cobrem o
+        fim de semana.
+
+
+        **O aceite registra a decisão autorizada e devolve `executionRoute`; não executa.** Nenhum módulo
+        publica porta de comando hoje — só consultas — e criar essas portas em custeio, qualidade e sanitização
+        é mudança nas histórias deles. Pendência declarada no STATUS da sprint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ProposalDecision'}
+      responses:
+        '200':
+          description: Decisão registrada, com quem consentiu e quando.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CommandProposal'}
+        '403':
+          description: >-
+            Falta a alçada do comando proposto — a resposta nomeia qual permissão é. Ter
+            `ai.command.propose` não basta.
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '404':
+          description: >-
+            `unknown_proposal` — a proposta não existe nesta cervejaria. Mesma resposta para "não existe" e
+            "existe em outra": distinguir contaria que ela existe em algum lugar.
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '409':
+          description: >-
+            `proposal_not_pending` — já houve decisão, normalmente porque outra pessoa decidiu primeiro. A
+            resposta diz qual foi, porque quem chegou depois precisa saber o que já valeu. Decisão é
+            definitiva: reabrir apagaria a decisão de alguém.
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '410':
+          description: >-
+            `proposal_expired` — o prazo venceu. 410 e não 409 porque tentar de novo a *mesma* proposta é
+            justamente o que não se deve fazer: o caminho é pedir outra, sobre os fatos de agora.
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /ai/proposals/{proposalId}/rejection:
+    parameters:
+      - {name: proposalId, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [IA]
+      summary: Descartar uma proposta — exige apenas poder vê-la (AIA-003)
+      description: >-
+        **Recusar não exige a alçada do comando, e a assimetria é deliberada.** Dizer "não" a uma sugestão não
+        altera nada no sistema. Se exigisse alçada, propostas pendentes acumulariam até vencer — e uma tela
+        cheia de pendências treina quem a lê a ignorar a tela inteira, inclusive as que valem. Proposta
+        pendente parece decisão adiada, não decisão tomada.
+
+
+        Vale para proposta vencida também: se não valesse, a lista nunca se limparia.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ProposalDecision'}
+      responses:
+        '200':
+          description: Recusa registrada.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CommandProposal'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: "`unknown_proposal` — a proposta não existe nesta cervejaria"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '409':
+          description: "`proposal_not_pending` — já houve decisão"
+          content:
+            application/problem+json:
+              schema: {type: object}
   /ai/gateway:
     get:
       tags: [IA]
@@ -8076,6 +8269,85 @@ components:
             Afirmações descartadas por número inventado ou fato inexistente, com o motivo. Chega ao cliente de
             propósito: é o sinal de que o modelo tentou calcular em vez de interpretar.
           items: {type: string}
+    CommandProposal:
+      type: object
+      description: >-
+        Um comando que o copiloto propôs e que ninguém executou. Ela existe como registro justamente para
+        separar o momento em que a IA sugere do momento em que uma pessoa decide — e para que o segundo seja
+        auditável depois.
+      required: [id, action, label, parameters, rationale, requiredPermission, executionRoute, proposedBy,
+                 proposedAt, expiresAt, status, expired, canConfirm]
+      properties:
+        id: {type: string, format: uuid}
+        action: {$ref: '#/components/schemas/ProposedAction'}
+        label: {type: string, description: "A ação em português, como a pessoa que decide vai ler."}
+        parameters:
+          type: object
+          additionalProperties: {type: string}
+          description: >-
+            Exatamente as chaves que a ação exige, nenhuma faltando e nenhuma a mais. Fechado de propósito:
+            parâmetro inesperado é sinal de que o modelo entendeu a ação de outra forma, e adivinhar o que ele
+            quis dizer num comando que altera custo ou qualidade não é um risco que valha correr.
+        rationale:
+          type: string
+          maxLength: 1000
+          description: >-
+            Obrigatória. Uma proposta sem o motivo não dá a quem decide o que ele precisa para decidir, e "a IA
+            sugeriu" não é motivo.
+        requiredPermission:
+          type: string
+          description: >-
+            A alçada exigida para confirmar — a do comando de verdade, não a de propor. `ai.command.propose`
+            nunca aparece aqui.
+        executionRoute:
+          type: string
+          description: >-
+            Onde o comando vive de fato. O aceite entrega este destino em vez de executar, porque nenhum módulo
+            publica porta de comando hoje.
+        proposedBy:
+          type: string
+          format: uuid
+          description: "Quem **pediu** a proposta. A IA não propõe sozinha."
+        proposedAt: {type: string, format: date-time}
+        expiresAt:
+          type: string
+          format: date-time
+          description: "12 horas após a proposta. Vencer é o que impede uma sugestão esquecida de virar comando no mês seguinte."
+        status:
+          type: string
+          enum: [PENDING, ACCEPTED, REJECTED]
+          description: >-
+            Não há `EXPIRED` nem `EXECUTED`. Vencimento é derivado do prazo — uma proposta não muda de estado
+            porque o tempo passou, ela só deixa de ser aceitável — e execução não acontece aqui.
+        expired:
+          type: boolean
+          description: "Calculado na leitura a partir de `expiresAt`. Não é coluna."
+        canConfirm:
+          type: boolean
+          description: >-
+            Conveniência de apresentação: pendente, no prazo, e quem consulta tem `requiredPermission`. A
+            verificação que vale é a do aceite.
+        decidedBy:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Quem **confirmou**, que não é necessariamente quem pediu — e é o campo que a história existe para produzir."
+        decidedAt: {type: string, format: date-time, nullable: true}
+        decisionNote: {type: string, nullable: true, maxLength: 500}
+    ProposedAction:
+      type: string
+      description: >-
+        A allowlist fechada. Um modelo que devolva qualquer coisa fora daqui não produz proposta: produz erro de
+        contrato, e a resposta é recusada inteira.
+      enum: [CLOSE_BATCH_COST, OPEN_NON_CONFORMITY, SCHEDULE_CLEANING_CYCLE]
+    ProposalDecision:
+      type: object
+      description: >-
+        Só a observação — e nada mais. Nem a ação, nem os parâmetros, nem quem decide: tudo isso já está na
+        proposta gravada e no contexto autenticado. Aceitar ação ou parâmetro no corpo abriria o caminho exato
+        que esta história existe para fechar.
+      properties:
+        note: {type: string, maxLength: 500}
     AssessedRisk:
       type: object
       required: [statement, severity, factRefs]

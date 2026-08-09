@@ -8,7 +8,7 @@ Estado: NÃO INICIADA
 |---|---|---|---|---|
 | INT-001 | Concluída | Claude | `backend/.../sensor`, `V98__sensor_ingestion.sql`, `frontend/.../features/sensors` | Módulo `sensor` novo. Idempotência pela restrição única do banco, qualidade e atraso sinalizados como eixos independentes. Ver DEC-INT-002/003 e DEB-INT-001. |
 | INT-002 | Concluída | Claude | `backend/.../integration`, `V99__integration_webhooks.sql`, `frontend/.../features/webhooks` | Módulo `integration` novo. Outbox no mesmo commit do comando, HMAC com instante assinado, retry com backoff exponencial. Ver DEC-INT-005/006/007/008. |
-| PWA-001 | A fazer | — | — | — |
+| PWA-001 | Concluída | Claude | `frontend/.../core/offline`, `ngsw-config.json`, `manifest.webmanifest` | Service worker só para a aplicação; o roteiro é guardado por escolha explícita, carimbado com dono e cervejaria, vence em 12 h e é apagado no logout. Ver DEC-PWA-001/002 e DEB-PWA-001. |
 | PWA-002 | A fazer | — | — | — |
 | INT-003 | A fazer | — | — | — |
 | INT-006 | A fazer | — | — | — |
@@ -187,6 +187,56 @@ Mais três escolhas:
   problema, e só o *tipo* do erro é registrado — a mensagem pode conter a URL inteira.
 - **Só o desfecho é auditado**, não cada tentativa: retry é comportamento esperado, não fato a guardar, e
   auditar todas encheria a trilha com o ruído de um destino instável.
+
+### DEC-PWA-001 (PWA-001) — O service worker não cacheia a API, e a ausência é a decisão
+
+`ngsw-config.json` tem `assetGroups` e **nenhum `dataGroup`**. Cachear respostas de API por padrão de URL
+resolveria "ler offline" em três linhas de configuração — e junto guardaria **tudo** que casasse com o
+padrão, de forma invisível, num armazenamento que sobrevive ao logout e é legível por quem usar o aparelho
+depois.
+
+O cenário não é hipotético: um tablet de chão de fábrica é compartilhado por turno, e um cache de "o que
+passou pela API" acaba guardando o custo do lote e a trilha de auditoria porque alguém abriu essas telas uma
+vez. O que o service worker cacheia aqui é só a aplicação — código e assets, que são públicos.
+
+O dado do roteiro fica no `OfflineRunbookStore`, e a diferença é que ali ele é **escolhido, nomeado e
+datado**: só o roteiro, só quando alguém pede, sempre com a identidade de quem pediu. A conversão de
+`Batch` para `OfflineRunbook` é explícita campo a campo — é o que garante que um campo novo na API (um
+custo, um responsável) não passe a ser gravado no aparelho só porque começou a ser devolvido. `orderId` e
+`recipeId` existem em `Batch` e deliberadamente **não** são gravados: não servem para executar a etapa.
+
+### DEC-PWA-002 (PWA-001) — Três defesas, e em todas a resposta é apagar
+
+O critério "dados sensíveis seguem protegidos" é resolvido por três verificações em toda leitura:
+
+- **Dono.** Roteiro salvo por outro usuário é recusado. É o tablet que troca de turno.
+- **Cervejaria.** Mesmo usuário, cervejaria diferente, mesma recusa.
+- **Validade (12 h).** Um roteiro velho descreve um lote que já mudou. Um roteiro desatualizado apresentado
+  como atual é **pior que nenhum**: leva alguém a executar a etapa errada com confiança.
+
+Nas três a resposta é **apagar o registro**, não apenas escondê-lo — esconder deixaria o dado no disco. E o
+logout chama `clearAll()` num `finalize`, que cobre erro e sucesso: ficar sem rede na hora de sair é
+justamente quando alguém entrega o aparelho para o próximo turno. Trocar de cervejaria também limpa.
+
+Duas consequências para a interface:
+
+- **Salvar é ação explícita**, não cache automático. Um cache que decide sozinho o que guardar acaba
+  guardando o que ninguém pediu.
+- **A tela diz que está mostrando um retrato e de quando ele é.** Sem essa frase, um roteiro de seis horas
+  atrás parece o estado de agora.
+
+`navigator.onLine` é usado só como **dica de interface**: ele diz que a máquina tem interface ativa, não que
+o servidor está alcançável — o wi-fi da cervejaria pode estar conectado e sem saída. Quem decide se a
+requisição funcionou é a requisição.
+
+### DEB-PWA-001 (PWA-001) — O teste de "salvar pela tela" é pulado em banco limpo
+
+`offline-runbook.spec.ts` tem um caso que exige um lote em produção para clicar em "Salvar offline", e ele é
+pulado quando não há nenhum — o que inclui a CI. O caso **crítico** (sair da conta esvazia o aparelho) foi
+reescrito para semear o armazenamento direto e por isso roda sempre: **um teste de segurança pulado é pior
+que ausente, porque parece cobertura.**
+**Critério de remoção:** quando houver fixture de lote em produção compartilhada entre os E2E, apontar o
+caso para ela.
 
 ### DEB-INT-002 (INT-002) — O caminho "evento real → webhook" não é exercido por IT
 

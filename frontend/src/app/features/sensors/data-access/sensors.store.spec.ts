@@ -16,6 +16,7 @@ describe('SensorsStore', () => {
     unit: 'C',
     equipmentId: null,
     expectedIntervalSeconds: 300,
+    payloadFormat: 'CANONICAL',
     status: 'ACTIVE',
     registeredAt: '2026-08-09T10:00:00Z',
     version: 0,
@@ -145,6 +146,7 @@ describe('SensorsStore', () => {
       unit: 'PSI',
       equipmentId: null,
       expectedIntervalSeconds: null,
+      payloadFormat: 'CANONICAL',
     });
     http.expectOne('/api/v1/sensors/devices').flush(
       { detail: 'x' },

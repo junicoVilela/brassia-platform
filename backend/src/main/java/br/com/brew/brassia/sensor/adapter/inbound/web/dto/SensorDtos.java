@@ -23,7 +23,14 @@ public final class SensorDtos {
             @NotBlank String measure,
             @NotBlank String unit,
             UUID equipmentId,
-            @Positive Integer expectedIntervalSeconds) {
+            @Positive Integer expectedIntervalSeconds,
+            /**
+             * De que jeito o dispositivo fala (INT-006). Ausente = formato da casa.
+             *
+             * <p>É atributo do cadastro e não da mensagem: deixar o payload declarar o próprio formato
+             * seria confiar num campo que o firmware preenche.
+             */
+            String payloadFormat) {
     }
 
     public record ChangeStatusRequest(
@@ -55,6 +62,7 @@ public final class SensorDtos {
             String unit,
             UUID equipmentId,
             Long expectedIntervalSeconds,
+            String payloadFormat,
             String status,
             Instant registeredAt,
             long version) {
@@ -63,6 +71,7 @@ public final class SensorDtos {
             return new DeviceView(device.id(), device.code(), device.name(), device.measure().name(),
                     device.unit(), device.equipmentId(),
                     device.expectedInterval() == null ? null : device.expectedInterval().toSeconds(),
+                    device.payloadFormat().name(),
                     device.status().name(), device.registeredAt(), device.version());
         }
 
@@ -94,6 +103,23 @@ public final class SensorDtos {
 
         public static List<ReadingView> from(List<SensorReading> readings) {
             return readings.stream().map(ReadingView::from).toList();
+        }
+    }
+
+    /**
+     * A resposta da ingestão por adapter (INT-006).
+     *
+     * <p>Lista, porque uma mensagem de fabricante pode trazer mais de uma grandeza e virar mais de uma
+     * leitura. `duplicate` por leitura, não pela mensagem: reenviar uma mensagem cuja densidade já foi
+     * gravada mas cuja temperatura falhou grava só a que faltava.
+     */
+    public record AdapterIngestResponse(List<IngestResponse> readings) {
+
+        public static AdapterIngestResponse from(
+                br.com.brew.brassia.sensor.application.port.inbound.AdapterIngestionCommands.Result result) {
+            return new AdapterIngestResponse(result.readings().stream()
+                    .map(r -> IngestResponse.from(r.reading(), r.duplicate()))
+                    .toList());
         }
     }
 

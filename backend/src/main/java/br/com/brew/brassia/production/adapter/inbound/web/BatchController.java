@@ -88,13 +88,21 @@ final class BatchController {
         principal.requirePermission("production.measurement.record");
         var result = recordMeasurement.handle(new RecordMeasurementUseCase.Command(
                 principal.userId(), principal.requireBrewery(), id, request.stepId(), request.kind(),
-                request.value(), request.unit(), request.temperatureC(), request.method(), request.source()));
+                request.value(), request.unit(), request.temperatureC(), request.method(), request.source(),
+                request.clientRequestId()));
+
+        // 200 para apontamento repetido, 201 para novo (PWA-002). A distinção é a resposta certa a uma fila
+        // que reenviou por não ter recebido a confirmação: ela fez o correto, e um erro a ensinaria a
+        // continuar tentando. O 200 diz "está registrado, pode tirar da fila" sem criar segunda medição.
+        if (result.duplicate()) {
+            return ResponseEntity.ok(new RecordedResponse(result.id(), true));
+        }
         return ResponseEntity.created(
                 URI.create("/api/v1/production/batches/" + id + "/measurements/" + result.id()))
-                .body(new RecordedResponse(result.id()));
+                .body(new RecordedResponse(result.id(), false));
     }
 
-    record RecordedResponse(UUID id) {}
+    record RecordedResponse(UUID id, boolean duplicate) {}
 
     @GetMapping("/{id}/measurements")
     List<MeasurementView> measurements(@PathVariable UUID id, @AuthenticationPrincipal SecurityPrincipal principal) {

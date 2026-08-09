@@ -7,6 +7,7 @@ import { AuthService } from '../../../../core/auth/auth.service';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
 import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator.component';
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
+import { OfflineQueueFacade } from '../../data-access/offline-queue.facade';
 import { OfflineRunbookFacade } from '../../data-access/offline-runbook.facade';
 import { BatchesStore } from '../../data-access/batches.store';
 import { ALERT_KINDS } from '../../domain/alert.model';
@@ -30,6 +31,9 @@ export class BatchesPageComponent implements OnInit {
 
   /** Roteiro offline (PWA-001). */
   protected readonly offline = inject(OfflineRunbookFacade);
+
+  /** Fila de apontamentos offline (PWA-002). */
+  protected readonly queue = inject(OfflineQueueFacade);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -66,6 +70,7 @@ export class BatchesPageComponent implements OnInit {
   protected readonly units = computed(() => this.kinds.find(k => k.value === this.kindSignal())?.units ?? []);
 
   ngOnInit(): void {
+    this.queue.load();
     this.store.load();
     const timer = setInterval(() => this.now.set(Date.now()), 1000);
     this.destroyRef.onDestroy(() => clearInterval(timer));
@@ -232,6 +237,23 @@ export class BatchesPageComponent implements OnInit {
 
   protected offlineSavedAt(batchId: string): Date | null {
     return this.offline.savedAt(batchId);
+  }
+
+
+  /** Descarta um apontamento em conflito — a única forma de ele sair da fila (PWA-002). */
+  protected discardConflict(clientRequestId: string): void {
+    const confirmado = window.confirm(
+      'Descartar este apontamento?\n\n' +
+        'Ele não foi registrado no servidor e não será enviado. O que você mediu se perde — se o valor ' +
+        'ainda vale, registre de novo depois de conferir o estado atual do lote.',
+    );
+    if (confirmado) {
+      this.queue.discardConflict(clientRequestId);
+    }
+  }
+
+  protected syncNow(): void {
+    void this.queue.flush();
   }
 
 }

@@ -9,7 +9,7 @@ Estado: NÃO INICIADA
 | INT-001 | Concluída | Claude | `backend/.../sensor`, `V98__sensor_ingestion.sql`, `frontend/.../features/sensors` | Módulo `sensor` novo. Idempotência pela restrição única do banco, qualidade e atraso sinalizados como eixos independentes. Ver DEC-INT-002/003 e DEB-INT-001. |
 | INT-002 | Concluída | Claude | `backend/.../integration`, `V99__integration_webhooks.sql`, `frontend/.../features/webhooks` | Módulo `integration` novo. Outbox no mesmo commit do comando, HMAC com instante assinado, retry com backoff exponencial. Ver DEC-INT-005/006/007/008. |
 | PWA-001 | Concluída | Claude | `frontend/.../core/offline`, `ngsw-config.json`, `manifest.webmanifest` | Service worker só para a aplicação; o roteiro é guardado por escolha explícita, carimbado com dono e cervejaria, vence em 12 h e é apagado no logout. Ver DEC-PWA-001/002 e DEB-PWA-001. |
-| PWA-002 | A fazer | — | — | — |
+| PWA-002 | Concluída | Claude | `frontend/.../core/offline/offline-queue.store.ts`, `V100__production_client_request_id.sql` | Fila com garantia "ao menos uma vez"; a chave gerada no registro (não no envio) a transforma em "exatamente uma" do lado do servidor. Conflito sai do ciclo automático e espera decisão. Ver DEC-PWA-003/004. |
 | INT-003 | A fazer | — | — | — |
 | INT-006 | A fazer | — | — | — |
 | SEC-B07 | A fazer | — | — | — |
@@ -228,6 +228,52 @@ Duas consequências para a interface:
 `navigator.onLine` é usado só como **dica de interface**: ele diz que a máquina tem interface ativa, não que
 o servidor está alcançável — o wi-fi da cervejaria pode estar conectado e sem saída. Quem decide se a
 requisição funcionou é a requisição.
+
+### DEC-PWA-003 (PWA-002) — A chave é gerada no registro, não no envio
+
+A fila do aparelho tem garantia **"ao menos uma vez"** por natureza: ela reenvia até receber confirmação,
+porque a alternativa — desistir na primeira falha — perderia o apontamento de quem estava sem rede, que é a
+única razão de ela existir. "Exatamente uma vez" acontece do outro lado, e depende de onde a chave nasce.
+
+O cenário decide: a medição é registrada às 9 h sem rede, a fila tenta às 11 h, a resposta se perde, e a
+fila tenta de novo às 11 h 05. Uma chave gerada **no envio** seria diferente nas duas tentativas e criaria
+duas medições da mesma leitura; gerada **no registro**, ela identifica o fato, e as duas tentativas são a
+mesma coisa.
+
+No servidor, quem decide é o índice único parcial `(brewery_id, client_request_id)` com `ON CONFLICT DO
+NOTHING` — não uma consulta prévia, que deixaria a janela em que caem duas tentativas simultâneas da mesma
+fila. O reenvio responde **200 com `duplicate: true`** e devolve a medição **gravada**, não a recém-montada:
+responder um id novo faria a fila do aparelho guardar um id que não existe no servidor.
+
+Duas escolhas dentro disso:
+
+- **A repetição é reconhecida depois das validações de estado, não antes.** Se o lote foi encerrado
+  enquanto a fila esperava rede, o reenvio é recusado como qualquer registro tardio — devolver "já
+  registrado" para um lote encerrado inventaria uma medição que nunca entrou.
+- **Único por cervejaria, não global.** A chave vem de um aparelho e não há autoridade central garantindo
+  unicidade entre cervejarias. Colisão é improvável com UUID, mas fazer a corretude depender dessa
+  improbabilidade seria fazer a corretude depender de sorte.
+
+### DEC-PWA-004 (PWA-002) — Conflito não é falha de rede, e o tratamento é oposto
+
+Este é o critério da história: **conflito não sobrescreve silenciosamente**.
+
+- **Falha de rede ou 5xx** é transitória: conta a tentativa e mantém na fila. Desistir perderia o
+  apontamento.
+- **409/400/422** é o servidor dizendo que o estado mudou ou que o conteúdo não serve. Insistir produziria
+  o mesmo "não" mais quatro vezes. O item **sai do ciclo automático e espera decisão humana** — nem
+  descartado (perderia o apontamento), nem aplicado à força (sobrescreveria o que outra pessoa fez).
+- **5xx fica deliberadamente fora** da classificação de conflito: erro de servidor costuma passar, e
+  tratá-lo como conflito jogaria na mão de quem opera uma decisão que era só esperar.
+
+Três consequências:
+
+- **O envio é sequencial**, não paralelo: apontamentos do mesmo lote têm ordem, e disparar tudo de uma vez
+  entregaria numa ordem que ninguém escolheu. Se a rede cai no meio, a drenagem para — não adianta gastar
+  tentativa dos demais contra uma rede que já se sabe indisponível.
+- **O conteúdo é congelado no registro.** O apontamento é o que foi medido, não o que vale agora.
+- **A fila é apagada no logout e na troca de cervejaria**, como o roteiro. O que ainda não subiu se perde, e
+  é o certo: enviá-lo depois, sob a sessão de outra pessoa, atribuiria a medição a quem não a fez.
 
 ### DEB-PWA-001 (PWA-001) — O teste de "salvar pela tela" é pulado em banco limpo
 

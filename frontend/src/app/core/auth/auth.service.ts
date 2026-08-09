@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, catchError, finalize, map, of, switchMap, tap } from 'rxjs';
+import { OfflineQueueStore } from '../offline/offline-queue.store';
 import { OfflineRunbookStore } from '../offline/offline-runbook.store';
 import { AuthApi } from './auth.api';
 import { LoginRequest, LoginResult, MfaLoginRequest, SessionUser, isMfaRequired } from './session-user.model';
@@ -9,6 +10,7 @@ import { LoginRequest, LoginResult, MfaLoginRequest, SessionUser, isMfaRequired 
 export class AuthService {
   private readonly api = inject(AuthApi);
   private readonly offlineRunbooks = inject(OfflineRunbookStore);
+  private readonly offlineQueue = inject(OfflineQueueStore);
   private readonly userState = signal<SessionUser | null>(null);
   /** true quando a sessão já foi consultada ao menos uma vez. */
   private readonly resolved = signal(false);
@@ -69,7 +71,13 @@ export class AuthService {
     return this.api.csrf().pipe(
       switchMap(() => this.api.logout()),
       tap(() => this.userState.set(null)),
-      finalize(() => this.offlineRunbooks.clearAll()),
+      finalize(() => {
+        this.offlineRunbooks.clearAll();
+        // A fila também: um apontamento pendente é dado da cervejaria, e sair da conta não pode deixá-lo
+        // num aparelho que troca de turno. O que ainda não subiu se perde — e é o certo: enviá-lo depois,
+        // sob a sessão de outra pessoa, atribuiria a medição a quem não a fez.
+        this.offlineQueue.clear();
+      }),
     );
   }
 
@@ -85,6 +93,7 @@ export class AuthService {
       tap(user => {
         this.userState.set(user);
         this.offlineRunbooks.clearAll();
+        this.offlineQueue.clear();
       }),
     );
   }

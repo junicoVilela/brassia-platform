@@ -14,9 +14,15 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Registra uma medição imutável no lote (PRD-003). Só lote em andamento; a
- * etapa (se informada) deve ser do lote; a unidade é validada contra a grandeza
+ * Registra uma medição imutável no lote (PRD-003), idempotente para a fila offline (PWA-002).
+ *
+ * <p>Só lote em andamento; a etapa (se informada) deve ser do lote; a unidade é validada contra a grandeza
  * no domínio. Append-only + auditoria.
+ *
+ * <p><strong>A idempotência é da restrição única, e a ordem das verificações importa (PWA-002).</strong>
+ * O apontamento repetido é reconhecido <em>depois</em> das validações de estado, não antes: se o lote foi
+ * encerrado enquanto a fila esperava rede, o reenvio precisa ser recusado como qualquer outro registro
+ * tardio — devolver "já registrado" para um lote encerrado inventaria uma medição que nunca entrou.
  */
 public final class RecordMeasurementHandler implements RecordMeasurementUseCase {
 
@@ -44,13 +50,36 @@ public final class RecordMeasurementHandler implements RecordMeasurementUseCase 
 
         var measurement = Measurement.record(command.breweryId(), command.batchId(), command.stepId(),
                 MeasurementKind.of(command.kind()), command.value(), command.unit(), command.temperatureC(),
-                command.method(), MeasurementSource.of(command.source()), Instant.now(), command.actorId());
-        measurements.insert(measurement);
+                command.method(), MeasurementSource.of(command.source()), Instant.now(), command.actorId(),
+                command.clientRequestId());
 
+        if (measurement.clientRequestId() == null) {
+            // Registro pela tela, com rede: sem chave não há repetição a reconhecer.
+            measurements.insert(measurement);
+            auditRecorded(command, measurement);
+            return new Result(measurement.id(), false);
+        }
+
+        if (measurements.insertIfAbsent(measurement)) {
+            auditRecorded(command, measurement);
+            return new Result(measurement.id(), false);
+        }
+
+        // Já existia. Devolve a medição GRAVADA, não a recém-montada: elas diferem no id e no instante, e
+        // responder a segunda faria a fila do aparelho guardar um id que não existe no servidor.
+        var stored = measurements.byClientRequestId(command.breweryId(), measurement.clientRequestId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "apontamento duplicado sem original: " + measurement.clientRequestId()));
+
+        // Não audita de novo: o registro já foi auditado no primeiro envio, e uma linha por retry encheria
+        // a trilha com o comportamento normal de uma fila.
+        return new Result(stored.id(), true);
+    }
+
+    private void auditRecorded(Command command, Measurement measurement) {
         audit.record(AuditEvent.success(command.breweryId(), command.actorId(), "production.measurement.record",
                 "production.batch", command.batchId().toString(),
-                Map.of("kind", measurement.kind().name(), "unit", measurement.unit())));
-
-        return new Result(measurement.id());
+                Map.of("kind", measurement.kind().name(), "unit", measurement.unit(),
+                        "offline", String.valueOf(measurement.clientRequestId() != null))));
     }
 }

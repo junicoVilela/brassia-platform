@@ -12,6 +12,8 @@ import {
   MEASURE_LABELS,
   MEASURE_UNITS,
   Measure,
+  PAYLOAD_FORMAT_LABELS,
+  PayloadFormat,
   QUALITY_LABELS,
   STATUS_LABELS,
   SensorDevice,
@@ -61,6 +63,8 @@ export class SensorsPageComponent implements OnInit {
   protected readonly qualityLabels = QUALITY_LABELS;
   protected readonly unitLabels = UNIT_LABELS;
   protected readonly measures = Object.keys(MEASURE_LABELS) as Measure[];
+  protected readonly formatLabels = PAYLOAD_FORMAT_LABELS;
+  protected readonly formats = Object.keys(PAYLOAD_FORMAT_LABELS) as PayloadFormat[];
 
   protected readonly registerForm = this.fb.nonNullable.group({
     code: ['', [Validators.required, Validators.maxLength(40)]],
@@ -68,6 +72,7 @@ export class SensorsPageComponent implements OnInit {
     measure: ['TEMPERATURE' as Measure, [Validators.required]],
     unit: ['C', [Validators.required]],
     expectedIntervalSeconds: [300],
+    payloadFormat: ['CANONICAL' as PayloadFormat, [Validators.required]],
   });
 
   ngOnInit(): void {
@@ -97,8 +102,14 @@ export class SensorsPageComponent implements OnInit {
       unit: value.unit,
       equipmentId: null,
       expectedIntervalSeconds: value.expectedIntervalSeconds || null,
+      payloadFormat: value.payloadFormat,
     });
-    this.registerForm.reset({ measure: 'TEMPERATURE', unit: 'C', expectedIntervalSeconds: 300 });
+    this.registerForm.reset({
+      measure: 'TEMPERATURE',
+      unit: 'C',
+      expectedIntervalSeconds: 300,
+      payloadFormat: 'CANONICAL',
+    });
   }
 
   protected select(device: SensorDevice): void {

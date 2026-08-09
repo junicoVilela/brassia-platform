@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { AskRequest, GroundedAnswer } from '../domain/answer.model';
+import { Assessment } from '../domain/assessment.model';
 import { Budget, GatewayStatus, ProbeResult } from '../domain/gateway.model';
 
 @Injectable({ providedIn: 'root' })
@@ -25,5 +26,10 @@ export class AiApi {
   /** POST porque gasta: cada pergunta é uma chamada ao modelo, cobrada e registrada. */
   ask(request: AskRequest): Observable<GroundedAnswer> {
     return this.http.post<GroundedAnswer>('/api/v1/ai/copilot/ask', request);
+  }
+
+  /** POST porque gasta, e alçada própria: avaliar um lote lê custo, qualidade e produção dele. */
+  assess(batchId: string): Observable<Assessment> {
+    return this.http.post<Assessment>(`/api/v1/ai/copilot/batches/${batchId}/assessment`, {});
   }
 }

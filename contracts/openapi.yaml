@@ -5005,6 +5005,78 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /ai/copilot/batches/{batchId}/assessment:
+    parameters:
+      - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [IA]
+      summary: Avaliar o risco de um lote a partir dos fatos calculados (AIA-002)
+      description: >-
+        **O modelo não produz número nenhum.** Os serviços de domínio calculam, cada número recebe um
+        identificador e uma origem, e o modelo recebe a lista de fatos para interpretar. Ele não soma, não
+        divide, não estima e não converte unidade — tudo que precisaria ser calculado já veio pronto de quem
+        responde por aquele cálculo.
+
+
+        De onde vem cada fato: volume e estado da **produção**; OG, FG, ABV, IBU e cor do motor de cálculo da
+        **receita**; medições, desvios e não conformidades da **qualidade**; total e custo por litro do
+        **custeio**. Perda percentual e proporção dentro da faixa são derivados calculados no domínio — de
+        propósito, para que o modelo não precise dividir nada.
+
+
+        **Todo número que o modelo escrever é conferido contra os fatos que a própria afirmação cita.** Não
+        contra todos os fatos: um teste pegou "o lote perdeu 45 L" passando porque 45 era o IBU previsto da
+        receita — número existente, assunto errado, afirmação errada por 35 litros. Amarrar o número aos fatos
+        citados fecha essa porta, e a consequência é que **afirmação sem `factRefs` não pode conter número**.
+
+
+        A recusa é por afirmação, não pela avaliação inteira: a frase com número inventado sai e o motivo vai
+        em `discarded`; as outras ficam. `usable: false` significa que nada resistiu à conferência — e os
+        `facts` continuam na resposta, porque são do domínio e valem independentemente do que o modelo disse.
+
+
+        **Não propõe ação.** O schema da resposta do modelo não tem campo de comando: propor comando é AIA-003,
+        com confirmação humana e nova autorização. Aqui o produto é entendimento.
+
+
+        `ai.assessment.batch` é permissão própria e crítica — avaliar um lote lê custo, qualidade e produção
+        dele, e quem pode perguntar sobre um manual não necessariamente pode ler o custo de um lote.
+      responses:
+        '200':
+          description: >-
+            Avaliação. `usable: false` é resposta legítima — nada do que o modelo escreveu resistiu à
+            conferência — e não erro.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BatchAssessment'}
+        '402':
+          description: "`ai_budget_exceeded` — o orçamento do mês foi esgotado"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: >-
+            `unknown_batch` — o lote não existe nesta cervejaria. A resposta é a mesma para "não existe" e
+            "existe em outra cervejaria": distinguir as duas contaria que ele existe em algum lugar.
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '501':
+          description: "`ai_provider_disabled` — não há provedor configurado nesta instalação"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '502':
+          description: "`ai_response_rejected` — a resposta do modelo não satisfez o contrato"
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '503':
+          description: "`ai_provider_unavailable` — o provedor não respondeu em nenhum dos modelos"
+          content:
+            application/problem+json:
+              schema: {type: object}
   /ai/gateway:
     get:
       tags: [IA]
@@ -7970,6 +8042,79 @@ components:
         estrutura versionada no módulo `sanitation` e o sistema responde sobre ele deterministicamente —
         passá-lo por recuperação textual transformaria um fato em um palpite.
       enum: [EQUIPMENT_MANUAL, SAFETY_DATA_SHEET, LAB_REPORT, OPERATING_PROCEDURE, TECHNICAL_NOTE]
+    BatchAssessment:
+      type: object
+      description: >-
+        A avaliação de risco de um lote. `facts` não é anexo: é o que permite conferir cada afirmação sem sair
+        da tela. Uma avaliação sem os números ao lado pediria confiança; com eles, pede leitura.
+      required: [usable, summary, risks, assumptions, facts, discarded]
+      properties:
+        usable:
+          type: boolean
+          description: >-
+            Falso quando nada do que o modelo escreveu resistiu à conferência de números. Os `facts` continuam
+            presentes — eles são do domínio.
+        summary:
+          type: string
+          description: "Vazio quando o resumo não resistiu à conferência. O texto descartado não é devolvido."
+        risks:
+          type: array
+          items: {$ref: '#/components/schemas/AssessedRisk'}
+        assumptions:
+          type: array
+          description: >-
+            O que o modelo supôs. Não declara fatos, e por isso **não pode conter número** — uma suposição com
+            número é o número inventado no seu disfarce mais convincente.
+          items: {type: string}
+        facts:
+          type: array
+          description: "Todos os fatos calculados, inclusive os que o modelo não usou."
+          items: {$ref: '#/components/schemas/CalculatedFact'}
+        discarded:
+          type: array
+          description: >-
+            Afirmações descartadas por número inventado ou fato inexistente, com o motivo. Chega ao cliente de
+            propósito: é o sinal de que o modelo tentou calcular em vez de interpretar.
+          items: {type: string}
+    AssessedRisk:
+      type: object
+      required: [statement, severity, factRefs]
+      properties:
+        statement: {type: string}
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+          description: "Juízo do modelo, não medição — a interface diz isso para que ninguém leia como cálculo."
+        factRefs:
+          type: array
+          description: "Fatos que sustentam o risco. Todo número da afirmação foi conferido contra estes."
+          items: {type: string}
+    CalculatedFact:
+      type: object
+      description: "Um número calculado por um serviço de domínio — nunca pelo modelo."
+      required: [id, label, unit, source, available]
+      properties:
+        id:
+          type: string
+          pattern: "^[a-z_]+$"
+          description: >-
+            Só letras e sublinhado, sem dígito: a conferência varre o texto do modelo procurando número, e um
+            identificador com dígito seria lido como número inventado.
+        label: {type: string}
+        value:
+          type: number
+          nullable: true
+          description: "Nulo quando o fato é ausência — e ausência não é zero."
+        unit: {type: string, description: "Vazia quando o número é contagem."}
+        source:
+          type: string
+          description: >-
+            O serviço que calculou — `production`, `recipe`, `quality`, `costing`, ou com sufixo `(derivado)`.
+            Viaja até a tela porque é o que faz "cálculos referenciam serviço de domínio" ser verificável por
+            quem lê, em vez de uma promessa de arquitetura.
+        available:
+          type: boolean
+          description: "Falso é ausência declarada: ninguém mediu, não houve transferência."
     GroundedAnswer:
       type: object
       description: >-

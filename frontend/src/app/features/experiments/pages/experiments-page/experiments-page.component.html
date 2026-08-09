@@ -1,0 +1,360 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+      <h1 class="h3 mb-1">Experimentos</h1>
+      <p class="text-body-secondary mb-0">
+        Lote dividido: mesma receita, dois caminhos, uma variável.
+      </p>
+    </div>
+    <button type="button" class="btn btn-primary" (click)="showForm.set(!showForm())">
+      {{ showForm() ? 'Cancelar' : 'Planejar experimento' }}
+    </button>
+  </div>
+
+  @if (showForm()) {
+    <div class="card mb-4">
+      <div class="card-header">
+        <h2 class="h5 mb-0">Novo lote dividido</h2>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="recipe">Receita</label>
+            <select
+              id="recipe"
+              class="form-select"
+              [ngModel]="recipeId()"
+              (ngModelChange)="recipeId.set($event)"
+            >
+              <option value="">Selecione…</option>
+              @for (recipe of recipes(); track recipe.id) {
+                <option [value]="recipe.id">{{ recipe.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="hypothesis">Hipótese</label>
+            <!--
+              A hipótese é declarada ANTES e depois não muda. Um experimento cuja hipótese pode ser
+              reescrita depois de ver o resultado sempre confirma a hipótese.
+            -->
+            <textarea
+              id="hypothesis"
+              class="form-control"
+              rows="2"
+              placeholder="O que você espera que aconteça, e por quê"
+              [ngModel]="hypothesis()"
+              (ngModelChange)="hypothesis.set($event)"
+            ></textarea>
+            <div class="form-text">
+              Escrita agora e imutável depois: é o que separa prever o efeito de explicá-lo depois de vê-lo.
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="control">Lote de controle</label>
+            <select
+              id="control"
+              class="form-select"
+              [ngModel]="controlBatchId()"
+              (ngModelChange)="controlBatchId.set($event)"
+            >
+              <option value="">Selecione…</option>
+              @for (batch of recipeBatches(); track batch.id) {
+                <option [value]="batch.id">{{ batch.code }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="variant">Lote variante</label>
+            <select
+              id="variant"
+              class="form-select"
+              [ngModel]="variantBatchId()"
+              (ngModelChange)="variantBatchId.set($event)"
+            >
+              <option value="">Selecione…</option>
+              @for (batch of recipeBatches(); track batch.id) {
+                <option [value]="batch.id">{{ batch.code }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <hr class="my-4" />
+
+        <h3 class="h6">Fatores</h3>
+        <!--
+          Os fatores IGUAIS entram junto de propósito: "o resto ficou igual" é a afirmação sobre a qual
+          toda a conclusão se apoia, e sem eles ninguém confere isso meses depois.
+        -->
+        <p class="text-body-secondary small">
+          Declare também o que ficou <strong>igual</strong> nos dois lados. Exatamente um fator pode
+          diferir — é o que permite atribuir a diferença observada a ele.
+        </p>
+
+        @for (factor of factors(); track $index) {
+          <div class="row g-2 mb-2 align-items-center">
+            <div class="col-md-4">
+              <input
+                type="text"
+                class="form-control"
+                placeholder="Fator (ex.: Temperatura de dry hopping)"
+                [ngModel]="factor.name"
+                (ngModelChange)="updateFactor($index, 'name', $event)"
+                [attr.aria-label]="'Nome do fator ' + ($index + 1)"
+              />
+            </div>
+            <div class="col-md-3">
+              <input
+                type="text"
+                class="form-control"
+                placeholder="No controle"
+                [ngModel]="factor.controlValue"
+                (ngModelChange)="updateFactor($index, 'controlValue', $event)"
+                [attr.aria-label]="'Valor no controle do fator ' + ($index + 1)"
+              />
+            </div>
+            <div class="col-md-3">
+              <input
+                type="text"
+                class="form-control"
+                placeholder="Na variante"
+                [ngModel]="factor.variantValue"
+                (ngModelChange)="updateFactor($index, 'variantValue', $event)"
+                [attr.aria-label]="'Valor na variante do fator ' + ($index + 1)"
+              />
+            </div>
+            <div class="col-md-2">
+              <button
+                type="button"
+                class="btn btn-outline-secondary btn-sm"
+                (click)="removeFactor($index)"
+              >
+                Remover
+              </button>
+            </div>
+          </div>
+        }
+        <button type="button" class="btn btn-link p-0" (click)="addFactor()">
+          + Adicionar fator
+        </button>
+
+        <!--
+          O contador aparece enquanto se digita: descobrir só ao enviar que o desenho está confundido é
+          tarde, porque a pessoa já montou o experimento inteiro na cabeça.
+        -->
+        <div class="mt-3">
+          @if (differingFactors().length === 1) {
+            <div class="alert alert-success mb-0 py-2">
+              Variável isolada: <strong>{{ differingFactors()[0].name }}</strong>.
+            </div>
+          } @else if (differingFactors().length === 0) {
+            <div class="alert alert-secondary mb-0 py-2">
+              Nenhum fator difere ainda — sem variável em teste, não há experimento.
+            </div>
+          } @else {
+            <div class="alert alert-warning mb-0 py-2">
+              <strong>{{ differingFactors().length }} fatores diferem.</strong> Com mais de um, qualquer
+              resultado tem várias explicações e nenhuma pode ser descartada. Iguale um dos lados.
+            </div>
+          }
+        </div>
+
+        <hr class="my-4" />
+
+        <h3 class="h6">O que será comparado</h3>
+        <p class="text-body-secondary small">
+          Definir agora evita escolher depois o número que favorece a conclusão — sempre há alguma
+          grandeza em que a variante ganha.
+        </p>
+        <div class="d-flex flex-wrap gap-3 mb-3">
+          @for (kind of kinds; track kind) {
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                type="checkbox"
+                [id]="'kind-' + kind"
+                [checked]="measurements().includes(kind)"
+                (change)="toggleMeasurement(kind)"
+              />
+              <label class="form-check-label" [for]="'kind-' + kind">{{ kind }}</label>
+            </div>
+          }
+        </div>
+
+        <div class="form-check">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="sensory"
+            [ngModel]="sensoryPlanned()"
+            (ngModelChange)="sensoryPlanned.set($event)"
+          />
+          <label class="form-check-label" for="sensory">Haverá avaliação sensorial</label>
+        </div>
+        <div class="form-check mb-3">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="blind"
+            [disabled]="!sensoryPlanned()"
+            [ngModel]="sensoryBlind()"
+            (ngModelChange)="sensoryBlind.set($event)"
+          />
+          <label class="form-check-label" for="blind">
+            A avaliação será cega
+            <span class="text-body-secondary small d-block">
+              Quem sabe qual copo é a variante encontra o efeito que espera. Não é má-fé: é como a
+              percepção funciona.
+            </span>
+          </label>
+        </div>
+
+        @if (store.planError(); as message) {
+          <div class="alert alert-danger">{{ message }}</div>
+        }
+
+        <button type="button" class="btn btn-primary" [disabled]="!canSubmit()" (click)="submit()">
+          Planejar
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (store.loading()) {
+    <p class="text-body-secondary">Carregando…</p>
+  } @else if (store.error(); as message) {
+    <div class="alert alert-danger">{{ message }}</div>
+  } @else {
+    <h2 class="h5">Em andamento</h2>
+    @if (store.active().length === 0) {
+      <p class="text-body-secondary">Nenhum experimento ativo.</p>
+    }
+    @for (experiment of store.active(); track experiment.id) {
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <span class="badge" [class]="statusClasses[experiment.status]">
+                {{ statusLabels[experiment.status] }}
+              </span>
+              <h3 class="h6 mt-2 mb-1">{{ experiment.hypothesis }}</h3>
+              <p class="text-body-secondary small mb-0">
+                Isolando <strong>{{ experiment.isolatedVariable.name }}</strong>:
+                {{ experiment.isolatedVariable.controlValue }} →
+                {{ experiment.isolatedVariable.variantValue }} ·
+                {{ batchLabel(experiment.controlBatchId) }} vs
+                {{ batchLabel(experiment.variantBatchId) }}
+              </p>
+            </div>
+            <div class="d-flex gap-2">
+              @if (experiment.status === 'PLANNED') {
+                <button type="button" class="btn btn-sm btn-primary" (click)="store.start(experiment.id)">
+                  Iniciar
+                </button>
+              }
+              @if (experiment.status === 'RUNNING') {
+                <button
+                  type="button"
+                  class="btn btn-sm btn-success"
+                  (click)="openConclusion(experiment)"
+                >
+                  Concluir
+                </button>
+              }
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary"
+                (click)="store.abandon(experiment.id)"
+              >
+                Abandonar
+              </button>
+            </div>
+          </div>
+
+          <div class="alert alert-warning mt-3 mb-0 py-2">
+            <strong>O que este desenho não permite afirmar:</strong>
+            <ul class="mb-0 mt-1 small">
+              @for (limitation of experiment.limitations; track limitation.code) {
+                <li>{{ limitation.description }}</li>
+              }
+            </ul>
+          </div>
+
+          @if (concludeFor() === experiment.id) {
+            <div class="border rounded p-3 mt-3">
+              <!-- Sem campo de limitações: elas vêm do desenho e acompanham a conclusão sozinhas. -->
+              <label class="form-label" [for]="'obs-' + experiment.id">O que foi observado</label>
+              <textarea
+                [id]="'obs-' + experiment.id"
+                class="form-control mb-2"
+                rows="3"
+                [ngModel]="observation()"
+                (ngModelChange)="observation.set($event)"
+              ></textarea>
+              <div class="form-check mb-2">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  [id]="'sup-' + experiment.id"
+                  [ngModel]="supported()"
+                  (ngModelChange)="supported.set($event)"
+                />
+                <label class="form-check-label" [for]="'sup-' + experiment.id">
+                  Compatível com a hipótese
+                  <span class="text-body-secondary small d-block">
+                    Compatível, não provado: um par de lotes não prova nada.
+                  </span>
+                </label>
+              </div>
+              <button
+                type="button"
+                class="btn btn-sm btn-success"
+                [disabled]="!observation().trim()"
+                (click)="submitConclusion(experiment)"
+              >
+                Registrar conclusão
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <h2 class="h5 mt-4">Histórico</h2>
+    <!-- Abandonados ficam à vista: alguém já tentou isto e parou, e a próxima pessoa merece saber. -->
+    @if (store.closed().length === 0) {
+      <p class="text-body-secondary">Nada concluído ainda.</p>
+    }
+    @for (experiment of store.closed(); track experiment.id) {
+      <div class="card mb-3">
+        <div class="card-body">
+          <span class="badge" [class]="statusClasses[experiment.status]">
+            {{ statusLabels[experiment.status] }}
+          </span>
+          <h3 class="h6 mt-2 mb-1">{{ experiment.hypothesis }}</h3>
+          <p class="text-body-secondary small">
+            Isolou <strong>{{ experiment.isolatedVariable.name }}</strong> ·
+            {{ experiment.plannedAt | date: 'dd/MM/yyyy' }}
+          </p>
+          @if (experiment.conclusion; as conclusion) {
+            <p class="mb-1">
+              <span class="badge" [class]="conclusion.supported ? 'bg-success' : 'bg-secondary'">
+                {{ conclusion.supported ? 'Compatível com a hipótese' : 'Não compatível' }}
+              </span>
+            </p>
+            <p class="mb-2">{{ conclusion.observation }}</p>
+            <div class="alert alert-warning mb-0 py-2">
+              <strong>Limitações desta conclusão:</strong>
+              <ul class="mb-0 mt-1 small">
+                @for (limitation of experiment.limitations; track limitation.code) {
+                  <li>{{ limitation.description }}</li>
+                }
+              </ul>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

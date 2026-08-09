@@ -271,6 +271,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('experiment.plan.read')) {
+            <li class="menu-item">
+              <a routerLink="/experiments" routerLinkActive="active" class="menu-link">
+                <i class="ri-test-tube-line menu-icon"></i>
+                <span class="title">Experimentos</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('digitaltwin.profile.read')) {
             <li class="menu-item">
               <a routerLink="/digital-twin" routerLinkActive="active" class="menu-link">

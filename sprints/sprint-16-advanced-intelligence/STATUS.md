@@ -138,6 +138,51 @@ Duas decisões de forma que acompanham:
   silenciosa faria alguém concluir que a perda é zero. O `CHECK` do banco garante que média nula e
   `INSUFFICIENT` andam juntas nos dois sentidos.
 
+### DEC-EXP-001 (EXP-001) — Uma variável isolada é condição de existência, não recomendação
+
+O plano com mais de um fator diferente **não é criado**: `ConfoundedExperimentException` na fábrica do
+agregado, 422 na API. Com dois fatores, qualquer resultado tem duas explicações e nenhuma pode ser
+descartada — o experimento produz algo que parece conhecimento e não é. Aceitar com um aviso seria pior: o
+aviso se perde e o número fica.
+
+Nenhum fator diferente é recusado pelo mesmo caminho. Dois lotes idênticos não testam hipótese nenhuma, e o
+registro ficaria parecendo um experimento à espera de resultado.
+
+Três decisões de forma que sustentam a regra:
+
+- **Os fatores iguais são declarados junto com o que difere.** "O resto ficou igual" é a afirmação sobre a
+  qual toda a conclusão se apoia; sem os iguais gravados, ninguém confere meses depois que o tanque era
+  mesmo o mesmo.
+- **A hipótese é imutável.** Não há `UPDATE` para hipótese, fatores ou grandezas — o SQL sequer menciona
+  essas colunas. Um experimento cuja hipótese pode ser reescrita depois do resultado sempre confirma a
+  hipótese, e fica indistinguível de um que realmente previu o efeito.
+- **O mesmo par de lotes não entra em dois experimentos ativos** (índice parcial). Dois experimentos sobre
+  o mesmo par testam variáveis diferentes nos mesmos lotes, e aí nenhuma das duas está isolada. Quem decide
+  é o PostgreSQL: entre duas requisições simultâneas, só o banco sabe qual chegou primeiro.
+
+A checagem de que os dois lotes são da **mesma receita** fica na aplicação, sobre `production.BatchLookup`:
+o domínio não conhece lote, só identificadores. Sem ela, um "controle" de outra receita faria a comparação
+medir a diferença entre duas receitas e atribuí-la ao fator isolado — o resultado errado mais convincente
+que este módulo poderia produzir, porque parece um experimento correto.
+
+### DEC-EXP-002 (EXP-001) — A conclusão não tem campo para limitações
+
+O critério pedia que a conclusão registrasse limitações. Um campo de texto livre atenderia à letra e
+falharia na prática: limitação que depende de alguém lembrar de escrevê-la some justamente quando o
+resultado agrada.
+
+As limitações são **derivadas do desenho** — `SINGLE_PAIR` sempre, mais `SENSORY_NOT_BLIND`, `NO_SENSORY`,
+`NO_PLANNED_MEASUREMENT` ou `SINGLE_METRIC` conforme o plano. Não há parâmetro para enviá-las, e `Conclusion`
+recusa lista vazia. Concluir sem registrá-las não é proibido: é inexprimível.
+
+Não são gravadas, e sim recalculadas na leitura — gravá-las abriria a possibilidade de uma conclusão cuja
+lista foi editada. O plano é imutável, então a lista derivada é a mesma que a conclusão carregou na origem.
+
+O campo se chama `supported`, nunca "provado": um par de lotes não prova nada, e o nome do campo é o que
+impede o relatório de afirmar que provou. `experiment.plan.conclude` é permissão crítica separada de
+planejar — planejar é uma intenção, concluir define o que a cervejaria passa a acreditar sobre a própria
+receita.
+
 ## Evidências de encerramento
 
 - Build/commit:

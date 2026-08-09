@@ -1,0 +1,42 @@
+<app-page-header
+  title="Abrir código"
+  subtitle="Equipamento, lote, ordem de produção ou embalagem — a partir da etiqueta."
+/>
+
+<div class="card border-0 rounded-10">
+  <div class="card-body p-4">
+    @if (resolving()) {
+      <app-loading-indicator text="Abrindo…" />
+    } @else {
+      @if (error(); as message) {
+        <div class="alert alert-danger" role="alert">{{ message }}</div>
+      }
+
+      <form [formGroup]="form" (ngSubmit)="resolve()">
+        <div class="mb-3">
+          <label class="form-label" for="code">Código</label>
+          <input
+            id="code"
+            class="form-control font-monospace"
+            placeholder="brassia://equipamento/TANQUE-01"
+            formControlName="code"
+          />
+          <div class="form-text">
+            Aponte a câmera do celular para o QR da etiqueta — ele abre esta tela sozinho. Digite aqui
+            quando a etiqueta estiver rasgada ou você estiver no computador.
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" [disabled]="resolving()">Abrir</button>
+      </form>
+
+      <hr class="my-4" />
+
+      <p class="small text-muted mb-0">
+        <i class="ri-shield-check-line me-1" aria-hidden="true"></i>
+        O código não dá acesso a nada por si só: ele diz apenas <em>o quê</em>. Sua permissão é conferida
+        depois da leitura, e é a mesma exigida para chegar pelo menu.
+      </p>
+    }
+  </div>
+</div>

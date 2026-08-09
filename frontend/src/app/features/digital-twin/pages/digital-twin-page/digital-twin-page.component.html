@@ -1,0 +1,259 @@
+<div class="container-fluid py-3">
+  <h1 class="h3 mb-1">Gêmeo digital</h1>
+  <p class="text-body-secondary mb-4">
+    O que esta receita costuma entregar, e se o processo mudou.
+  </p>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-5">
+          <label class="form-label" for="recipe">Receita</label>
+          <select
+            id="recipe"
+            class="form-select"
+            [ngModel]="selectedRecipeId()"
+            (ngModelChange)="onRecipeChange($event)"
+          >
+            <option value="">Selecione…</option>
+            @for (recipe of recipes(); track recipe.id) {
+              <option [value]="recipe.id">{{ recipe.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="kind">Grandeza</label>
+          <select
+            id="kind"
+            class="form-select"
+            [ngModel]="selectedKind()"
+            (ngModelChange)="selectedKind.set($event)"
+          >
+            @for (kind of kinds; track kind) {
+              <option [value]="kind">{{ kindLabels[kind] }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-md-4 d-flex gap-2">
+          <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="!selectedRecipeId() || charts.loading()"
+            (click)="analyze()"
+          >
+            Montar carta
+          </button>
+          <button
+            type="button"
+            class="btn btn-outline-secondary"
+            [disabled]="!selectedRecipeId() || profiles.computing()"
+            (click)="computeProfile()"
+          >
+            Recalcular perfil
+          </button>
+        </div>
+      </div>
+      @if (selectedRecipeId()) {
+        <p class="text-body-secondary small mb-0 mt-3">
+          {{ recipeBatches().length }} lote(s) desta receita entram na amostra.
+        </p>
+      }
+    </div>
+  </div>
+
+  @if (selectedRecipeId()) {
+    <!-- PERFIL APRENDIDO (DTW-001) -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h2 class="h5 mb-0">Perfil aprendido</h2>
+      </div>
+      <div class="card-body">
+        @if (profiles.loading()) {
+          <p class="text-body-secondary mb-0">Carregando…</p>
+        } @else if (profiles.neverComputed()) {
+          <p class="text-body-secondary mb-0">
+            Esta receita nunca foi analisada. Use “Recalcular perfil” para aprender com os lotes já
+            produzidos.
+          </p>
+        } @else if (profiles.profile(); as profile) {
+          <p class="text-body-secondary small">
+            Versão {{ profile.version }}, calculada em
+            {{ profile.computedAt | date: 'dd/MM/yyyy HH:mm' }} sobre
+            {{ profile.observedBatchIds.length }} lote(s).
+          </p>
+          <div class="table-responsive">
+            <table class="table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th scope="col">Métrica</th>
+                  <th scope="col">Média</th>
+                  <th scope="col">Faixa</th>
+                  <th scope="col">Amostra</th>
+                  <th scope="col">Confiança</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (estimate of profile.estimates; track estimate.metric) {
+                  <tr>
+                    <td>{{ estimate.label }}</td>
+                    <!-- A média nunca aparece sozinha: sem amostra e faixa ao lado, ela parece um fato. -->
+                    <td>{{ estimate.usable ? (estimate.mean | number: '1.0-2') : '—' }}</td>
+                    <td>{{ profiles.rangeOf(estimate) }}</td>
+                    <td>{{ estimate.sampleSize }}</td>
+                    <td>
+                      <span class="badge" [class]="confidenceClass(estimate.confidence)">
+                        {{ confidenceLabels[estimate.confidence] }}
+                      </span>
+                      <div class="small text-body-secondary mt-1">
+                        {{ confidenceHints[estimate.confidence] }}
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+        @if (profiles.computeError(); as message) {
+          <div class="alert alert-danger mt-3 mb-0">{{ message }}</div>
+        }
+      </div>
+    </div>
+
+    <!-- CARTA DE CONTROLE (SPC-001) -->
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="h5 mb-0">Carta de controle</h2>
+        @if (charts.chart(); as chart) {
+          <span class="badge" [class]="chart.inControl ? 'bg-success' : 'bg-danger'">
+            {{ chart.inControl ? 'Sob controle' : 'Fora de controle' }}
+          </span>
+        }
+      </div>
+      <div class="card-body">
+        <!--
+          O aviso fica acima do gráfico e não num rodapé: no desenho, a linha de controle é idêntica a uma
+          linha de especificação, e quem olha rápido lê a que espera ver.
+        -->
+        <div class="alert alert-info small">
+          <strong>Estes limites são calculados, não escolhidos.</strong> Descrevem o que este processo
+          entrega quando nada de anormal acontece — não o que a receita ou o cliente exigem. Um processo
+          pode estar <em>sob controle e fora de especificação</em> (estável e estavelmente errado) ou
+          <em>fora de controle e dentro de especificação</em> (passando na inspeção enquanto muda). A
+          especificação vive no plano de controle da qualidade, não aqui.
+        </div>
+
+        @if (charts.loading()) {
+          <p class="text-body-secondary mb-0">Montando a carta…</p>
+        } @else if (charts.shortHistory(); as message) {
+          <div class="alert alert-warning mb-0">{{ message }}</div>
+        } @else if (charts.error(); as message) {
+          <div class="alert alert-danger mb-0">{{ message }}</div>
+        } @else if (charts.chart(); as chart) {
+          <div class="overflow-x-auto">
+            <svg
+              [attr.viewBox]="charts.viewBox"
+              class="w-100"
+              style="min-width: 640px; height: 260px"
+              role="img"
+              aria-label="Carta de controle da série de medições"
+            >
+              <!-- Limite superior -->
+              @if (charts.upperY(); as y) {
+                <line
+                  [attr.x1]="charts.plotLeft"
+                  [attr.x2]="charts.plotRight"
+                  [attr.y1]="y"
+                  [attr.y2]="y"
+                  stroke="var(--bs-danger)"
+                  stroke-dasharray="6 4"
+                />
+                <text [attr.x]="charts.plotRight" [attr.y]="y - 6" text-anchor="end"
+                  font-size="11" fill="var(--bs-danger)">
+                  LSC {{ chart.controlLimits.upperControlLimit | number: '1.0-3' }}
+                </text>
+              }
+              <!-- Linha central -->
+              @if (charts.centerY(); as y) {
+                <line
+                  [attr.x1]="charts.plotLeft"
+                  [attr.x2]="charts.plotRight"
+                  [attr.y1]="y"
+                  [attr.y2]="y"
+                  stroke="var(--bs-secondary)"
+                />
+                <text [attr.x]="charts.plotRight" [attr.y]="y - 6" text-anchor="end"
+                  font-size="11" fill="var(--bs-secondary)">
+                  Centro {{ chart.controlLimits.centerLine | number: '1.0-3' }}
+                </text>
+              }
+              <!-- Limite inferior -->
+              @if (charts.lowerY(); as y) {
+                <line
+                  [attr.x1]="charts.plotLeft"
+                  [attr.x2]="charts.plotRight"
+                  [attr.y1]="y"
+                  [attr.y2]="y"
+                  stroke="var(--bs-danger)"
+                  stroke-dasharray="6 4"
+                />
+                <text [attr.x]="charts.plotRight" [attr.y]="y + 14" text-anchor="end"
+                  font-size="11" fill="var(--bs-danger)">
+                  LIC {{ chart.controlLimits.lowerControlLimit | number: '1.0-3' }}
+                </text>
+              }
+              <polyline
+                [attr.points]="charts.polyline()"
+                fill="none"
+                stroke="var(--bs-primary)"
+                stroke-width="1.5"
+              />
+              @for (plot of charts.plotted(); track plot.index) {
+                <circle
+                  [attr.cx]="plot.x"
+                  [attr.cy]="plot.y"
+                  [attr.r]="plot.outOfLimits ? 5 : 3"
+                  [attr.fill]="plot.outOfLimits ? 'var(--bs-danger)' : 'var(--bs-primary)'"
+                >
+                  <title>
+                    {{ plot.point.value }} {{ chart.unit }} —
+                    {{ plot.point.measuredAt | date: 'dd/MM/yyyy HH:mm' }}
+                  </title>
+                </circle>
+              }
+            </svg>
+          </div>
+
+          <p class="text-body-secondary small mt-2">
+            {{ chart.points.length }} medições em {{ chart.unit }}; σ =
+            {{ chart.controlLimits.sigma | number: '1.0-4' }}, calculado sobre
+            {{ chart.controlLimits.sampleSize }} pontos.
+          </p>
+
+          @if (chart.signals.length === 0) {
+            <div class="alert alert-success mb-0">
+              Nenhum sinal. A variação observada é compatível com acaso — o que não diz que a cerveja está
+              boa, apenas que o processo não mudou.
+            </div>
+          } @else {
+            <h3 class="h6 mt-3">Sinais</h3>
+            <!-- Um sinal não é defeito: diz que a variação é grande demais para ser acaso, não por quê. -->
+            <div class="d-flex flex-column gap-2">
+              @for (signal of chart.signals; track $index) {
+                <div class="border rounded p-2" [class]="signalClass(signal.kind)">
+                  <strong>{{ signalLabels[signal.kind] }}</strong>
+                  <div>{{ signal.description }}</div>
+                  <div class="small text-body-secondary">{{ signalHints[signal.kind] }}</div>
+                </div>
+              }
+            </div>
+          }
+        } @else {
+          <p class="text-body-secondary mb-0">
+            Escolha a grandeza e use “Montar carta” para analisar a série.
+          </p>
+        }
+      </div>
+    </div>
+  }
+</div>

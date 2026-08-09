@@ -1,6 +1,6 @@
 # Status — Sprint 15
 
-Estado: NÃO INICIADA
+Estado: CONCLUÍDA COM PENDÊNCIAS DECLARADAS (5 completas, 2 parciais)
 
 ## Controle das histórias
 
@@ -12,7 +12,7 @@ Estado: NÃO INICIADA
 | PWA-002 | Concluída | Claude | `frontend/.../core/offline/offline-queue.store.ts`, `V100__production_client_request_id.sql` | Fila com garantia "ao menos uma vez"; a chave gerada no registro (não no envio) a transforma em "exatamente uma" do lado do servidor. Conflito sai do ciclo automático e espera decisão. Ver DEC-PWA-003/004. |
 | INT-003 | Concluída | Claude | `integration/domain/ScanReference`, `ScanController`, `frontend/.../features/scan` | O código carrega só o quê; a permissão do tipo apontado é verificada depois da leitura. Sem leitor de câmera: o QR é um link. Ver DEC-INT-009/010. |
 | INT-006 | Parcial | Claude | `sensor/domain/PayloadFormat`, `CanonicalReading`, `V101__sensor_payload_format.sql` | Adapters de payload (canônico, iSpindel, Tilt) por HTTP. **Transporte MQTT não entregou** — ver DEB-INT-003. |
-| SEC-B07 | A fazer | — | — | — |
+| SEC-B07 | Parcial | Claude | `security/domain/SsoHandshake`, `AccountLinkDecision`, `SsoLoginHandler`, `V102__sso_handshake.sql` | Fluxo SP-initiated com state/nonce/PKCE, uso único no banco e vínculo que recusa sequestro. **Troca com IdP real não exercitada** — ver DEB-SEC-001. |
 | ~~INT-004~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
 | ~~INT-005~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
 | ~~INT-007~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
@@ -187,6 +187,87 @@ Mais três escolhas:
   problema, e só o *tipo* do erro é registrado — a mensagem pode conter a URL inteira.
 - **Só o desfecho é auditado**, não cada tentativa: retry é comportamento esperado, não fato a guardar, e
   auditar todas encheria a trilha com o ruído de um destino instável.
+
+### DEC-SEC-001 (SEC-B07) — Três amarras, cada uma contra um ataque diferente
+
+Um login federado é uma conversa que sai da aplicação, passa por um terceiro e volta. **Entre a ida e a
+volta não há nada ligando as duas pontas**: o navegador que volta pode ser outro, a resposta pode ter sido
+fabricada, e a mesma resposta pode voltar duas vezes. `SsoHandshake` é o que amarra.
+
+- **`state`** — contra CSRF de login. Sem ele, um atacante inicia um fluxo com a própria conta e induz a
+  vítima a completá-lo: ela fica logada como ele e digita dados dele achando que são seus. Comparado em
+  **tempo constante** — um `equals` sai no primeiro byte diferente, e essa diferença é medível pela rede.
+- **`nonce`** — contra replay do token. Viaja ao provedor e volta dentro do token assinado.
+- **PKCE (S256)** — contra interceptação do código. O verificador **nunca sai daqui**; só o desafio
+  derivado vai ao provedor, e é essa assimetria que faz o mecanismo valer. `plain` não é aceito: com ele o
+  desafio *é* o verificador.
+
+**Uso único, decidido pelo banco.** O `UPDATE ... WHERE consumed_at IS NULL` é o ponto: duas voltas
+simultâneas com a mesma resposta — duplo clique, retry do navegador, aba duplicada — passariam as duas por
+uma checagem feita em memória. Vence exatamente uma.
+
+**Dez minutos de validade**: cobre digitar senha e segundo fator do outro lado, e não cobre a aba esquecida
+aberta ontem — que é onde um handshake vivo vira janela de ataque.
+
+**SP-initiated apenas.** Um fluxo IdP-initiated chega sem ida, e por isso não tem como ser distinguido de
+uma resposta fabricada.
+
+**O destino pós-login é só caminho interno.** Aceitar URL absoluta faria do login um redirecionador aberto:
+um link para o nosso domínio que, depois de autenticar, joga a pessoa num site de terceiro — com a barra de
+endereço tendo mostrado o nosso domínio o tempo todo. `//evil.example.com` também é recusado: é URL
+absoluta protocol-relative.
+
+### DEC-SEC-002 (SEC-B07) — E-mail nunca vincula sozinho a uma conta que já existe
+
+Esta é **a parte perigosa de todo SSO**. O caminho tentador — "o provedor disse que é ana@cervejaria.com,
+então logue como a nossa ana@cervejaria.com" — entrega qualquer conta local a quem controlar ou enganar um
+provedor configurado. É o *account takeover por asserção de e-mail*, e já derrubou sistemas grandes.
+
+`AccountLinkDecision` tem três desfechos e nenhum outro:
+
+| Situação | Desfecho |
+|---|---|
+| Já existe vínculo provedor+subject | **Entra.** É o segundo login de quem já provou os dois lados |
+| Existe conta local de mesmo e-mail, sem vínculo | **RECUSA.** Nem com JIT ligado e e-mail verificado |
+| Não existe nada, JIT ligado, e-mail verificado | **Cria.** Não há o que sequestrar |
+
+O caminho legítimo para quem tem conta local é entrar por ela e vincular o provedor de dentro — provando os
+dois lados. **A recusa é auditada** com o e-mail asserido e o motivo: se tivesse passado, seria um sequestro
+de conta, e quem investiga precisa encontrá-la.
+
+**E-mail não verificado não provisiona**, mesmo com JIT: sem verificação, quem consegue um cadastro no
+provedor escolhe com qual e-mail aparece aqui.
+
+**A ordem das verificações é a segurança.** Aperto de mão → verificação do provedor → decisão de vínculo.
+Decidir o vínculo antes de verificar seria acreditar num e-mail que ninguém provou ter vindo do provedor.
+Fixado em teste.
+
+**A conta provisionada nasce sem senha local e sem cervejaria.** Sem senha porque quem entra por federação
+entra pelo provedor — uma senha aleatória seria uma credencial que ninguém conhece mas que existe para ser
+adivinhada. Sem cervejaria porque acesso é concedido por quem administra: provisionamento automático não
+pode virar concessão automática.
+
+### DEB-SEC-001 (SEC-B07) — A troca com o provedor real não foi exercitada
+
+O que está entregue: o fluxo SP-initiated completo do nosso lado — montagem da URL de autorização com
+state, nonce e desafio PKCE, o aperto de mão persistido, o uso único no banco, a decisão de vínculo, a
+criação de sessão com rotação de identificador, e a borda HTTP com endpoints públicos e redirecionamento
+para a aplicação.
+
+O que **não** está: a troca do código por token contra o endpoint real do provedor (OIDC) e a checagem de
+assinatura XML da assertion (SAML). As duas exigem um IdP de verdade para serem exercitadas, e escrevê-las
+sem esse exercício produziria código que compila e que ninguém sabe se funciona.
+
+**O adaptador recusa a volta explicitamente** (`UnsupportedFederationExchangeException`) em vez de aparentar
+autenticar. Uma recusa honesta é infinitamente melhor que um caminho que cria sessão sobre uma verificação
+que nunca aconteceu.
+
+Os validadores estruturais de SEC-014/015 (`OidcTokenClaimsValidator`, `SamlAssertionValidator`) estão
+ligados e serão usados pela troca quando ela existir — a história pedia reaproveitá-los, e a integração
+está pronta para recebê-los.
+
+**Critério de remoção:** Keycloak em Testcontainers com um realm de teste, e um IT cobrindo login bem
+sucedido, nonce de outra conversa, código já usado e token com assinatura inválida.
 
 ### DEC-INT-009 (INT-003) — O código carrega o quê, nunca a credencial
 
@@ -412,9 +493,34 @@ de um à do outro.
 
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- **Build/commit:** `mvnw verify` verde; `eslint` e `ng build` limpos; E2E contra API real
+- **Testes executados (INT-001):** 40 unitários novos; `SensorIngestionIT` 23/23 com PostgreSQL 18 real,
+  incluindo **oito requisições simultâneas** com a mesma identidade de mensagem (1×201 + 7×200, uma linha);
+  frontend 12 novos; `sensors.spec.ts` 4/4
+- **Testes executados (INT-002):** 28 unitários novos; `WebhookIT` 13/13 — **rollback do outbox provado**,
+  restrição única, isolamento, alçadas assimétricas, auditoria sem caminho nem segredo; frontend 11 novos;
+  `webhooks.spec.ts` 5/5
+- **Testes executados (PWA-001):** 18 novos de frontend; `offline-runbook.spec.ts` com offline real via
+  `context.setOffline` e logout esvaziando o armazenamento; um teste afirma que o gravado **não contém**
+  custo, preço, fornecedor, CPF ou e-mail
+- **Testes executados (PWA-002):** 23 novos de frontend; `MeasurementIT` 7/7 com 3 casos novos de
+  idempotência do apontamento offline
+- **Testes executados (INT-003):** 11 unitários; `ScanIT` 9/9 — sem a permissão do tipo é 403, e a
+  permissão é *do tipo* e não genérica; `scan.spec.ts` 6/6
+- **Testes executados (INT-006):** 12 unitários; 5 casos novos no `SensorIngestionIT`, incluindo que a
+  idempotência sobrevive ao adapter
+- **Testes executados (SEC-B07):** 29 unitários (`SsoHandshakeTest` 8, `AccountLinkDecisionTest` 9,
+  `SsoLoginHandlerTest` 12); `SsoLoginIT` 7/7 — endpoints públicos, verificador PKCE que não viaja na URL,
+  e **uso único decidido pelo banco**
+- **Migrations aplicadas:** `V98__sensor_ingestion.sql`, `V99__integration_webhooks.sql`,
+  `V100__production_client_request_id.sql`, `V101__sensor_payload_format.sql`, `V102__sso_handshake.sql`
+- **Contratos atualizados:** `contracts/openapi.yaml` (`/sensors/**`, `/integration/webhooks*`,
+  `/integration/scan`, `clientRequestId` em `RecordMeasurement`) e `contracts/security.openapi.yaml`
+  (`/security/sso/**`)
+- **Riscos remanescentes:** dois, ambos declarados e com critério de remoção —
+  **`DEB-INT-003`** (transporte MQTT não entregue) e **`DEB-SEC-001`** (troca com IdP real não exercitada).
+  Os demais débitos estão registrados acima.
+- **Aceite:** **5 histórias completas** (INT-001, INT-002, PWA-001, PWA-002, INT-003) e **2 parciais com
+  pendência declarada** (INT-006 sem MQTT, SEC-B07 sem a troca real). Nenhuma pendência foi escondida em
+  TODO: as duas têm identificador, motivo e critério de remoção. **A decisão de aceitar a sprint com as duas
+  parciais, ou de abrir histórias próprias para elas, é do mantenedor.**

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -10,7 +10,28 @@ import { MfaMethod, isMfaRequired } from '../../../core/auth/session-user.model'
   imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './login-page.component.html',
 })
-export class LoginPageComponent {
+export class LoginPageComponent implements OnInit {
+
+  /**
+   * O que a volta de um login federado deixou na URL (SEC-B07).
+   *
+   * <p>As duas mensagens são diferentes porque as providências são diferentes: uma pede para tentar de
+   * novo, a outra explica que existe uma conta local e que o caminho é entrar por ela e vincular o
+   * provedor de dentro. Um "falhou" genérico faria a segunda parecer um problema técnico.
+   */
+  ngOnInit(): void {
+    const sso = this.route.snapshot.queryParamMap.get('sso');
+    if (sso === 'vinculo-recusado') {
+      this.error.set(
+        'Já existe uma conta com este e-mail nesta cervejaria. Entre com e-mail e senha e vincule o ' +
+          'provedor em Minha conta — vincular pelo provedor permitiria que qualquer um com acesso a ele ' +
+          'assumisse a conta.',
+      );
+    } else if (sso === 'falhou') {
+      this.error.set('Não foi possível concluir o login pelo provedor. Tente novamente.');
+    }
+  }
+
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);

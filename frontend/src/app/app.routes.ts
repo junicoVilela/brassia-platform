@@ -82,6 +82,10 @@ export const routes: Routes = [
         data: { permission: 'experiment.plan.read' },
         loadChildren: () =>
           import('./features/experiments/experiments.routes').then(m => m.EXPERIMENTS_ROUTES),
+        path: 'blends',
+        canActivate: [permissionGuard],
+        data: { permission: 'blend.operation.read' },
+        loadChildren: () => import('./features/blends/blends.routes').then(m => m.BLENDS_ROUTES),
       },
       {
         path: 'digital-twin',

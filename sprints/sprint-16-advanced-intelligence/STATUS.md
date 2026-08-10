@@ -182,6 +182,60 @@ O campo se chama `supported`, nunca "provado": um par de lotes não prova nada, 
 impede o relatório de afirmar que provou. `experiment.plan.conclude` é permissão crítica separada de
 planejar — planejar é uma intenção, concluir define o que a cervejaria passa a acreditar sobre a própria
 receita.
+### DEC-BLD-001 (BLD-001) — O balanço fecha na simulação, não na execução
+
+Simular é o único momento barato: depois de mover cerveja entre tanques, descobrir que faltam 40 litros não
+desfaz a mistura. `BlendOperation.simulate` recusa o desequilíbrio com `UnbalancedBlendException`; a
+execução apenas confirma o que já estava fechado.
+
+Entrada tem de igualar saída mais **perda declarada**. A perda é o caminho legítimo: quem perdeu 12 L na
+transferência declara 12 L. O que não se aceita é a conta não fechar sem ninguém dizer por quê — cerveja que
+entra e não sai foi para algum lugar, e aceitar em silêncio criaria volume do nada, que vira cerveja envasada
+sem origem rastreável.
+
+Tolerância de **0,10 L**, que é o limite da instrumentação e não folga para erro: medidor de tanque não
+resolve mililitro, e exigir igualdade exata recusaria operações corretas por arredondamento — treinando quem
+opera a inflar a perda declarada até a conta passar, o que destruiria o valor do próprio campo.
+
+O volume é sempre positivo e o sentido vem do lado (`INPUT`/`OUTPUT`). Guardar o sentido no sinal do número
+transformaria todo erro de sinal num balanço que fecha por acidente.
+
+### DEC-BLD-002 (BLD-001) — Recall recalculado é consequência da aresta, não um passo
+
+O critério pedia rótulo, alergênico e recall recalculados. A implementação **não tem rotina de recálculo** —
+tem um `LineageSource`.
+
+O módulo contribui arestas de genealogia como qualquer outro (`BlendLineageAdapter`), e a rastreabilidade as
+percorre sem saber que blend existe. Assim que uma união é executada, o lote de destino passa a ter os de
+origem como ancestrais; um recall que alcança qualquer um alcança os outros. Rótulo e alergênico, que derivam
+da composição, atravessam a mesma genealogia. Nada dispara o recálculo: ele decorre da aresta existir.
+
+A alternativa — um serviço que "recalcula tudo" ao executar — teria de conhecer rótulo, alergênico e recall
+por dentro, e envelheceria a cada consumidor novo da genealogia. O `BlendIT` verifica a travessia real:
+executada a união, o serviço de rastreabilidade devolve as origens; antes de executar, não.
+
+**Só operações executadas contribuem.** Simulada e aprovada não moveram cerveja. Aresta prematura faria o
+recall exagerar — e recall que exagera é descartado por quem o recebe, tão inútil quanto um que falta.
+
+Aprovar e executar são permissões críticas separadas: uma autoriza misturar, a outra abre a válvula. Depois
+de misturadas, duas cervejas não se separam — a operação é irreversível de um jeito que quase nenhuma outra
+na plataforma é.
+
+### DEC-BLD-003 (BLD-001) — PREMISSA DECLARADA: origem e destino são lotes que já existem
+
+**Esta é uma pergunta de negócio em aberto, resolvida por premissa para não travar a entrega.**
+
+A alternativa natural seria a operação *criar* um lote novo como resultado. Ela esbarra na estrutura:
+`production_batch.order_id` é `NOT NULL` com `UNIQUE (brewery_id, order_id)`. Um resultado de blend não nasce
+de uma ordem de produção, e inventar uma ordem sintética criaria uma ordem que ninguém programou — que
+aparece no planejamento, que o custeio tentaria ratear e que o indicador de aderência contaria como desvio.
+
+Implementei com **lotes pré-existentes dos dois lados**: a operação move volume entre lotes que já estão no
+sistema. Tudo o mais da história funciona sobre isso — balanço, aprovação, execução, genealogia, recall.
+
+**O que precisa de decisão:** um blend deve produzir um lote novo? Se sim, de onde vem a ordem dele — uma
+ordem sintética marcada como tal, ou `order_id` passa a aceitar nulo com um `CHECK` que exige origem
+alternativa? A resposta muda o modelo de produção, e não é minha para dar.
 
 ## Evidências de encerramento
 

@@ -1,0 +1,295 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+      <h1 class="h3 mb-1">Blend e reprocesso</h1>
+      <p class="text-body-secondary mb-0">
+        União e divisão de volume entre lotes, com genealogia preservada.
+      </p>
+    </div>
+    <button type="button" class="btn btn-primary" (click)="showForm.set(!showForm())">
+      {{ showForm() ? 'Cancelar' : 'Simular operação' }}
+    </button>
+  </div>
+
+  @if (showForm()) {
+    <div class="card mb-4">
+      <div class="card-header">
+        <h2 class="h5 mb-0">Nova simulação</h2>
+      </div>
+      <div class="card-body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label" for="kind">Tipo</label>
+            <select
+              id="kind"
+              class="form-select"
+              [ngModel]="kind()"
+              (ngModelChange)="onKindChange($event)"
+            >
+              <option value="MERGE">União (vários lotes viram um)</option>
+              <option value="SPLIT">Divisão (um lote vira vários)</option>
+            </select>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label" for="reason">Motivo</label>
+            <input
+              id="reason"
+              type="text"
+              class="form-control"
+              placeholder="Correção de desvio, ajuste de estilo, aproveitamento de sobra…"
+              [ngModel]="reason()"
+              (ngModelChange)="reason.set($event)"
+            />
+            <!-- Sem motivo, meses depois ninguém sabe por que estas duas cervejas foram misturadas. -->
+            <div class="form-text">
+              Fica no histórico junto com a operação — é o que explica a decisão meses depois.
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-md-6">
+            <h3 class="h6">Origem</h3>
+            @for (row of inputs(); track $index) {
+              <div class="row g-2 mb-2">
+                <div class="col-7">
+                  <select
+                    class="form-select"
+                    [ngModel]="row.batchId"
+                    (ngModelChange)="updateInput($index, 'batchId', $event)"
+                    [attr.aria-label]="'Lote de origem ' + ($index + 1)"
+                  >
+                    <option value="">Lote…</option>
+                    @for (batch of batches(); track batch.id) {
+                      <option [value]="batch.id">{{ batch.code }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="col-4">
+                  <input
+                    type="number"
+                    class="form-control"
+                    placeholder="Litros"
+                    [ngModel]="row.liters"
+                    (ngModelChange)="updateInput($index, 'liters', $event)"
+                    [attr.aria-label]="'Litros da origem ' + ($index + 1)"
+                  />
+                </div>
+                <div class="col-1">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    (click)="removeInput($index)"
+                    aria-label="Remover origem"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            }
+            <button type="button" class="btn btn-link p-0" (click)="addInput()">
+              + Adicionar origem
+            </button>
+          </div>
+
+          <div class="col-md-6">
+            <h3 class="h6">Destino</h3>
+            @for (row of outputs(); track $index) {
+              <div class="row g-2 mb-2">
+                <div class="col-7">
+                  <select
+                    class="form-select"
+                    [ngModel]="row.batchId"
+                    (ngModelChange)="updateOutput($index, 'batchId', $event)"
+                    [attr.aria-label]="'Lote de destino ' + ($index + 1)"
+                  >
+                    <option value="">Lote…</option>
+                    @for (batch of batches(); track batch.id) {
+                      <option [value]="batch.id">{{ batch.code }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="col-4">
+                  <input
+                    type="number"
+                    class="form-control"
+                    placeholder="Litros"
+                    [ngModel]="row.liters"
+                    (ngModelChange)="updateOutput($index, 'liters', $event)"
+                    [attr.aria-label]="'Litros do destino ' + ($index + 1)"
+                  />
+                </div>
+                <div class="col-1">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    (click)="removeOutput($index)"
+                    aria-label="Remover destino"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            }
+            <button type="button" class="btn btn-link p-0" (click)="addOutput()">
+              + Adicionar destino
+            </button>
+          </div>
+        </div>
+
+        <div class="row g-3 mt-2">
+          <div class="col-md-4">
+            <label class="form-label" for="loss">Perda declarada (L)</label>
+            <input
+              id="loss"
+              type="number"
+              class="form-control"
+              [ngModel]="declaredLoss()"
+              (ngModelChange)="declaredLoss.set($event)"
+            />
+            <div class="form-text">
+              O caminho legítimo para a conta fechar: quem perdeu 12 L na transferência declara 12 L.
+            </div>
+          </div>
+        </div>
+
+        <!--
+          O balanço aparece enquanto se digita. Quem monta uma união lida com volumes medidos em tanque, e
+          ver a diferença em tempo real revela um erro de leitura antes de virar operação aprovada.
+        -->
+        <div class="mt-3">
+          <div class="d-flex gap-4 small text-body-secondary mb-2">
+            <span>Entra: <strong>{{ inputTotal() | number: '1.0-3' }} L</strong></span>
+            <span>Sai: <strong>{{ outputTotal() | number: '1.0-3' }} L</strong></span>
+            <span>Perda: <strong>{{ declaredLoss() || 0 | number: '1.0-3' }} L</strong></span>
+          </div>
+          @if (balanced()) {
+            <div class="alert alert-success mb-0 py-2">O balanço fecha.</div>
+          } @else if (difference() > 0) {
+            <div class="alert alert-warning mb-0 py-2">
+              <strong>Faltam {{ difference() | number: '1.0-3' }} L.</strong> Cerveja que entra e não sai
+              foi para algum lugar — declare a perda ou confira os volumes.
+            </div>
+          } @else {
+            <div class="alert alert-warning mb-0 py-2">
+              <strong>Sobram {{ -difference() | number: '1.0-3' }} L na saída.</strong> Não se cria volume
+              numa operação de blend.
+            </div>
+          }
+        </div>
+
+        @if (store.simulateError(); as message) {
+          <div class="alert alert-danger mt-3">{{ message }}</div>
+        }
+
+        <button type="button" class="btn btn-primary mt-3" [disabled]="!canSubmit()" (click)="submit()">
+          Simular
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (store.loading()) {
+    <p class="text-body-secondary">Carregando…</p>
+  } @else if (store.error(); as message) {
+    <div class="alert alert-danger">{{ message }}</div>
+  } @else {
+    <h2 class="h5">Aguardando</h2>
+    @if (store.pending().length === 0) {
+      <p class="text-body-secondary">Nenhuma operação pendente.</p>
+    }
+    @for (operation of store.pending(); track operation.id) {
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <span class="badge" [class]="statusClasses[operation.status]">
+                {{ statusLabels[operation.status] }}
+              </span>
+              <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">
+                {{ kindLabels[operation.kind] }}
+              </span>
+              <h3 class="h6 mt-2 mb-1">{{ operation.reason }}</h3>
+              <p class="text-body-secondary small mb-0">
+                @for (input of operation.inputs; track input.batchId) {
+                  {{ batchLabel(input.batchId) }} ({{ input.liters | number: '1.0-3' }} L)
+                }
+                →
+                @for (output of operation.outputs; track output.batchId) {
+                  {{ batchLabel(output.batchId) }} ({{ output.liters | number: '1.0-3' }} L)
+                }
+                · perda {{ operation.declaredLossLiters | number: '1.0-3' }} L
+              </p>
+            </div>
+            <div class="d-flex gap-2">
+              @if (operation.status === 'SIMULATED') {
+                <button
+                  type="button"
+                  class="btn btn-sm btn-primary"
+                  (click)="store.approve(operation.id)"
+                >
+                  Aprovar
+                </button>
+              }
+              @if (operation.status === 'APPROVED') {
+                <button
+                  type="button"
+                  class="btn btn-sm btn-success"
+                  (click)="store.execute(operation.id)"
+                >
+                  Executar
+                </button>
+              }
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary"
+                (click)="store.discard(operation.id)"
+              >
+                Descartar
+              </button>
+            </div>
+          </div>
+
+          @if (operation.status === 'APPROVED') {
+            <!-- Executar é irreversível: duas cervejas misturadas não se separam. -->
+            <div class="alert alert-warning mt-3 mb-0 py-2 small">
+              Executar move a cerveja e passa a valer na genealogia. Depois de misturadas, duas cervejas
+              não se separam — e a operação não poderá ser descartada.
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <h2 class="h5 mt-4">Histórico</h2>
+    @if (store.settled().length === 0) {
+      <p class="text-body-secondary">Nada executado ainda.</p>
+    }
+    @for (operation of store.settled(); track operation.id) {
+      <div class="card mb-3">
+        <div class="card-body">
+          <span class="badge" [class]="statusClasses[operation.status]">
+            {{ statusLabels[operation.status] }}
+          </span>
+          <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">
+            {{ kindLabels[operation.kind] }}
+          </span>
+          <h3 class="h6 mt-2 mb-1">{{ operation.reason }}</h3>
+          <p class="text-body-secondary small mb-1">
+            {{ operation.inputLiters | number: '1.0-3' }} L entram ·
+            {{ operation.outputLiters | number: '1.0-3' }} L saem ·
+            {{ operation.declaredLossLiters | number: '1.0-3' }} L de perda declarada
+            @if (operation.executedAt) {
+              · executada em {{ operation.executedAt | date: 'dd/MM/yyyy HH:mm' }}
+            }
+          </p>
+          @if (operation.contributesLineage) {
+            <div class="alert alert-info mb-0 py-2 small">
+              Vale na genealogia: um recall que alcançar qualquer um destes lotes alcança os demais.
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

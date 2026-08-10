@@ -72,6 +72,50 @@ class JdbcReadingRepository implements ReadingRepository {
         return spec.query((rs, n) -> map(rs)).list();
     }
 
+    /**
+     * Uma consulta para a contagem e uma para as pontas.
+     *
+     * <p>O {@code DISTINCT ON} do PostgreSQL devolve a primeira linha de cada grupo na ordem pedida — aqui,
+     * a leitura mais recente de cada grandeza. Sem ele seriam duas consultas com {@code ORDER BY … LIMIT 1},
+     * ou uma varredura da série inteira no lado Java, que é exatamente o que este método existe para evitar.
+     *
+     * <p>Leitura sinalizada como inválida <strong>conta e aparece</strong>. Escondê-la faria a avaliação ver
+     * uma curva que parou, quando o que houve foi um sensor entregando absurdo — dois problemas diferentes,
+     * com respostas diferentes.
+     */
+    @Override
+    public Latest latestOf(UUID breweryId, UUID batchId) {
+        var count = jdbc.sql("""
+                SELECT COUNT(*) FROM fermentation_reading
+                WHERE brewery_id = :brewery AND batch_id = :batch
+                """)
+                .param("brewery", breweryId).param("batch", batchId)
+                .query(Integer.class).single();
+        if (count == 0) {
+            return new Latest(0, null, null);
+        }
+        var pontas = jdbc.sql("""
+                SELECT DISTINCT ON (kind)
+                       id, brewery_id, batch_id, kind, source, value, unit, measured_at, valid, invalid_reason
+                FROM fermentation_reading
+                WHERE brewery_id = :brewery AND batch_id = :batch AND kind IN ('DENSITY', 'TEMPERATURE')
+                ORDER BY kind, measured_at DESC
+                """)
+                .param("brewery", breweryId).param("batch", batchId)
+                .query((rs, n) -> map(rs)).list();
+
+        FermentationReading densidade = null;
+        FermentationReading temperatura = null;
+        for (var leitura : pontas) {
+            if (leitura.kind() == ReadingKind.DENSITY) {
+                densidade = leitura;
+            } else if (leitura.kind() == ReadingKind.TEMPERATURE) {
+                temperatura = leitura;
+            }
+        }
+        return new Latest(count, densidade, temperatura);
+    }
+
     private FermentationReading map(ResultSet rs) throws SQLException {
         return FermentationReading.reconstitute(
                 rs.getObject("id", UUID.class),

@@ -17,6 +17,9 @@ public interface YeastHarvestRepository {
 
     Optional<YeastHarvest> findById(UUID breweryId, UUID harvestId);
 
+    /** A colheita inoculada neste lote, se houve reuso de levedura. */
+    Optional<YeastHarvest> findPitchedInto(UUID breweryId, UUID batchId);
+
     boolean existsByCode(UUID breweryId, String code);
 
     /** {@code onlyAvailable} restringe às aprovadas — as únicas reutilizáveis. */

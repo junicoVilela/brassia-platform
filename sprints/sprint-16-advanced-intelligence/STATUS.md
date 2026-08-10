@@ -8,10 +8,10 @@ Estado: EM ANDAMENTO
 |---|---|---|---|---|
 | DTW-001 | Concluída | Claude | `backend/.../digitaltwin`, `V103__digital_twin_profile.sql`, `frontend/.../features/digital-twin` | Estimativa com faixa e confiança explícitas; amostra informada e gravada, o que torna o número reproduzível. Ver DEC-DTW-001/002/003. |
 | SPC-001 | Concluída | Claude | `digitaltwin/domain/ControlLimits`, `ControlSignal`, `production/BatchMeasurementLookup` | Limite de controle é calculado e não pode ser injetado; deslocamento e tendência detectados. Ver DEC-SPC-001/002. |
-| EXP-001 | A fazer | — | — | — |
-| BLD-001 | A fazer | — | — | — |
-| FLD-001 | A fazer | — | — | — |
-| OPT-001 | A fazer | — | — | — |
+| EXP-001 | Concluída | Claude | PR #180, `backend/.../experiment`, `V104__experiment_split_batch.sql`, `frontend/.../features/experiments` | Uma variável isolada é condição de existência do plano; a conclusão não tem campo para limitações — elas derivam do desenho. Ver DEC-EXP-001/002. |
+| BLD-001 | Concluída | Claude | PR #181, `backend/.../blend`, `V105__blend_operation.sql`, `frontend/.../features/blends` | Balanço fecha na simulação; recall recalculado é consequência da aresta de genealogia, não um passo. Ver DEC-BLD-001/002/003 — **DEC-BLD-003 é premissa declarada e precisa de decisão de negócio**. |
+| FLD-001 | Concluída | Claude | PR #182, `backend/.../fieldfeedback`, `V106__field_feedback.sql`, `frontend/.../features/field-feedback` | Severidade exige em vez de sugerir; dado pessoal em tabela, permissão e endpoint próprios, com apagamento que preserva a investigação. Ver DEC-FLD-001/002. |
+| OPT-001 | Concluída | Claude | PR #183, `backend/.../optimization`, `V107__optimization_run.sql`, `frontend/.../features/optimization` | Restrições descartam e o objetivo ordena; método e versões viajam com o resultado; a IA explica sem poder alterar o score. Ver DEC-OPT-001/002/003. |
 
 ## Decisões e bloqueios
 
@@ -287,11 +287,83 @@ em vez de 404.
 O contato é **opcional**: reclamação anônima é reclamação. Exigir identificação para registrar um corpo
 estranho coletaria dado desnecessário e perderia o relato de quem não quis se identificar.
 
+### DEC-OPT-001 (OPT-001) — Restrições descartam; o objetivo ordena
+
+As duas coisas não se misturam, e essa é a decisão central. Uma alternativa que viola qualquer restrição é
+eliminada **antes** de qualquer score.
+
+Somá-la ao score com um peso alto pareceria equivalente e não é: um peso, por maior que seja, é sempre
+comprável por um ganho maior — e aí o resultado sai apresentado como ótimo tendo quebrado o que não podia.
+Restrição não é preferência; uma solução que a viola não é uma solução pior, ela não é solução.
+
+**Um objetivo por vez.** Custo, disponibilidade e alvo técnico se contradizem: o malte mais barato muda a
+cor, o que está em estoque muda o amargor. "Otimizar tudo" entregaria uma média ponderada por pesos que
+ninguém escolheu, apresentada como ótimo.
+
+O score é normalizado como ganho relativo à receita original — um score absoluto dependeria da escala da
+grandeza, e comparar 3,20 R$/L com 32 IBU não significa nada.
+
+**Trade-offs são campo obrigatório**, e listam só o que *piorou*. Uma alternativa que aparece apenas com o
+ganho — "8% mais barata" — esconde que mudou a cor em 4 EBC, e quem escolhe decide sem saber o que troca.
+Listar as melhorias junto diluiria a leitura e faria o custo parecer menor.
+
+### DEC-OPT-002 (OPT-001) — Reprodutível por construção, e a IA não tem por onde entrar
+
+Método, versão publicada da receita, marca do catálogo e semente viajam com o resultado. Sem eles, seis
+meses depois ninguém distingue "o solver mudou" de "o preço do malte mudou" — e um resultado que não se
+reproduz não se audita.
+
+A **marca do catálogo é derivada do conteúdo lido**, não da data: uma marca por data diria que a entrada
+mudou todo dia mesmo sem nada ter mudado, perdendo exatamente a informação que ela existe para dar.
+
+O solver é determinístico: enumera na ordem estável do id e desempata por rótulo. Sem o desempate, duas
+candidatas de mesmo score poderiam trocar de posição entre execuções — a corrida deixaria de ser
+reproduzível justo onde a diferença "não importa", que é o pior lugar para descobrir isso. `SolverMethod`
+declara `usesSeed()`, e o domínio recusa a incoerência nos dois sentidos: semente em método determinístico
+sugeriria variação inexistente; sua falta num método aleatório tornaria o resultado irreprodutível.
+
+**A explicação da IA é comando separado e só recebe texto.** `candidates` é imutável e definido na criação;
+`explain` escreve num campo à parte. Não existe caminho em que gerar explicação recalcule alguma coisa — um
+teste de reflexão vigia a assinatura, porque a garantia é estrutural. Gerá-la dentro da otimização deixaria
+a fronteira dependendo de disciplina de quem escreve o código.
+
+**Inviabilidade é resposta, não erro** — 201 com o corpo dizendo quais restrições se contradizem.
+Transformá-la em 4xx faria a tela tratá-la como falha e perder a informação que a torna acionável;
+"inviável" sozinho manda a pessoa afrouxar tudo ao acaso.
+
+**Nada é aplicado sem revisão.** A corrida registra que alguém aplicou — ela não aplica. A versão nova de
+receita nasce no módulo de receita, por uma pessoa, e aqui fica só o ponteiro. Se o otimizador pudesse
+escrever na receita, "revisado" viraria um campo que alguém marca em vez de um ato que alguém pratica.
+
+### DEC-OPT-003 (OPT-001) — LIMITAÇÃO DECLARADA: uma substituição por vez
+
+O solver enumera a troca de **um** ingrediente por vez. Não é descuido: trocar dois simultaneamente
+multiplica o espaço de busca e, pior, produz alternativas cujo efeito ninguém consegue atribuir a uma das
+trocas — o mesmo problema de confundimento que EXP-001 existe para impedir.
+
+O método está nomeado no resultado (`EXHAUSTIVE_SINGLE_SUBSTITUTION`), então a limitação viaja com o
+número em vez de ficar só aqui. Ampliar para combinações é acrescentar um `SolverMethod` novo, e as
+corridas antigas continuam dizendo qual estava valendo.
+
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- **Build/commit:** seis histórias, um PR cada, mergeados em série na `main` — #178 (DTW-001), #179
+  (SPC-001), #180 (EXP-001), #181 (BLD-001), #182 (FLD-001), #183 (OPT-001).
+- **Testes executados:** `mvnw verify` verde no CI em cada PR. Por história, contra PostgreSQL real via
+  Testcontainers: DTW-001 11 IT, SPC-001 8, EXP-001 14, BLD-001 13, FLD-001 15, OPT-001 13. Domínio:
+  DTW-001 28 unitários, SPC-001 27, EXP-001 19, BLD-001 18, FLD-001 20, OPT-001 15. Frontend: 494 testes,
+  build e lint limpos. `ModularityTest` verde a cada módulo novo (`experiment`, `blend`, `fieldfeedback`,
+  `optimization`).
+- **Migration aplicada:** `V103` a `V107`, todas com comentário explicando a restrição, não só declarando-a.
+- **Contratos atualizados:** `contracts/openapi.yaml` — 253 caminhos. A verificação passou a conferir
+  **chave duplicada e `$ref` órfã** além de YAML parseável, depois que uma colisão de nome
+  (`SimulateBlend`, que já existia para mistura de águas) passou pela validação do CI: `yaml.safe_load`
+  aceita chave repetida em silêncio e fica com a última.
+- **Riscos remanescentes:**
+  - **DEC-BLD-003** — premissa declarada, não decisão minha: origem e destino do blend são lotes que já
+    existem. Um blend deve produzir lote novo? De onde viria a ordem dele? Muda o modelo de produção.
+  - **DEC-OPT-003** — uma substituição por vez. Limitação nomeada no próprio resultado; ampliar é
+    acrescentar um `SolverMethod`.
+  - Pendências herdadas da Sprint 15, ainda sem dono: **DEB-INT-003** (MQTT) e **DEB-SEC-001** (troca real
+    de token com IdP). E **SEN-002**, da Sprint 11, segue órfã.
+- **Aceite:** pendente de validação manual.

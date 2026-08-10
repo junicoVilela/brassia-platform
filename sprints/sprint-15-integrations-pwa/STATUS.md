@@ -12,7 +12,7 @@ Estado: CONCLUÍDA COM PENDÊNCIAS DECLARADAS (5 completas, 2 parciais)
 | PWA-002 | Concluída | Claude | `frontend/.../core/offline/offline-queue.store.ts`, `V100__production_client_request_id.sql` | Fila com garantia "ao menos uma vez"; a chave gerada no registro (não no envio) a transforma em "exatamente uma" do lado do servidor. Conflito sai do ciclo automático e espera decisão. Ver DEC-PWA-003/004. |
 | INT-003 | Concluída | Claude | `integration/domain/ScanReference`, `ScanController`, `frontend/.../features/scan` | O código carrega só o quê; a permissão do tipo apontado é verificada depois da leitura. Sem leitor de câmera: o QR é um link. Ver DEC-INT-009/010. |
 | INT-006 | Parcial | Claude | `sensor/domain/PayloadFormat`, `CanonicalReading`, `V101__sensor_payload_format.sql` | Adapters de payload (canônico, iSpindel, Tilt) por HTTP. **Transporte MQTT não entregou** — ver DEB-INT-003. |
-| SEC-B07 | Parcial | Claude | `security/domain/SsoHandshake`, `AccountLinkDecision`, `SsoLoginHandler`, `V102__sso_handshake.sql` | Fluxo SP-initiated com state/nonce/PKCE, uso único no banco e vínculo que recusa sequestro. **Troca com IdP real não exercitada** — ver DEB-SEC-001. |
+| SEC-B07 | Concluída | Claude | `security/domain/SsoHandshake`, `AccountLinkDecision`, `SsoLoginHandler`, `V102__sso_handshake.sql` | Fluxo SP-initiated com state/nonce/PKCE, uso único no banco e vínculo que recusa sequestro. **Troca OIDC exercitada contra Keycloak real** — DEB-SEC-001 resolvido. SAML segue recusando. |
 | ~~INT-004~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
 | ~~INT-005~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
 | ~~INT-007~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
@@ -247,27 +247,44 @@ entra pelo provedor — uma senha aleatória seria uma credencial que ninguém c
 adivinhada. Sem cervejaria porque acesso é concedido por quem administra: provisionamento automático não
 pode virar concessão automática.
 
-### DEB-SEC-001 (SEC-B07) — A troca com o provedor real não foi exercitada
+### DEB-SEC-001 (SEC-B07) — RESOLVIDO: troca OIDC exercitada contra Keycloak real
 
-O que está entregue: o fluxo SP-initiated completo do nosso lado — montagem da URL de autorização com
-state, nonce e desafio PKCE, o aperto de mão persistido, o uso único no banco, a decisão de vínculo, a
-criação de sessão com rotação de identificador, e a borda HTTP com endpoints públicos e redirecionamento
-para a aplicação.
+O critério de remoção era explícito: *Keycloak em Testcontainers com realm de teste, e um IT cobrindo login
+bem sucedido, nonce de outra conversa, código já usado e token com assinatura inválida.* **Os quatro passam.**
 
-O que **não** está: a troca do código por token contra o endpoint real do provedor (OIDC) e a checagem de
-assinatura XML da assertion (SAML). As duas exigem um IdP de verdade para serem exercitadas, e escrevê-las
-sem esse exercício produziria código que compila e que ninguém sabe se funciona.
+A troca agora é real: o código vai ao endpoint de token com o verificador PKCE, e o `id_token` tem a
+**assinatura conferida contra o JWKS antes de qualquer coisa dele ser lida** — ler o `sub` ou o `email` de
+um JWT antes da assinatura é ler o que o atacante escreveu.
 
-**O adaptador recusa a volta explicitamente** (`UnsupportedFederationExchangeException`) em vez de aparentar
-autenticar. Uma recusa honesta é infinitamente melhor que um caminho que cria sessão sobre uma verificação
-que nunca aconteceu.
+Quatro barreiras independentes, e cada uma pega um ataque diferente:
 
-Os validadores estruturais de SEC-014/015 (`OidcTokenClaimsValidator`, `SamlAssertionValidator`) estão
-ligados e serão usados pela troca quando ela existir — a história pedia reaproveitá-los, e a integração
-está pronta para recebê-los.
+- **Assinatura** (JWKS) — token forjado.
+- **Emissor** — token de outro provedor.
+- **Audiência** — token legítimo emitido para *outro cliente do mesmo provedor*; tem assinatura válida e
+  emissor correto, e só a `aud` o distingue.
+- **Nonce** — token legítimo de *outra conversa* do mesmo cliente. É o caso que a assinatura não pega.
 
-**Critério de remoção:** Keycloak em Testcontainers com um realm de teste, e um IT cobrindo login bem
-sucedido, nonce de outra conversa, código já usado e token com assinatura inválida.
+**Keycloak de verdade, não dublê.** Um dublê devolve o que o código espera e prova apenas que o código lê o
+que ele mesmo escreveu. Só um provedor real exercita JWKS publicado, assinatura, código de uso único e o
+nonce viajando pelo protocolo.
+
+**Duas tentações recusadas no caminho.** O `OidcTokenClaimsValidator` exige emissor `https://` e o container
+servia HTTP: afrouxar o validador faria o teste passar e trocaria uma garantia real por um verde — um
+emissor em HTTP entrega o `id_token` em texto claro a quem estiver no caminho. Liguei TLS no container. Em
+seguida a aplicação recusou o certificado autoassinado, e a saída também não foi afrouxar a validação dela:
+o teste troca o `SSLContext` **da própria JVM**, que é o que uma cervejaria faria com uma CA interna.
+
+**Dois defeitos encontrados por acidente, e ambos valiosos:**
+
+- `spring-boot-starter-oauth2-client` estava `optional`. Compilava e **não iria para o jar** — o mesmo erro
+  que o comentário do Jackson, dez linhas acima no `pom.xml`, registra ter acontecido antes nesta base.
+  Enquanto a troca era recusada nada em runtime tocava aquelas classes; a partir de agora, tocaria.
+- O adaptador engolia a causa da falha de I/O. Passou a registrar o **tipo** (`SSLHandshakeException` vs
+  `ConnectException`), nunca a mensagem — que carrega a URL inteira. Mesmo critério do `HttpWebhookSender`,
+  e a diferença entre os dois tipos vale muito num incidente.
+
+**SAML continua recusando**, e o débito daquela parte permanece: a checagem de assinatura XML exige um IdP
+SAML de verdade para ser exercitada. O adaptador recusa a volta em vez de aparentar autenticar.
 
 ### DEC-INT-009 (INT-003) — O código carrega o quê, nunca a credencial
 

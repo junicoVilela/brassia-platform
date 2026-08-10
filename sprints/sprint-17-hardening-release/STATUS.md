@@ -1,13 +1,14 @@
 # Status — Sprint 17
 
-Estado: NÃO INICIADA
+Estado: EM EXECUÇÃO — REL-002 e REL-003 concluídas; REL-001 fora de escopo por decisão do mantenedor;
+REL-004 aguarda um ensaio real; REL-005 depende de homologação.
 
 ## Controle das histórias
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| REL-001 | Artefato pronto, execução pendente | Claude | `infra/backup/restore-drill.sh`, `table-counts.sql` | Script executado ponta a ponta contra o banco local: dump, restauração isolada, conferência e relatório. Falta rodar contra **backup de produção** — só então RPO/RTO são reais. Ver DEC-REL-004. |
-| REL-002 | Concluída | Claude | `infra/perf/*`, `ListBatchesUseCase`, `JdbcBatchRepository`, `PageResponse` | Gargalo medido **e corrigido**: com 3.000 lotes, p95 caiu de 319 ms para 9,8 ms. Ver DEC-REL-005 e DEC-REL-007. |
+| REL-001 | **Fora de escopo** (decisão do mantenedor) | — | — | O ensaio de restauração foi removido do repositório a pedido do mantenedor. A história **não fecha** como especificada — não há RPO/RTO medidos. Ver DEC-REL-008. |
+| REL-002 | Concluída | Claude | `infra/perf/*`, `ListBatchesUseCase`, `JdbcBatchRepository`, `PageResponse` | Gargalo medido **e corrigido**: com 3.000 lotes, p95 caiu de 319 ms para 9,8 ms. Ver DEC-REL-007. |
 | REL-003 | Concluída | Claude | `InternalAddressGuard`, `SecurityConfiguration`, `.github/workflows/ci.yml`, `frontend/package-lock.json` | Um achado ALTO (SSRF no webhook) e dois médios resolvidos; varredura de CVE passou a barrar merge. Ver DEC-REL-001/002/003. |
 | REL-004 | Runbook pronto, ensaio pendente | Claude | `infra/runbooks/deploy-rollback.md` | Árvore de decisão, forward-fix e o registro de ensaios. Fecha com pelo menos uma linha na tabela de ensaios. Ver DEC-REL-006. |
 | REL-005 | A fazer | — | — | — |
@@ -145,6 +146,23 @@ ponto dele. Este próprio PR é o teste — se a action ainda não funcionasse, 
 push protection recusa antes de o commit chegar ao servidor, que é o único momento em que ainda não houve
 vazamento.
 
+### DEC-REL-006 (REL-004) — Runbook escrito em torno de uma regra: o banco não volta
+
+`docs/20_RELEASE_MIGRATION.md` define expand/contract, e a consequência operacional é que *rollback* é
+sempre da **aplicação**. Um runbook que promete desfazer migration promete o que não vai cumprir no dia
+em que precisar.
+
+Contém árvore de decisão (rollback / forward-fix / restaurar), o que observar no ensaio de lock
+(`ADD CONSTRAINT` sem `NOT VALID` varre a tabela inteira e bloqueia escrita; `CREATE INDEX` sem
+`CONCURRENTLY` idem), e a regra que só dói no incidente: **migration publicada não é editada** — o
+checksum diverge e o Flyway recusa subir, em produção, no meio do problema.
+
+Registra também o pré-requisito criado por `DEC-REL-002`: o coletor de métricas precisa de credencial,
+senão o painel fica cego exatamente durante o deploy.
+
+**O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
+honesto — significa que nenhum ensaio foi feito.
+
 ### DEC-REL-007 (REL-002) — O gargalo era N+1, não payload; corrigidos os dois
 
 A listagem de lotes foi paginada, e a investigação mudou o diagnóstico pelo caminho.
@@ -194,6 +212,34 @@ pelo formato que eu esperava encontrar achou exatamente o que eu esperava — e 
 
 O E2E foi a única barreira que pegou o segundo caso. Um teste que atravessa a stack real vale por isso:
 ele não sabe quantos clientes existem, só sabe que a tela ficou vazia.
+
+### DEC-REL-008 (REL-001) — O ensaio de restauração foi removido a pedido do mantenedor
+
+`infra/backup/` (`restore-drill.sh` e `table-counts.sql`) saiu do repositório por decisão explícita do
+mantenedor: não há interesse em manter isso agora. As três referências no runbook de deploy foram
+substituídas pelo procedimento manual equivalente, para o runbook não apontar para arquivo inexistente —
+instrução que manda rodar um script que não existe é pior que instrução nenhuma no meio de um incidente.
+
+**A consequência, registrada e não suavizada:** REL-001 pede "RPO/RTO medidos; procedimento reproduzível e
+auditado", e sem o ensaio ela não fecha como especificada. `docs/21_DATA_RETENTION_BACKUP.md` continua
+afirmando que **backup sem teste de restauração não é controle válido** — o documento e o repositório
+passam a discordar, e quem for auditar isso encontra a divergência aqui, não por surpresa.
+
+**Vale preservar o que o ensaio ensinou**, porque foi aprendido rodando o script, não escrevendo-o, e
+custaria o mesmo tempo de novo:
+
+- **`n_live_tup` não serve para conferir integridade.** É estimativa do autovacuum e vem **zerada** num
+  banco recém-restaurado — a conferência acusaria divergência em todas as tabelas, sempre. O correto é
+  `COUNT(*)` exato, via `query_to_xml` quando se quer varrer todas as tabelas de uma vez.
+- **Ferramentas do PostgreSQL devem rodar em container da mesma imagem do servidor.** Não estavam
+  instaladas no host, e `pg_dump` de versão menor que a do servidor recusa rodar — detalhe que aparece
+  justamente no dia da restauração de emergência.
+- **Senha com caractere especial quebra a URL de conexão.** `brassia85!@#` faz o parser ler `#@localhost`
+  como host, e o erro ("could not translate host name") não aponta para a senha.
+
+**Como reverter:** o script está no histórico do git até o commit imediatamente anterior a este; um
+`git show <commit>:infra/backup/restore-drill.sh` o traz de volta inteiro. A decisão é reversível a
+custo baixo — o que não é reversível é descobrir que o backup não restaura no dia em que ele for preciso.
 
 ## Evidências de encerramento
 

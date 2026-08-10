@@ -13,7 +13,7 @@ Procedimento operacional para colocar uma versão em produção e para voltar qu
 
 | Item | Como conferir |
 |---|---|
-| Backup restaurável **de hoje** | `infra/backup/restore-drill.sh` verde nas últimas 24 h |
+| Backup restaurável **de hoje** | Restauração ensaiada nas últimas 24 h. O ensaio é manual: não há script no repositório (ver DEC-REL-008) |
 | Credencial do coletor de métricas | `/actuator/prometheus` passou a exigir autenticação (REL-003). Sem isso o painel fica cego **exatamente durante o deploy** |
 | Artefato imutável promovido | O mesmo artefato que passou em homologação. Rebuild entre ambientes invalida o teste |
 | Janela e responsável pela decisão de reverter | Nome, não papel. "A equipe decide" significa que ninguém decide às 3 h |
@@ -25,10 +25,11 @@ Procedimento operacional para colocar uma versão em produção e para voltar qu
 Nunca aplique migration nova direto em produção sem medir o tempo de lock numa cópia com volume real.
 
 ```bash
-# Cópia isolada a partir do backup mais recente
-infra/backup/restore-drill.sh          # deixa um Postgres restaurado; anote o RTO
+# 1. Restaure o backup mais recente num PostgreSQL isolado (porta e volume próprios) e anote o tempo.
+#    Confira a integridade comparando contagem por tabela com a origem e a versão do Flyway: um dump que
+#    restaura sem erro mas volta com menos linhas restaurou um banco diferente.
 
-# Aplique as migrations da versão nova contra a cópia e cronometre
+# 2. Aplique as migrations da versão nova contra a cópia e cronometre
 JAVA_HOME=~/.sdkman/candidates/java/25.0.3-tem ./mvnw -pl backend spring-boot:run \
   --spring.datasource.url=jdbc:postgresql://localhost:5544/brassia
 ```
@@ -99,9 +100,8 @@ Quando não dá para voltar:
 
 Só quando houve **perda ou corrupção de dados** que a correção não alcança.
 
-```bash
-infra/backup/restore-drill.sh    # valide o backup ANTES de apontar produção para ele
-```
+Valide o backup numa cópia isolada **antes** de apontar produção para ele. Restaurar direto sobre
+produção um backup que não se sabe íntegro troca um incidente por dois.
 
 Custo real: tudo que entrou entre o backup e o incidente **se perde** — é a definição do RPO. Decisão de
 pessoa nomeada, nunca automática.

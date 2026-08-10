@@ -1,6 +1,6 @@
 # Status — Sprint 16
 
-Estado: EM ANDAMENTO
+Estado: CONCLUÍDA — 6/6 histórias entregues e mergeadas; aguardando aceite (validação manual)
 
 ## Controle das histórias
 
@@ -364,6 +364,8 @@ corridas antigas continuam dizendo qual estava valendo.
     existem. Um blend deve produzir lote novo? De onde viria a ordem dele? Muda o modelo de produção.
   - **DEC-OPT-003** — uma substituição por vez. Limitação nomeada no próprio resultado; ampliar é
     acrescentar um `SolverMethod`.
-  - Pendências herdadas da Sprint 15, ainda sem dono: **DEB-INT-003** (MQTT) e **DEB-SEC-001** (troca real
-    de token com IdP). E **SEN-002**, da Sprint 11, segue órfã.
+  - ~~Pendências herdadas da Sprint 15~~ — **as três fecharam depois deste registro**: `DEB-INT-003` (MQTT
+    exercitado contra broker HiveMQ real), `DEB-SEC-001` (OIDC e SAML contra Keycloak real) e `SEN-002`
+    (biblioteca de descritores, PR #192). Todas estavam bloqueadas pela minha leitura, não pela realidade:
+    o critério de remoção já nomeava a ferramenta, ou ela já estava no projeto.
 - **Aceite:** pendente de validação manual.

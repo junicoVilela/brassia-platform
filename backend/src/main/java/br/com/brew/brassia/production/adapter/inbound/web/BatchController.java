@@ -15,6 +15,7 @@ import br.com.brew.brassia.production.application.port.inbound.ListMeasurementsU
 import br.com.brew.brassia.production.application.port.inbound.RecordMeasurementUseCase;
 import br.com.brew.brassia.production.application.port.inbound.TransferBatchUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
+import br.com.brew.brassia.shared.web.PageResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import jakarta.validation.Valid;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -60,10 +62,28 @@ final class BatchController {
         this.registerConsumption = registerConsumption;
     }
 
+    /**
+     * Lista os lotes, paginado (REL-002).
+     *
+     * <p><strong>Mudança incompatível, feita agora de propósito.</strong> A resposta deixou de ser um
+     * array e passou a ser um envelope com {@code content}. A listagem sem limite crescia com o histórico
+     * — 300 lotes em 40 ms, 3.000 em 319 ms — e cruzaria a meta de 500 ms por volta de 4.700 lotes.
+     *
+     * <p>Quebrar o contrato só é barato antes da primeira produção, que é onde o projeto está
+     * (0.1.0-SNAPSHOT, Sprint 17). Depois do primeiro cliente integrado, a mesma correção exigiria versão
+     * nova e janela de transição (`docs/20_RELEASE_MIGRATION.md`) — o custo é dez vezes maior por adiar.
+     */
     @GetMapping
-    List<BatchView> list(@AuthenticationPrincipal SecurityPrincipal principal) {
+    PageResponse<BatchView> list(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal SecurityPrincipal principal) {
         principal.requirePermission("production.batch.read");
-        return listBatches.handle(principal.requireBrewery()).stream().map(BatchView::from).toList();
+        var result = listBatches.handle(
+                new ListBatchesUseCase.Query(principal.requireBrewery(), page, size));
+        var content = result.content().stream().map(BatchView::from).toList();
+        return new PageResponse<>(content, result.page(), result.size(), result.totalElements(),
+                result.totalPages());
     }
 
     @GetMapping("/{id}")

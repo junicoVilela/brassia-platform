@@ -381,7 +381,7 @@ class BatchVarianceIT {
     private String batchOfOrder(MockHttpSession session, String orderId) throws Exception {
         var body = mockMvc.perform(get("/api/v1/production/batches").session(session))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        for (JsonNode node : JSON.readTree(body)) {
+        for (JsonNode node : JSON.readTree(body).get("content")) {
             if (node.get("orderId").asText().equals(orderId)) {
                 return node.get("id").asText();
             }

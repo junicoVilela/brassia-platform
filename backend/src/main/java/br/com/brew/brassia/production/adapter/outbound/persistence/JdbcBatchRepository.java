@@ -10,6 +10,9 @@ import br.com.brew.brassia.production.domain.BatchStepType;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -80,11 +83,60 @@ class JdbcBatchRepository implements BatchRepository {
     }
 
     @Override
-    public List<Batch> findAll(UUID breweryId) {
-        return jdbc.sql(COLUMNS + " WHERE brewery_id = :brewery ORDER BY started_at DESC")
-                .param("brewery", breweryId)
-                .query((rs, n) -> map(rs))
+    public List<Batch> findPage(UUID breweryId, int offset, int limit) {
+        var rows = jdbc.sql(COLUMNS + """
+                 WHERE brewery_id = :brewery
+                 ORDER BY started_at DESC, id
+                 LIMIT :limit OFFSET :offset
+                """)
+                .param("brewery", breweryId).param("limit", limit).param("offset", offset)
+                .query((rs, n) -> new Row(rs))
                 .list();
+
+        // Os passos vêm em UMA consulta para a página inteira, não uma por lote.
+        //
+        // O `map` original chamava `steps()` por linha: listar 3.000 lotes disparava 3.001 consultas, e
+        // era esse N+1 — não o tamanho do JSON — que fazia a listagem crescer linearmente (REL-002).
+        // Paginar sozinho esconderia o problema numa página de 20; ele voltaria em qualquer lugar que
+        // lesse muitos lotes.
+        var stepsByBatch = stepsOf(breweryId, rows.stream().map(Row::id).toList());
+        return rows.stream()
+                .map(row -> row.toBatch(stepsByBatch.getOrDefault(row.id(), List.of())))
+                .toList();
+    }
+
+    @Override
+    public long countByBrewery(UUID breweryId) {
+        return jdbc.sql("SELECT count(*) FROM production_batch WHERE brewery_id = :brewery")
+                .param("brewery", breweryId)
+                .query(Long.class).single();
+    }
+
+    /**
+     * Passos de vários lotes de uma vez.
+     *
+     * <p>Devolve mapa vazio para lista vazia: montar {@code IN ()} com nenhum id é erro de sintaxe no
+     * PostgreSQL, e a página vazia é caso normal — a última página de qualquer listagem.
+     */
+    private Map<UUID, List<BatchStep>> stepsOf(UUID breweryId, List<UUID> batchIds) {
+        if (batchIds.isEmpty()) {
+            return Map.of();
+        }
+        var byBatch = new HashMap<UUID, List<BatchStep>>();
+        jdbc.sql("""
+                SELECT batch_id, id, step_order, type, label, step_status, started_at, completed_at
+                FROM production_batch_step
+                WHERE brewery_id = :brewery AND batch_id IN (:batches)
+                ORDER BY batch_id, step_order
+                """)
+                .param("brewery", breweryId).param("batches", batchIds)
+                .query((rs, n) -> {
+                    var batchId = rs.getObject("batch_id", UUID.class);
+                    byBatch.computeIfAbsent(batchId, k -> new ArrayList<>()).add(readStep(rs));
+                    return batchId;
+                })
+                .list();
+        return byBatch;
     }
 
     @Override
@@ -113,6 +165,7 @@ class JdbcBatchRepository implements BatchRepository {
                 steps(breweryId, batchId));
     }
 
+    /** Passos de UM lote. Continua servindo o detalhe, onde uma consulta por lote é o custo certo. */
     private List<BatchStep> steps(UUID breweryId, UUID batchId) {
         return jdbc.sql("""
                 SELECT id, step_order, type, label, step_status, started_at, completed_at
@@ -120,19 +173,53 @@ class JdbcBatchRepository implements BatchRepository {
                 WHERE brewery_id = :brewery AND batch_id = :batch ORDER BY step_order
                 """)
                 .param("brewery", breweryId).param("batch", batchId)
-                .query((rs, n) -> {
-                    var startedAt = rs.getTimestamp("started_at");
-                    var completedAt = rs.getTimestamp("completed_at");
-                    return new BatchStep(
-                            rs.getObject("id", UUID.class),
-                            rs.getInt("step_order"),
-                            BatchStepType.valueOf(rs.getString("type")),
-                            rs.getString("label"),
-                            BatchStepStatus.valueOf(rs.getString("step_status")),
-                            startedAt == null ? null : startedAt.toInstant(),
-                            completedAt == null ? null : completedAt.toInstant());
-                })
+                .query((rs, n) -> readStep(rs))
                 .list();
+    }
+
+    /** Leitura de um passo, compartilhada pelo detalhe e pela carga em lote da listagem. */
+    private static BatchStep readStep(ResultSet rs) throws SQLException {
+        var startedAt = rs.getTimestamp("started_at");
+        var completedAt = rs.getTimestamp("completed_at");
+        return new BatchStep(
+                rs.getObject("id", UUID.class),
+                rs.getInt("step_order"),
+                BatchStepType.valueOf(rs.getString("type")),
+                rs.getString("label"),
+                BatchStepStatus.valueOf(rs.getString("step_status")),
+                startedAt == null ? null : startedAt.toInstant(),
+                completedAt == null ? null : completedAt.toInstant());
+    }
+
+    /**
+     * Uma linha de lote sem os passos, para a listagem carregá-los em bloco depois.
+     *
+     * <p>Existe porque o {@code map} original resolvia os passos dentro do próprio mapeamento — o que
+     * torna o N+1 invisível em quem lê o código: a consulta extra não aparece na chamada, aparece no
+     * mapeador.
+     */
+    private record Row(UUID id, UUID breweryId, UUID orderId, String code, UUID recipeId,
+            int recipeVersion, String recipeName, java.math.BigDecimal volumeLiters, BatchStatus status,
+            java.time.Instant startedAt, UUID startedBy) {
+
+        Row(ResultSet rs) throws SQLException {
+            this(rs.getObject("id", UUID.class),
+                    rs.getObject("brewery_id", UUID.class),
+                    rs.getObject("order_id", UUID.class),
+                    rs.getString("code"),
+                    rs.getObject("recipe_id", UUID.class),
+                    rs.getInt("recipe_version"),
+                    rs.getString("recipe_name"),
+                    rs.getBigDecimal("volume_liters"),
+                    BatchStatus.valueOf(rs.getString("status")),
+                    rs.getTimestamp("started_at").toInstant(),
+                    rs.getObject("started_by", UUID.class));
+        }
+
+        Batch toBatch(List<BatchStep> steps) {
+            return Batch.reconstitute(new BatchId(id), breweryId, orderId, code, recipeId,
+                    recipeVersion, recipeName, volumeLiters, status, startedAt, startedBy, steps);
+        }
     }
 
     @Override

@@ -7,7 +7,7 @@ Estado: NÃO INICIADA
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
 | REL-001 | Artefato pronto, execução pendente | Claude | `infra/backup/restore-drill.sh`, `table-counts.sql` | Script executado ponta a ponta contra o banco local: dump, restauração isolada, conferência e relatório. Falta rodar contra **backup de produção** — só então RPO/RTO são reais. Ver DEC-REL-004. |
-| REL-002 | Artefato pronto; **um gargalo real medido** | Claude | `infra/perf/seed-representative-dataset.sql`, `measure-journeys.sh` | `/api/v1/production/batches` não pagina e cruza a meta de 500 ms por volta de 4.700 lotes — medido, não extrapolado. Ver DEC-REL-005. |
+| REL-002 | Concluída | Claude | `infra/perf/*`, `ListBatchesUseCase`, `JdbcBatchRepository`, `PageResponse` | Gargalo medido **e corrigido**: com 3.000 lotes, p95 caiu de 319 ms para 9,8 ms. Ver DEC-REL-005 e DEC-REL-007. |
 | REL-003 | Concluída | Claude | `InternalAddressGuard`, `SecurityConfiguration`, `.github/workflows/ci.yml`, `frontend/package-lock.json` | Um achado ALTO (SSRF no webhook) e dois médios resolvidos; varredura de CVE passou a barrar merge. Ver DEC-REL-001/002/003. |
 | REL-004 | Runbook pronto, ensaio pendente | Claude | `infra/runbooks/deploy-rollback.md` | Árvore de decisão, forward-fix e o registro de ensaios. Fecha com pelo menos uma linha na tabela de ensaios. Ver DEC-REL-006. |
 | REL-005 | A fazer | — | — | — |
@@ -124,6 +124,56 @@ ponto dele. Este próprio PR é o teste — se a action ainda não funcionasse, 
 **Push protection** é a adição de maior valor prático: o `gitleaks` no CI pega segredo que já foi enviado;
 push protection recusa antes de o commit chegar ao servidor, que é o único momento em que ainda não houve
 vazamento.
+
+### DEC-REL-007 (REL-002) — O gargalo era N+1, não payload; corrigidos os dois
+
+A listagem de lotes foi paginada, e a investigação mudou o diagnóstico pelo caminho.
+
+**A causa não era o tamanho do JSON.** O mapeador do repositório resolvia os passos *dentro* do
+mapeamento — uma consulta por lote. Listar 3.000 disparava **3.001 consultas**. O N+1 era invisível para
+quem lesse a chamada: a consulta extra não aparecia ali, aparecia no mapeador.
+
+Isso muda a correção. Paginar sozinho esconderia o problema numa página de 20, e ele voltaria em qualquer
+lugar que lesse muitos lotes. Foram corrigidos os dois: a página limita o conjunto e os passos da página
+passaram a vir numa consulta só.
+
+| 3.000 lotes | p95 |
+|---|---|
+| Antes | 319 ms |
+| Depois | **9,8 ms** |
+
+32× mais rápido, e — o que importa mais — deixou de crescer com o histórico: três consultas por chamada,
+haja 3 mil ou 300 mil lotes.
+
+**Quebra de contrato deliberada.** A resposta deixou de ser array e virou envelope com `content`.
+`docs/20_RELEASE_MIGRATION.md` exige versão nova e janela de transição para mudança incompatível — fiz a
+quebra direta porque o projeto está em `0.1.0-SNAPSHOT` e esta sprint é a **primeira produção**. É o último
+momento em que isso é barato; depois do primeiro cliente integrado, a mesma correção custa dez vezes mais.
+
+Duas decisões de forma:
+
+- **Teto de 100 no `size`, normalizado em vez de recusado.** Sem teto, `size=100000` reproduz exatamente o
+  problema que a paginação fecha. Recusar com 400 transformaria um deslize de quem chama em incidente de
+  suporte.
+- **`listForSelection` para os cinco seletores.** Eles só populam um `<select>`, mas truncar em silêncio
+  faria quem procura um lote concluir que ele não existe. O helper devolve `truncated` e `total` junto,
+  centralizando a honestidade num lugar em vez de cinco.
+
+**O mesmo erro de alcance, duas vezes — e é o que vale registrar.**
+
+Primeiro no backend: detectei os consumidores procurando um padrão de iteração específico e achei 13
+arquivos. A suíte acusou **180 erros** porque havia 33, com formatos diferentes.
+
+Depois no frontend, e pior: corrigi o `BatchesApi` de produção e os componentes que o usam. **Build verde,
+503 testes verdes** — e o E2E vermelho. Havia **sete clientes independentes** do mesmo endpoint
+(`packaging`, `fermentation/readings`, `fermentation/yeast`, `costing`, `reporting`, `ai`, `production`),
+cada um declarando o próprio tipo local. Tipagem forte não ajudou justamente porque cada um tinha o seu.
+
+As duas vezes a correção foi a mesma: **procurar pelo endpoint, não pelo padrão nem pela classe**. Procurar
+pelo formato que eu esperava encontrar achou exatamente o que eu esperava — e nada além.
+
+O E2E foi a única barreira que pegou o segundo caso. Um teste que atravessa a stack real vale por isso:
+ele não sabe quantos clientes existem, só sabe que a tela ficou vazia.
 
 ## Evidências de encerramento
 

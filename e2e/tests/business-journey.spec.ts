@@ -85,8 +85,9 @@ test.describe('jornada de negócio', () => {
     await post(page, `/api/v1/brew-orders/${order}/reserve-stock`, {});
     await post(page, `/api/v1/brew-orders/${order}/start`, {});
 
+    // A listagem é paginada (REL-002): o array vem em `content`.
     const batches = await get(page, '/api/v1/production/batches');
-    const batch = batches.find((b: { orderId: string }) => b.orderId === order);
+    const batch = batches.content.find((b: { orderId: string }) => b.orderId === order);
     expect(batch, 'a ordem iniciada deve ter gerado um lote').toBeTruthy();
 
     await post(page, `/api/v1/production/batches/${batch.id}/transfer`, {

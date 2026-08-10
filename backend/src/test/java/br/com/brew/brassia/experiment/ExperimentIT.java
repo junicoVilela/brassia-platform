@@ -349,7 +349,8 @@ class ExperimentIT {
 
         var listBody = mockMvc.perform(get("/api/v1/production/batches").session(session))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        for (var node : JSON.readTree(listBody)) {
+        // A listagem passou a ser paginada (REL-002): o array vem em `content`.
+        for (var node : JSON.readTree(listBody).get("content")) {
             if (node.get("orderId").asText().equals(orderId)) {
                 return node.get("id").asText();
             }

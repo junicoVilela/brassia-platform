@@ -1,5 +1,7 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
+import { Observable, map } from 'rxjs';
+import { MAX_PAGE_SIZE, PageResponse } from '../../../core/http/page.model';
 import { BatchAlert, CreateAlertRequest } from '../domain/alert.model';
 import { Batch } from '../domain/batch.model';
 import {
@@ -17,8 +19,34 @@ export class BatchesApi {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = '/api/v1/production/batches';
 
-  list() {
-    return this.http.get<Batch[]>(this.baseUrl);
+  /**
+   * Uma página de lotes (REL-002).
+   *
+   * A listagem deixou de devolver tudo: crescia com o histórico e cruzaria a meta de 500 ms por volta de
+   * 4.700 lotes. O envelope traz `totalElements`, que é o que permite a quem consome saber que existe
+   * mais do que veio.
+   */
+  list(page = 0, size = 20) {
+    const params = new HttpParams().set('page', page).set('size', size);
+    return this.http.get<PageResponse<Batch>>(this.baseUrl, { params });
+  }
+
+  /**
+   * Os lotes para preencher um seletor, com o aviso de truncamento junto.
+   *
+   * Existe para que os cinco lugares que só querem popular um `<select>` não repitam a mesma decisão — e,
+   * principalmente, para que nenhum deles trunque em silêncio. Um seletor que mostra 100 de 3.000 lotes
+   * sem dizer nada é pior que um seletor vazio: o lote procurado simplesmente não está lá, e quem procura
+   * conclui que ele não existe.
+   */
+  listForSelection(): Observable<{ items: Batch[]; truncated: boolean; total: number }> {
+    return this.list(0, MAX_PAGE_SIZE).pipe(
+      map(page => ({
+        items: page.content,
+        truncated: page.totalElements > page.content.length,
+        total: page.totalElements,
+      })),
+    );
   }
 
   get(batchId: string) {

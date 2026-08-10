@@ -18,9 +18,14 @@ function setup(api: Partial<BatchesApi>) {
   return TestBed.inject(BatchesStore);
 }
 
+/** Envelope de paginação (REL-002): a listagem deixou de devolver array cru. */
+function pagina<T>(content: T[]) {
+  return { content, page: 0, size: 20, totalElements: content.length, totalPages: 1 };
+}
+
 describe('BatchesStore', () => {
   it('carrega lotes (vazio)', () => {
-    const list = vi.fn(() => of([]));
+    const list = vi.fn(() => of(pagina([])));
     const store = setup({ list });
     store.load();
     expect(list).toHaveBeenCalledOnce();
@@ -28,10 +33,10 @@ describe('BatchesStore', () => {
   });
 
   it('expõe os lotes carregados e alterna o expandido', () => {
-    const list = vi.fn(() => of([
+    const list = vi.fn(() => of(pagina([
       { id: 'b1', orderId: 'o1', code: 'OP-1', recipeId: 'r1', recipeVersion: 1, recipeName: 'IPA',
         volumeLiters: 400, status: 'IN_PROGRESS', startedAt: '2026-07-27T00:00:00Z', steps: [] },
-    ]));
+    ])));
     const store = setup({ list });
     store.load();
     expect(store.items().length).toBe(1);

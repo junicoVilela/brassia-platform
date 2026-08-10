@@ -113,7 +113,8 @@ class StartBatchIT {
     // --- helpers ---
 
     private String batchByOrder(String json, String orderId) throws Exception {
-        for (var node : JSON.readTree(json)) {
+        // A listagem passou a ser paginada (REL-002): o array vem em `content`.
+        for (var node : JSON.readTree(json).get("content")) {
             if (node.get("orderId").asText().equals(orderId)) {
                 return node.get("id").asText();
             }

@@ -19,6 +19,10 @@ import org.springframework.stereotype.Component;
  * num destino que não responde, enquanto as outras cervejarias esperam. A entrega que estourou o tempo
  * volta pelo backoff — não se perde, só não atrapalha.
  *
+ * <p><strong>Destinos internos são recusados antes de qualquer conexão</strong> — ver
+ * {@link InternalAddressGuard}. Sem isso, o cadastro de webhook vira uma sonda da rede interna operada
+ * pelo próprio servidor, e o status gravado na entrega devolve o resultado a quem sondou.
+ *
  * <p><strong>Redirecionamento é recusado.</strong> {@code NEVER} não é conservadorismo: seguir um 302
  * mandaria o corpo assinado — e os cabeçalhos — para um endereço que ninguém cadastrou e que a assinatura
  * do destino original não cobre. Um destino comprometido poderia redirecionar os eventos da cervejaria
@@ -42,6 +46,13 @@ class HttpWebhookSender implements WebhookSender {
 
     @Override
     public Result send(URI endpoint, Map<String, String> headers, String body) {
+        var refusal = InternalAddressGuard.reasonToRefuse(endpoint);
+        if (refusal.isPresent()) {
+            // Sem status: nenhuma requisição saiu. Tratada como inalcançável para entrar no backoff como
+            // qualquer outra falha — e para não dar, pela forma da resposta, a informação de que o
+            // endereço existe lá dentro.
+            return Result.unreachable(refusal.get());
+        }
         try {
             var builder = HttpRequest.newBuilder(endpoint)
                     .timeout(requestTimeout)

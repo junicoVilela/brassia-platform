@@ -1,4 +1,4 @@
-import { expect, login, test } from './support';
+import { expect, login, test, seedBatch } from './support';
 
 /**
  * Propostas de comando (AIA-003).
@@ -14,6 +14,7 @@ import { expect, login, test } from './support';
 test.describe('propostas do copiloto', () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
+    await seedBatch(page);
   });
 
   test('a tela abre com as propostas vindas da stack real', async ({ page }) => {
@@ -51,7 +52,8 @@ test.describe('propostas do copiloto', () => {
     const empty = page.getByText('Nenhum lote de produção ainda.');
     const buttons = page.getByRole('button', { name: 'Pedir proposta' });
     await expect(empty.or(buttons.first())).toBeVisible();
-    test.skip(await empty.isVisible(), 'a stack local não tem lote de produção');
+    // Semeado no beforeEach: o vazio aqui seria defeito, não ambiente.
+    await expect(empty).toBeHidden();
 
     const proposed = page.waitForResponse(r => r.url().includes('/api/v1/ai/proposals/batches/'));
     await buttons.first().click();

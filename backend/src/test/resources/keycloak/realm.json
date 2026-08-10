@@ -11,9 +11,64 @@
       "secret": "segredo-de-teste-nao-usado-em-producao",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["http://localhost:8080/api/v1/security/sso/*"],
-      "webOrigins": ["*"],
-      "attributes": { "pkce.code.challenge.method": "S256" }
+      "redirectUris": [
+        "http://localhost:8080/api/v1/security/sso/*"
+      ],
+      "webOrigins": [
+        "*"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "https://brassia.local/saml",
+      "enabled": true,
+      "protocol": "saml",
+      "publicClient": true,
+      "redirectUris": [
+        "http://localhost:8080/api/v1/security/sso/*"
+      ],
+      "attributes": {
+        "saml.assertion.signature": "true",
+        "saml.server.signature": "true",
+        "saml.signature.algorithm": "RSA_SHA256",
+        "saml_name_id_format": "email",
+        "saml.client.signature": "false",
+        "saml_assertion_consumer_url_post": "http://localhost:8080/api/v1/security/sso/kc-saml/callback"
+      },
+      "protocolMappers": [
+        {
+          "name": "email",
+          "protocol": "saml",
+          "protocolMapper": "saml-user-property-mapper",
+          "config": {
+            "user.attribute": "email",
+            "attribute.name": "email",
+            "attribute.nameformat": "Basic"
+          }
+        },
+        {
+          "name": "displayName",
+          "protocol": "saml",
+          "protocolMapper": "saml-user-property-mapper",
+          "config": {
+            "user.attribute": "firstName",
+            "attribute.name": "displayName",
+            "attribute.nameformat": "Basic"
+          }
+        },
+        {
+          "name": "emailVerified",
+          "protocol": "saml",
+          "protocolMapper": "saml-hardcode-attribute-mapper",
+          "config": {
+            "attribute.name": "emailVerified",
+            "attribute.nameformat": "Basic",
+            "attribute.value": "true"
+          }
+        }
+      ]
     }
   ],
   "users": [
@@ -24,7 +79,13 @@
       "emailVerified": true,
       "firstName": "Ana",
       "lastName": "Brassagem",
-      "credentials": [{ "type": "password", "value": "senha-de-teste", "temporary": false }]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "senha-de-teste",
+          "temporary": false
+        }
+      ]
     }
   ]
 }

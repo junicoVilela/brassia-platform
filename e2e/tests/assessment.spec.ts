@@ -1,4 +1,4 @@
-import { expect, login, test } from './support';
+import { expect, login, test, seedBatch } from './support';
 
 /**
  * Avaliar lote (AIA-002).
@@ -14,6 +14,7 @@ import { expect, login, test } from './support';
 test.describe('avaliar lote', () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
+    await seedBatch(page);
   });
 
   test('a tela abre com os lotes vindos da stack real', async ({ page }) => {
@@ -50,7 +51,8 @@ test.describe('avaliar lote', () => {
     const empty = page.getByText('Nenhum lote de produção ainda.');
     const buttons = page.getByRole('button', { name: 'Avaliar' });
     await expect(empty.or(buttons.first())).toBeVisible();
-    test.skip(await empty.isVisible(), 'a stack local não tem lote de produção');
+    // Semeado no beforeEach: o vazio aqui seria defeito, não ambiente.
+    await expect(empty).toBeHidden();
 
     const assessed = page.waitForResponse(r => r.url().includes('/assessment'));
     await buttons.first().click();

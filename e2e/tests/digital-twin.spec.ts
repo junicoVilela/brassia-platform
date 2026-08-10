@@ -1,4 +1,4 @@
-import { expect, login, test } from './support';
+import { expect, login, test, seedBatch } from './support';
 
 /**
  * Gêmeo digital: perfil aprendido e carta de controle (DTW-001 + SPC-001).
@@ -10,6 +10,7 @@ import { expect, login, test } from './support';
 test.describe('gêmeo digital', () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
+    await seedBatch(page);
   });
 
   test('a tela abre e distingue limite de controle de especificação', async ({ page }) => {
@@ -26,9 +27,8 @@ test.describe('gêmeo digital', () => {
 
     const recipes = page.getByLabel('Receita');
     const options = await recipes.locator('option').count();
-    // Sem lote nenhum não há receita para escolher, e o resto da jornada não existe. Dizer isso é melhor
-    // que passar em silêncio: um teste que "passa" sem exercitar nada parece cobertura.
-    test.skip(options < 2, 'ambiente sem lotes produzidos');
+    // O lote foi semeado no beforeEach; menos de duas opções é defeito da tela, não do ambiente.
+    expect(options).toBeGreaterThan(1);
 
     await recipes.selectOption({ index: 1 });
     await expect(page.getByRole('heading', { name: 'Perfil aprendido' })).toBeVisible();

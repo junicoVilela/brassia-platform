@@ -4,6 +4,7 @@ import br.com.brew.brassia.ai.ModelGateway;
 import br.com.brew.brassia.ai.ModelPurpose;
 import br.com.brew.brassia.ai.application.port.inbound.ProposalCommands;
 import br.com.brew.brassia.ai.application.port.outbound.CommandProposalRepository;
+import br.com.brew.brassia.ai.application.port.outbound.ProposalExecutor;
 import br.com.brew.brassia.ai.domain.CommandProposal;
 import br.com.brew.brassia.ai.domain.Fact;
 import br.com.brew.brassia.ai.domain.ProposalNotPendingException;
@@ -63,14 +64,16 @@ public final class CommandProposalHandler implements ProposalCommands {
     private final BatchFactsAssembler facts;
     private final ModelGateway gateway;
     private final CommandProposalRepository proposals;
+    private final ProposalExecutor executor;
     private final AuditTrail audit;
     private final Clock clock;
 
     public CommandProposalHandler(BatchFactsAssembler facts, ModelGateway gateway,
-            CommandProposalRepository proposals, AuditTrail audit, Clock clock) {
+            CommandProposalRepository proposals, ProposalExecutor executor, AuditTrail audit, Clock clock) {
         this.facts = Objects.requireNonNull(facts);
         this.gateway = Objects.requireNonNull(gateway);
         this.proposals = Objects.requireNonNull(proposals);
+        this.executor = Objects.requireNonNull(executor);
         this.audit = Objects.requireNonNull(audit);
         this.clock = Objects.requireNonNull(clock);
     }
@@ -119,6 +122,16 @@ public final class CommandProposalHandler implements ProposalCommands {
             // dois aceites da mesma proposta.
             throw new ProposalNotPendingException(proposalId, load(breweryId, proposalId).status());
         }
+
+        // A execução vem DEPOIS da gravação da decisão, e a ordem é a proteção: é o UPDATE condicional que
+        // decide quem venceu a corrida entre dois cliques. Executar antes dispararia o comando duas vezes e
+        // só então descobriria que uma das duas não devia ter passado.
+        //
+        // Se o comando falhar, a exceção sobe e a transação desfaz a decisão junto. Consentimento gravado
+        // sem o efeito que ele autorizou é pior que nenhum dos dois: alguém leria "confirmado" e acreditaria
+        // que o custo foi fechado.
+        executor.execute(decided, actorId);
+
         auditDecision(decided, "ai.command.accept");
         return decided;
     }

@@ -171,22 +171,54 @@ proposta malformada guardada é uma proposta que alguém acaba confirmando. O ca
 modelo mandando `concentracao: 2%` junto do ciclo de limpeza, que é justamente o parâmetro químico que o POP
 dita e ninguém inventa.
 
-### DEB-AIA-002 — O aceite registra a decisão autorizada; não executa o comando
+### DEB-AIA-002 — RESOLVIDO EM DOIS TERÇOS: o aceite executa; abrir NC continua manual
 
-Nenhum módulo publicava porta de comando no pacote raiz — só consultas. Criar `costing.CostCommands`,
-`quality.NonConformityCommands` e `sanitation.CycleCommands` é mudança nas histórias daqueles módulos, não
-nesta.
+**O que passou a executar.** `costing.BatchCostCommands` e `sanitation.CleaningCycleCommands` foram
+publicadas, e o aceite invoca o comando **na mesma transação** da gravação da decisão. Antes, quem confirmava
+tinha o consentimento gravado e era levado a outra tela para praticar o ato à mão — numa proposta cuja razão
+de existir é justamente que "o lote termina, as parcelas entram, e ninguém lembra de fechar". O segundo passo
+dependia de alguém não esquecer exatamente aquilo que a proposta existe para lembrar.
 
-**Atualização (Sprint 15, DEB-INT-001):** `fermentation.FermentationCommands` existe e é a primeira porta de
-comando publicada do projeto. O obstáculo deixou de ser "não se sabe como fazer" e virou trabalho nos três
-módulos — com um precedente que também mostra a forma: porta estreita, um comando só, sem ator humano quando
-não há um. Os três casos daqui são diferentes num ponto que importa: eles **têm** ator humano (quem confirma
-a proposta), então a porta precisa carregar o ator e auditar, ao contrário daquela. Consequência prática: quem confirma tem a decisão gravada e auditada, e é levado à rota onde o comando
-vive (`ProposedAction.executionRoute`) para praticá-lo — o consentimento está registrado, a execução é um
-segundo passo manual.
+**A ordem entre gravar e executar é a proteção, não detalhe.** Grava-se a decisão primeiro, porque é o
+`UPDATE` condicional que decide quem venceu a corrida entre dois cliques em "Confirmar". Executar antes
+dispararia o comando duas vezes e só então descobriria que uma das duas não devia ter passado — com o custo
+já fechado. E se o comando falhar, a exceção sobe e a transação desfaz a decisão junto: consentimento gravado
+sem o efeito que ele autorizou faria alguém ler "confirmado" e acreditar que o custo foi fechado.
 
-**Critério de remoção:** quando os três módulos publicarem porta de comando, o aceite passa a invocá-la na
-mesma transação da gravação da decisão, e `executionRoute` deixa de ser necessário.
+**O ator é quem confirmou**, não quem pediu a análise e não uma conta de sistema. A permissão foi conferida
+contra ele; é o nome dele que precisa aparecer na trilha do módulo que executou. É a diferença registrada em
+`DEB-INT-001`: a porta de fermentação não tem ator porque telemetria é máquina relatando; estas têm.
+
+**A tela passou a dizer o que acontece.** O texto era "Confirmar registra a decisão e leva ao comando em
+`<rota>`" — exato enquanto nada executava, e mentira depois. Entrou `executedOnConfirm` no contrato, e o texto
+se divide: "Confirmar **executa** o comando agora" para as duas que executam, e o texto antigo, com "ainda é
+um passo manual", para a que não executa. Consentir com uma coisa e outra acontecer é o oposto do que a
+confirmação humana existe para garantir.
+
+**Correção de rótulo achada no caminho:** a ação dizia "Programar ciclo de limpeza", e a sanitização **não
+tem agendamento** — um ciclo existe a partir do momento em que começa. Enquanto nada executava, "programar"
+era só impreciso; num botão que inicia, é engano. O rótulo virou "Iniciar ciclo de limpeza do equipamento". O
+nome da constante (`SCHEDULE_CLEANING_CYCLE`) ficou: ele está gravado na coluna `action` das propostas já
+existentes, e renomear reescreveria histórico por questão de estética.
+
+### DEB-AIA-003 — Abrir não conformidade continua sendo um passo manual, e não por falta de porta
+
+Herdado do `DEB-AIA-002`, que fecha nos outros dois casos. **Duas barreiras, nenhuma de código:**
+
+1. **`quality_non_conformity` não tem vínculo com lote.** Ela liga a um *desvio*, opcionalmente. A proposta
+   afirma "abrir NC **para o lote**" e o modelo de dados não sabe expressar isso. Abrir a NC sem o vínculo
+   entregaria um registro solto, perdendo justamente o que a proposta afirma.
+2. **`code`, `description` e três prazos** — contenção, investigação e verificação — são `NOT NULL` e nenhum
+   vem nos parâmetros da proposta. Prazo de contenção de uma não conformidade **é regra de negócio**, não
+   padrão técnico: depende da severidade e do que a cervejaria assumiu com quem audita. Inventá-lo aqui seria
+   exatamente o que o `AGENTS.md` proíbe.
+
+Enquanto isso, confirmar registra a decisão auditada e leva à rota — o comportamento que valia para as três.
+`executedOnConfirm: false` diz isso à tela em vez de deixá-la adivinhar.
+
+**Critério de remoção:** decidir (a) se NC passa a referenciar lote, e (b) de onde vêm os três prazos — regra
+por severidade, ou campos que a proposta precise carregar. Respondidas as duas, a porta
+`quality.NonConformityCommands` é trabalho pequeno, e o executor já tem o lugar dela reservado.
 
 ### DEB-AIA-001 — RESOLVIDO: a fermentação entrou nos fatos
 

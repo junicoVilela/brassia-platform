@@ -67,10 +67,24 @@
 
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
               @if (proposal.canConfirm) {
-                <span class="text-muted small">
-                  Confirmar registra a decisão e leva ao comando em
-                  <span class="font-monospace">{{ proposal.executionRoute }}</span>.
-                </span>
+                @if (proposal.executedOnConfirm) {
+                  <!--
+                    O texto precisa dizer o que vai acontecer, não o que acontecia. Desde DEB-AIA-002 estas
+                    ações EXECUTAM ao confirmar; manter "leva ao comando" faria a pessoa consentir com uma
+                    coisa e outra acontecer — o oposto do que a confirmação humana existe para garantir.
+                  -->
+                  <span class="text-muted small">
+                    Confirmar <strong>executa</strong> o comando agora e registra a decisão em seu nome. O
+                    resultado aparece em
+                    <span class="font-monospace">{{ proposal.executionRoute }}</span>.
+                  </span>
+                } @else {
+                  <span class="text-muted small">
+                    Confirmar registra a decisão e leva ao comando em
+                    <span class="font-monospace">{{ proposal.executionRoute }}</span>, que ainda é um passo
+                    manual.
+                  </span>
+                }
               } @else {
                 <!-- Nomear a alçada que falta, e não só desabilitar: quem lê precisa saber a quem pedir. -->
                 <span class="text-warning small">

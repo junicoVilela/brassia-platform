@@ -536,14 +536,29 @@ O que apareceu ao tirá-lo vale registro: o caso não estava só pulando por fal
 parecendo verde. Agora espera a resposta de `/api/v1/production/batches` antes de contar. O `skip`
 escondia duas falhas diferentes com a mesma cor.
 
-### DEB-INT-002 (INT-002) — O caminho "evento real → webhook" não é exercido por IT
+### DEB-INT-002 (INT-002) — RESOLVIDO: a jornada evento→entrega é exercida onde a OP já é montada
 
-`WebhookIT` prova o outbox, a restrição única, o isolamento e as alçadas chamando o `EventEnqueuer` direto.
-O caminho completo — liberar uma OP de verdade e ver a entrega aparecer — exigiria montar uma ordem
-completa (~200 linhas já escritas em `BrewOrderIT`), e duplicá-las aqui testaria o planejamento, não a
-integração. A tradução de evento em entrega é coberta por unidade.
-**Critério de remoção:** quando houver um IT de jornada que já monte uma OP liberada, acrescentar a ele uma
-asserção sobre a fila de webhooks em vez de montar a OP de novo aqui.
+**Critério de remoção cumprido ao pé da letra.** A asserção foi para o `BrewOrderReleaseIT`, que já monta e
+libera uma ordem por outro motivo — em vez de duplicar ~200 linhas de planejamento dentro do teste de
+integração, que testaria o planejamento e não o elo.
+
+O elo é o que nenhum teste cobria: que liberar publica o evento, que o ouvinte o traduz, e que a entrega
+nasce **dentro da mesma transação** (`BEFORE_COMMIT`). O `WebhookIT` provava o outbox, a restrição única, o
+isolamento e as alçadas — chamando o enfileirador direto, ou seja, pulando exatamente esse trecho.
+
+**Dois casos, e o segundo é o que dá valor ao primeiro:** ordem liberada com assinatura gera uma entrega;
+ordem liberada sem assinatura não gera nenhuma. Sem o negativo, o positivo passaria por qualquer entrega que
+existisse por outro motivo.
+
+**Dois erros meus ao escrevê-los, os dois no teste e nenhum no código:**
+
+- **Filtrei `event_type` pelo nome da enum** (`BREW_ORDER_RELEASED`) quando a coluna guarda o **nome
+  externo** (`brew_order.released`). O teste procurava o que não existe e falhava afirmando que a entrega não
+  tinha nascido. Guardar o nome externo é o certo: é o que viaja para quem integra, e a tabela registra o que
+  foi entregue, não a representação interna.
+- **O caso negativo dependia da ordem de execução.** Assinatura é da *cervejaria*, não do pedido, então
+  filtrar por ordem não isola nada: a assinatura criada no outro teste sobrevive no mesmo banco. Ele passaria
+  ou falharia conforme a ordem, que ninguém controla. Passou a revogar as assinaturas antes de liberar.
 
 ### DEB-INT-001 (INT-001) — RESOLVIDO: a leitura do sensor virou ponto na curva
 

@@ -19,6 +19,7 @@ function proposal(over: Partial<CommandProposal> = {}): CommandProposal {
     rationale: 'O lote terminou e o custo segue derivado.',
     requiredPermission: 'costing.cost.close',
     executionRoute: '/costing/batches',
+    executedOnConfirm: true,
     proposedBy: 'u-pediu',
     proposedAt: '2026-08-08T00:00:00Z',
     expiresAt: '2026-08-08T12:00:00Z',

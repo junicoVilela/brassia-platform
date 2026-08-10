@@ -41,6 +41,7 @@ public final class ProposalDtos {
             String rationale,
             String requiredPermission,
             String executionRoute,
+            boolean executedOnConfirm,
             UUID proposedBy,
             Instant proposedAt,
             Instant expiresAt,
@@ -56,6 +57,7 @@ public final class ProposalDtos {
             var action = proposal.action();
             return new ProposalView(proposal.id(), action.name(), action.label(), proposal.parameters(),
                     proposal.rationale(), action.requiredPermission(), action.executionRoute(),
+                    action.executedOnConfirm(),
                     proposal.proposedBy(), proposal.proposedAt(), proposal.expiresAt(),
                     proposal.status().name(), proposal.expiredAt(now),
                     proposal.pending() && !proposal.expiredAt(now)

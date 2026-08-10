@@ -1,5 +1,6 @@
 package br.com.brew.brassia.planning;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -40,6 +41,7 @@ class BrewOrderReleaseIT {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     @Autowired WebApplicationContext context;
+    @Autowired org.springframework.jdbc.core.simple.JdbcClient jdbc;
     MockMvc mockMvc;
 
     @BeforeEach
@@ -61,6 +63,87 @@ class BrewOrderReleaseIT {
         mockMvc.perform(get("/api/v1/brew-orders/" + orderId).session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is("RELEASED")));
+    }
+
+    /**
+     * A jornada inteira: liberar uma OP de verdade e ver a entrega aparecer na fila (DEB-INT-002).
+     *
+     * <p>O {@code WebhookIT} já provava o outbox, a restrição única, o isolamento e as alçadas — mas
+     * chamando o enfileirador direto. O que nenhum deles cobria é o <strong>elo</strong>: que liberar uma
+     * ordem publica o evento, que o ouvinte o traduz, e que a entrega nasce dentro da mesma transação.
+     * Montar a OP de novo dentro do teste de integração testaria o planejamento; a asserção mora aqui,
+     * onde a ordem já é montada por outro motivo, que era exatamente o critério de remoção do débito.
+     */
+    @Test
+    void releasingAnOrderEnqueuesTheWebhookDelivery() throws Exception {
+        var session = login();
+        subscribeToReleases(session);
+        var orderId = draftOrder(session);
+
+        mockMvc.perform(post("/api/v1/brew-orders/" + orderId + "/release").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"assignedUserId\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isOk());
+
+        // O tipo é gravado pelo NOME EXTERNO, não pelo da enum. É o nome que viaja no corpo para quem
+        // integra, e o banco guarda o que foi entregue — não a representação interna. Escrevi
+        // 'BREW_ORDER_RELEASED' na primeira versão deste teste e ele passou a procurar o que não existe.
+        var entregas = jdbc.sql("""
+                SELECT payload FROM webhook_delivery
+                WHERE event_type = 'brew_order.released' AND event_id = :orderId
+                """)
+                .param("orderId", orderId.toString())
+                .query(String.class).list();
+
+        assertThat(entregas).hasSize(1);
+        // O corpo é montado a partir do EVENTO, não relido do banco: o retry precisa descrever o fato como
+        // ele foi, não a ordem como está hoje.
+        assertThat(entregas.getFirst()).contains(orderId.toString());
+    }
+
+    /**
+     * Uma ordem liberada SEM assinatura não gera entrega — e é o outro lado da mesma prova.
+     *
+     * <p>Sem este caso, o teste acima passaria por uma entrega que existisse por qualquer motivo. Aqui a
+     * ausência é o resultado esperado: enfileirar para quem não assinou seria mandar dado da cervejaria
+     * para um destino que ninguém autorizou.
+     */
+    @Test
+    void releasingWithoutSubscriptionEnqueuesNothing() throws Exception {
+        var session = login();
+
+        // Assinatura é da CERVEJARIA, não do pedido — filtrar a consulta por ordem não isola este caso. O
+        // banco é o mesmo entre os testes da classe, e a assinatura criada no teste anterior sobrevive:
+        // sem revogar, este teste passaria ou falharia conforme a ordem de execução, que ninguém controla.
+        jdbc.sql("UPDATE webhook_subscription SET status = 'REVOKED'").update();
+
+        var orderId = draftOrder(session);
+
+        mockMvc.perform(post("/api/v1/brew-orders/" + orderId + "/release").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"assignedUserId\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isOk());
+
+        var entregas = jdbc.sql("""
+                SELECT COUNT(*) FROM webhook_delivery WHERE event_id = :orderId
+                """)
+                .param("orderId", orderId.toString())
+                .query(Integer.class).single();
+
+        assertThat(entregas).isZero();
+    }
+
+    private void subscribeToReleases(MockHttpSession session) throws Exception {
+        var body = JSON.createObjectNode();
+        body.put("name", "Integração de teste");
+        // HTTPS e endereço público: o InternalAddressGuard (DEC-REL-001) recusa destino interno, e o
+        // cadastro não é o momento em que ele age — mas o domínio já exige HTTPS aqui.
+        body.put("endpoint", "https://exemplo.invalido/webhooks");
+        body.set("events", JSON.createArrayNode().add("brew_order.released"));
+
+        mockMvc.perform(post("/api/v1/integration/webhooks").session(session).with(csrf())
+                        .contentType("application/json").content(JSON.writeValueAsString(body)))
+                .andExpect(status().isCreated());
     }
 
     @Test

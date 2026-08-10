@@ -32,7 +32,7 @@ public enum ProposedAction {
      * alguém precisa lembrar de praticar.
      */
     CLOSE_BATCH_COST("costing.cost.close", Set.of("batchId"),
-            "Fechar o custo do lote", "/costing/batches"),
+            "Fechar o custo do lote", "/costing/batches", true),
 
     /**
      * Abrir não conformidade.
@@ -41,7 +41,7 @@ public enum ProposedAction {
      * qualidade decide é se aquilo é não conformidade — a proposta só aponta a lacuna.
      */
     OPEN_NON_CONFORMITY("quality.nc.manage", Set.of("batchId", "title", "severity"),
-            "Abrir não conformidade para o lote", "/quality/non-conformities"),
+            "Abrir não conformidade para o lote", "/quality/non-conformities", false),
 
     /**
      * Programar ciclo de limpeza.
@@ -50,19 +50,32 @@ public enum ProposedAction {
      * isso, e inventar parâmetro químico é justamente o que o sistema proíbe.
      */
     SCHEDULE_CLEANING_CYCLE("sanitation.cycle.execute", Set.of("equipmentId", "procedureCode"),
-            "Programar ciclo de limpeza do equipamento", "/sanitation/cycles");
+            "Iniciar ciclo de limpeza do equipamento", "/sanitation/cycles", true);
 
     private final String requiredPermission;
     private final Set<String> requiredParameters;
     private final String label;
     private final String executionRoute;
+    private final boolean executedOnConfirm;
 
     ProposedAction(String requiredPermission, Set<String> requiredParameters, String label,
-            String executionRoute) {
+            String executionRoute, boolean executedOnConfirm) {
         this.requiredPermission = requiredPermission;
         this.requiredParameters = requiredParameters;
         this.label = label;
         this.executionRoute = executionRoute;
+        this.executedOnConfirm = executedOnConfirm;
+    }
+
+    /**
+     * Se confirmar <strong>executa</strong> o comando, ou apenas registra a decisão (DEB-AIA-002).
+     *
+     * <p>Existe para que a tela diga a verdade. Enquanto nada executava, "confirmar registra a decisão e
+     * leva ao comando" era exato; para as ações que passaram a executar, deixaria a pessoa consentir com
+     * uma coisa e outra acontecer — o oposto do que a confirmação humana existe para garantir.
+     */
+    public boolean executedOnConfirm() {
+        return executedOnConfirm;
     }
 
     /** A permissão exigida de quem confirmar — a do comando, não a de propor. */

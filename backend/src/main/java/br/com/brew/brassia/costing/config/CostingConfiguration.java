@@ -5,6 +5,7 @@ import br.com.brew.brassia.catalog.IngredientPurchaseLookup;
 import br.com.brew.brassia.costing.BatchCostLookup;
 import br.com.brew.brassia.costing.CostContributor;
 import br.com.brew.brassia.costing.MaterialActualSource;
+import br.com.brew.brassia.costing.BatchCostCommands;
 import br.com.brew.brassia.costing.application.port.inbound.CostCommands;
 import br.com.brew.brassia.costing.application.port.inbound.CostQueries;
 import br.com.brew.brassia.costing.application.port.inbound.VarianceQueries;
@@ -67,5 +68,18 @@ class CostingConfiguration {
         var transaction = new TransactionTemplate(transactionManager);
         return (actorId, breweryId, batchId, note) -> Objects.requireNonNull(
                 transaction.execute(status -> handler.handle(actorId, breweryId, batchId, note)));
+    }
+
+    /**
+     * Fechar custo publicado para outros módulos (DEB-AIA-002).
+     *
+     * <p>Delega ao caso de uso interno em vez de repetir a lógica: a porta publicada é uma <em>fachada</em>
+     * estreita, não uma segunda implementação. A transação do caso de uso tem propagação padrão e por isso
+     * <strong>entra na de quem chamou</strong> — que é o que faz o aceite da proposta e o fechamento do
+     * custo caírem juntos.
+     */
+    @Bean
+    BatchCostCommands batchCostCommands(CostCommands.Close close) {
+        return close::handle;
     }
 }

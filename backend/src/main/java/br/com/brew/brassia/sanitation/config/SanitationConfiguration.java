@@ -21,6 +21,7 @@ import br.com.brew.brassia.sanitation.application.port.inbound.RecordVerificatio
 import br.com.brew.brassia.sanitation.application.port.inbound.RejectCycleUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.ReleaseCycleUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.ResumeCycleUseCase;
+import br.com.brew.brassia.sanitation.CleaningCycleCommands;
 import br.com.brew.brassia.sanitation.application.port.inbound.StartCycleUseCase;
 import br.com.brew.brassia.sanitation.application.port.inbound.UpdateProcedureUseCase;
 import br.com.brew.brassia.sanitation.application.port.outbound.CleaningCycleEventPublisher;
@@ -117,6 +118,18 @@ class SanitationConfiguration {
         var handler = new StartCycleHandler(cycles, procedures, equipment, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    /**
+     * Iniciar ciclo publicado para outros módulos (DEB-AIA-002).
+     *
+     * <p>Fachada estreita sobre o caso de uso interno; a transação dele entra na de quem chamou, e é isso
+     * que permite o aceite de uma proposta e o início do ciclo caírem juntos.
+     */
+    @Bean
+    CleaningCycleCommands cleaningCycleCommands(StartCycleUseCase startCycle) {
+        return (actorId, breweryId, equipmentId, procedureCode) -> startCycle.handle(
+                new StartCycleUseCase.Command(actorId, breweryId, procedureCode, equipmentId));
     }
 
     @Bean

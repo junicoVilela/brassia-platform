@@ -8,10 +8,10 @@ Estado: EM ANDAMENTO
 |---|---|---|---|---|
 | DTW-001 | Concluída | Claude | `backend/.../digitaltwin`, `V103__digital_twin_profile.sql`, `frontend/.../features/digital-twin` | Estimativa com faixa e confiança explícitas; amostra informada e gravada, o que torna o número reproduzível. Ver DEC-DTW-001/002/003. |
 | SPC-001 | Concluída | Claude | `digitaltwin/domain/ControlLimits`, `ControlSignal`, `production/BatchMeasurementLookup` | Limite de controle é calculado e não pode ser injetado; deslocamento e tendência detectados. Ver DEC-SPC-001/002. |
-| EXP-001 | A fazer | — | — | — |
-| BLD-001 | A fazer | — | — | — |
-| FLD-001 | A fazer | — | — | — |
-| OPT-001 | A fazer | — | — | — |
+| EXP-001 | Concluída | Claude | PR #180, `backend/.../experiment`, `V104__experiment_split_batch.sql`, `frontend/.../features/experiments` | Uma variável isolada é condição de existência do plano; a conclusão não tem campo para limitações — elas derivam do desenho. Ver DEC-EXP-001/002. |
+| BLD-001 | Concluída | Claude | PR #181, `backend/.../blend`, `V105__blend_operation.sql`, `frontend/.../features/blends` | Balanço fecha na simulação; recall recalculado é consequência da aresta de genealogia, não um passo. Ver DEC-BLD-001/002/003 — **DEC-BLD-003 é premissa declarada e precisa de decisão de negócio**. |
+| FLD-001 | Concluída | Claude | PR #182, `backend/.../fieldfeedback`, `V106__field_feedback.sql`, `frontend/.../features/field-feedback` | Severidade exige em vez de sugerir; dado pessoal em tabela, permissão e endpoint próprios, com apagamento que preserva a investigação. Ver DEC-FLD-001/002. |
+| OPT-001 | Concluída | Claude | PR #183, `backend/.../optimization`, `V107__optimization_run.sql`, `frontend/.../features/optimization` | Restrições descartam e o objetivo ordena; método e versões viajam com o resultado; a IA explica sem poder alterar o score. Ver DEC-OPT-001/002/003. |
 
 ## Decisões e bloqueios
 
@@ -347,9 +347,23 @@ corridas antigas continuam dizendo qual estava valendo.
 
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- **Build/commit:** seis histórias, um PR cada, mergeados em série na `main` — #178 (DTW-001), #179
+  (SPC-001), #180 (EXP-001), #181 (BLD-001), #182 (FLD-001), #183 (OPT-001).
+- **Testes executados:** `mvnw verify` verde no CI em cada PR. Por história, contra PostgreSQL real via
+  Testcontainers: DTW-001 11 IT, SPC-001 8, EXP-001 14, BLD-001 13, FLD-001 15, OPT-001 13. Domínio:
+  DTW-001 28 unitários, SPC-001 27, EXP-001 19, BLD-001 18, FLD-001 20, OPT-001 15. Frontend: 494 testes,
+  build e lint limpos. `ModularityTest` verde a cada módulo novo (`experiment`, `blend`, `fieldfeedback`,
+  `optimization`).
+- **Migration aplicada:** `V103` a `V107`, todas com comentário explicando a restrição, não só declarando-a.
+- **Contratos atualizados:** `contracts/openapi.yaml` — 253 caminhos. A verificação passou a conferir
+  **chave duplicada e `$ref` órfã** além de YAML parseável, depois que uma colisão de nome
+  (`SimulateBlend`, que já existia para mistura de águas) passou pela validação do CI: `yaml.safe_load`
+  aceita chave repetida em silêncio e fica com a última.
+- **Riscos remanescentes:**
+  - **DEC-BLD-003** — premissa declarada, não decisão minha: origem e destino do blend são lotes que já
+    existem. Um blend deve produzir lote novo? De onde viria a ordem dele? Muda o modelo de produção.
+  - **DEC-OPT-003** — uma substituição por vez. Limitação nomeada no próprio resultado; ampliar é
+    acrescentar um `SolverMethod`.
+  - Pendências herdadas da Sprint 15, ainda sem dono: **DEB-INT-003** (MQTT) e **DEB-SEC-001** (troca real
+    de token com IdP). E **SEN-002**, da Sprint 11, segue órfã.
+- **Aceite:** pendente de validação manual.

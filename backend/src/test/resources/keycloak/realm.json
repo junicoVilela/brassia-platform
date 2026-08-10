@@ -1,0 +1,30 @@
+{
+  "realm": "brassia",
+  "enabled": true,
+  "sslRequired": "none",
+  "clients": [
+    {
+      "clientId": "brassia-app",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "segredo-de-teste-nao-usado-em-producao",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:8080/api/v1/security/sso/*"],
+      "webOrigins": ["*"],
+      "attributes": { "pkce.code.challenge.method": "S256" }
+    }
+  ],
+  "users": [
+    {
+      "username": "cervejeira",
+      "enabled": true,
+      "email": "cervejeira@example.com",
+      "emailVerified": true,
+      "firstName": "Ana",
+      "lastName": "Brassagem",
+      "credentials": [{ "type": "password", "value": "senha-de-teste", "temporary": false }]
+    }
+  ]
+}

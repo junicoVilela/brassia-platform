@@ -124,10 +124,15 @@
       <artifactId>spring-security-saml2-service-provider</artifactId>
       <optional>true</optional>
     </dependency>
+    <!-- DEIXOU DE SER `optional` (DEB-SEC-001).
+         Enquanto a troca OIDC era recusada, nada em runtime tocava estas classes e `optional` bastava.
+         Agora o adaptador usa NimbusJwtDecoder para conferir a assinatura do id_token contra o JWKS —
+         e `optional` faz o repackage do Boot NÃO empacotar o jar: compila e quebra no boot com
+         NoClassDefFoundError. É o mesmo erro que o comentário do Jackson, dez linhas acima, registra
+         ter acontecido antes nesta base. Quem usa, declara. -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-oauth2-client</artifactId>
-      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.springframework.security</groupId>
@@ -177,6 +182,15 @@
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers-postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Keycloak em container: o critério de remoção de DEB-SEC-001 exigia IdP DE VERDADE.
+         Um dublê que devolve o que o código espera prova que o código lê o que ele mesmo escreveu;
+         só um provedor real exercita JWKS, assinatura, nonce e código de uso único. -->
+    <dependency>
+      <groupId>com.github.dasniko</groupId>
+      <artifactId>testcontainers-keycloak</artifactId>
+      <version>3.7.0</version>
       <scope>test</scope>
     </dependency>
     <dependency>

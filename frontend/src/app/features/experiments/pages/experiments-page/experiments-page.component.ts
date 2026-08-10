@@ -36,6 +36,8 @@ export class ExperimentsPageComponent implements OnInit {
   readonly store = inject(ExperimentsStore);
 
   readonly batches = signal<Batch[]>([]);
+  /** Total no servidor quando a lista veio truncada; nulo quando veio inteira. */
+  readonly batchesTruncated = signal<number | null>(null);
   readonly statusLabels = STATUS_LABELS;
   readonly statusClasses = STATUS_CLASSES;
   readonly kinds = MEASUREMENT_KINDS;
@@ -91,9 +93,17 @@ export class ExperimentsPageComponent implements OnInit {
   ngOnInit(): void {
     this.store.load();
     this.batchesApi
-      .list()
+      .listForSelection()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: batches => this.batches.set(batches), error: () => undefined });
+      .subscribe({
+        next: page => {
+          this.batches.set(page.items);
+          // Truncamento fica VISÍVEL: um seletor que mostra 100 de 3.000 sem avisar faz quem procura
+          // concluir que o lote não existe.
+          this.batchesTruncated.set(page.truncated ? page.total : null);
+        },
+        error: () => undefined,
+      });
   }
 
   addFactor(): void {

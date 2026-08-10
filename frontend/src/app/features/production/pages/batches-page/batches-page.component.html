@@ -504,3 +504,23 @@
     </div>
   </div>
 }
+
+<!--
+  Navegação de página (REL-002). Mostra a contagem total, não só as setas: sem ela, quem está na página 1
+  não tem como saber se há 20 lotes ou 3.000 — e a diferença muda o que a pessoa faz em seguida.
+-->
+@if (store.totalPages() > 1) {
+  <nav class="d-flex justify-content-between align-items-center mt-3" aria-label="Páginas de lotes">
+    <span class="text-body-secondary small">
+      {{ store.totalElements() }} lote(s) · página {{ store.pageState() + 1 }} de {{ store.totalPages() }}
+    </span>
+    <div class="btn-group">
+      <button type="button" class="btn btn-sm btn-outline-secondary"
+              [disabled]="store.pageState() === 0"
+              (click)="store.goToPage(store.pageState() - 1)">Anterior</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary"
+              [disabled]="store.pageState() + 1 >= store.totalPages()"
+              (click)="store.goToPage(store.pageState() + 1)">Próxima</button>
+    </div>
+  </nav>
+}

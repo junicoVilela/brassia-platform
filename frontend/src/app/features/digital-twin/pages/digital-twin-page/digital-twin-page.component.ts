@@ -43,6 +43,8 @@ export class DigitalTwinPageComponent implements OnInit {
   readonly charts = inject(ChartStore);
 
   readonly batches = signal<Batch[]>([]);
+  /** Total no servidor quando a lista veio truncada; nulo quando veio inteira. */
+  readonly batchesTruncated = signal<number | null>(null);
   readonly loadingBatches = signal(false);
   readonly selectedRecipeId = signal<string>('');
   readonly selectedKind = signal<MeasurementKind>('TEMPERATURE');
@@ -71,11 +73,13 @@ export class DigitalTwinPageComponent implements OnInit {
   ngOnInit(): void {
     this.loadingBatches.set(true);
     this.batchesApi
-      .list()
+      .listForSelection()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: batches => {
-          this.batches.set(batches);
+        next: page => {
+          this.batches.set(page.items);
+          // Truncamento visível: ver batches.api.ts#listForSelection.
+          this.batchesTruncated.set(page.truncated ? page.total : null);
           this.loadingBatches.set(false);
         },
         error: () => this.loadingBatches.set(false),

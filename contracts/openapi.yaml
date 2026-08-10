@@ -529,9 +529,49 @@ paths:
   /production/batches:
     get:
       operationId: listProductionBatches
-      summary: Lista os lotes de produção
+      summary: Lista os lotes de produção (paginado)
+      description: >-
+        **Paginado desde REL-002, e a mudança foi incompatível de propósito.** A resposta deixou de ser um
+        array e passou a ser um envelope com `content`.
+
+
+        A listagem sem limite crescia com o histórico: 300 lotes respondiam em 40 ms e 3.000 em 319 ms —
+        linear, cruzando a meta de 500 ms por volta de 4.700 lotes. A causa não era o tamanho do JSON, e
+        sim um N+1: os passos vinham numa consulta por lote, então listar 3.000 disparava 3.001 consultas.
+        As duas coisas foram corrigidas — paginar limita o conjunto, e os passos da página passaram a vir
+        numa consulta só.
+
+
+        Quebrar o contrato só é barato antes da primeira produção, que é onde o projeto está. Depois do
+        primeiro cliente integrado, a mesma correção exigiria versão nova e janela de transição
+        (`docs/20_RELEASE_MIGRATION.md`).
+      parameters:
+        - {name: page, in: query, required: false, schema: {type: integer, default: 0, minimum: 0}}
+        - name: size
+          in: query
+          required: false
+          description: >-
+            Máximo 100. Pedido acima do teto é reduzido, não recusado — sem teto, `size=100000`
+            reproduziria exatamente o problema que a paginação fecha
+          schema: {type: integer, default: 20, minimum: 1, maximum: 100}
       responses:
-        '200': {description: Lotes de produção}
+        '200':
+          description: Uma página de lotes, mais recentes primeiro
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content: {type: array, items: {type: object}}
+                  page: {type: integer}
+                  size: {type: integer}
+                  totalElements:
+                    type: integer
+                    format: int64
+                    description: >-
+                      O campo que torna a interface honesta: sem ele, uma lista truncada é
+                      indistinguível de uma lista completa
+                  totalPages: {type: integer}
         '403': {$ref: '#/components/responses/Problem'}
   /production/batches/{id}:
     get:

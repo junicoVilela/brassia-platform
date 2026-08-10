@@ -66,17 +66,40 @@ export class BatchesStore {
   readonly alerts = signal<BatchAlert[]>([]);
   readonly alertsLoading = signal(false);
   readonly alertError = signal<string | null>(null);
+  readonly pageState = signal(0);
+  readonly totalElements = signal(0);
+  readonly totalPages = signal(0);
   readonly savingAlert = signal(false);
 
-  load(): void {
+  /**
+   * Carrega uma página de lotes (REL-002).
+   *
+   * Esta é a tela de listagem, então aqui a paginação é de verdade — e não o `listForSelection`, que
+   * serve aos seletores. `totalElements` alimenta a navegação: sem ele a tela não sabe se existe página
+   * seguinte e ofereceria um botão que não leva a lugar nenhum.
+   */
+  load(page = 0): void {
     this.loading.set(true);
     this.error.set(null);
-    this.api.list()
+    this.api.list(page, this.pageSize)
       .pipe(finalize(() => this.loading.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: items => this.itemsState.set(items),
+        next: result => {
+          this.itemsState.set(result.content);
+          this.pageState.set(result.page);
+          this.totalElements.set(result.totalElements);
+          this.totalPages.set(result.totalPages);
+        },
         error: () => this.error.set('Não foi possível carregar os lotes de produção.'),
       });
+  }
+
+  readonly pageSize = 20;
+
+  goToPage(page: number): void {
+    if (page >= 0 && page < this.totalPages()) {
+      this.load(page);
+    }
   }
 
   toggle(batchId: string): void {

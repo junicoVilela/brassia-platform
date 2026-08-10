@@ -461,7 +461,7 @@ class LabelIT {
                 .andExpect(status().isOk());
         var listBody = mockMvc.perform(get("/api/v1/production/batches").session(session))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        for (JsonNode node : JSON.readTree(listBody)) {
+        for (JsonNode node : JSON.readTree(listBody).get("content")) {
             if (node.get("orderId").asText().equals(orderId)) {
                 return node.get("id").asText();
             }

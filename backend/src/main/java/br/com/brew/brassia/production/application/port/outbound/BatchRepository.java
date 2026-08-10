@@ -11,7 +11,16 @@ public interface BatchRepository {
 
     boolean existsByOrder(UUID breweryId, UUID orderId);
 
-    List<Batch> findAll(UUID breweryId);
+    /**
+     * Uma página de lotes, mais recentes primeiro.
+     *
+     * <p>Substituiu o {@code findAll}: a listagem sem limite crescia com o histórico e cruzava a meta de
+     * 500 ms por volta de 4.700 lotes (REL-002). Não há sobrecarga sem limite — deixar uma faria a
+     * chamada antiga voltar por engano.
+     */
+    List<Batch> findPage(UUID breweryId, int offset, int limit);
+
+    long countByBrewery(UUID breweryId);
 
     Optional<Batch> findById(UUID breweryId, UUID batchId);
 

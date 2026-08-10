@@ -5231,9 +5231,15 @@ paths:
         fim de semana.
 
 
-        **O aceite registra a decisão autorizada e devolve `executionRoute`; não executa.** Nenhum módulo
-        publica porta de comando hoje — só consultas — e criar essas portas em custeio, qualidade e sanitização
-        é mudança nas histórias deles. Pendência declarada no STATUS da sprint.
+        **O aceite EXECUTA o comando na mesma transação, para as ações que têm porta publicada** (fechar
+        custo e iniciar ciclo de limpeza). Se o comando falhar, a decisão é desfeita junto: consentimento
+        gravado sem o efeito que ele autorizou faria alguém acreditar que o custo foi fechado.
+
+
+        **Abrir não conformidade continua sendo um passo manual**, e o campo `executedOnConfirm` diz qual é
+        qual. Executá-la exigiria inventar prazos de contenção, investigação e verificação — regra de negócio
+        que não se deduz da proposta — e o modelo de dados não liga não conformidade a lote. Registrado no
+        STATUS da sprint.
       requestBody:
         required: true
         content:
@@ -10188,8 +10194,8 @@ components:
         Um comando que o copiloto propôs e que ninguém executou. Ela existe como registro justamente para
         separar o momento em que a IA sugere do momento em que uma pessoa decide — e para que o segundo seja
         auditável depois.
-      required: [id, action, label, parameters, rationale, requiredPermission, executionRoute, proposedBy,
-                 proposedAt, expiresAt, status, expired, canConfirm]
+      required: [id, action, label, parameters, rationale, requiredPermission, executionRoute,
+                 executedOnConfirm, proposedBy, proposedAt, expiresAt, status, expired, canConfirm]
       properties:
         id: {type: string, format: uuid}
         action: {$ref: '#/components/schemas/ProposedAction'}
@@ -10215,8 +10221,14 @@ components:
         executionRoute:
           type: string
           description: >-
-            Onde o comando vive de fato. O aceite entrega este destino em vez de executar, porque nenhum módulo
-            publica porta de comando hoje.
+            Onde o comando vive de fato — onde ver o resultado quando o aceite executa, e onde praticá-lo à
+            mão quando não executa.
+        executedOnConfirm:
+          type: boolean
+          description: >-
+            Se confirmar dispara o comando ou apenas registra a decisão. Existe para a tela dizer o que vai
+            acontecer: prometer "leva ao comando" numa ação que executa faria a pessoa consentir com uma coisa
+            e outra acontecer.
         proposedBy:
           type: string
           format: uuid

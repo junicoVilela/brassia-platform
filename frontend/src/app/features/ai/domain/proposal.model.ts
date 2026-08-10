@@ -15,6 +15,8 @@ export interface CommandProposal {
   requiredPermission: string;
   /** Onde o comando vive. O aceite entrega este destino em vez de executar. */
   executionRoute: string;
+  /** Se confirmar executa o comando, ou só registra a decisão (DEB-AIA-002). */
+  executedOnConfirm: boolean;
   /** Quem **pediu** a proposta. A IA não propõe sozinha. */
   proposedBy: string;
   proposedAt: string;

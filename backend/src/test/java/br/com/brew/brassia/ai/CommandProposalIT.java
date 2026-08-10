@@ -116,9 +116,10 @@ class CommandProposalIT {
                 .andExpect(jsonPath("$.decidedBy", Matchers.is(confirmadorId.toString())))
                 .andExpect(jsonPath("$.decisionNote", Matchers.is("Conferi as parcelas do lote.")))
                 .andExpect(jsonPath("$.requiredPermission", Matchers.is(COMANDO)))
-                // O aceite entrega o destino do comando, não o executa: nenhum módulo publica porta de
-                // comando hoje. Pendência declarada no STATUS da sprint.
-                .andExpect(jsonPath("$.executionRoute", Matchers.is("/costing/batches")));
+                // Desde DEB-AIA-002 o aceite EXECUTA o comando na mesma transação; a rota deixou de ser
+                // "onde praticar o ato" e passou a ser "onde ver o resultado".
+                .andExpect(jsonPath("$.executionRoute", Matchers.is("/costing/batches")))
+                .andExpect(jsonPath("$.executedOnConfirm", Matchers.is(true)));
 
         // A linha de auditoria é o produto da história: sem ela, "a IA fez" seria a única explicação
         // possível para o custo ter sido fechado.
@@ -282,6 +283,30 @@ class CommandProposalIT {
      * <p>{@code expiresAt} é parâmetro em vez de derivado de {@link CommandProposal#VALIDITY} porque é o
      * único jeito de testar o vencimento sem esperar doze horas nem injetar relógio no contexto inteiro.
      */
+    /**
+     * Uma proposta pendente sobre um lote QUE EXISTE.
+     *
+     * <p>Antes de `DEB-AIA-002` o parâmetro era um UUID aleatório e passava, porque o aceite não executava
+     * nada. Assim que ele passou a fechar o custo de verdade, o lote inventado virou 404 — e o teste que
+     * afirmava "o aceite registra a decisão" estava, na prática, afirmando isso sobre um lote inexistente.
+     * Um fixture que só era válido porque nada acontecia.
+     */
+    /** Lote mínimo para o custeio conseguir montar e fechar. Sem chave estrangeira para ordem ou receita. */
+    private UUID seedBatch() {
+        var batchId = UUID.randomUUID();
+        jdbc.sql("""
+                INSERT INTO production_batch (id, brewery_id, order_id, code, recipe_id, recipe_version,
+                        recipe_name, volume_liters, status, started_at, started_by)
+                VALUES (:id, :brewery, :order, :code, :recipe, 1, 'Receita de teste', 1000, 'COMPLETED',
+                        now(), :by)
+                """)
+                .param("id", batchId).param("brewery", brewery).param("order", UUID.randomUUID())
+                .param("code", "LOTE-" + batchId.toString().substring(0, 8))
+                .param("recipe", UUID.randomUUID()).param("by", UUID.randomUUID())
+                .update();
+        return batchId;
+    }
+
     private UUID pendingProposal(Instant expiresAt) {
         var id = UUID.randomUUID();
         var proposedAt = expiresAt.minus(CommandProposal.VALIDITY);
@@ -293,7 +318,7 @@ class CommandProposalIT {
                 .param("id", id)
                 .param("brewery", brewery)
                 .param("action", ProposedAction.CLOSE_BATCH_COST.name())
-                .param("parameters", "{\"batchId\":\"" + UUID.randomUUID() + "\"}")
+                .param("parameters", "{\"batchId\":\"" + seedBatch() + "\"}")
                 .param("rationale", "O lote terminou e o custo segue derivado.")
                 .param("by", UUID.randomUUID())
                 .param("at", Timestamp.from(proposedAt))

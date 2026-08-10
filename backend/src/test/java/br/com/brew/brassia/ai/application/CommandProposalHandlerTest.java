@@ -20,6 +20,7 @@ import br.com.brew.brassia.ai.domain.UnknownProposalException;
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.costing.BatchCostLookup;
+import br.com.brew.brassia.ai.application.port.outbound.ProposalExecutor;
 import br.com.brew.brassia.fermentation.FermentationLookup;
 import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.production.BatchOutcomeLookup;
@@ -61,6 +62,12 @@ class CommandProposalHandlerTest {
 
     private final RecordingAudit audit = new RecordingAudit();
     private final InMemoryProposals repository = new InMemoryProposals();
+
+    /**
+     * Registra o que foi mandado executar. Um dublê que só engole a chamada não distinguiria "executou" de
+     * "esqueceu de executar" — que é exatamente a diferença que DEB-AIA-002 fecha.
+     */
+    private final SpyExecutor executor = new SpyExecutor();
 
     // --- propor -------------------------------------------------------------------------------------
 
@@ -255,6 +262,51 @@ class CommandProposalHandlerTest {
     }
 
     @Test
+    @DisplayName("o aceite EXECUTA o comando, com quem confirmou como ator")
+    void aceiteExecutaOComando() {
+        // DEB-AIA-002. Antes disto o consentimento ficava gravado e a execução dependia de alguém não
+        // esquecer o segundo passo — numa proposta cuja razão de existir é justamente que "o lote termina,
+        // as parcelas entram, e ninguém lembra de fechar".
+        var id = pendente();
+
+        handler(prompt -> null).accept(QUEM_CONFIRMA, BREWERY, id, Set.of("costing.cost.close"), null);
+
+        assertThat(executor.executadas).hasSize(1);
+        assertThat(executor.executadas.getFirst().id()).isEqualTo(id);
+    }
+
+    @Test
+    @DisplayName("a EXECUÇÃO vem depois da gravação: quem perde a corrida não dispara comando")
+    void execucaoVemDepoisDaGravacao() {
+        // A ordem é a proteção. Executar antes dispararia o comando duas vezes em dois cliques, e só então
+        // descobriria que uma das duas não devia ter passado — com o custo já fechado.
+        var id = pendente();
+        repository.decideBehindOurBack = true;
+
+        assertThatExceptionOfType(ProposalNotPendingException.class).isThrownBy(() ->
+                handler(prompt -> null).accept(QUEM_CONFIRMA, BREWERY, id,
+                        Set.of("costing.cost.close"), null));
+
+        assertThat(executor.executadas).isEmpty();
+    }
+
+    @Test
+    @DisplayName("comando que falha propaga, para a transação desfazer a decisão junto")
+    void comandoQueFalhaPropaga() {
+        // Consentimento gravado sem o efeito que ele autorizou é pior que nenhum dos dois: alguém leria
+        // "confirmado" e acreditaria que o custo foi fechado. E a auditoria não pode registrar um aceite
+        // que vai ser desfeito.
+        var id = pendente();
+        executor.falha = new IllegalStateException("custo já fechado");
+
+        assertThatExceptionOfType(IllegalStateException.class).isThrownBy(() ->
+                handler(prompt -> null).accept(QUEM_CONFIRMA, BREWERY, id,
+                        Set.of("costing.cost.close"), null));
+
+        assertThat(audit.events).isEmpty();
+    }
+
+    @Test
     @DisplayName("proposta de outra cervejaria não existe")
     void propostaDeOutraCervejariaNaoExiste() {
         var id = pendente();
@@ -322,12 +374,26 @@ class CommandProposalHandlerTest {
                     }
                 },
                 (breweryId, batchId) -> scene.fermentation);
-        return new CommandProposalHandler(assembler, gateway, repository, audit,
+        return new CommandProposalHandler(assembler, gateway, repository, executor, audit,
                 Clock.fixed(AGORA, ZoneOffset.UTC));
     }
 
     private static Scene scene() {
         return new Scene();
+    }
+
+    static final class SpyExecutor implements ProposalExecutor {
+
+        final List<CommandProposal> executadas = new ArrayList<>();
+        RuntimeException falha;
+
+        @Override
+        public void execute(CommandProposal proposal, UUID actorId) {
+            if (falha != null) {
+                throw falha;
+            }
+            executadas.add(proposal);
+        }
     }
 
     private static final class Scene {

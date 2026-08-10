@@ -25,6 +25,8 @@ import br.com.brew.brassia.ai.application.service.ProbeHandler;
 import br.com.brew.brassia.ai.application.service.ProposalQueryService;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.costing.BatchCostLookup;
+import br.com.brew.brassia.ai.application.port.outbound.ProposalExecutor;
+import br.com.brew.brassia.ai.domain.CommandProposal;
 import br.com.brew.brassia.fermentation.FermentationLookup;
 import br.com.brew.brassia.knowledge.KnowledgeRetrieval;
 import br.com.brew.brassia.production.BatchLookup;
@@ -32,6 +34,9 @@ import br.com.brew.brassia.production.BatchOutcomeLookup;
 import br.com.brew.brassia.quality.BatchQualityLookup;
 import br.com.brew.brassia.recipe.RecipeLookup;
 import java.time.Clock;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.Objects;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -113,9 +118,36 @@ class AiConfiguration {
     ProposalCommands proposalCommands(BatchLookup batches, BatchOutcomeLookup outcomes,
             BatchQualityLookup quality, BatchCostLookup costs, RecipeLookup recipes,
             FermentationLookup fermentation, ModelGateway gateway, CommandProposalRepository proposals,
-            AuditTrail audit) {
+            ProposalExecutor executor, AuditTrail audit, PlatformTransactionManager transactionManager) {
         var facts = new BatchFactsAssembler(batches, outcomes, quality, costs, recipes, fermentation);
-        return new CommandProposalHandler(facts, gateway, proposals, audit, Clock.systemUTC());
+        var handler = new CommandProposalHandler(facts, gateway, proposals, executor, audit,
+                Clock.systemUTC());
+        var transaction = new TransactionTemplate(transactionManager);
+
+        // Só o ACEITE ganha transação, e só desde DEB-AIA-002. Antes ele era uma linha atualizada
+        // condicionalmente e não precisava de uma; agora grava a decisão e dispara o comando de outro
+        // módulo, e os dois têm de cair juntos. Propor continua fora: a chamada ao modelo é efeito externo
+        // já consumado, e uma transação em volta dela só criaria a ilusão de que dá para desfazer o gasto.
+        // Rejeitar continua fora porque não executa nada.
+        return new ProposalCommands() {
+            @Override
+            public List<CommandProposal> propose(UUID actorId, UUID breweryId, UUID batchId,
+                    Set<String> permissions) {
+                return handler.propose(actorId, breweryId, batchId, permissions);
+            }
+
+            @Override
+            public CommandProposal accept(UUID actorId, UUID breweryId, UUID proposalId,
+                    Set<String> permissions, String note) {
+                return Objects.requireNonNull(transaction.execute(
+                        status -> handler.accept(actorId, breweryId, proposalId, permissions, note)));
+            }
+
+            @Override
+            public CommandProposal reject(UUID actorId, UUID breweryId, UUID proposalId, String note) {
+                return handler.reject(actorId, breweryId, proposalId, note);
+            }
+        };
     }
 
     @Bean

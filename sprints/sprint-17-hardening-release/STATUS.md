@@ -97,84 +97,33 @@ e IP; **segredos** vindos de variável de ambiente, sem valor padrão embutido; 
 recusado.
 
 
-### DEB-REL-001 — `dependency-review` não-bloqueante até habilitar o Dependency graph
+### DEB-REL-001 — RESOLVIDO: `dependency-review` voltou a barrar
 
-O job acrescentado por `DEC-REL-003` **falhou no próprio PR que o introduziu** — e não por ter encontrado
-CVE: a action exige o recurso *Dependency graph* do GitHub, que está desabilitado neste repositório.
+O job acrescentado por `DEC-REL-003` falhou no próprio PR que o introduziu, e não por ter encontrado CVE:
+a action exige o recurso *Dependency graph*, que estava desabilitado. Ficou `continue-on-error: true` para
+não travar todo PR por um motivo que nenhuma mudança de código resolve.
 
-Deixá-lo bloqueante travaria todo PR por um motivo que nada no código resolve, e a reação previsível seria
-remover o job — trocando um controle imperfeito por controle nenhum. Ficou `continue-on-error: true`.
+**Critério de remoção cumprido.** Com autorização explícita, foram habilitados via API:
 
-**Não habilitei o recurso**: é configuração da conta do GitHub, fora do que me foi autorizado (git, não
-administração do repositório).
-
-**Critério de remoção:** habilitar *Settings > Code security and analysis > Dependency graph* e tirar o
-`continue-on-error`. Só então o job barra de fato.
-
-**Enquanto isso, o repositório também está com** `secret_scanning`, `secret_scanning_push_protection` e
-`dependabot_security_updates` **desabilitados** — os três são gratuitos em repositório público. O
-`gitleaks` no CI cobre parte do primeiro, mas só no que passa pelo pipeline; *push protection* age antes,
-que é onde um segredo vazado ainda dá para conter.
-
-### DEC-REL-004 (REL-001) — O ensaio existe e roda; o número ainda não é de produção
-
-`infra/backup/restore-drill.sh` faz dump, sobe um PostgreSQL isolado, restaura cronometrando, confere
-integridade e escreve relatório. **Executado ponta a ponta** contra o banco local: schema idêntico, zero
-divergências.
-
-Três coisas que só apareceram por rodar o script em vez de escrevê-lo:
-
-- **`n_live_tup` não serve para conferir integridade.** É estimativa do autovacuum, e vem **zerada** num
-  banco recém-restaurado — o ensaio acusaria divergência em todas as tabelas, sempre. Alarme que sempre
-  dispara é alarme que se aprende a ignorar. Trocado por `COUNT(*)` exato via `query_to_xml`.
-- **Exigir cliente PostgreSQL no host é barreira real** — não estava instalado. As ferramentas passaram a
-  rodar em container da mesma imagem do servidor, o que ainda garante que a versão do cliente casa com a
-  do servidor: `pg_dump` de versão menor recusa rodar, e é o tipo de detalhe que aparece no dia da
-  restauração de emergência.
-- **Senha com caractere especial quebra a URL.** `brassia85!@#` faz o parser ler `#@localhost` como host,
-  e o erro ("could not translate host name") não aponta para a senha. Documentado no cabeçalho.
-
-**O que falta para REL-001 fechar:** rodar contra um **backup de produção**. RPO e RTO medidos sobre um
-banco praticamente vazio não são RPO e RTO — o relatório diz isso explicitamente em vez de apresentar
-"1 segundo" como se fosse a resposta.
-
-### DEC-REL-005 (REL-002) — `/api/v1/production/batches` não pagina, e a meta cai perto de 4.700 lotes
-
-Medido, não estimado:
-
-| Lotes | p95 |
+| Recurso | Estado |
 |---|---|
-| 300 | 40 ms |
-| 3.000 | **319 ms** |
+| Dependency graph (via alertas do Dependabot) | habilitado |
+| `secret_scanning` | habilitado |
+| `secret_scanning_push_protection` | habilitado |
+| `dependabot_security_updates` | habilitado |
+| `secret_scanning_non_provider_patterns` | **indisponível** — exige Advanced Security |
+| `secret_scanning_validity_checks` | **indisponível** — exige Advanced Security |
 
-Linear, ~0,106 ms por lote: a meta de 500 ms (`docs/15_NONFUNCTIONAL_REQUIREMENTS.md`) cai por volta de
-**4.700 lotes**. Uma cervejaria com três brassagens por dia chega lá em poucos anos; uma cervejaria cigana
-chega antes. Para comparar: `audit_event` com **121 mil linhas** responde em 5 ms — porque pagina.
+As duas últimas merecem nota: a API responde 200 e **ignora** o pedido em silêncio, mantendo `disabled`.
+Quem só olhasse o código de resposta concluiria que habilitou. A conferência foi pelo estado devolvido,
+não pelo sucesso da chamada.
 
-**Não corrigi**, e a razão não é esforço: mudar a resposta de `Batch[]` para página é **quebra de
-contrato**, e `docs/20_RELEASE_MIGRATION.md` exige versão nova e janela de transição. É uma história, não
-um ajuste de hardening — e cabe a você decidir se entra antes do release ou vira dívida com prazo.
+O `continue-on-error` foi removido: o job volta a barrar PR com dependência de severidade alta, que era o
+ponto dele. Este próprio PR é o teste — se a action ainda não funcionasse, ele não passaria.
 
-O medidor marca `VAZIO` quando a tabela tem menos de mil linhas. Sem isso, o relatório mostraria sete
-linhas verdes das quais seis mediram tabela vazia — o "número bonito e inútil" que o próprio gerador de
-dataset existe para evitar. Verde sobre tabela vazia não é evidência, e o relatório passou a dizer isso.
-
-### DEC-REL-006 (REL-004) — Runbook escrito em torno de uma regra: o banco não volta
-
-`docs/20_RELEASE_MIGRATION.md` define expand/contract, e a consequência operacional é que *rollback* é
-sempre da **aplicação**. Um runbook que promete desfazer migration promete o que não vai cumprir no dia
-em que precisar.
-
-Contém árvore de decisão (rollback / forward-fix / restaurar), o que observar no ensaio de lock
-(`ADD CONSTRAINT` sem `NOT VALID` varre a tabela inteira e bloqueia escrita; `CREATE INDEX` sem
-`CONCURRENTLY` idem), e a regra que só dói no incidente: **migration publicada não é editada** — o
-checksum diverge e o Flyway recusa subir, em produção, no meio do problema.
-
-Registra também o pré-requisito criado por `DEC-REL-002`: o coletor de métricas precisa de credencial,
-senão o painel fica cego exatamente durante o deploy.
-
-**O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
-honesto — significa que nenhum ensaio foi feito.
+**Push protection** é a adição de maior valor prático: o `gitleaks` no CI pega segredo que já foi enviado;
+push protection recusa antes de o commit chegar ao servidor, que é o único momento em que ainda não houve
+vazamento.
 
 ## Evidências de encerramento
 

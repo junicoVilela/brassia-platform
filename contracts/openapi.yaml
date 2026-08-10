@@ -6003,32 +6003,6 @@ paths:
 
         Os fatores **iguais** também são declarados. "O resto ficou igual" é a afirmação sobre a qual toda
         a conclusão se apoia, e sem os iguais registrados ninguém pode conferi-la meses depois.
-  /blends:
-    get:
-      tags: [Blend e reprocesso]
-      summary: Lista operações de união e divisão (BLD-001)
-      responses:
-        '200':
-          description: Operações da cervejaria, mais recentes primeiro
-          content:
-            application/json:
-              schema: {type: array, items: {$ref: '#/components/schemas/BlendOperation'}}
-        '403': {$ref: '#/components/responses/Problem'}
-    post:
-      tags: [Blend e reprocesso]
-      summary: Simula uma união ou divisão (BLD-001)
-      description: >-
-        **O balanço fecha aqui, não na execução.** Simular é o único momento barato: depois de mover
-        cerveja entre tanques, descobrir que faltam 40 litros não desfaz a mistura.
-
-
-        Entrada tem de igualar saída mais a perda declarada, com tolerância de 0,10 L — que é o limite da
-        instrumentação, não folga para erro. Exigir igualdade exata recusaria operações corretas por
-        arredondamento e treinaria quem opera a inflar a perda até a conta passar, destruindo o valor do
-        próprio campo.
-
-
-        A simulação é gravada: uma proposta que some não pode ser aprovada depois.
       requestBody:
         required: true
         content:
@@ -6131,7 +6105,40 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Experiment'}
-            schema: {$ref: '#/components/schemas/SimulateBlend'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /blends:
+    get:
+      tags: [Blend e reprocesso]
+      summary: Lista operações de união e divisão (BLD-001)
+      responses:
+        '200':
+          description: Operações da cervejaria, mais recentes primeiro
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/BlendOperation'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Blend e reprocesso]
+      summary: Simula uma união ou divisão (BLD-001)
+      description: >-
+        **O balanço fecha aqui, não na execução.** Simular é o único momento barato: depois de mover
+        cerveja entre tanques, descobrir que faltam 40 litros não desfaz a mistura.
+
+
+        Entrada tem de igualar saída mais a perda declarada, com tolerância de 0,10 L — que é o limite da
+        instrumentação, não folga para erro. Exigir igualdade exata recusaria operações corretas por
+        arredondamento e treinaria quem opera a inflar a perda até a conta passar, destruindo o valor do
+        próprio campo.
+
+
+        A simulação é gravada: uma proposta que some não pode ser aprovada depois.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SimulateBlendOperation'}
       responses:
         '201':
           description: Simulação registrada. Nada foi movido
@@ -6232,6 +6239,75 @@ paths:
         '409': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    SimulateBlendOperation:
+      type: object
+      required: [kind, inputs, outputs, reason]
+      properties:
+        kind:
+          type: string
+          enum: [MERGE, SPLIT]
+          description: >-
+            União parte de ao menos dois lotes; divisão parte de um e chega a ao menos dois. A forma é o
+            que distingue as duas — sem a checagem, uma "união" com uma origem apareceria no histórico
+            descrevendo o oposto do que houve
+        inputs:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/BlendMovement'}
+        outputs:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/BlendMovement'}
+        declaredLossLiters:
+          type: number
+          minimum: 0
+          default: 0
+          description: >-
+            O caminho legítimo para o balanço fechar. Quem perdeu 12 L na transferência declara 12 L; o
+            que não se aceita é a conta não fechar sem ninguém dizer por quê
+        reason:
+          type: string
+          maxLength: 500
+          description: >-
+            Obrigatório. Blend sem motivo é decisão sem rastro: meses depois ninguém sabe se foi correção
+            de desvio, ajuste de estilo ou aproveitamento de sobra
+    BlendMovement:
+      type: object
+      required: [batchId, liters]
+      properties:
+        batchId: {type: string, format: uuid}
+        liters:
+          type: number
+          exclusiveMinimum: 0
+          description: >-
+            Sempre positivo. O sentido vem do lado em que o movimento está, nunca do sinal — guardá-lo no
+            sinal transformaria todo erro de sinal num balanço que fecha por acidente
+    BlendOperation:
+      type: object
+      description: >-
+        As três parcelas do balanço viajam juntas e sempre. Devolver só o total de saída deixaria quem
+        consome sem como conferir a conta — e um balanço que ninguém pode conferir é uma afirmação
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [MERGE, SPLIT]}
+        inputs: {type: array, items: {$ref: '#/components/schemas/BlendMovement'}}
+        outputs: {type: array, items: {$ref: '#/components/schemas/BlendMovement'}}
+        inputLiters: {type: number}
+        outputLiters: {type: number}
+        declaredLossLiters: {type: number}
+        reason: {type: string}
+        status: {type: string, enum: [SIMULATED, APPROVED, EXECUTED, DISCARDED]}
+        contributesLineage:
+          type: boolean
+          description: >-
+            Se esta operação já pesa na genealogia — e portanto no recall. Explícito no contrato porque
+            deduzi-lo de `status` exigiria conhecer a regra
+        simulatedBy: {type: string, format: uuid}
+        simulatedAt: {type: string, format: date-time}
+        approvedBy: {type: string, format: uuid, nullable: true}
+        approvedAt: {type: string, format: date-time, nullable: true}
+        executedBy: {type: string, format: uuid, nullable: true}
+        executedAt: {type: string, format: date-time, nullable: true}
     PlanExperiment:
       type: object
       required: [recipeId, hypothesis, controlBatchId, variantBatchId, factors]
@@ -6324,75 +6400,6 @@ components:
         observation: {type: string}
         concludedBy: {type: string, format: uuid}
         concludedAt: {type: string, format: date-time}
-    SimulateBlend:
-      type: object
-      required: [kind, inputs, outputs, reason]
-      properties:
-        kind:
-          type: string
-          enum: [MERGE, SPLIT]
-          description: >-
-            União parte de ao menos dois lotes; divisão parte de um e chega a ao menos dois. A forma é o
-            que distingue as duas — sem a checagem, uma "união" com uma origem apareceria no histórico
-            descrevendo o oposto do que houve
-        inputs:
-          type: array
-          minItems: 1
-          items: {$ref: '#/components/schemas/BlendMovement'}
-        outputs:
-          type: array
-          minItems: 1
-          items: {$ref: '#/components/schemas/BlendMovement'}
-        declaredLossLiters:
-          type: number
-          minimum: 0
-          default: 0
-          description: >-
-            O caminho legítimo para o balanço fechar. Quem perdeu 12 L na transferência declara 12 L; o
-            que não se aceita é a conta não fechar sem ninguém dizer por quê
-        reason:
-          type: string
-          maxLength: 500
-          description: >-
-            Obrigatório. Blend sem motivo é decisão sem rastro: meses depois ninguém sabe se foi correção
-            de desvio, ajuste de estilo ou aproveitamento de sobra
-    BlendMovement:
-      type: object
-      required: [batchId, liters]
-      properties:
-        batchId: {type: string, format: uuid}
-        liters:
-          type: number
-          exclusiveMinimum: 0
-          description: >-
-            Sempre positivo. O sentido vem do lado em que o movimento está, nunca do sinal — guardá-lo no
-            sinal transformaria todo erro de sinal num balanço que fecha por acidente
-    BlendOperation:
-      type: object
-      description: >-
-        As três parcelas do balanço viajam juntas e sempre. Devolver só o total de saída deixaria quem
-        consome sem como conferir a conta — e um balanço que ninguém pode conferir é uma afirmação
-      properties:
-        id: {type: string, format: uuid}
-        kind: {type: string, enum: [MERGE, SPLIT]}
-        inputs: {type: array, items: {$ref: '#/components/schemas/BlendMovement'}}
-        outputs: {type: array, items: {$ref: '#/components/schemas/BlendMovement'}}
-        inputLiters: {type: number}
-        outputLiters: {type: number}
-        declaredLossLiters: {type: number}
-        reason: {type: string}
-        status: {type: string, enum: [SIMULATED, APPROVED, EXECUTED, DISCARDED]}
-        contributesLineage:
-          type: boolean
-          description: >-
-            Se esta operação já pesa na genealogia — e portanto no recall. Explícito no contrato porque
-            deduzi-lo de `status` exigiria conhecer a regra
-        simulatedBy: {type: string, format: uuid}
-        simulatedAt: {type: string, format: date-time}
-        approvedBy: {type: string, format: uuid, nullable: true}
-        approvedAt: {type: string, format: date-time, nullable: true}
-        executedBy: {type: string, format: uuid, nullable: true}
-        executedAt: {type: string, format: date-time, nullable: true}
     AnalyzeControlChart:
       type: object
       required: [recipeId, kind, batchIds]

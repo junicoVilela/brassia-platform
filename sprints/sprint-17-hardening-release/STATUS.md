@@ -159,11 +159,21 @@ Duas decisões de forma:
   faria quem procura um lote concluir que ele não existe. O helper devolve `truncated` e `total` junto,
   centralizando a honestidade num lugar em vez de cinco.
 
-**Erro de alcance no caminho, que vale registrar.** Detectei os consumidores procurando um padrão de
-iteração específico e achei 13 arquivos; a suíte acusou **180 erros** porque havia 33, com formatos
-diferentes. A correção foi inverter o método: partir de todo arquivo que faz `GET` na listagem, descobrir
-a variável que recebe o corpo e corrigir a iteração dela. Procurar pelo padrão que eu esperava encontrar
-achou o que eu esperava; procurar pelo endpoint achou o resto.
+**O mesmo erro de alcance, duas vezes — e é o que vale registrar.**
+
+Primeiro no backend: detectei os consumidores procurando um padrão de iteração específico e achei 13
+arquivos. A suíte acusou **180 erros** porque havia 33, com formatos diferentes.
+
+Depois no frontend, e pior: corrigi o `BatchesApi` de produção e os componentes que o usam. **Build verde,
+503 testes verdes** — e o E2E vermelho. Havia **sete clientes independentes** do mesmo endpoint
+(`packaging`, `fermentation/readings`, `fermentation/yeast`, `costing`, `reporting`, `ai`, `production`),
+cada um declarando o próprio tipo local. Tipagem forte não ajudou justamente porque cada um tinha o seu.
+
+As duas vezes a correção foi a mesma: **procurar pelo endpoint, não pelo padrão nem pela classe**. Procurar
+pelo formato que eu esperava encontrar achou exatamente o que eu esperava — e nada além.
+
+O E2E foi a única barreira que pegou o segundo caso. Um teste que atravessa a stack real vale por isso:
+ele não sabe quantos clientes existem, só sabe que a tela ficou vazia.
 
 ## Evidências de encerramento
 

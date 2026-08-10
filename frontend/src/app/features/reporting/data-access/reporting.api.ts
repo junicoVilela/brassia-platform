@@ -1,6 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { MAX_PAGE_SIZE, PageResponse } from '../../../core/http/page.model';
+import { Observable, map } from 'rxjs';
 import { BatchReport } from '../domain/batch-report.model';
 import { Dashboard } from '../domain/dashboard.model';
 
@@ -32,6 +33,13 @@ export class ReportingApi {
   }
 
   batches(): Observable<BatchOption[]> {
-    return this.http.get<BatchOption[]>('/api/v1/production/batches');
+    // A listagem é paginada (REL-002). Estes clientes só preenchem seletor: pedem o teto de uma
+    // página e mapeiam `content`. O que NÃO se faz aqui é ignorar o truncamento — quem consome
+    // decide o que mostrar, mas o dado de que há mais vem junto.
+    return this.http
+      .get<PageResponse<BatchOption>>('/api/v1/production/batches', {
+        params: new HttpParams().set('page', 0).set('size', MAX_PAGE_SIZE),
+      })
+      .pipe(map(page => page.content));
   }
 }

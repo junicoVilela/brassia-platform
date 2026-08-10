@@ -11,7 +11,7 @@ Estado: CONCLUÍDA COM PENDÊNCIAS DECLARADAS (5 completas, 2 parciais)
 | PWA-001 | Concluída | Claude | `frontend/.../core/offline`, `ngsw-config.json`, `manifest.webmanifest` | Service worker só para a aplicação; o roteiro é guardado por escolha explícita, carimbado com dono e cervejaria, vence em 12 h e é apagado no logout. Ver DEC-PWA-001/002 e DEB-PWA-001. |
 | PWA-002 | Concluída | Claude | `frontend/.../core/offline/offline-queue.store.ts`, `V100__production_client_request_id.sql` | Fila com garantia "ao menos uma vez"; a chave gerada no registro (não no envio) a transforma em "exatamente uma" do lado do servidor. Conflito sai do ciclo automático e espera decisão. Ver DEC-PWA-003/004. |
 | INT-003 | Concluída | Claude | `integration/domain/ScanReference`, `ScanController`, `frontend/.../features/scan` | O código carrega só o quê; a permissão do tipo apontado é verificada depois da leitura. Sem leitor de câmera: o QR é um link. Ver DEC-INT-009/010. |
-| INT-006 | Parcial | Claude | `sensor/domain/PayloadFormat`, `CanonicalReading`, `V101__sensor_payload_format.sql` | Adapters de payload (canônico, iSpindel, Tilt) por HTTP. **Transporte MQTT não entregou** — ver DEB-INT-003. |
+| INT-006 | Concluída | Claude | `sensor/domain/PayloadFormat`, `SensorMqttSubscriber`, `V108__sensor_mqtt.sql` | Adapters de payload por HTTP **e MQTT**, exercitado contra broker real. DEB-INT-003 resolvido. |
 | SEC-B07 | Concluída | Claude | `security/domain/SsoHandshake`, `AccountLinkDecision`, `SsoLoginHandler`, `V102__sso_handshake.sql` | Fluxo SP-initiated com state/nonce/PKCE, uso único no banco e vínculo que recusa sequestro. **Troca OIDC exercitada contra Keycloak real** — DEB-SEC-001 resolvido. SAML segue recusando. |
 | ~~INT-004~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
 | ~~INT-005~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
@@ -369,24 +369,49 @@ Duas escolhas de leitura defensiva, porque payload de dispositivo é entrada de 
   dizer isso é melhor que gravar zero.
 - **O erro nomeia o campo.** "Payload inválido" mandaria quem configura o gateway adivinhar.
 
-### DEB-INT-003 (INT-006) — O transporte MQTT não foi entregue
+### DEB-INT-003 (INT-006) — RESOLVIDO: transporte MQTT contra broker real
 
-O título da história diz "adapters HTTP/MQTT". O que está entregue são os **adapters de payload** (canônico,
-iSpindel, Tilt) com transporte **HTTP**; o transporte MQTT não existe.
+O critério de remoção era: *cliente MQTT configurado por cervejaria, tópico por dispositivo, e
+`SensorMqttIT` com broker real em Testcontainers cobrindo entrega, reentrega (QoS 1) e credencial
+revogada.* **Entregue, com HiveMQ em container.**
 
-MQTT exigiria cliente Paho, um broker em Testcontainers e um modelo de assinatura de tópico por dispositivo
-— é uma fatia com peso próprio. Entregá-la sem teste de integração contra um broker real repetiria
-exatamente o erro que motivou `DEC-INT-001`: marcar como concluído o que não foi verificado.
+**A previsão do débito se confirmou:** a tradução era mesmo independente do transporte. O assinante não
+converte nada — recebe, extrai o código do tópico e chama `AdapterIngestionCommands.ingest`. Conversão,
+idempotência, qualidade e atraso continuam onde estavam.
 
-**O que já está pronto para quando ele entrar:** a tradução é independente do transporte. Um assinante MQTT
-só precisa chamar `AdapterIngestionCommands.ingest` com o payload recebido — a conversão, a idempotência, a
-qualidade e o atraso já acontecem sem saber por onde a mensagem chegou.
+Decisões do transporte:
 
-**Critério de remoção:** cliente MQTT configurado por cervejaria, tópico por dispositivo, e `SensorMqttIT`
-com broker real em Testcontainers cobrindo entrega, reentrega (QoS 1) e credencial revogada.
+- **Configuração por cervejaria, não global.** Cada uma tem o próprio broker — o da fábrica, o do
+  integrador, o da nuvem do fabricante. Um cliente global obrigaria todas a compartilhar broker e faria a
+  credencial de uma alcançar os tópicos das outras.
+- **O dispositivo vem do TÓPICO, nunca do corpo.** Mesma regra da ingestão HTTP, que tira o código da URL.
+  Um gateway que escolhesse o aparelho pelo payload gravaria na série de outro da mesma cervejaria — e há
+  um teste que publica um `deviceId` divergente para provar que o tópico vence.
+- **QoS 1.** Com 0 uma leitura se perde no reconnect sem ninguém saber; com 2 o handshake não se paga para
+  um dado que já é idempotente do nosso lado. Em 1 a mensagem pode chegar duas vezes, e chegar duas vezes
+  é inofensivo: a idempotência está no banco, por `externalReadingId`.
+- **`CHECK` exigindo TLS** no destino. `tcp://` entrega credencial e leitura em texto claro na rede da
+  fábrica — justamente a rede com mais gente com acesso físico. Só `localhost` é tolerado.
+- **Sessão limpa.** Mensagens acumuladas enquanto estivemos fora chegariam com horas de atraso e seriam
+  marcadas como atrasadas — ruído que não descreve o processo.
+- **Reassinatura no reconnect.** Com sessão limpa, o cliente volta conectado e **mudo** se ninguém
+  reassinar — o pior estado possível, porque parece saudável.
+- **Mensagem malformada não derruba o assinante.** Um assinante morto perde tudo em silêncio, e há teste
+  para isso.
 
-**Consequência para o aceite da sprint:** metade do título desta história fica pendente. A decisão de tratar
-INT-006 como concluída ou de abrir uma história própria para o transporte é do mantenedor.
+**`refresh()` nasceu do teste e resolve uma lacuna real:** sem ele, uma cervejaria que configura o broker
+hoje só receberia leituras no próximo reinício da aplicação.
+
+**O log do descarte inclui a mensagem da exceção**, não só o tipo — ao contrário do critério usado no
+webhook e no SSO, e aqui é o certo: a mensagem diz *qual regra recusou* (unidade divergente, dispositivo
+inativo, campo faltando), que é o que quem opera precisa. O que não entra é o corpo recebido, de fonte não
+confiável.
+
+**Três defeitos meus no caminho, todos do mesmo tipo — supor em vez de ler:** criei um `application.yml`
+de teste que sombreava o principal (e a cópia obsoleta em `target/test-classes` seguiu sombreando depois
+de apagá-lo); usei `created_at` numa tabela com `registered_at`; e **inventei o formato canônico do
+payload** em vez de ler `PayloadFormat`. O que destravou foi passar a ler o log do assinante: ele apontou
+a causa exata de cada iteração seguinte.
 
 ### DEC-PWA-001 (PWA-001) — O service worker não cacheia a API, e a ausência é a decisão
 

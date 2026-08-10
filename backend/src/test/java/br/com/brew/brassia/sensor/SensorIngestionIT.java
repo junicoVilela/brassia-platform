@@ -24,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.mock.web.MockHttpSession;
@@ -69,6 +70,7 @@ class SensorIngestionIT {
     }
 
     @Autowired WebApplicationContext context;
+    @Autowired JdbcClient jdbc;
     MockMvc mockMvc;
 
     @BeforeEach
@@ -579,6 +581,137 @@ class SensorIngestionIT {
                         .content("{\"email\":\"admin@brassia.local\",\"password\":\"admin-local-123\"}"))
                 .andExpect(status().isOk()).andReturn();
         return (MockHttpSession) result.getRequest().getSession(false);
+    }
+
+    @Test
+    @DisplayName("JORNADA: leitura de sensor de um fermentador ocupado vira ponto na curva do lote")
+    void leituraViraPontoNaCurva() throws Exception {
+        // O que DEB-INT-001 travava. Antes disto o sensor guardava a série dele e quem quisesse ver a
+        // curva de fermentação registrava a leitura à mão — com o dado já dentro do sistema.
+        var session = login();
+        var brewery = breweryOfSession(session);
+        var fermentador = seedEquipment(brewery);
+        var lote = seedFermentingBatch(brewery, fermentador);
+
+        var code = uniqueCode("CURVA");
+        registerDeviceOnEquipment(session, code, "TEMPERATURE", "C", fermentador);
+
+        ingest(session, code, "msg-curva-1", "TEMPERATURE", "18.5", "C", mediu())
+                .andExpect(status().isCreated());
+
+        assertThat(curvePoints(lote)).isEqualTo(1);
+        // A origem é o que separa "o sensor mediu" de "alguém leu no visor" numa curva suspeita.
+        assertThat(curveSource(lote)).isEqualTo("SENSOR");
+    }
+
+    @Test
+    @DisplayName("JORNADA: o mesmo tanque sem lote fermentando não gera ponto nenhum")
+    void tanqueDesocupadoNaoGeraPonto() throws Exception {
+        // Estado normal entre dois lotes, e a razão de a consulta juntar com o status: sem isso o último
+        // lote transferido ocuparia o tanque para sempre, e a telemetria de hoje seria creditada a uma
+        // cerveja que já foi envasada.
+        var session = login();
+        var brewery = breweryOfSession(session);
+        var fermentador = seedEquipment(brewery);
+        var lote = seedFermentingBatch(brewery, fermentador);
+        jdbc.sql("UPDATE production_batch SET status = 'COMPLETED' WHERE id = :id")
+                .param("id", lote).update();
+
+        var code = uniqueCode("VAZIO");
+        registerDeviceOnEquipment(session, code, "TEMPERATURE", "C", fermentador);
+
+        ingest(session, code, "msg-vazio-1", "TEMPERATURE", "18.5", "C", mediu())
+                .andExpect(status().isCreated());
+
+        assertThat(curvePoints(lote)).isZero();
+    }
+
+    /**
+     * Semeia um lote fermentando num equipamento, direto no banco.
+     *
+     * <p>{@code production_batch} não tem chave estrangeira para ordem nem receita — são colunas UUID —, o
+     * que permite montar o estado sem atravessar planejamento, receita e dia de brassa. Passar por toda
+     * essa cadeia testaria aqueles módulos, não a ligação que este teste afirma.
+     */
+    private UUID seedFermentingBatch(UUID breweryId, UUID equipmentId) {
+        var batchId = UUID.randomUUID();
+        jdbc.sql("""
+                INSERT INTO production_batch (id, brewery_id, order_id, code, recipe_id, recipe_version,
+                        recipe_name, volume_liters, status, started_at, started_by)
+                VALUES (:id, :brewery, :order, :code, :recipe, 1, 'Receita de teste', 1000, 'FERMENTING',
+                        now(), :by)
+                """)
+                .param("id", batchId).param("brewery", breweryId).param("order", UUID.randomUUID())
+                .param("code", "LOTE-" + batchId.toString().substring(0, 8))
+                .param("recipe", UUID.randomUUID()).param("by", UUID.randomUUID())
+                .update();
+        jdbc.sql("""
+                INSERT INTO production_transfer (id, brewery_id, batch_id, destination_equipment_id,
+                        volume_liters, og_sg, losses_liters, transferred_at, transferred_by)
+                VALUES (:id, :brewery, :batch, :equipment, 950, 1.052, 50, now(), :by)
+                """)
+                .param("id", UUID.randomUUID()).param("brewery", breweryId).param("batch", batchId)
+                .param("equipment", equipmentId).param("by", UUID.randomUUID())
+                .update();
+        return batchId;
+    }
+
+    private int curvePoints(UUID batchId) {
+        return jdbc.sql("SELECT COUNT(*) FROM fermentation_reading WHERE batch_id = :batch")
+                .param("batch", batchId).query(Integer.class).single();
+    }
+
+    private String curveSource(UUID batchId) {
+        return jdbc.sql("SELECT source FROM fermentation_reading WHERE batch_id = :batch")
+                .param("batch", batchId).query(String.class).single();
+    }
+
+    /**
+     * A cervejaria do principal, lida de um dispositivo que ele cadastra e não usa.
+     *
+     * <p>Não há endpoint que devolva o perfil do usuário logado, e criar um para conveniência de teste
+     * ampliaria a superfície da aplicação. O dispositivo nasce do mesmo principal e por isso carrega a
+     * mesma cervejaria.
+     */
+    private UUID breweryOfSession(MockHttpSession session) throws Exception {
+        var deviceId = registerDevice(session, uniqueCode("SONDA"), "TEMPERATURE", "C", 300);
+        return jdbc.sql("SELECT brewery_id FROM sensor_device WHERE id = :id")
+                .param("id", deviceId).query(UUID.class).single();
+    }
+
+    /**
+     * Um fermentador de verdade na tabela de equipamentos.
+     *
+     * <p>Descoberto por falha: {@code sensor_device.equipment_id} tem chave estrangeira para
+     * {@code equipment}, e cadastrar dispositivo apontando para um id inexistente devolve <strong>500</strong>
+     * — não 400. O teste passou a semear o equipamento; a resposta opaca ficou registrada como achado.
+     */
+    private UUID seedEquipment(UUID breweryId) {
+        var id = UUID.randomUUID();
+        jdbc.sql("""
+                INSERT INTO equipment (id, brewery_id, code, name, capacity_liters, dead_space_liters,
+                        mash_efficiency_percent, boil_off_liters_per_hour)
+                VALUES (:id, :brewery, :code, 'Fermentador de teste', 2000, 20, 75, 8)
+                """)
+                .param("id", id).param("brewery", breweryId)
+                .param("code", "FV-" + id.toString().substring(0, 8))
+                .update();
+        return id;
+    }
+
+    private UUID registerDeviceOnEquipment(MockHttpSession session, String code, String measure,
+            String unit, UUID equipmentId) throws Exception {
+        var node = JSON.createObjectNode();
+        node.put("code", code);
+        node.put("name", "Dispositivo " + code);
+        node.put("measure", measure);
+        node.put("unit", unit);
+        node.put("equipmentId", equipmentId.toString());
+        node.put("expectedIntervalSeconds", 300);
+        var body = read(mockMvc.perform(post(SENSORS + "/devices").with(csrf()).session(session)
+                        .contentType("application/json").content(JSON.writeValueAsString(node)))
+                .andExpect(status().isCreated()));
+        return UUID.fromString(body.get("id").asText());
     }
 
     private Authentication principal(UUID breweryId, Set<String> permissions) {

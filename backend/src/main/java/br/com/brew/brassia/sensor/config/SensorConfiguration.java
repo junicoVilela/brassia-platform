@@ -6,6 +6,7 @@ import br.com.brew.brassia.sensor.application.port.inbound.DeviceCommands;
 import br.com.brew.brassia.sensor.application.port.inbound.DeviceStatusCommands;
 import br.com.brew.brassia.sensor.application.port.inbound.ReadingCommands;
 import br.com.brew.brassia.sensor.application.port.inbound.SensorQueries;
+import br.com.brew.brassia.sensor.application.port.outbound.BatchCurveFeed;
 import br.com.brew.brassia.sensor.application.port.outbound.DeviceRepository;
 import br.com.brew.brassia.sensor.application.port.outbound.ReadingRepository;
 import br.com.brew.brassia.sensor.application.service.DeviceHandlers;
@@ -51,8 +52,8 @@ class SensorConfiguration {
 
     @Bean
     ReadingCommands sensorReadingCommands(DeviceRepository devices, ReadingRepository readings,
-            PlatformTransactionManager transactionManager) {
-        var handler = new IngestionHandler(devices, readings, Clock.systemUTC());
+            BatchCurveFeed curve, PlatformTransactionManager transactionManager) {
+        var handler = new IngestionHandler(devices, readings, curve, Clock.systemUTC());
         var transaction = new TransactionTemplate(transactionManager);
         return request -> Objects.requireNonNull(transaction.execute(status -> handler.ingest(request)));
     }

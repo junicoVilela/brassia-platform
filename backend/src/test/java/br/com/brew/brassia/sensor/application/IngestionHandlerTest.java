@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.brew.brassia.sensor.application.port.inbound.ReadingCommands;
+import br.com.brew.brassia.sensor.application.port.outbound.BatchCurveFeed;
 import br.com.brew.brassia.sensor.application.port.outbound.DeviceRepository;
 import br.com.brew.brassia.sensor.application.port.outbound.ReadingRepository;
 import br.com.brew.brassia.sensor.application.service.IngestionHandler;
@@ -47,6 +48,7 @@ class IngestionHandlerTest {
 
     private FakeDevices devices;
     private FakeReadings readings;
+    private FakeCurve curve;
     private IngestionHandler handler;
     private SensorDevice termometro;
 
@@ -54,7 +56,8 @@ class IngestionHandlerTest {
     void setUp() {
         devices = new FakeDevices();
         readings = new FakeReadings();
-        handler = new IngestionHandler(devices, readings, Clock.fixed(RECEBEU, ZoneOffset.UTC));
+        curve = new FakeCurve();
+        handler = new IngestionHandler(devices, readings, curve, Clock.fixed(RECEBEU, ZoneOffset.UTC));
         termometro = SensorDevice.register(CERVEJARIA, "TANK-01-TEMP", "Termômetro 1", Measure.TEMPERATURE,
                 "C", null, Duration.ofMinutes(5), OPERADOR, MEDIU);
         devices.save(termometro);
@@ -95,7 +98,7 @@ class IngestionHandlerTest {
         // por que a curva tem um buraco.
         var primeira = handler.ingest(pedido("msg-1", "18.5"));
 
-        var relogioAdiantado = new IngestionHandler(devices, readings,
+        var relogioAdiantado = new IngestionHandler(devices, readings, curve,
                 Clock.fixed(RECEBEU.plus(Duration.ofHours(2)), ZoneOffset.UTC));
         var segunda = relogioAdiantado.ingest(pedido("msg-1", "18.5"));
 
@@ -127,13 +130,44 @@ class IngestionHandlerTest {
     @Test
     @DisplayName("atraso além do intervalo esperado é sinalizado")
     void atrasoESinalizado() {
-        var atrasada = new IngestionHandler(devices, readings,
+        var atrasada = new IngestionHandler(devices, readings, curve,
                 Clock.fixed(MEDIU.plus(Duration.ofMinutes(20)), ZoneOffset.UTC));
 
         var result = atrasada.ingest(pedido("msg-1", "18.5"));
 
         assertThat(result.reading().lateness().late()).isTrue();
         assertThat(result.reading().quality()).isEqualTo(ReadingQuality.GOOD);
+    }
+
+    @Test
+    @DisplayName("a leitura gravada é encaminhada à curva, com o equipamento do dispositivo")
+    void encaminhaAcurva() {
+        // O sensor não sabe qual lote está no tanque — ele sabe o tanque. Quem resolve o resto é o
+        // adapter; o que se verifica aqui é que o caso de uso entrega os dois dados certos.
+        var fermentador = UUID.randomUUID();
+        var comEquipamento = SensorDevice.register(CERVEJARIA, "TANK-02-TEMP", "Termômetro 2",
+                Measure.TEMPERATURE, "C", fermentador, Duration.ofMinutes(5), OPERADOR, MEDIU);
+        devices.save(comEquipamento);
+
+        handler.ingest(new ReadingCommands.Request(CERVEJARIA, "TANK-02-TEMP", "msg-1", "TEMPERATURE",
+                new BigDecimal("18.5"), "C", MEDIU));
+
+        assertThat(curve.forwarded).hasSize(1);
+        assertThat(curve.forwarded.get(0).equipmentId()).isEqualTo(fermentador);
+        assertThat(curve.forwarded.get(0).reading().value()).isEqualByComparingTo("18.5");
+    }
+
+    @Test
+    @DisplayName("a REENTREGA não encaminha de novo")
+    void reentregaNaoEncaminha() {
+        // Encaminhar de novo seria inofensivo — a leitura de fermentação é idempotente pela chave natural
+        // — mas seria trabalho por engano justamente no caminho que existe para ser barato. E se um dia
+        // deixar de ser idempotente do outro lado, o erro apareceria como ponto duplicado na curva.
+        handler.ingest(pedido("msg-1", "18.5"));
+        handler.ingest(pedido("msg-1", "18.5"));
+
+        assertThat(readings.stored).hasSize(1);
+        assertThat(curve.forwarded).hasSize(1);
     }
 
     @Test
@@ -186,6 +220,19 @@ class IngestionHandlerTest {
     }
 
     /** Dublê do repositório de dispositivos. */
+    /** Registra o que foi encaminhado à curva, para separar "não encaminhou" de "encaminhou errado". */
+    private static final class FakeCurve implements BatchCurveFeed {
+
+        private final List<Forwarded> forwarded = new ArrayList<>();
+
+        @Override
+        public void forward(SensorReading reading, UUID equipmentId) {
+            forwarded.add(new Forwarded(reading, equipmentId));
+        }
+
+        record Forwarded(SensorReading reading, UUID equipmentId) {}
+    }
+
     private static final class FakeDevices implements DeviceRepository {
 
         private final Map<String, SensorDevice> byCode = new HashMap<>();

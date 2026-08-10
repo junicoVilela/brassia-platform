@@ -18,9 +18,9 @@ public interface TemporaryAccessRepository {
     /** Concessão pelo id, restrita à cervejaria (evita vazamento entre tenants). */
     Optional<TemporaryAccessGrant> findById(UUID id, UUID breweryId);
 
-    void approve(UUID id, UUID approverId, Instant approvedAt);
+    void approve(UUID breweryId, UUID id, UUID approverId, Instant approvedAt);
 
-    void revoke(UUID id, UUID revokedBy, Instant revokedAt);
+    void revoke(UUID breweryId, UUID id, UUID revokedBy, Instant revokedAt);
 
     /** Concessões da cervejaria (mais recentes primeiro), para visão administrativa. */
     List<TemporaryAccessGrant> current(UUID breweryId);

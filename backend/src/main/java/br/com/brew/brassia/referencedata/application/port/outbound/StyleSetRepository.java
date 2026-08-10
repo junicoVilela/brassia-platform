@@ -22,5 +22,5 @@ public interface StyleSetRepository {
 
     long count(UUID breweryId);
 
-    boolean markPublished(UUID id, Instant publishedAt, long expectedVersion);
+    boolean markPublished(UUID breweryId, UUID id, Instant publishedAt, long expectedVersion);
 }

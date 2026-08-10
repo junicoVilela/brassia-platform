@@ -180,8 +180,11 @@ class JdbcSavedReportRepository implements SavedReportRepository {
                     SET status = :status, detail = :detail, attempts = :attempts,
                         last_attempt_at = :at
                     WHERE run_id = :run AND user_id = :user
+                      AND EXISTS (SELECT 1 FROM reporting_report_run r
+                                  WHERE r.id = :run AND r.brewery_id = :brewery)
                     """)
                     .param("run", run.id()).param("user", delivery.userId())
+                    .param("brewery", run.breweryId())
                     .param("status", delivery.status().name()).param("detail", delivery.detail())
                     .param("attempts", delivery.attempts())
                     .param("at", timestamp(delivery.lastAttemptAt()))

@@ -47,6 +47,7 @@ class JdbcWebhookDeliveryRepository implements WebhookDeliveryRepository {
                 """)
                 .param("id", delivery.id())
                 .param("brewery", delivery.breweryId())
+                .param("brewery", delivery.breweryId())
                 .param("subscription", delivery.subscriptionId())
                 .param("type", delivery.eventType().externalName())
                 .param("event", delivery.eventId())
@@ -66,7 +67,7 @@ class JdbcWebhookDeliveryRepository implements WebhookDeliveryRepository {
                 SET status = :status, attempts = :attempts, next_attempt_at = :next,
                     delivered_at = :delivered, last_response_status = :responseStatus,
                     last_error = :error
-                WHERE id = :id
+                WHERE id = :id AND brewery_id = :brewery
                 """)
                 .param("status", delivery.status().name())
                 .param("attempts", delivery.attempts())

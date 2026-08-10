@@ -88,15 +88,16 @@ class JdbcImportJobRepository implements ImportJobRepository {
     }
 
     @Override
-    public boolean markPublished(UUID id, UUID publishedDatasetId, long expectedVersion) {
+    public boolean markPublished(UUID breweryId, UUID id, UUID publishedDatasetId, long expectedVersion) {
         int updated = jdbc.sql("""
                 UPDATE import_job
                 SET status = 'PUBLISHED', published_dataset_id = :dataset, version = :newVersion, updated_at = now()
-                WHERE id = :id AND version = :expected AND status = 'REVIEW_REQUIRED'
+                WHERE id = :id AND brewery_id = :brewery
+                  AND version = :expected AND status = 'REVIEW_REQUIRED'
                 """)
                 .param("dataset", publishedDatasetId)
                 .param("newVersion", expectedVersion + 1)
-                .param("id", id)
+                .param("brewery", breweryId).param("id", id)
                 .param("expected", expectedVersion)
                 .update();
         return updated > 0;

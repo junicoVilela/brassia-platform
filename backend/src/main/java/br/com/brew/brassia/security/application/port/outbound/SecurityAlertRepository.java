@@ -14,5 +14,5 @@ public interface SecurityAlertRepository {
     UUID create(UUID breweryId, UUID userId, String alertType, String severity, Map<String, Object> evidence);
     List<AlertView> listByBrewery(UUID breweryId, String status, int limit);
     Optional<AlertView> findById(UUID id);
-    void updateStatus(UUID id, String status, UUID resolvedBy);
+    void updateStatus(UUID breweryId, UUID id, String status, UUID resolvedBy);
 }

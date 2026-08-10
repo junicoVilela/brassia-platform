@@ -25,7 +25,7 @@ public final class PublishStyleSetHandler implements PublishStyleSetUseCase {
 
         var when = Instant.now();
         set.publish(when); // gate de licença + estado (IllegalStateException = 409)
-        if (!styleSets.markPublished(set.id().value(), when, set.version())) {
+        if (!styleSets.markPublished(command.breweryId(), set.id().value(), when, set.version())) {
             throw new IllegalStateException("conjunto não está em rascunho ou foi alterado concorrentemente");
         }
 

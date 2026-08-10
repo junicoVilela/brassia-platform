@@ -71,21 +71,41 @@ impedia uma dependência com CVE conhecido de ser mergeada. Foi acrescentado o j
 falha o PR em severidade alta ou crítica. Roda só em `pull_request` porque compara duas árvores; num push
 para `main` não há base de comparação, e um job que sempre passa por falta de entrada é pior que job nenhum.
 
-### OBS-REL-001 (REL-003) — Isolamento multi-tenant depende da aplicação, não do banco
+### OBS-REL-001 (REL-003) — RESOLVIDO: o filtro por cervejaria saiu da disciplina e virou barreira
 
-Varri os 157 esquemas (125 com `brewery_id`) contra todo SQL do código: **10 escritas** tocam tabela de
-tenant filtrando só por id. Conferi as 10 uma a uma — **todas** têm guarda no handler, que carrega a
-entidade com escopo antes (`findVisible(breweryId, id)`, `requireProvider`, `assertEditable`). **Nenhuma
-vulnerabilidade.**
+A varredura encontrou **dez escritas** tocando tabela com `brewery_id` filtrando só por id. Nenhuma era
+vulnerabilidade — todas tinham guarda no handler. Mas a garantia morava na disciplina de cada handler
+lembrar de carregar a entidade com escopo antes, e um handler novo que receba o id do path e chame o
+repositório direto vaza entre cervejarias sem nada reclamar.
 
-Mas a garantia mora inteira na disciplina de cada handler lembrar de carregar antes. Um handler novo que
-receba o id do path e chame o repositório direto vaza entre cervejarias, e nada — nem tipo, nem teste, nem
-restrição de banco — impede isso de ser escrito. É o mesmo tipo de fragilidade que as histórias da Sprint 16
-trataram tornando estrutural.
+**Nove receberam `AND brewery_id = :brewery`**, com o id propagado do handler — que já o tinha, porque toda
+operação nasce de um principal com cervejaria ativa. Duas nem exigiram mudar assinatura: o agregado já
+carregava a cervejaria.
 
-**Não corrigi**: mudar isso é acrescentar `brewery_id` a dez `WHERE` (barato) ou adotar RLS no PostgreSQL
-(caro, e decisão arquitetural que merece ADR). Fica registrado com critério de remoção: ou os dez `WHERE`
-recebem o filtro redundante, ou um ADR decide por RLS.
+**A décima foi removida.** `federation_provider.update` não tinha chamador nenhum. Corrigir uma escrita sem
+escopo que ninguém usa seria deixar o caminho errado pronto para quem precisar daquilo depois.
+
+**A outra metade é o `TenantIsolationTest`.** Consertar os dez resolveria hoje e não amanhã. O teste varre
+todo SQL do código contra as tabelas com `brewery_id` extraídas das migrations e falha se alguma escrita
+não filtrar — transformando a checagem que fiz uma vez, na mão, em barreira de cada build.
+
+Verifiquei que ele **pega**: removi o filtro de um repositório, o teste falhou apontando arquivo, tabela e
+a instrução inteira, e restaurei. Um teste que nunca falhou não é barreira, é decoração.
+
+Duas decisões nele:
+
+- **Falha se extrair menos de 100 tabelas.** Se a regex quebrar numa migration futura, o teste passaria
+  vazio — e teste que passa por não ter olhado nada é pior que teste nenhum, porque parece cobertura.
+- **A mensagem de falha diz o que fazer**, inclusive no caso da tabela filha, onde a tentação é confiar que
+  o pai foi carregado com escopo.
+
+**O que ele NÃO garante**, escrito no próprio Javadoc: que o `brewery_id` usado seja o da sessão. Um
+repositório que receba o id errado passa. Contra isso o que existe são os ITs de "outra cervejaria não
+enxerga" que cada módulo já tem.
+
+**Erro meu no caminho:** o script de edição usava `replace(..., 1)`, que aplica na primeira ocorrência do
+arquivo — não na do método certo. Em dois repositórios o `WHERE` recebeu `:brewery` e o `.param` foi parar
+noutro método; resultado, 500 no `publish` e três ITs vermelhos. Corrigido ancorando pelo bloco do método.
 
 ### O que foi verificado e estava correto
 

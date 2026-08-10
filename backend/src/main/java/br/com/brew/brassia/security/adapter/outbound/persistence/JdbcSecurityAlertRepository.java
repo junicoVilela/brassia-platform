@@ -65,7 +65,7 @@ class JdbcSecurityAlertRepository implements SecurityAlertRepository {
     public Optional<AlertView> findById(UUID id) {
         return jdbc.sql("""
                 SELECT id, brewery_id, user_id, alert_type, severity, status, evidence, created_at
-                FROM security_alert WHERE id = :id
+                FROM security_alert WHERE id = :id AND brewery_id = :brewery
                 """)
                 .param("id", id)
                 .query((rs, n) -> new AlertView(
@@ -81,13 +81,14 @@ class JdbcSecurityAlertRepository implements SecurityAlertRepository {
     }
 
     @Override
-    public void updateStatus(UUID id, String status, UUID resolvedBy) {
+    public void updateStatus(UUID breweryId, UUID id, String status, UUID resolvedBy) {
         jdbc.sql("""
                 UPDATE security_alert SET status = :status, resolved_at = now(), resolved_by = :resolvedBy
-                WHERE id = :id
+                WHERE id = :id AND brewery_id = :brewery
                 """)
                 .param("status", status)
                 .param("resolvedBy", resolvedBy)
+                .param("brewery", breweryId)
                 .param("id", id)
                 .update();
     }

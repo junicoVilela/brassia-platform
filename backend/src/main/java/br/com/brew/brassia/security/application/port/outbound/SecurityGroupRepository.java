@@ -13,7 +13,7 @@ public interface SecurityGroupRepository {
     UUID insert(NewGroup group);
 
     /** Atualiza metadados com optimistic locking; retorna false se a versão divergiu. */
-    boolean update(UUID id, String name, String description, long expectedVersion);
+    boolean update(UUID breweryId, UUID id, String name, String description, long expectedVersion);
 
     void replacePermissions(UUID groupId, List<UUID> permissionIds);
 

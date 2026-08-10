@@ -66,24 +66,26 @@ class JdbcTemporaryAccessRepository implements TemporaryAccessRepository {
     }
 
     @Override
-    public void approve(UUID id, UUID approverId, Instant approvedAt) {
+    public void approve(UUID breweryId, UUID id, UUID approverId, Instant approvedAt) {
         jdbcClient.sql("""
                 UPDATE temporary_access_grant SET approved_by = :approverId, approved_at = :approvedAt
-                WHERE id = :id AND approved_by IS NULL AND revoked_at IS NULL
+                WHERE id = :id AND brewery_id = :brewery AND approved_by IS NULL AND revoked_at IS NULL
                 """)
                 .param("id", id)
+                .param("brewery", breweryId)
                 .param("approverId", approverId)
                 .param("approvedAt", Timestamp.from(approvedAt))
                 .update();
     }
 
     @Override
-    public void revoke(UUID id, UUID revokedBy, Instant revokedAt) {
+    public void revoke(UUID breweryId, UUID id, UUID revokedBy, Instant revokedAt) {
         jdbcClient.sql("""
                 UPDATE temporary_access_grant SET revoked_at = :revokedAt, revoked_by = :revokedBy
-                WHERE id = :id AND revoked_at IS NULL
+                WHERE id = :id AND brewery_id = :brewery AND revoked_at IS NULL
                 """)
                 .param("id", id)
+                .param("brewery", breweryId)
                 .param("revokedBy", revokedBy)
                 .param("revokedAt", Timestamp.from(revokedAt))
                 .update();

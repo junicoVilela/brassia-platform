@@ -11,6 +11,8 @@ import br.com.brew.brassia.sensory.application.service.SessionHandlers;
 import br.com.brew.brassia.sensory.application.port.inbound.SensoryPolicyUseCase;
 import br.com.brew.brassia.sensory.application.service.SensoryPolicyHandler;
 import java.util.Objects;
+import br.com.brew.brassia.sensory.application.port.outbound.DescriptorRepository;
+import br.com.brew.brassia.sensory.application.service.DescriptorHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -92,4 +94,16 @@ class SensoryConfiguration {
         return new SensoryPolicyHandler(policies, audit);
     }
 
+
+    /**
+     * A biblioteca de descritores (SEN-002).
+     *
+     * <p>Um bean só implementando comando e consulta: a leitura não tem regra própria — é a mesma
+     * biblioteca vista de dois ângulos —, e separar em dois criaria dois lugares para manter em sincronia
+     * sem nenhum ganho.
+     */
+    @Bean
+    DescriptorHandler descriptorHandler(DescriptorRepository descriptors, AuditTrail audit) {
+        return new DescriptorHandler(descriptors, audit);
+    }
 }

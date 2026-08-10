@@ -6,6 +6,7 @@ import br.com.brew.brassia.sensory.domain.SessionNotOpenException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import java.util.Map;
 import org.springframework.core.annotation.Order;
+import br.com.brew.brassia.sensory.domain.SensoryDescriptor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -36,5 +37,20 @@ class SensoryExceptionHandler {
         var problem = ProblemDetails.of(HttpStatus.CONFLICT, "already_evaluated", ex.getMessage());
         problem.setProperty("sample", Map.of("blindCode", ex.blindCode()));
         return problem;
+    }
+
+    /**
+     * Limiar registrado sem licença que o autorize (SEN-002).
+     *
+     * <p>422 e não 400: o pedido está bem formado — o número veio, a unidade veio. O que não se pode é
+     * <em>publicar</em> aquele dado a partir daquela fonte, e a mensagem diz o que fazer, porque as duas
+     * saídas são diferentes: trocar a fonte, ou cadastrar o descritor sem o limiar.
+     */
+    @ExceptionHandler(SensoryDescriptor.ThresholdNotLicensedException.class)
+    ProblemDetail handleThresholdNotLicensed(SensoryDescriptor.ThresholdNotLicensedException ex) {
+        return ProblemDetails.of(HttpStatus.UNPROCESSABLE_ENTITY, "threshold_not_licensed",
+                "A licença desta fonte não autoriza registrar limiar de percepção. "
+                        + "Use uma fonte que permita o dado quantitativo, ou cadastre o descritor sem o "
+                        + "limiar — o vocabulário continua utilizável.");
     }
 }

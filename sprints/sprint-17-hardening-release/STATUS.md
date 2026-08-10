@@ -97,6 +97,25 @@ e IP; **segredos** vindos de variável de ambiente, sem valor padrão embutido; 
 recusado.
 
 
+### DEB-REL-001 — `dependency-review` não-bloqueante até habilitar o Dependency graph
+
+O job acrescentado por `DEC-REL-003` **falhou no próprio PR que o introduziu** — e não por ter encontrado
+CVE: a action exige o recurso *Dependency graph* do GitHub, que está desabilitado neste repositório.
+
+Deixá-lo bloqueante travaria todo PR por um motivo que nada no código resolve, e a reação previsível seria
+remover o job — trocando um controle imperfeito por controle nenhum. Ficou `continue-on-error: true`.
+
+**Não habilitei o recurso**: é configuração da conta do GitHub, fora do que me foi autorizado (git, não
+administração do repositório).
+
+**Critério de remoção:** habilitar *Settings > Code security and analysis > Dependency graph* e tirar o
+`continue-on-error`. Só então o job barra de fato.
+
+**Enquanto isso, o repositório também está com** `secret_scanning`, `secret_scanning_push_protection` e
+`dependabot_security_updates` **desabilitados** — os três são gratuitos em repositório público. O
+`gitleaks` no CI cobre parte do primeiro, mas só no que passa pelo pipeline; *push protection* age antes,
+que é onde um segredo vazado ainda dá para conter.
+
 ## Evidências de encerramento
 
 - Build/commit:

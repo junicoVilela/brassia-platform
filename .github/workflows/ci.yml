@@ -28,7 +28,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # DEB-REL-001 — não-bloqueante até o Dependency graph ser habilitado no repositório.
+      #
+      # A action depende desse recurso e, sem ele, falha com "Dependency review is not supported on this
+      # repository" — falha de configuração, não CVE encontrado. Deixá-la bloqueante travaria TODO PR por
+      # um motivo que nada no código resolve, e a reação previsível seria remover o job.
+      #
+      # CRITÉRIO DE REMOÇÃO deste `continue-on-error`: habilitar Dependency graph em
+      # Settings > Code security and analysis. A partir daí o job barra de fato, que é o ponto dele.
       - uses: actions/dependency-review-action@v4
+        continue-on-error: true
         with:
           fail-on-severity: high
           comment-summary-in-pr: on-failure

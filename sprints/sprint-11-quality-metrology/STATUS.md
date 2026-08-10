@@ -11,7 +11,7 @@ Estado: ACEITA
 | QLT-001 | Concluída | IA | #133 — V76 + `QualityIT` (16 testes) | Novo módulo `quality`; fecha MTR-001-A |
 | QLT-002 | Concluída | IA | #134 — V77 + `QualityIT` (25 testes) | Encerrar exige verificação eficaz |
 | SEN-001 | Concluída | IA | #135 — V78 + `SensoryIT` (14 testes) | Novo módulo `sensory`; cegueira na API |
-| SEN-002 | Adiada | — | — | Depende de decisão sobre catálogo licenciado; vai para sprint futura |
+| SEN-002 | Concluída | Claude | `sensory/domain/SensoryDescriptor`, `LicenseTier`, `Hypothesis`, `V109__sensory_descriptor.sql` | Vocabulário com sinônimos, fonte e licença como invariante; causa é hipótese com verificação. Ver DEC-SEN-001. |
 
 ## Decisões e bloqueios
 
@@ -283,7 +283,49 @@ reestruturaria a ficha.
   define faixas de controle. Decidir onde essas duas vivem **antes** de modelar QLT-001 evita
   criar um segundo lugar para o mesmo dado.
 
-## Evidências de encerramento
+### DEC-SEN-001 (SEN-002) — A história não pedia escolher catálogo; pedia modelar a licença
+
+SEN-002 estava adiada por "depender de decisão sobre catálogo licenciado". Relendo os critérios, o quarto
+diz: *"Conteúdo licenciado respeita atribuição e nível de permissão."* O que faltava não era **escolher** um
+catálogo — era construir a estrutura que o respeita. Nenhum conteúdo licenciado foi embutido; a decisão
+jurídica continua aberta, e agora tem onde entrar.
+
+**A licença é coluna e invariante, não observação.** `LicenseTier` decide três coisas: se o limiar pode ser
+gravado, se a atribuição é obrigatória, e se o descritor é exportável. Um campo de texto dizendo "ver
+licença" dependeria de alguém ler antes de copiar o descritor para um relatório que sai da cervejaria.
+
+**O limiar é recusado na criação, não filtrado na leitura.** Dado que não pode ser publicado e mesmo assim
+está gravado é vazamento esperando exportação. O `CHECK` repete a regra no banco, para valer também em
+carga direta.
+
+Por que o limiar é o ponto sensível: descrever "papelão" é vocabulário comum; afirmar que o limiar do
+trans-2-nonenal é 0,1 µg/L é reproduzir trabalho experimental de alguém — e é por isso que os catálogos de
+referência cobram.
+
+**O tipo se chama `Hypothesis`, e o nome é a garantia.** O critério exige que causa e ação sejam hipóteses,
+não diagnóstico automático — e a diferença desaparece quando alguém lê "diacetil → parada de fermentação"
+numa tela e vai mexer no tanque. Chamar de `Diagnosis` faria o mesmo dado significar outra coisa para quem
+lê o código e, depois, para quem lê a tela. É a mesma decisão de `Estimate` (DTW-001) e `supported`
+(OPT-001): o nome carrega o limite epistêmico. Um teste de reflexão vigia que nenhum campo do agregado
+tenha "diagnos" no nome.
+
+**A hipótese exige como verificar.** "Pode ser infecção" sem dizer como confirmar deixa quem lê com a
+preocupação e sem o próximo passo. A probabilidade é qualitativa — um número daria falsa precisão a algo
+que ninguém mediu nesta cervejaria.
+
+**Sinônimos existem porque o vocabulário é regional e a série histórica não é.** Uma pessoa anota
+"papelão", outra "cartonado", outra "molhado" — a mesma percepção. Sem sinônimos, a mesma cerveja aparece
+com três problemas diferentes e nenhum acumula amostra para virar tendência. A normalização (sem acento,
+sem caixa) acontece dos **dois** lados: no gravado e no digitado.
+
+**O mesmo descritor muda de papel conforme o estilo.** Banana é atributo numa Weissbier e desvio numa
+Pilsen. Um vocabulário que não distingue isso ensina errado justamente no treinamento, que é o objetivo da
+história.
+
+**O que continua sendo decisão sua:** qual catálogo de referência licenciar, se algum. A estrutura aceita
+os três níveis e o conteúdo inicial é próprio.
+
+## Evidências de encerramento## Evidências de encerramento
 
 - Build/commit:
 - Testes executados:

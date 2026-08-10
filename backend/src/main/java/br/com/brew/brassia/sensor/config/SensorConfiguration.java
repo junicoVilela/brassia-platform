@@ -13,6 +13,9 @@ import br.com.brew.brassia.sensor.application.service.AdapterIngestionHandler;
 import br.com.brew.brassia.sensor.application.service.IngestionHandler;
 import java.time.Clock;
 import java.util.Objects;
+import br.com.brew.brassia.sensor.adapter.inbound.mqtt.SensorMqttSubscriber;
+import br.com.brew.brassia.sensor.application.port.outbound.MqttSubscriptionRepository;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -70,5 +73,25 @@ class SensorConfiguration {
     @Bean
     SensorQueries sensorQueries(DeviceRepository devices, ReadingRepository readings) {
         return new DeviceHandlers.Queries(devices, readings);
+    }
+
+    /**
+     * O assinante MQTT, ligado ao ciclo de vida da aplicação (DEB-INT-003).
+     *
+     * <p>{@code initMethod}/{@code destroyMethod} em vez de listener de evento: conectar na subida e
+     * desconectar na descida é responsabilidade do bean, e amarrar isso a evento espalharia o ciclo de
+     * vida do transporte por dois lugares.
+     *
+     * <p>Sem assinatura configurada, {@code start()} percorre uma lista vazia e não conecta a nada — por
+     * isso o bean pode existir sempre, sem precisar de chave para desligá-lo. A alternativa que tentei
+     * primeiro, um {@code application.yml} de teste, <strong>sombreia o principal</strong> no classpath e
+     * derrubou o contexto inteiro por uma propriedade de MFA que sumiu junto.
+     */
+    @Bean(initMethod = "start", destroyMethod = "stop")
+    @ConditionalOnProperty(name = "brassia.sensor.mqtt.enabled", havingValue = "true",
+            matchIfMissing = true)
+    SensorMqttSubscriber sensorMqttSubscriber(MqttSubscriptionRepository subscriptions,
+            AdapterIngestionCommands ingestion) {
+        return new SensorMqttSubscriber(subscriptions, ingestion);
     }
 }

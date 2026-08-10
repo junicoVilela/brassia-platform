@@ -6237,8 +6237,322 @@ paths:
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /field-feedback/complaints:
+    get:
+      tags: [Feedback de campo]
+      summary: Lista reclamações de campo (FLD-001)
+      description: >-
+        A resposta **não contém dado pessoal** — nem no detalhe, nem na lista. Nome, telefone e endereço
+        vêm de `/contact`, com permissão própria e leitura auditada.
+      parameters:
+        - {name: batchId, in: query, required: false, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Reclamações da cervejaria, mais recentes primeiro
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/FieldComplaint'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Feedback de campo]
+      summary: Registra uma reclamação (FLD-001)
+      description: >-
+        **A severidade e a categoria determinam o que o caso vai exigir**, e a lista não é escolhida por
+        quem registra. Corpo estranho e alegação de mal-estar exigem quarentena e investigação de causa
+        mesmo classificados com severidade baixa — quem registra pode subestimar por não querer alarmar,
+        e uma exigência que dependesse só da severidade cairia junto com essa classificação.
+
+
+        O contato é **opcional**: reclamação anônima é reclamação. Exigir identificação para registrar um
+        corpo estranho coletaria dado desnecessário e perderia o relato de quem não quis se identificar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterComplaint'}
+      responses:
+        '201':
+          description: Reclamação registrada, já com as ações que ela exige
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FieldComplaint'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '422':
+          description: '`unknown_complaint_batch` — o lote não existe nesta cervejaria'
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /field-feedback/complaints/{complaintId}:
+    get:
+      tags: [Feedback de campo]
+      summary: Uma reclamação (FLD-001)
+      parameters:
+        - {name: complaintId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: A reclamação, sem dado pessoal
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FieldComplaint'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /field-feedback/complaints/{complaintId}/analysis:
+    post:
+      tags: [Feedback de campo]
+      summary: Coloca a reclamação em análise (FLD-001)
+      parameters:
+        - {name: complaintId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Em análise
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FieldComplaint'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /field-feedback/complaints/{complaintId}/actions/{action}/fulfillment:
+    post:
+      tags: [Feedback de campo]
+      summary: Registra que a ação exigida foi atendida (FLD-001)
+      description: >-
+        Exige `referenceId` apontando para o que foi criado — a quarentena, a investigação. Sem ela, a
+        afirmação "atendida" não teria contra o que ser conferida.
+      parameters:
+        - {name: complaintId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: action, in: path, required: true,
+           schema: {type: string, enum: [QUARANTINE, ROOT_CAUSE_ANALYSIS]}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [referenceId]
+              properties:
+                referenceId: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Ação registrada como atendida
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FieldComplaint'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /field-feedback/complaints/{complaintId}/actions/{action}/waiver:
+    post:
+      tags: [Feedback de campo]
+      summary: Dispensa a ação exigida (FLD-001)
+      description: >-
+        A dispensa é legítima — às vezes o corpo estranho era do copo do consumidor —, mas custa uma
+        justificativa que diga por quê. Sem o mínimo, a dispensa seria indistinguível de esquecimento, e o
+        histórico mostraria dezenas de reclamações graves "sem quarentena" sem dizer se alguém decidiu
+        isso ou se ninguém olhou. A justificativa vai inteira para a auditoria.
+      parameters:
+        - {name: complaintId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: action, in: path, required: true,
+           schema: {type: string, enum: [QUARANTINE, ROOT_CAUSE_ANALYSIS]}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [justification]
+              properties:
+                justification: {type: string, maxLength: 2000}
+      responses:
+        '200':
+          description: Dispensa registrada, com autor e data
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FieldComplaint'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /field-feedback/complaints/{complaintId}/closure:
+    post:
+      tags: [Feedback de campo]
+      summary: Encerra a reclamação (FLD-001)
+      description: >-
+        **Recusado enquanto houver ação exigida sem destino.** É o que impede uma reclamação de corpo
+        estranho de ser encerrada como "cliente contatado, caso resolvido" no dia em que se está com
+        pressa — que é exatamente o dia em que isso acontece.
+      parameters:
+        - {name: complaintId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: {type: string, maxLength: 2000}
+      responses:
+        '200':
+          description: Reclamação encerrada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FieldComplaint'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422':
+          description: >-
+            `pending_required_actions` — a resposta lista quais faltam, porque as duas saídas legítimas
+            são opostas: atender, ou dispensar por escrito
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /field-feedback/complaints/{complaintId}/contact:
+    get:
+      tags: [Feedback de campo]
+      summary: Dados pessoais de quem reclamou (FLD-001)
+      description: >-
+        Endpoint próprio e permissão crítica própria (`feedback.contact.read`). Quem analisa off-flavor
+        precisa do lote, da armazenagem e da amostra — não do endereço do consumidor; uma permissão única
+        faria todo analista ler dado pessoal de graça, todo dia.
+
+
+        **Cada chamada é auditada**, inclusive quando não há contato: registrar só o acerto deixaria de
+        fora quem varre reclamações procurando dados.
+
+
+        Depois do apagamento devolve os campos vazios com `erased: true`, e não 404 — distinguir "nunca
+        houve contato" de "os dados foram apagados" é um fato que precisa ser demonstrável, inclusive para
+        quem pediu o apagamento.
+      parameters:
+        - {name: complaintId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: O contato, ou o registro de que ele foi apagado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ComplainantContact'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    delete:
+      tags: [Feedback de campo]
+      summary: Apaga os dados pessoais a pedido (FLD-001)
+      description: >-
+        Esvazia o contato e **preserva a reclamação**. É o desenho inteiro da história: a investigação de
+        um corpo estranho precisa durar anos, o telefone de quem ligou não. Exige
+        `feedback.contact.erase`.
+      parameters:
+        - {name: complaintId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204': {description: Dados pessoais apagados; a reclamação permanece}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    RegisterComplaint:
+      type: object
+      required: [batchId, category, severity, description]
+      properties:
+        batchId: {type: string, format: uuid}
+        reference: {type: string, maxLength: 80, description: Protocolo do atendimento}
+        category:
+          type: string
+          enum: [OFF_FLAVOR, APPEARANCE, CARBONATION, PACKAGING, FOREIGN_BODY, ILLNESS, OTHER]
+        severity: {type: string, enum: [PREFERENCE, QUALITY, SYSTEMIC, SAFETY]}
+        description: {type: string, maxLength: 4000}
+        storage: {$ref: '#/components/schemas/ComplaintStorage'}
+        sample: {$ref: '#/components/schemas/ComplaintSample'}
+        contact:
+          description: Opcional. Guardado à parte, com permissão própria e acesso auditado
+          allOf: [{$ref: '#/components/schemas/ComplainantContactInput'}]
+    ComplaintStorage:
+      type: object
+      description: >-
+        Existe para separar defeito de maltrato: uma cerveja a 35 °C por duas semanas desenvolve
+        off-flavor sem que nada tenha saído errado na fábrica. Campos nulos significam "ninguém
+        perguntou", nunca "estava tudo bem" — ver `conditionsKnown` na resposta
+      properties:
+        temperatureCelsius: {type: number, nullable: true}
+        daysSincePurchase: {type: integer, nullable: true}
+        exposedToLight: {type: boolean, nullable: true}
+        notes: {type: string, maxLength: 2000, nullable: true}
+    ComplaintSample:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [RETAINED, WITH_CONSUMER, UNAVAILABLE, UNKNOWN]}
+        location:
+          type: string
+          maxLength: 200
+          description: Obrigatório quando RETAINED — amostra sem lugar declarado ninguém acha depois
+    ComplainantContactInput:
+      type: object
+      description: Ao menos um meio de contato. Contato vazio aumentaria a superfície sem informar nada
+      properties:
+        name: {type: string, maxLength: 200}
+        email: {type: string, maxLength: 200}
+        phone: {type: string, maxLength: 40}
+        address: {type: string, maxLength: 400}
+    ComplainantContact:
+      type: object
+      description: >-
+        Resposta separada, permissão crítica, leitura auditada. Apagado devolve campos vazios com
+        `erased: true`
+      properties:
+        name: {type: string, nullable: true}
+        email: {type: string, nullable: true}
+        phone: {type: string, nullable: true}
+        address: {type: string, nullable: true}
+        erased: {type: boolean}
+        erasedAt: {type: string, format: date-time, nullable: true}
+        recordedAt: {type: string, format: date-time}
+    ComplaintRequiredAction:
+      type: object
+      properties:
+        code: {type: string, enum: [QUARANTINE, ROOT_CAUSE_ANALYSIS]}
+        description: {type: string}
+    ComplaintActionOutcome:
+      type: object
+      description: Atendida aponta para o registro criado; dispensada explica por quê. Nunca as duas
+      properties:
+        action: {type: string, enum: [QUARANTINE, ROOT_CAUSE_ANALYSIS]}
+        fulfilled: {type: boolean}
+        referenceId: {type: string, format: uuid, nullable: true}
+        justification: {type: string, nullable: true}
+        decidedBy: {type: string, format: uuid}
+        decidedAt: {type: string, format: date-time}
+    FieldComplaint:
+      type: object
+      description: >-
+        **Sem campo para nome, telefone, e-mail ou endereço** — a ausência é a garantia: um contrato que
+        não tem o campo não vaza o dado por esquecimento quando alguém adicionar um endpoint novo
+      properties:
+        id: {type: string, format: uuid}
+        batchId: {type: string, format: uuid}
+        reference: {type: string, nullable: true}
+        category: {type: string}
+        severity: {type: string}
+        description: {type: string}
+        storage:
+          allOf: [{$ref: '#/components/schemas/ComplaintStorage'}]
+          description: Acompanha `conditionsKnown`, que distingue não perguntado de guardado corretamente
+        sample: {$ref: '#/components/schemas/ComplaintSample'}
+        requiredActions:
+          type: array
+          description: Derivadas de severidade e categoria; não são escolhidas nem gravadas
+          items: {$ref: '#/components/schemas/ComplaintRequiredAction'}
+        pendingActions:
+          type: array
+          description: As exigidas que ainda não têm destino. Enquanto houver, o encerramento é recusado
+          items: {type: string}
+        outcomes:
+          type: array
+          items: {$ref: '#/components/schemas/ComplaintActionOutcome'}
+        status: {type: string, enum: [OPEN, UNDER_ANALYSIS, CLOSED]}
+        closingNote: {type: string, nullable: true}
+        closedBy: {type: string, format: uuid, nullable: true}
+        closedAt: {type: string, format: date-time, nullable: true}
+        registeredBy: {type: string, format: uuid}
+        registeredAt: {type: string, format: date-time}
     SimulateBlendOperation:
       type: object
       required: [kind, inputs, outputs, reason]

@@ -237,6 +237,56 @@ sistema. Tudo o mais da história funciona sobre isso — balanço, aprovação,
 ordem sintética marcada como tal, ou `order_id` passa a aceitar nulo com um `CHECK` que exige origem
 alternativa? A resposta muda o modelo de produção, e não é minha para dar.
 
+### DEC-FLD-001 (FLD-001) — A severidade exige, não sugere
+
+O critério dizia que a severidade "pode abrir CAPA/quarentena". Implementado como sugestão, isso depende de
+alguém concordar no dia em que está com pressa — e o dia em que se está com pressa é exatamente o dia em que
+uma reclamação de corpo estranho é encerrada como "cliente contatado, caso resolvido".
+
+As ações exigidas são **derivadas** de severidade + categoria (`RequiredAction.of`), e a reclamação **não
+encerra** enquanto cada uma não tiver destino: `PendingActionsException`, 422 listando quais faltam.
+
+A **categoria pesa junto com a severidade**, e essa é a decisão que sustenta o resto. Quem registra pode
+classificar um corpo estranho como QUALITY por não querer alarmar, mas dificilmente vai errar a categoria.
+Uma exigência que dependesse só da severidade cairia junto com a classificação subestimada.
+
+A dispensa existe e é legítima — às vezes o corpo estranho era do copo do consumidor. Mas custa uma
+justificativa com conteúdo (o domínio recusa "n/a"), fica assinada com autor e data, e vai inteira para a
+auditoria. Sem isso, a dispensa seria indistinguível de esquecimento, e o histórico mostraria reclamações
+graves "sem quarentena" sem dizer se alguém decidiu ou se ninguém olhou.
+
+As exigências não são gravadas: derivam na leitura. Gravá-las abriria a possibilidade de uma reclamação de
+corpo estranho com a lista editada para vazia.
+
+Dois campos de contexto que existem para não culpar a fábrica pelo que aconteceu fora dela:
+**armazenagem** (uma cerveja a 35 °C por duas semanas desenvolve off-flavor sozinha) e **amostra** (sem
+amostra retida, quase nenhuma reclamação se confirma). Nos dois, nulo é "ninguém perguntou" e não "estava
+tudo bem" — `conditionsKnown` torna a distinção explícita no contrato.
+
+### DEC-FLD-002 (FLD-001) — O dado pessoal está fora da reclamação, e isso é o controle
+
+Tabela própria, permissão crítica própria, endpoint próprio, leitura auditada. Quatro razões, nenhuma de
+organização de código:
+
+- **Tempo de vida diferente.** A investigação de um corpo estranho precisa durar anos; o telefone de quem
+  ligou, não. Separados, um apaga sem levar o outro.
+- **Alcance diferente.** Quem analisa off-flavor precisa do lote, da armazenagem e da amostra — não do
+  endereço do consumidor. Uma permissão só faria todo analista ler dado pessoal de graça, todo dia.
+- **Acesso auditável.** Em endpoint próprio, cada leitura é um evento — inclusive quando não há contato,
+  porque registrar só o acerto deixaria de fora quem varre reclamações procurando dados. Como coluna, a
+  leitura aconteceria dentro de um `SELECT` indistinguível de qualquer outro.
+- **Erro por omissão vira erro visível.** O DTO da reclamação **não tem campo** para nome, telefone ou
+  endereço. Não há o que esquecer de remover quando alguém montar uma tela nova — e um teste de reflexão
+  vigia a estrutura do agregado.
+
+O apagamento **esvazia o conteúdo e preserva a linha**. Apagar tudo tornaria indistinguível "reclamação
+anônima desde o início" de "dados apagados a pedido", e a segunda precisa ser demonstrável — inclusive para
+quem pediu. Um `CHECK` garante que registro apagado não guarda resto, e o endpoint devolve `erased: true`
+em vez de 404.
+
+O contato é **opcional**: reclamação anônima é reclamação. Exigir identificação para registrar um corpo
+estranho coletaria dado desnecessário e perderia o relato de quem não quis se identificar.
+
 ## Evidências de encerramento
 
 - Build/commit:

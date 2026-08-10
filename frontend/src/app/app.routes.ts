@@ -84,6 +84,13 @@ export const routes: Routes = [
           import('./features/experiments/experiments.routes').then(m => m.EXPERIMENTS_ROUTES),
       },
       {
+        path: 'field-feedback',
+        canActivate: [permissionGuard],
+        data: { permission: 'feedback.complaint.read' },
+        loadChildren: () =>
+          import('./features/field-feedback/field-feedback.routes').then(m => m.FIELD_FEEDBACK_ROUTES),
+      },
+      {
         path: 'blends',
         canActivate: [permissionGuard],
         data: { permission: 'blend.operation.read' },

@@ -8,7 +8,9 @@ import br.com.brew.brassia.sensor.application.port.inbound.SensorQueries;
 import br.com.brew.brassia.sensor.application.port.outbound.DeviceRepository;
 import br.com.brew.brassia.sensor.application.port.outbound.ReadingRepository;
 import br.com.brew.brassia.sensor.domain.Measure;
+import br.com.brew.brassia.equipment.EquipmentProfileLookup;
 import br.com.brew.brassia.sensor.domain.PayloadFormat;
+import br.com.brew.brassia.sensor.domain.UnknownEquipmentException;
 import br.com.brew.brassia.sensor.domain.SensorDevice;
 import br.com.brew.brassia.sensor.domain.SensorReading;
 import br.com.brew.brassia.sensor.domain.UnknownDeviceException;
@@ -36,11 +38,14 @@ public final class DeviceHandlers {
     public static final class Register implements DeviceCommands {
 
         private final DeviceRepository devices;
+        private final EquipmentProfileLookup equipment;
         private final AuditTrail audit;
         private final Clock clock;
 
-        public Register(DeviceRepository devices, AuditTrail audit, Clock clock) {
+        public Register(DeviceRepository devices, EquipmentProfileLookup equipment, AuditTrail audit,
+                Clock clock) {
             this.devices = Objects.requireNonNull(devices, "devices");
+            this.equipment = Objects.requireNonNull(equipment, "equipment");
             this.audit = Objects.requireNonNull(audit, "audit");
             this.clock = Objects.requireNonNull(clock, "clock");
         }
@@ -48,6 +53,14 @@ public final class DeviceHandlers {
         @Override
         public SensorDevice register(Request request) {
             Objects.requireNonNull(request, "request");
+
+            // O vínculo é opcional; quando existe, o equipamento tem de existir. Sem esta verificação a
+            // violação de chave estrangeira sobe como 500 e quem integra não descobre qual campo consertar
+            // (OBS-INT-001). A verificação prévia não substitui a restrição do banco — ela traduz o erro.
+            if (request.equipmentId() != null
+                    && equipment.find(request.breweryId(), request.equipmentId()).isEmpty()) {
+                throw new UnknownEquipmentException(request.equipmentId());
+            }
 
             var device = SensorDevice.register(request.breweryId(), request.code(), request.name(),
                     Measure.of(request.measure()), request.unit(), request.equipmentId(),

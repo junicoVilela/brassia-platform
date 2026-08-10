@@ -597,6 +597,63 @@ fatos, que é a única coisa que uma curva serve para contar.
 é o adapter. `FLOW` não tem correspondente porque um lote não tem vazão, e é exatamente por casos assim que
 compartilhar as enums amarraria a evolução de um módulo à do outro.
 
+### OBS-INT-001 (INT-001) — RESOLVIDO: equipamento inexistente devolve 400 apontando o campo
+
+Achado ao escrever o IT da jornada de telemetria, semeando um `equipmentId` aleatório:
+`sensor_device.equipment_id` tem chave estrangeira para `equipment`, e a violação subia crua como **500**.
+Quem integra pelo API lia "erro do servidor" para um problema no dado que ele mesmo mandou.
+
+Passou a verificar antes, pela consulta publicada do módulo de equipamentos, e a responder **400** com
+Problem Details e `field: equipmentId`.
+
+**400 e não 404, apesar de ser "não encontrado".** O recurso da requisição é o dispositivo sendo criado, e
+ele não existe mesmo — o que está errado é um *campo do corpo*. Responder 404 faria quem integra concluir
+que a rota está errada e procurar o problema onde ele não está.
+
+**A verificação prévia não substitui a restrição do banco**, e não deve: duas requisições simultâneas
+passariam as duas por uma checagem prévia. Ela traduz o erro; quem garante continua sendo a chave
+estrangeira.
+
+O `field` na resposta é a única informação acionável — sem ele, "equipamento inexistente" num corpo com meia
+dúzia de campos ainda deixa a pessoa adivinhando qual conserta.
+
+### DEB-INT-001 (INT-001) — RESOLVIDO: a leitura do sensor virou ponto na curva
+
+O bloqueio era estrutural e valia registrar: até aqui **nenhum módulo publicava porta de comando** no pacote
+raiz, só consultas. Qualquer módulo podia *ler* o lote de outro; nenhum podia *pedir* nada a outro. O sensor
+guardava a série dele e quem quisesse ver a curva de fermentação registrava a leitura à mão — com o dado já
+dentro do sistema.
+
+**Critério de remoção cumprido**, com três peças:
+
+| Peça | O que resolve |
+|---|---|
+| `fermentation.FermentationCommands` | a primeira porta de comando publicada do projeto |
+| `production.VesselOccupancyLookup` | o elo que faltava: um sensor conhece o tanque, não o lote |
+| `sensor…BatchCurveFeed` + adapter | a tradução de vocabulário, no único lugar onde as duas linguagens se encontram |
+
+A ingestão encaminha dentro da própria transação, como o critério pedia: a leitura de telemetria e o ponto na
+curva caem juntos ou não caem.
+
+**A porta é estreita de propósito.** Publica um comando, não o módulo. Quem chama não planeja agenda, não
+colhe levedura e não avalia estabilidade de FG — essas nascem de decisão humana com ator, alçada e auditoria,
+e expô-las a chamada entre módulos criaria caminhos onde alguém age sem que se saiba quem agiu. Registrar
+telemetria é o oposto: não tem ator humano. Pelo mesmo motivo **não audita** — 2.880 leituras por dia
+encheriam a trilha até esconder o que ela existe para guardar.
+
+**Divergi do critério escrito num ponto, deliberadamente.** Ele dizia encaminhar "a leitura `GOOD`".
+Encaminho também a `OUT_OF_RANGE`: a fermentação avalia plausibilidade por conta própria, com as mesmas
+faixas, e grava o ponto sinalizado — pelo motivo que o próprio módulo de sensores já defende, de que um
+buraco na curva é indistinguível de "não mediu". Filtrar esconderia justamente o sintoma de sensor sujo ou
+fora d'água, que é quando olhar a curva mais importa. Já `FUTURE_CLOCK` **não** atravessa, e a assimetria é o
+ponto: o instante da medição é parte da chave natural da leitura e é por ele que a curva se ordena. Um valor
+absurdo fica visivelmente errado no gráfico; um instante inventado não — ele mente sobre a sequência dos
+fatos, que é a única coisa que uma curva serve para contar.
+
+`Measure` (sensor) e `ReadingKind` (fermentation) **seguem separadas**, e a ligação não as uniu: quem traduz
+é o adapter. `FLOW` não tem correspondente porque um lote não tem vazão, e é exatamente por casos assim que
+compartilhar as enums amarraria a evolução de um módulo à do outro.
+
 ### OBS-INT-001 (INT-001) — Equipamento inexistente no cadastro de dispositivo devolve 500
 
 Encontrado ao escrever o IT da jornada, semeando um `equipmentId` aleatório: `sensor_device.equipment_id` tem

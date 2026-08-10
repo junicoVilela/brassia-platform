@@ -3,6 +3,8 @@ package br.com.brew.brassia.ai.adapter.outbound.persistence;
 import br.com.brew.brassia.ai.application.port.outbound.AiBudgetRepository;
 import br.com.brew.brassia.ai.application.port.outbound.ModelInvocationLedger;
 import br.com.brew.brassia.ai.config.AiProperties;
+import br.com.brew.brassia.brewery.BreweryDirectory;
+import br.com.brew.brassia.brewery.BreweryRef;
 import br.com.brew.brassia.ai.domain.AiBudget;
 import br.com.brew.brassia.ai.domain.StaleAiBudgetException;
 import java.math.BigDecimal;
@@ -32,7 +34,15 @@ class JdbcAiBudgetRepository implements AiBudgetRepository {
     private final ModelInvocationLedger ledger;
     private final BigDecimal defaultLimit;
     private final String currency;
-    private final ZoneId budgetZone;
+    private final BreweryDirectory breweries;
+
+    /**
+     * Fuso de recurso, usado só quando a cervejaria não é encontrada (DEB-AI-001).
+     *
+     * <p>Não é mais a regra, é o que sobra quando não há resposta melhor. Lançar aqui derrubaria a consulta
+     * de orçamento por um cadastro incompleto, e o orçamento é justamente a proteção que não pode cair.
+     */
+    private static final ZoneId FALLBACK_ZONE = ZoneId.of("America/Sao_Paulo");
 
     /**
      * O relógio é interno, e não injetado como nos casos de uso: aqui ele só serve para saber em que mês
@@ -41,17 +51,18 @@ class JdbcAiBudgetRepository implements AiBudgetRepository {
      */
     private final Clock clock = Clock.systemUTC();
 
-    JdbcAiBudgetRepository(JdbcClient jdbc, ModelInvocationLedger ledger, AiProperties properties) {
+    JdbcAiBudgetRepository(JdbcClient jdbc, ModelInvocationLedger ledger, AiProperties properties,
+            BreweryDirectory breweries) {
         this.jdbc = jdbc;
         this.ledger = ledger;
         this.defaultLimit = properties.monthlyBudget();
         this.currency = properties.currency();
-        this.budgetZone = ZoneId.of(properties.budgetZone());
+        this.breweries = breweries;
     }
 
     @Override
     public AiBudget currentOf(UUID breweryId) {
-        var spent = ledger.spentSince(breweryId, startOfMonth());
+        var spent = ledger.spentSince(breweryId, startOfMonth(breweryId));
         return jdbc.sql("""
                 SELECT brewery_id, monthly_limit, currency, version, updated_by, updated_at
                 FROM ai_model_budget WHERE brewery_id = :brewery
@@ -109,11 +120,38 @@ class JdbcAiBudgetRepository implements AiBudgetRepository {
                 .update() == 1;
     }
 
-    /** Início do mês corrente no fuso configurado — ver DEB-AI-001 em {@code AiProperties}. */
-    private Instant startOfMonth() {
-        return clock.instant().atZone(budgetZone)
+    /**
+     * Início do mês corrente <strong>no fuso da cervejaria</strong> (DEB-AI-001 resolvido).
+     *
+     * <p>Era o fuso de uma propriedade por instalação, e numa plataforma com cervejarias em fusos
+     * diferentes isso erra para todas menos uma: no dia 1º, uma cervejaria a oeste ainda está no mês
+     * anterior enquanto o servidor já virou, e o gasto do mês novo é debitado do orçamento do mês que
+     * acabou. O erro dura poucas horas por mês e acontece justamente quando o orçamento está no limite,
+     * que é quando ele importa.
+     *
+     * <p>Fuso inválido no cadastro cai no de recurso em vez de derrubar a consulta: {@code ZoneId.of}
+     * lança para identificador desconhecido, e um cadastro com fuso digitado errado não pode impedir a
+     * verificação de orçamento — ela é a proteção contra gasto descontrolado.
+     */
+    private Instant startOfMonth(UUID breweryId) {
+        return clock.instant().atZone(zoneOf(breweryId))
                 .withDayOfMonth(1).truncatedTo(ChronoUnit.DAYS)
                 .toInstant();
+    }
+
+    private ZoneId zoneOf(UUID breweryId) {
+        return breweries.findById(breweryId)
+                .map(BreweryRef::timezone)
+                .map(JdbcAiBudgetRepository::parseOrFallback)
+                .orElse(FALLBACK_ZONE);
+    }
+
+    private static ZoneId parseOrFallback(String timezone) {
+        try {
+            return ZoneId.of(timezone);
+        } catch (RuntimeException e) {
+            return FALLBACK_ZONE;
+        }
     }
 
     private AiBudget map(ResultSet rs, BigDecimal spent) throws SQLException {

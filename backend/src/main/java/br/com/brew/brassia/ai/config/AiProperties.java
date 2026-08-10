@@ -18,10 +18,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * porque preço muda por contrato: cravar no código daria uma conta errada silenciosa no dia da
  * mudança.
  *
- * <p><strong>{@code budgetZone} é débito declarado (DEB-AI-001).</strong> O mês do orçamento devia
- * virar no fuso da cervejaria, mas {@code BreweryRef} não expõe fuso e ampliar a API publicada de outro
- * módulo não pertence a esta história. Enquanto isso o mês vira num fuso configurado por instalação — o
- * erro se limita às horas de virada do mês. Remover quando {@code BreweryRef} passar a expor o fuso.
+ * <p><strong>Não há mais fuso aqui (DEB-AI-001 resolvido).</strong> O mês do orçamento vira no fuso da
+ * <em>cervejaria</em>, lido de {@code BreweryRef}. Uma propriedade por instalação erraria para todas as
+ * cervejarias menos uma, e numa plataforma multi-cervejaria isso não é aproximação, é a resposta errada.
  */
 @ConfigurationProperties("brassia.ai")
 public record AiProperties(
@@ -34,7 +33,6 @@ public record AiProperties(
         BigDecimal monthlyBudget,
         String effort,
         boolean thinking,
-        String budgetZone,
         List<ModelSpec> models) {
 
     public AiProperties {
@@ -44,7 +42,6 @@ public record AiProperties(
         currency = blankTo(currency, "USD");
         monthlyBudget = monthlyBudget == null ? new BigDecimal("50.00") : monthlyBudget;
         effort = blankTo(effort, "low");
-        budgetZone = blankTo(budgetZone, "America/Sao_Paulo");
         models = models == null ? List.of() : List.copyOf(models);
 
         // Habilitado sem chave ou sem modelo não é "quase pronto", é configuração pela metade: falharia

@@ -1,6 +1,7 @@
 package br.com.brew.brassia.sensor.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.equipment.EquipmentProfileLookup;
 import br.com.brew.brassia.sensor.application.port.inbound.AdapterIngestionCommands;
 import br.com.brew.brassia.sensor.application.port.inbound.DeviceCommands;
 import br.com.brew.brassia.sensor.application.port.inbound.DeviceStatusCommands;
@@ -34,9 +35,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 class SensorConfiguration {
 
     @Bean
-    DeviceCommands sensorDeviceCommands(DeviceRepository devices, AuditTrail audit,
-            PlatformTransactionManager transactionManager) {
-        var handler = new DeviceHandlers.Register(devices, audit, Clock.systemUTC());
+    DeviceCommands sensorDeviceCommands(DeviceRepository devices, EquipmentProfileLookup equipment,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new DeviceHandlers.Register(devices, equipment, audit, Clock.systemUTC());
         var transaction = new TransactionTemplate(transactionManager);
         return request -> Objects.requireNonNull(transaction.execute(status -> handler.register(request)));
     }

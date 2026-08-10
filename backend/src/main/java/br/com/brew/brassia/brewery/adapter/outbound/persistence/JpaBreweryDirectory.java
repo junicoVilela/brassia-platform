@@ -31,6 +31,7 @@ class JpaBreweryDirectory implements BreweryDirectory {
     }
 
     private static BreweryRef toRef(Brewery brewery) {
-        return new BreweryRef(brewery.id().value(), brewery.code().value(), brewery.name().value());
+        return new BreweryRef(brewery.id().value(), brewery.code().value(), brewery.name().value(),
+                brewery.timezone().value());
     }
 }

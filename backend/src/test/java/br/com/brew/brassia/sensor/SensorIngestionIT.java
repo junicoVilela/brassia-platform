@@ -584,6 +584,26 @@ class SensorIngestionIT {
     }
 
     @Test
+    @DisplayName("equipamento inexistente devolve 400 apontando o campo, não 500 (OBS-INT-001)")
+    void equipamentoInexistenteDevolve400() throws Exception {
+        // Achado ao escrever a jornada abaixo, semeando um id aleatório: a violação de chave estrangeira
+        // subia crua. Quem integra lia "erro do servidor" para um problema no dado que ele mandou.
+        var session = login();
+        var node = JSON.createObjectNode();
+        node.put("code", uniqueCode("ORFAO"));
+        node.put("name", "Dispositivo órfão");
+        node.put("measure", "TEMPERATURE");
+        node.put("unit", "C");
+        node.put("equipmentId", UUID.randomUUID().toString());
+
+        mockMvc.perform(post(SENSORS + "/devices").with(csrf()).session(session)
+                        .contentType("application/json").content(JSON.writeValueAsString(node)))
+                .andExpect(status().isBadRequest())
+                // O campo é a única informação acionável: sem ele, a pessoa adivinha qual dos seis conserta.
+                .andExpect(jsonPath("$.field").value("equipmentId"));
+    }
+
+    @Test
     @DisplayName("JORNADA: leitura de sensor de um fermentador ocupado vira ponto na curva do lote")
     void leituraViraPontoNaCurva() throws Exception {
         // O que DEB-INT-001 travava. Antes disto o sensor guardava a série dele e quem quisesse ver a

@@ -72,7 +72,7 @@ class JdbcWaterReferenceProfileRepository implements WaterReferenceProfileReposi
         return jdbc.sql("SELECT " + COLUMNS + """
                  FROM water_reference_profile WHERE id = :id AND (brewery_id IS NULL OR brewery_id = :brewery)
                 """)
-                .param("id", id).param("brewery", breweryId)
+                .param("brewery", breweryId).param("id", id).param("brewery", breweryId)
                 .query((rs, n) -> map(rs)).optional();
     }
 
@@ -93,13 +93,13 @@ class JdbcWaterReferenceProfileRepository implements WaterReferenceProfileReposi
     }
 
     @Override
-    public boolean markPublished(UUID id, long expectedVersion) {
+    public boolean markPublished(UUID breweryId, UUID id, long expectedVersion) {
         int updated = jdbc.sql("""
                 UPDATE water_reference_profile
                 SET status = 'PUBLISHED', version = :newVersion, updated_at = now()
-                WHERE id = :id AND version = :expected AND status = 'DRAFT'
+                WHERE id = :id AND brewery_id = :brewery AND version = :expected AND status = 'DRAFT'
                 """)
-                .param("newVersion", expectedVersion + 1).param("id", id).param("expected", expectedVersion)
+                .param("newVersion", expectedVersion + 1).param("brewery", breweryId).param("id", id).param("expected", expectedVersion)
                 .update();
         return updated > 0;
     }

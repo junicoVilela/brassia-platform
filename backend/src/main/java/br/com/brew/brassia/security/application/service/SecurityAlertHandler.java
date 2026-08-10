@@ -28,7 +28,7 @@ public final class SecurityAlertHandler {
         if (alert.breweryId() != null && !alert.breweryId().equals(breweryId)) {
             throw new ForbiddenException("alerta de outra cervejaria");
         }
-        alerts.updateStatus(alertId, status, actorId);
+        alerts.updateStatus(breweryId, alertId, status, actorId);
         audit.record(AuditEvent.success(breweryId, actorId, "security.alert.update",
                 "security_alert", alertId.toString(), Map.of("status", status)));
     }

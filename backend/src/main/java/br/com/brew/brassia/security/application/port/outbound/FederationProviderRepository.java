@@ -15,5 +15,4 @@ public interface FederationProviderRepository {
             String issuerOrEntityId, Map<String, Object> configuration);
     Optional<ProviderView> findById(UUID id);
     List<ProviderView> listByBrewery(UUID breweryId);
-    void update(UUID id, String displayName, String status, Map<String, Object> configuration, long version);
 }

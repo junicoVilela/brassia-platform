@@ -266,8 +266,6 @@ class SsoLoginHandlerTest {
             return current == null || !current.breweryId().equals(breweryId) ? List.of() : List.of(current);
         }
 
-        @Override public void update(UUID id, String d, String s, Map<String, Object> c, long v) {
-        }
     }
 
     private static final class FakeHandshakes implements SsoHandshakeRepository {

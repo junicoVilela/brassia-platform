@@ -68,13 +68,14 @@ class JdbcSecurityGroupRepository implements SecurityGroupRepository {
     }
 
     @Override
-    public boolean update(UUID id, String name, String description, long expectedVersion) {
+    public boolean update(UUID breweryId, UUID id, String name, String description, long expectedVersion) {
         int updated = jdbcClient.sql("""
                 UPDATE security_group
                 SET name = :name, description = :description, version = version + 1
-                WHERE id = :id AND version = :version AND system_group = false AND active = true
+                WHERE id = :id AND brewery_id = :brewery
+                  AND version = :version AND system_group = false AND active = true
                 """)
-                .param("id", id)
+                .param("brewery", breweryId).param("id", id)
                 .param("name", name)
                 .param("description", description)
                 .param("version", expectedVersion)

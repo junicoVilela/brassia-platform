@@ -19,5 +19,5 @@ public interface WaterReferenceProfileRepository {
 
     long count(UUID breweryId);
 
-    boolean markPublished(UUID id, long expectedVersion);
+    boolean markPublished(UUID breweryId, UUID id, long expectedVersion);
 }

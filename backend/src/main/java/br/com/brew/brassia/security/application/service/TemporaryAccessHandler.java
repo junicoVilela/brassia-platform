@@ -60,7 +60,7 @@ public final class TemporaryAccessHandler implements TemporaryAccessUseCase, Tem
         var grant = load(grantId, breweryId);
         var now = Instant.now();
         var approved = grant.approve(actorId, now);
-        grants.approve(grantId, approved.approvedBy(), now);
+        grants.approve(breweryId, grantId, approved.approvedBy(), now);
         record(breweryId, actorId, "security.temporary-access.approve", grantId,
                 Map.of("user", grant.userId().toString(), "permission", grant.permissionCode()));
     }
@@ -70,7 +70,7 @@ public final class TemporaryAccessHandler implements TemporaryAccessUseCase, Tem
         var grant = load(grantId, breweryId);
         var now = Instant.now();
         grant.revoke(now);
-        grants.revoke(grantId, actorId, now);
+        grants.revoke(breweryId, grantId, actorId, now);
         record(breweryId, actorId, "security.temporary-access.revoke", grantId,
                 Map.of("user", grant.userId().toString(), "permission", grant.permissionCode()));
     }

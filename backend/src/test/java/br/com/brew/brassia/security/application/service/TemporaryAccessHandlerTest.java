@@ -178,14 +178,14 @@ class TemporaryAccessHandlerTest {
             return Optional.ofNullable(store.get(id)).filter(g -> g.breweryId().equals(breweryId));
         }
 
-        @Override public void approve(UUID id, UUID approverId, Instant approvedAt) {
+        @Override public void approve(UUID breweryId, UUID id, UUID approverId, Instant approvedAt) {
             var g = store.get(id);
             store.put(id, new TemporaryAccessGrant(g.id(), g.breweryId(), g.userId(), g.permissionId(),
                     g.permissionCode(), g.permissionCritical(), g.reason(), g.validFrom(), g.validUntil(),
                     g.requestedBy(), approverId, g.revokedAt()));
         }
 
-        @Override public void revoke(UUID id, UUID revokedBy, Instant revokedAt) {
+        @Override public void revoke(UUID breweryId, UUID id, UUID revokedBy, Instant revokedAt) {
             var g = store.get(id);
             store.put(id, new TemporaryAccessGrant(g.id(), g.breweryId(), g.userId(), g.permissionId(),
                     g.permissionCode(), g.permissionCritical(), g.reason(), g.validFrom(), g.validUntil(),

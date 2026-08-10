@@ -142,7 +142,7 @@ class PerformLoginHandlerTest {
         }
 
         @Override
-        public void updateStatus(UUID id, String status, UUID resolvedBy) {
+        public void updateStatus(UUID breweryId, UUID id, String status, UUID resolvedBy) {
         }
     }
 }

@@ -58,7 +58,7 @@ public final class PublishImportJobHandler implements PublishImportJobUseCase {
                 new Provenance(source.owner(), null, source.url(), when), job.rawPayload(), when, null,
                 DatasetStatus.PUBLISHED, ReviewStatus.APPROVED, when, 1);
         datasets.insert(dataset);
-        if (!jobs.markPublished(job.id().value(), datasetId.value(), job.optimisticVersion())) {
+        if (!jobs.markPublished(command.breweryId(), job.id().value(), datasetId.value(), job.optimisticVersion())) {
             throw new IllegalStateException("job não está em revisão ou foi alterado concorrentemente");
         }
 

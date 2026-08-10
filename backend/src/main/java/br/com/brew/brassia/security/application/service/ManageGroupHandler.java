@@ -61,7 +61,7 @@ public final class ManageGroupHandler implements ManageGroupUseCase {
         var permissionCodes = normalizePermissions(command.permissionCodes());
         assertAssignable(command.actorPermissions(), permissionCodes);
         var permissionIds = groups.resolveActivePermissionIds(permissionCodes);
-        if (!groups.update(group.id(), name, description, command.version())) {
+        if (!groups.update(command.breweryId(), group.id(), name, description, command.version())) {
             throw new IllegalStateException("versão do grupo divergiu");
         }
         groups.replacePermissions(group.id(), permissionIds);

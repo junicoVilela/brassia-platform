@@ -23,7 +23,7 @@ public final class PublishWaterReferenceProfileHandler implements PublishWaterRe
                 .orElseThrow(() -> new IllegalArgumentException("perfil de referência inexistente ou fora do escopo"));
 
         profile.publish(); // IllegalStateException = 409 se já publicado
-        if (!profiles.markPublished(profile.id().value(), profile.version())) {
+        if (!profiles.markPublished(command.breweryId(), profile.id().value(), profile.version())) {
             throw new IllegalStateException("perfil não está em rascunho ou foi alterado concorrentemente");
         }
 

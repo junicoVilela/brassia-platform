@@ -143,7 +143,7 @@ class ManageGroupHandlerTest {
         }
 
         @Override
-        public boolean update(UUID id, String name, String description, long expectedVersion) {
+        public boolean update(UUID breweryId, UUID id, String name, String description, long expectedVersion) {
             var current = store.get(id);
             if (current == null || current.version() != expectedVersion || current.systemGroup() || !current.active()) {
                 return false;

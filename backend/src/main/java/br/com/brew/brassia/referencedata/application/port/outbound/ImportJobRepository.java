@@ -18,5 +18,5 @@ public interface ImportJobRepository {
      * Aplica a publicação do job com trava otimista: status → PUBLISHED e vínculo
      * ao dataset materializado. Falha (false) se a versão não bater.
      */
-    boolean markPublished(UUID id, UUID publishedDatasetId, long expectedVersion);
+    boolean markPublished(UUID breweryId, UUID id, UUID publishedDatasetId, long expectedVersion);
 }

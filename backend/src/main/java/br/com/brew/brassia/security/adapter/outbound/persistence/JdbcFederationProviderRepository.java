@@ -63,21 +63,6 @@ class JdbcFederationProviderRepository implements FederationProviderRepository {
                 .list();
     }
 
-    @Override
-    public void update(UUID id, String displayName, String status, Map<String, Object> configuration, long version) {
-        jdbc.sql("""
-                UPDATE federation_provider SET display_name = :name, status = :status,
-                    configuration = :config::jsonb, version = version + 1
-                WHERE id = :id AND version = :version
-                """)
-                .param("name", displayName)
-                .param("status", status)
-                .param("config", toJson(configuration))
-                .param("id", id)
-                .param("version", version)
-                .update();
-    }
-
     private ProviderView map(java.sql.ResultSet rs, int n) throws java.sql.SQLException {
         return new ProviderView(
                 rs.getObject("id", UUID.class),

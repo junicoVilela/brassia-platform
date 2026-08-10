@@ -105,7 +105,7 @@ class JdbcStyleSetRepository implements StyleSetRepository {
         return jdbc.sql("SELECT " + SET_COLUMNS + """
                  FROM style_set WHERE id = :id AND (brewery_id IS NULL OR brewery_id = :brewery)
                 """)
-                .param("id", id).param("brewery", breweryId)
+                .param("brewery", breweryId).param("id", id)
                 .query((rs, n) -> mapSet(rs, loadStyles(id))).optional();
     }
 
@@ -126,14 +126,14 @@ class JdbcStyleSetRepository implements StyleSetRepository {
     }
 
     @Override
-    public boolean markPublished(UUID id, Instant publishedAt, long expectedVersion) {
+    public boolean markPublished(UUID breweryId, UUID id, Instant publishedAt, long expectedVersion) {
         int updated = jdbc.sql("""
                 UPDATE style_set
                 SET status = 'PUBLISHED', published_at = :at, version = :newVersion, updated_at = now()
-                WHERE id = :id AND version = :expected AND status = 'DRAFT'
+                WHERE id = :id AND brewery_id = :brewery AND version = :expected AND status = 'DRAFT'
                 """)
                 .param("at", Timestamp.from(publishedAt)).param("newVersion", expectedVersion + 1)
-                .param("id", id).param("expected", expectedVersion)
+                .param("brewery", breweryId).param("id", id).param("expected", expectedVersion)
                 .update();
         return updated > 0;
     }

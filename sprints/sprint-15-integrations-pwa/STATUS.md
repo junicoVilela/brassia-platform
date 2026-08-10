@@ -1,6 +1,7 @@
 # Status — Sprint 15
 
-Estado: CONCLUÍDA COM PENDÊNCIAS DECLARADAS (5 completas, 2 parciais)
+Estado: CONCLUÍDA (7/7) — as duas histórias parciais fecharam: `INT-006` (MQTT contra broker real) e
+`SEC-B07` (OIDC e SAML contra Keycloak real). Restam débitos declarados, nenhum bloqueando entrega.
 
 ## Controle das histórias
 
@@ -519,14 +520,21 @@ Três consequências:
 - **A fila é apagada no logout e na troca de cervejaria**, como o roteiro. O que ainda não subiu se perde, e
   é o certo: enviá-lo depois, sob a sessão de outra pessoa, atribuiria a medição a quem não a fez.
 
-### DEB-PWA-001 (PWA-001) — O teste de "salvar pela tela" é pulado em banco limpo
+### DEB-PWA-001 (PWA-001) — RESOLVIDO: a fixture compartilhada existe, e o teste deixou de pular
 
-`offline-runbook.spec.ts` tem um caso que exige um lote em produção para clicar em "Salvar offline", e ele é
-pulado quando não há nenhum — o que inclui a CI. O caso **crítico** (sair da conta esvazia o aparelho) foi
-reescrito para semear o armazenamento direto e por isso roda sempre: **um teste de segurança pulado é pior
-que ausente, porque parece cobertura.**
-**Critério de remoção:** quando houver fixture de lote em produção compartilhada entre os E2E, apontar o
-caso para ela.
+`offline-runbook.spec.ts` tinha um caso que exigia um lote em produção para clicar em "Salvar offline" e era
+pulado quando não havia nenhum — o que incluía a CI. O caso **crítico** (sair da conta esvazia o aparelho) já
+rodava sempre, porque semeia o armazenamento direto: **um teste de segurança pulado é pior que ausente,
+porque parece cobertura.**
+
+**Critério de remoção cumprido.** `seedBatch(page)` em `e2e/tests/support.ts` (PR #193) monta a cadeia
+completa — equipamento, insumos, receita, ordem, lote iniciado — e é compartilhada entre os E2E. O
+`test.skip` saiu.
+
+O que apareceu ao tirá-lo vale registro: o caso não estava só pulando por falta de lote, estava numa
+**corrida**. `page.goto` volta com o HTML, não com os dados; o teste contava zero botões e desistia,
+parecendo verde. Agora espera a resposta de `/api/v1/production/batches` antes de contar. O `skip`
+escondia duas falhas diferentes com a mesma cor.
 
 ### DEB-INT-002 (INT-002) — O caminho "evento real → webhook" não é exercido por IT
 

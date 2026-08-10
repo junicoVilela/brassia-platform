@@ -287,6 +287,64 @@ em vez de 404.
 O contato é **opcional**: reclamação anônima é reclamação. Exigir identificação para registrar um corpo
 estranho coletaria dado desnecessário e perderia o relato de quem não quis se identificar.
 
+### DEC-OPT-001 (OPT-001) — Restrições descartam; o objetivo ordena
+
+As duas coisas não se misturam, e essa é a decisão central. Uma alternativa que viola qualquer restrição é
+eliminada **antes** de qualquer score.
+
+Somá-la ao score com um peso alto pareceria equivalente e não é: um peso, por maior que seja, é sempre
+comprável por um ganho maior — e aí o resultado sai apresentado como ótimo tendo quebrado o que não podia.
+Restrição não é preferência; uma solução que a viola não é uma solução pior, ela não é solução.
+
+**Um objetivo por vez.** Custo, disponibilidade e alvo técnico se contradizem: o malte mais barato muda a
+cor, o que está em estoque muda o amargor. "Otimizar tudo" entregaria uma média ponderada por pesos que
+ninguém escolheu, apresentada como ótimo.
+
+O score é normalizado como ganho relativo à receita original — um score absoluto dependeria da escala da
+grandeza, e comparar 3,20 R$/L com 32 IBU não significa nada.
+
+**Trade-offs são campo obrigatório**, e listam só o que *piorou*. Uma alternativa que aparece apenas com o
+ganho — "8% mais barata" — esconde que mudou a cor em 4 EBC, e quem escolhe decide sem saber o que troca.
+Listar as melhorias junto diluiria a leitura e faria o custo parecer menor.
+
+### DEC-OPT-002 (OPT-001) — Reprodutível por construção, e a IA não tem por onde entrar
+
+Método, versão publicada da receita, marca do catálogo e semente viajam com o resultado. Sem eles, seis
+meses depois ninguém distingue "o solver mudou" de "o preço do malte mudou" — e um resultado que não se
+reproduz não se audita.
+
+A **marca do catálogo é derivada do conteúdo lido**, não da data: uma marca por data diria que a entrada
+mudou todo dia mesmo sem nada ter mudado, perdendo exatamente a informação que ela existe para dar.
+
+O solver é determinístico: enumera na ordem estável do id e desempata por rótulo. Sem o desempate, duas
+candidatas de mesmo score poderiam trocar de posição entre execuções — a corrida deixaria de ser
+reproduzível justo onde a diferença "não importa", que é o pior lugar para descobrir isso. `SolverMethod`
+declara `usesSeed()`, e o domínio recusa a incoerência nos dois sentidos: semente em método determinístico
+sugeriria variação inexistente; sua falta num método aleatório tornaria o resultado irreprodutível.
+
+**A explicação da IA é comando separado e só recebe texto.** `candidates` é imutável e definido na criação;
+`explain` escreve num campo à parte. Não existe caminho em que gerar explicação recalcule alguma coisa — um
+teste de reflexão vigia a assinatura, porque a garantia é estrutural. Gerá-la dentro da otimização deixaria
+a fronteira dependendo de disciplina de quem escreve o código.
+
+**Inviabilidade é resposta, não erro** — 201 com o corpo dizendo quais restrições se contradizem.
+Transformá-la em 4xx faria a tela tratá-la como falha e perder a informação que a torna acionável;
+"inviável" sozinho manda a pessoa afrouxar tudo ao acaso.
+
+**Nada é aplicado sem revisão.** A corrida registra que alguém aplicou — ela não aplica. A versão nova de
+receita nasce no módulo de receita, por uma pessoa, e aqui fica só o ponteiro. Se o otimizador pudesse
+escrever na receita, "revisado" viraria um campo que alguém marca em vez de um ato que alguém pratica.
+
+### DEC-OPT-003 (OPT-001) — LIMITAÇÃO DECLARADA: uma substituição por vez
+
+O solver enumera a troca de **um** ingrediente por vez. Não é descuido: trocar dois simultaneamente
+multiplica o espaço de busca e, pior, produz alternativas cujo efeito ninguém consegue atribuir a uma das
+trocas — o mesmo problema de confundimento que EXP-001 existe para impedir.
+
+O método está nomeado no resultado (`EXHAUSTIVE_SINGLE_SUBSTITUTION`), então a limitação viaja com o
+número em vez de ficar só aqui. Ampliar para combinações é acrescentar um `SolverMethod` novo, e as
+corridas antigas continuam dizendo qual estava valendo.
+
 ## Evidências de encerramento
 
 - Build/commit:

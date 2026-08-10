@@ -6446,8 +6446,240 @@ paths:
         '204': {description: Dados pessoais apagados; a reclamação permanece}
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
+  /optimizations:
+    get:
+      tags: [Otimização assistida]
+      summary: Lista corridas de otimização (OPT-001)
+      parameters:
+        - {name: recipeId, in: query, required: false, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Corridas da cervejaria, mais recentes primeiro
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/OptimizationRun'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Otimização assistida]
+      summary: Executa uma otimização (OPT-001)
+      description: >-
+        **Um objetivo por vez.** Custo, disponibilidade e alvo técnico se contradizem — otimizar os três
+        entregaria uma média ponderada por pesos que ninguém escolheu, apresentada como ótimo.
+
+
+        **Restrições descartam; o objetivo ordena.** Uma alternativa que viola qualquer restrição é
+        eliminada antes de qualquer score. Somá-la ao score com peso alto pareceria equivalente e não é:
+        um peso é sempre comprável por um ganho maior, e aí o resultado sai como ótimo tendo quebrado o
+        que não podia.
+
+
+        **Responde 201 mesmo sem solução.** Inviabilidade é resultado, não erro: a corrida aconteceu, ficou
+        registrada, e o corpo diz quais restrições se contradizem. Um 4xx faria a tela tratá-la como falha
+        e perder a informação que a torna acionável.
+
+
+        A entrada é a **versão publicada** da receita. Otimizar rascunho apontaria para uma composição que
+        muda enquanto se otimiza.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OptimizeRequest'}
+      responses:
+        '201':
+          description: Corrida registrada — com alternativas, ou com a inviabilidade explicada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OptimizationRun'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '422':
+          description: '`unpublished_recipe` — a receita não tem versão publicada'
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /optimizations/{runId}:
+    get:
+      tags: [Otimização assistida]
+      summary: Uma corrida (OPT-001)
+      parameters:
+        - {name: runId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: A corrida
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OptimizationRun'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /optimizations/{runId}/explanation:
+    post:
+      tags: [Otimização assistida]
+      summary: Anexa a explicação em linguagem natural (OPT-001)
+      description: >-
+        **Rota separada, e só recebe texto.** A explicação chega depois do resultado existir e não tem por
+        onde alterar o score. Gerá-la dentro da otimização deixaria a fronteira dependendo de disciplina de
+        quem escreve o código, em vez da forma do contrato — e ninguém saberia qual dos dois produziu a
+        recomendação.
+      parameters:
+        - {name: runId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [explanation]
+              properties:
+                explanation: {type: string, maxLength: 4000}
+      responses:
+        '200':
+          description: Explicação anexada; nenhum score muda
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OptimizationRun'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /optimizations/{runId}/application:
+    post:
+      tags: [Otimização assistida]
+      summary: Registra que uma alternativa virou versão de receita (OPT-001)
+      description: >-
+        **Recebe o id de uma versão já criada — não cria nada.** Nenhuma solução é aplicada sem revisão: a
+        versão nova nasce no módulo de receita, por uma pessoa, e aqui fica só o ponteiro. Se o otimizador
+        pudesse escrever na receita, "revisado" viraria um campo que alguém marca em vez de um ato que
+        alguém pratica.
+
+
+        Permissão crítica: mesmo sendo um ponteiro, ela declara que aquela alternativa passou a valer.
+      parameters:
+        - {name: runId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipeVersionId]
+              properties:
+                recipeVersionId: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Aplicação registrada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OptimizationRun'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`illegal_optimization_state` — já aplicada, ou corrida inviável'
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
+    OptimizeRequest:
+      type: object
+      required: [recipeId, objective]
+      properties:
+        recipeId: {type: string, format: uuid}
+        objective: {type: string, enum: [COST, AVAILABILITY, TECHNICAL_TARGET]}
+        constraints:
+          type: array
+          items: {$ref: '#/components/schemas/OptimizationConstraint'}
+    OptimizationConstraint:
+      type: object
+      required: [kind]
+      description: >-
+        Restrição não é preferência: violá-la descarta a alternativa em vez de penalizá-la
+      properties:
+        kind:
+          type: string
+          enum: [MAX_COST_PER_LITER, IBU_RANGE, COLOR_RANGE, KEEP_INGREDIENT, EXCLUDE_INGREDIENT,
+                 STOCK_ONLY]
+        minValue: {type: number, nullable: true}
+        maxValue: {type: number, nullable: true}
+        ingredientId: {type: string, format: uuid, nullable: true}
+    OptimizationTradeOff:
+      type: object
+      description: >-
+        O que piorou em relação à receita original. Só o que piorou — listar as melhorias diluiria a
+        leitura e faria o custo parecer menor do que é
+      properties:
+        dimension: {type: string}
+        description: {type: string}
+        originalValue: {type: number}
+        candidateValue: {type: number}
+    OptimizationSubstitution:
+      type: object
+      properties:
+        fromIngredientId: {type: string, format: uuid}
+        fromLabel: {type: string}
+        toIngredientId: {type: string, format: uuid}
+        toLabel: {type: string}
+        quantity: {type: number}
+        unit: {type: string}
+    OptimizationCandidate:
+      type: object
+      properties:
+        label: {type: string}
+        substitutions:
+          type: array
+          items: {$ref: '#/components/schemas/OptimizationSubstitution'}
+        costPerLiter: {type: number}
+        estimatedIbu: {type: number, nullable: true}
+        estimatedColorEbc: {type: number, nullable: true}
+        score: {type: number}
+        tradeOffs:
+          type: array
+          description: Sempre presente. O ganho sem o custo faz escolher sem saber o que se troca
+          items: {$ref: '#/components/schemas/OptimizationTradeOff'}
+    OptimizationInfeasible:
+      type: object
+      description: >-
+        Resposta com conteúdo. "Inviável" sozinho manda a pessoa afrouxar tudo ao acaso; saber quais
+        restrições se contradizem transforma isso numa decisão
+      properties:
+        conflictingConstraints: {type: array, items: {type: string}}
+        explanation: {type: string}
+    OptimizationRun:
+      type: object
+      description: >-
+        Método, versão da receita, marca do catálogo e semente viajam sempre — é o que permite reproduzir
+        o número, e um resultado que não se reproduz não se audita
+      properties:
+        id: {type: string, format: uuid}
+        recipeId: {type: string, format: uuid}
+        recipeVersion: {type: integer, description: Versão PUBLICADA usada como entrada}
+        objective: {type: string}
+        constraints:
+          type: array
+          items: {$ref: '#/components/schemas/OptimizationConstraint'}
+        method: {type: string}
+        catalogVersion:
+          type: string
+          description: >-
+            Marca derivada do CONTEÚDO do catálogo lido, não da data — uma marca por data diria que a
+            entrada mudou todo dia mesmo sem nada ter mudado
+        seed: {type: integer, format: int64, nullable: true}
+        usesSeed:
+          type: boolean
+          description: Distingue "método determinístico" de "esqueceram de gravar a semente"
+        feasible: {type: boolean}
+        candidates:
+          type: array
+          items: {$ref: '#/components/schemas/OptimizationCandidate'}
+        infeasible:
+          nullable: true
+          allOf: [{$ref: '#/components/schemas/OptimizationInfeasible'}]
+        explanation:
+          type: string
+          nullable: true
+          description: Texto da IA, em campo separado das candidatas para não parecer parte do cálculo
+        appliedRecipeVersionId: {type: string, format: uuid, nullable: true}
+        requestedBy: {type: string, format: uuid}
+        requestedAt: {type: string, format: date-time}
     RegisterComplaint:
       type: object
       required: [batchId, category, severity, description]

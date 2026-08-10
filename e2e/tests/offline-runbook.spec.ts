@@ -1,4 +1,4 @@
-import { expect, login, test } from './support';
+import { expect, login, test, seedBatch } from './support';
 
 /**
  * Roteiro offline (PWA-001).
@@ -13,15 +13,17 @@ import { expect, login, test } from './support';
 test.describe('roteiro offline', () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
+    await seedBatch(page);
   });
 
   test('salvar um roteiro deixa o lote marcado como disponível offline', async ({ page }) => {
     await page.goto('/production/batches');
+    // Espera a listagem chegar antes de contar botões: `goto` volta com o HTML, não com os dados. O
+    // `test.skip` que havia aqui mascarava essa corrida — contava zero e desistia, parecendo verde.
+    await page.waitForResponse(r => r.url().includes('/api/v1/production/batches'));
 
     const salvar = page.getByRole('button', { name: /Salvar roteiro de .* para uso sem rede/ }).first();
-    if ((await salvar.count()) === 0) {
-      test.skip(true, 'ambiente sem lote em produção');
-    }
+    await expect(salvar).toBeVisible();
 
     await salvar.click();
     await expect(page.getByRole('button', { name: /Remover roteiro offline de/ }).first()).toBeVisible();
@@ -39,6 +41,7 @@ test.describe('roteiro offline', () => {
 
   test('sem rede, a tela avisa e continua legível', async ({ page, context }) => {
     await page.goto('/production/batches');
+    await page.waitForResponse(r => r.url().includes('/api/v1/production/batches'));
 
     await context.setOffline(true);
     // O evento `offline` é o que a aplicação escuta; o `setOffline` do Playwright o dispara.

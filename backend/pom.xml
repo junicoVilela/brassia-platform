@@ -119,10 +119,13 @@
       <groupId>org.springframework.session</groupId>
       <artifactId>spring-session-jdbc</artifactId>
     </dependency>
+    <!-- DEIXOU DE SER `optional` pelo mesmo motivo do starter OAuth2 logo abaixo: enquanto o SAML era
+         recusado, nada em runtime tocava OpenSAML. Agora o adaptador valida a assinatura XML da assertion
+         com ele, e `optional` faz o repackage do Boot não empacotar — compila e quebra no boot. É a
+         terceira vez que este projeto tropeça nisso; o comentário do Jackson registra a primeira. -->
     <dependency>
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-saml2-service-provider</artifactId>
-      <optional>true</optional>
     </dependency>
     <!-- DEIXOU DE SER `optional` (DEB-SEC-001).
          Enquanto a troca OIDC era recusada, nada em runtime tocava estas classes e `optional` bastava.

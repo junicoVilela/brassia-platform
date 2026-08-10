@@ -12,7 +12,7 @@ Estado: CONCLUÍDA COM PENDÊNCIAS DECLARADAS (5 completas, 2 parciais)
 | PWA-002 | Concluída | Claude | `frontend/.../core/offline/offline-queue.store.ts`, `V100__production_client_request_id.sql` | Fila com garantia "ao menos uma vez"; a chave gerada no registro (não no envio) a transforma em "exatamente uma" do lado do servidor. Conflito sai do ciclo automático e espera decisão. Ver DEC-PWA-003/004. |
 | INT-003 | Concluída | Claude | `integration/domain/ScanReference`, `ScanController`, `frontend/.../features/scan` | O código carrega só o quê; a permissão do tipo apontado é verificada depois da leitura. Sem leitor de câmera: o QR é um link. Ver DEC-INT-009/010. |
 | INT-006 | Concluída | Claude | `sensor/domain/PayloadFormat`, `SensorMqttSubscriber`, `V108__sensor_mqtt.sql` | Adapters de payload por HTTP **e MQTT**, exercitado contra broker real. DEB-INT-003 resolvido. |
-| SEC-B07 | Concluída | Claude | `security/domain/SsoHandshake`, `AccountLinkDecision`, `SsoLoginHandler`, `V102__sso_handshake.sql` | Fluxo SP-initiated com state/nonce/PKCE, uso único no banco e vínculo que recusa sequestro. **Troca OIDC exercitada contra Keycloak real** — DEB-SEC-001 resolvido. SAML segue recusando. |
+| SEC-B07 | Concluída | Claude | `security/domain/SsoHandshake`, `AccountLinkDecision`, `SsoLoginHandler`, `V102__sso_handshake.sql` | Fluxo SP-initiated com state/nonce/PKCE, uso único no banco e vínculo que recusa sequestro. **OIDC e SAML exercitados contra Keycloak real** — DEB-SEC-001 resolvido por inteiro. |
 | ~~INT-004~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
 | ~~INT-005~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
 | ~~INT-007~~ | Movida | — | — | Sprint 21 — ver DEC-INT-001 |
@@ -283,8 +283,27 @@ o teste troca o `SSLContext` **da própria JVM**, que é o que uma cervejaria fa
   `ConnectException`), nunca a mensagem — que carrega a URL inteira. Mesmo critério do `HttpWebhookSender`,
   e a diferença entre os dois tipos vale muito num incidente.
 
-**SAML continua recusando**, e o débito daquela parte permanece: a checagem de assinatura XML exige um IdP
-SAML de verdade para ser exercitada. O adaptador recusa a volta em vez de aparentar autenticar.
+**SAML também fechou.** A justificativa que eu havia escrito — *"exige um IdP SAML de verdade"* — descrevia
+um bloqueio que não existia: o Keycloak fala SAML nativamente, e bastou um cliente a mais no realm que já
+estava no projeto. É a terceira vez nesta sequência em que tratei "precisa de coisa real" como impedimento
+tendo a coisa real à mão.
+
+O que o verificador protege, além da assinatura:
+
+- **Assinatura na ASSERTION, não só no envelope.** É a diferença que o *XML Signature Wrapping* explora:
+  uma Response assinada pode carregar assertion trocada, e quem valida só o envelope aceita o conteúdo
+  adulterado. A assertion consumida é a mesma instância que teve a assinatura conferida.
+- **DOCTYPE recusado** (XXE) — mesma decisão do BeerXML, e aqui vale mais porque a fonte é menos confiável.
+- **Audiência, destino e validade.** Assinatura prova que o IdP emitiu; não prova que era para nós, nem
+  para este endpoint, nem que ainda vale. Uma assertion legítima capturada de outro serviço do mesmo IdP
+  passa na assinatura e falha na audiência.
+
+**A defesa contra sequestro por e-mail funcionou antes de eu testá-la:** o primeiro login SAML foi recusado
+porque o SAML não tem `emailVerified` padronizado e a ausência conta como não verificado — então o
+provisionamento automático negou. Precisei fazer o IdP *afirmar* a verificação para o caso feliz existir.
+
+`spring-security-saml2` estava `optional`: compilava e não iria para o jar. **Terceira vez** que este
+projeto tropeça no mesmo defeito de empacotamento — o comentário do Jackson registra a primeira.
 
 ### DEC-INT-009 (INT-003) — O código carrega o quê, nunca a credencial
 

@@ -1,4 +1,4 @@
-import { expect, login, test } from './support';
+import { expect, login, test, seedBatch } from './support';
 
 /**
  * Otimização assistida (OPT-001).
@@ -10,6 +10,7 @@ import { expect, login, test } from './support';
 test.describe('otimização assistida', () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
+    await seedBatch(page);
   });
 
   test('a tela abre com as corridas da stack real', async ({ page }) => {
@@ -44,7 +45,8 @@ test.describe('otimização assistida', () => {
 
     const recipes = page.getByLabel('Receita publicada');
     const options = await recipes.locator('option').count();
-    test.skip(options < 2, 'ambiente sem receita publicada');
+    // A receita foi semeada no beforeEach; menos de duas opções é defeito da tela.
+    expect(options).toBeGreaterThan(1);
 
     await recipes.selectOption({ index: 1 });
     const executed = page.waitForResponse(

@@ -39,9 +39,9 @@ import org.springframework.stereotype.Component;
  * qualquer coisa dele ser lida. É exercitada contra um Keycloak em Testcontainers — não contra um dublê,
  * porque um dublê que devolve o que o código espera não prova integração nenhuma.
  *
- * <p><strong>SAML segue recusando.</strong> A checagem de assinatura XML da assertion exige biblioteca e um
- * IdP SAML de verdade para ser exercitada; enquanto isso, este adaptador recusa a volta em vez de
- * aceitá-la. Uma recusa honesta é infinitamente melhor que um caminho que aparenta autenticar.
+ * <p><strong>SAML também é real agora.</strong> A assinatura XML da assertion é conferida contra o
+ * certificado do provedor — e na <em>assertion</em>, não só no envelope, que é a diferença explorada pelos
+ * ataques de XML Signature Wrapping. Exercitado contra o Keycloak em modo SAML.
  */
 @Component
 class OidcFederatedIdentityProvider implements FederatedIdentityProvider {
@@ -70,10 +70,7 @@ class OidcFederatedIdentityProvider implements FederatedIdentityProvider {
     public URI authorizationUri(ProviderConfig config, SsoHandshake handshake) {
         var redirectUri = callbackBaseUri + "/api/v1/security/sso/" + config.code() + "/callback";
         if ("SAML".equalsIgnoreCase(config.protocol())) {
-            // SP-initiated: o RelayState carrega o nosso state, que é o que amarra a volta à ida.
-            return URI.create(config.issuerOrEntityId()
-                    + (config.issuerOrEntityId().contains("?") ? "&" : "?")
-                    + "RelayState=" + encode(handshake.state()));
+            return samlAuthnRequestUri(config, handshake, redirectUri);
         }
         var clientId = String.valueOf(config.configuration().getOrDefault("clientId", ""));
         oidcValidator.validateProviderConfig(config.issuerOrEntityId(), clientId);
@@ -100,6 +97,9 @@ class OidcFederatedIdentityProvider implements FederatedIdentityProvider {
     @Override
     public AssertedIdentity verify(ProviderConfig config, SsoHandshake handshake,
             Map<String, String> callback) {
+        if ("SAML".equalsIgnoreCase(config.protocol())) {
+            return verifySaml(config, handshake, callback);
+        }
         if (!"OIDC".equalsIgnoreCase(config.protocol())) {
             throw new UnsupportedFederationExchangeException(config.protocol());
         }
@@ -128,6 +128,139 @@ class OidcFederatedIdentityProvider implements FederatedIdentityProvider {
                 // e tratar silêncio como "sim" abriria o provisionamento automático.
                 Boolean.TRUE.equals(jwt.getClaimAsBoolean("email_verified")),
                 jwt.getClaimAsString("name"));
+    }
+
+    /**
+     * Monta o {@code AuthnRequest} e o redirect para o IdP (binding HTTP-Redirect).
+     *
+     * <p><strong>O RelayState carrega o nosso state</strong>, e é o que amarra a volta à ida: o SAML não
+     * tem nonce, então é o RelayState — devolvido pelo IdP sem alteração — que diz a qual conversa a
+     * assertion pertence.
+     *
+     * <p>O corpo vai <em>deflacionado</em> e em base64 porque é o que o binding HTTP-Redirect exige: XML
+     * cru numa query string estoura o limite de URL no primeiro atributo mais longo.
+     *
+     * <p>O {@code AssertionConsumerServiceURL} viaja no pedido e é conferido na volta contra o
+     * {@code Recipient} da assertion. Sem isso, uma assertion emitida para outro serviço do mesmo IdP
+     * chegaria aqui com assinatura válida.
+     */
+    private URI samlAuthnRequestUri(ProviderConfig config, SsoHandshake handshake, String redirectUri) {
+        var ssoUrl = String.valueOf(config.configuration()
+                .getOrDefault("ssoUrl", config.issuerOrEntityId() + "/protocol/saml"));
+        var entityId = String.valueOf(config.configuration().getOrDefault("audience", ""));
+        if (entityId.isBlank()) {
+            throw new InvalidSsoHandshakeException("provedor SAML sem identificador de serviço");
+        }
+
+        var authnRequest = """
+                <samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" \
+                xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="%s" Version="2.0" \
+                IssueInstant="%s" Destination="%s" \
+                ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" \
+                AssertionConsumerServiceURL="%s">\
+                <saml:Issuer>%s</saml:Issuer></samlp:AuthnRequest>"""
+                .formatted("_" + handshake.id(), clock.instant(), ssoUrl, redirectUri, entityId)
+                .replace("\\\n", "").replace("\n", "");
+
+        return URI.create(ssoUrl
+                + (ssoUrl.contains("?") ? "&" : "?")
+                + "SAMLRequest=" + encode(deflateAndEncode(authnRequest))
+                + "&RelayState=" + encode(handshake.state()));
+    }
+
+    /** DEFLATE cru (sem cabeçalho zlib) seguido de base64, como o binding HTTP-Redirect define. */
+    private static String deflateAndEncode(String xml) {
+        var deflater = new java.util.zip.Deflater(java.util.zip.Deflater.DEFLATED, true);
+        deflater.setInput(xml.getBytes(StandardCharsets.UTF_8));
+        deflater.finish();
+        var buffer = new java.io.ByteArrayOutputStream();
+        var chunk = new byte[1024];
+        while (!deflater.finished()) {
+            buffer.write(chunk, 0, deflater.deflate(chunk));
+        }
+        deflater.end();
+        return java.util.Base64.getEncoder().encodeToString(buffer.toByteArray());
+    }
+
+    /**
+     * Verifica a volta SAML.
+     *
+     * <p>A ordem é a mesma do OIDC e pelo mesmo motivo: <strong>assinatura primeiro, conteúdo depois</strong>.
+     *
+     * <p>Depois da assinatura vêm as checagens que ela <em>não</em> faz — e cada uma pega um ataque
+     * diferente. Assinatura válida prova que o IdP emitiu aquilo; não prova que era para nós
+     * ({@code Audience}), nem para este endpoint ({@code Destination}), nem que ainda vale
+     * ({@code NotOnOrAfter}). Uma assertion legítima capturada de outro serviço do mesmo IdP passa na
+     * assinatura e falha na audiência.
+     */
+    private AssertedIdentity verifySaml(ProviderConfig config, SsoHandshake handshake,
+            Map<String, String> callback) {
+        var samlResponse = callback.get("SAMLResponse");
+        if (samlResponse == null || samlResponse.isBlank()) {
+            throw new InvalidSsoHandshakeException("volta sem resposta SAML");
+        }
+        var certificate = String.valueOf(config.configuration().getOrDefault("certificate", ""));
+        if (certificate.isBlank()) {
+            throw new InvalidSsoHandshakeException("provedor SAML sem certificado cadastrado");
+        }
+
+        var assertion = SamlResponseVerifier.verify(samlResponse, certificate);
+
+        var conditions = assertion.getConditions();
+        samlValidator.validate(
+                new SamlAssertionValidator.Assertion(
+                        assertion.getIssuer() == null ? null : assertion.getIssuer().getValue(),
+                        audienceOf(assertion),
+                        destinationOf(assertion),
+                        conditions == null ? null : conditions.getNotBefore(),
+                        conditions == null ? null : conditions.getNotOnOrAfter()),
+                new SamlAssertionValidator.Context(config.issuerOrEntityId(),
+                        String.valueOf(config.configuration().getOrDefault("audience", "")),
+                        redirectUri(config), clock.instant()));
+
+        var subject = assertion.getSubject() == null || assertion.getSubject().getNameID() == null
+                ? null : assertion.getSubject().getNameID().getValue();
+        if (subject == null || subject.isBlank()) {
+            // Sem NameID não há quem: uma assertion válida sobre ninguém não autentica ninguém.
+            throw new InvalidSsoHandshakeException("resposta SAML sem identificador de sujeito");
+        }
+
+        var email = first(SamlResponseVerifier.attributeValues(assertion, "email"))
+                .orElseGet(() -> first(SamlResponseVerifier.attributeValues(assertion,
+                        "urn:oid:1.2.840.113549.1.9.1")).orElse(subject));
+        return new AssertedIdentity(subject, email,
+                // SAML não tem um `email_verified` padronizado. Tratar a ausência como verificado abriria
+                // o provisionamento automático a quem escolhesse o próprio e-mail no IdP — então a
+                // ausência conta como NÃO verificado, igual ao OIDC.
+                Boolean.parseBoolean(first(SamlResponseVerifier.attributeValues(assertion,
+                        "emailVerified")).orElse("false")),
+                first(SamlResponseVerifier.attributeValues(assertion, "displayName")).orElse(subject));
+    }
+
+    private static String audienceOf(org.opensaml.saml.saml2.core.Assertion assertion) {
+        var conditions = assertion.getConditions();
+        if (conditions == null) {
+            return null;
+        }
+        return conditions.getAudienceRestrictions().stream()
+                .flatMap(r -> r.getAudiences().stream())
+                .map(a -> a.getURI())
+                .findFirst().orElse(null);
+    }
+
+    private static String destinationOf(org.opensaml.saml.saml2.core.Assertion assertion) {
+        return assertion.getSubject() == null ? null
+                : assertion.getSubject().getSubjectConfirmations().stream()
+                        .map(c -> c.getSubjectConfirmationData())
+                        .filter(java.util.Objects::nonNull)
+                        .map(d -> d.getRecipient())
+                        .filter(java.util.Objects::nonNull)
+                        .findFirst().orElse(null);
+    }
+
+    private static java.util.Optional<String> first(java.util.List<String> values) {
+        return values.isEmpty() ? java.util.Optional.empty()
+                : java.util.Optional.ofNullable(values.getFirst());
     }
 
     /** POST no endpoint de token, com o verificador PKCE que fecha o desafio enviado na ida. */

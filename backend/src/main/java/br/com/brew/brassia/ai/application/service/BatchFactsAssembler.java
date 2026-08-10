@@ -2,6 +2,7 @@ package br.com.brew.brassia.ai.application.service;
 
 import br.com.brew.brassia.ai.domain.Fact;
 import br.com.brew.brassia.costing.BatchCostLookup;
+import br.com.brew.brassia.fermentation.FermentationLookup;
 import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.production.BatchOutcomeLookup;
 import br.com.brew.brassia.quality.BatchQualityLookup;
@@ -30,8 +31,10 @@ import java.util.UUID;
  * não como zero: um zero no lugar da ausência faria o modelo ler um lote parado como um lote perfeito, e um
  * lote não medido como um lote aprovado.
  *
- * <p>A fermentação não entra: o módulo não publica consulta nenhuma no pacote raiz, e criar uma pertence à
- * história dele, não a esta. Registrado como pendência no STATUS da sprint.
+ * <p><strong>A fermentação entra desde DEB-AIA-001.</strong> Antes ela ficava de fora porque o módulo não
+ * publicava consulta no pacote raiz, e a avaliação julgava um lote sem ver curva, agenda nem levedura — que
+ * é onde mora boa parte do risco. Um lote com três etapas atrasadas e densidade parada há dois dias
+ * chegava ao modelo idêntico a um lote saudável.
  */
 public final class BatchFactsAssembler {
 
@@ -45,14 +48,17 @@ public final class BatchFactsAssembler {
     private final BatchQualityLookup quality;
     private final BatchCostLookup costs;
     private final RecipeLookup recipes;
+    private final FermentationLookup fermentation;
 
     public BatchFactsAssembler(BatchLookup batches, BatchOutcomeLookup outcomes,
-            BatchQualityLookup quality, BatchCostLookup costs, RecipeLookup recipes) {
+            BatchQualityLookup quality, BatchCostLookup costs, RecipeLookup recipes,
+            FermentationLookup fermentation) {
         this.batches = Objects.requireNonNull(batches);
         this.outcomes = Objects.requireNonNull(outcomes);
         this.quality = Objects.requireNonNull(quality);
         this.costs = Objects.requireNonNull(costs);
         this.recipes = Objects.requireNonNull(recipes);
+        this.fermentation = Objects.requireNonNull(fermentation);
     }
 
     /**
@@ -65,6 +71,7 @@ public final class BatchFactsAssembler {
             addRecipeMetrics(facts, breweryId, batch);
             addOutcome(facts, breweryId, batchId, batch);
             addQuality(facts, breweryId, batchId);
+            addFermentation(facts, breweryId, batchId);
             addCost(facts, breweryId, batchId);
             return new BatchFacts(batch.code(), batch.recipeName(), batch.recipeVersion(),
                     batch.status(), List.copyOf(facts));
@@ -148,6 +155,57 @@ public final class BatchFactsAssembler {
                     BigDecimal.valueOf(within).multiply(HUNDRED)
                             .divide(BigDecimal.valueOf(total), PERCENT_SCALE, RoundingMode.HALF_UP),
                     "%", "quality (derivado)"));
+        }
+    }
+
+    /**
+     * Curva, agenda e levedura — os três lugares onde o risco de um lote se manifesta antes do resultado.
+     *
+     * <p>A distinção entre "sem fermentação registrada" e "registrada e vazia" é preservada de propósito.
+     * Um lote que ainda não foi ao fermentador não tem etapa atrasada; um lote com agenda e nenhuma etapa
+     * atrasada está em dia. Colapsar os dois em "0 atrasadas" faria o primeiro parecer o segundo.
+     */
+    private void addFermentation(List<Fact> facts, UUID breweryId, UUID batchId) {
+        var estado = fermentation.ofBatch(breweryId, batchId);
+        if (estado.isEmpty()) {
+            facts.add(Fact.absent("fermentacao", "Fermentação registrada para o lote", "fermentation"));
+            return;
+        }
+        var f = estado.get();
+        facts.add(Fact.count("leituras_fermentacao", "Leituras de fermentação registradas",
+                f.readingCount(), "fermentation"));
+
+        if (f.lastDensity() == null) {
+            facts.add(Fact.absent("densidade_atual", "Última densidade medida", "fermentation"));
+        } else {
+            facts.add(Fact.of("densidade_atual", "Última densidade medida", f.lastDensity().value(),
+                    f.lastDensity().unit(), "fermentation"));
+        }
+        if (f.lastTemperature() == null) {
+            facts.add(Fact.absent("temperatura_atual", "Última temperatura medida", "fermentation"));
+        } else {
+            facts.add(Fact.of("temperatura_atual", "Última temperatura medida",
+                    f.lastTemperature().value(), f.lastTemperature().unit(), "fermentation"));
+        }
+
+        if (f.totalSteps() > 0) {
+            facts.add(Fact.count("etapas_fermentacao", "Etapas planejadas na agenda", f.totalSteps(),
+                    "fermentation"));
+            facts.add(Fact.count("etapas_concluidas", "Etapas da agenda já executadas", f.doneSteps(),
+                    "fermentation"));
+            // O sinal mais direto de lote em apuros, e o que o modelo não teria como inferir dos outros.
+            facts.add(Fact.count("etapas_atrasadas", "Etapas pendentes fora da janela planejada",
+                    f.lateSteps(), "fermentation"));
+        } else {
+            facts.add(Fact.absent("etapas_fermentacao", "Etapas planejadas na agenda", "fermentation"));
+        }
+
+        if (f.yeastGeneration() == null) {
+            // Ausência aqui quer dizer levedura nova, não geração zero — e a diferença muda a leitura.
+            facts.add(Fact.absent("geracao_levedura", "Geração da levedura inoculada", "fermentation"));
+        } else {
+            facts.add(Fact.count("geracao_levedura", "Geração da levedura inoculada",
+                    f.yeastGeneration(), "fermentation"));
         }
     }
 

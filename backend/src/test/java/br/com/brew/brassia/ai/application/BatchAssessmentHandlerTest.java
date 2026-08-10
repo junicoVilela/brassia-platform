@@ -12,6 +12,7 @@ import br.com.brew.brassia.ai.domain.UnknownBatchException;
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.costing.BatchCostLookup;
+import br.com.brew.brassia.fermentation.FermentationLookup;
 import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.production.BatchOutcomeLookup;
 import br.com.brew.brassia.quality.BatchQualityLookup;
@@ -64,6 +65,54 @@ class BatchAssessmentHandlerTest {
             assertThat(fact.id()).isEqualTo("custo_por_litro");
             assertThat(fact.source()).isEqualTo("costing");
         });
+    }
+
+    @Test
+    @DisplayName("os fatos da FERMENTAÇÃO chegam ao modelo — curva, agenda e levedura")
+    void fatosDeFermentacaoChegam() {
+        // DEB-AIA-001: antes disto a avaliação julgava um lote sem ver nada de fermentação, que é onde mora
+        // boa parte do risco. Um lote com três etapas atrasadas chegava idêntico a um lote saudável.
+        var scene = scene();
+        scene.fermentation = Optional.of(new FermentationLookup.Snapshot(842,
+                new FermentationLookup.Measurement(new BigDecimal("1.012"), "SG", AGORA_MEDICAO),
+                new FermentationLookup.Measurement(new BigDecimal("19.5"), "C", AGORA_MEDICAO),
+                2, 5, 3, 5));
+        var gateway = new SpyGateway(prompt -> usable());
+
+        var assessment = handler(gateway, scene).assess(ACTOR, BREWERY, BATCH);
+
+        assertThat(assessment.facts()).anySatisfy(fact -> {
+            assertThat(fact.id()).isEqualTo("etapas_atrasadas");
+            assertThat(fact.value()).isEqualByComparingTo("3");
+            assertThat(fact.source()).isEqualTo("fermentation");
+        });
+        assertThat(assessment.facts()).anySatisfy(fact -> {
+            assertThat(fact.id()).isEqualTo("densidade_atual");
+            assertThat(fact.value()).isEqualByComparingTo("1.012");
+            assertThat(fact.unit()).isEqualTo("SG");
+        });
+        assertThat(assessment.facts()).anySatisfy(fact -> {
+            assertThat(fact.id()).isEqualTo("geracao_levedura");
+            assertThat(fact.value()).isEqualByComparingTo("5");
+        });
+        assertThat(gateway.calls.getFirst().untrustedInput())
+                .contains("etapas_atrasadas").contains("[calculado por: fermentation]");
+    }
+
+    @Test
+    @DisplayName("sem fermentação registrada, o fato é AUSENTE — e não zero etapas atrasadas")
+    void semFermentacaoOFatoEAusente() {
+        // A distinção é a razão de o retrato ser Optional. "0 atrasadas" num lote que nem foi ao
+        // fermentador leria como lote em dia, que é a conclusão oposta da verdadeira.
+        var assessment = handler(new SpyGateway(prompt -> usable()), scene())
+                .assess(ACTOR, BREWERY, BATCH);
+
+        assertThat(assessment.facts()).anySatisfy(fact -> {
+            assertThat(fact.id()).isEqualTo("fermentacao");
+            assertThat(fact.value()).isNull();
+        });
+        assertThat(assessment.facts())
+                .noneSatisfy(fact -> assertThat(fact.id()).isEqualTo("etapas_atrasadas"));
     }
 
     @Test
@@ -277,7 +326,14 @@ class BatchAssessmentHandlerTest {
     // --- infraestrutura do teste ---
 
     /** Cenário mutável: cada teste ajusta a peça que lhe interessa. */
+    private static final Instant AGORA_MEDICAO = Instant.parse("2026-08-08T06:00:00Z");
+
     private static final class Scene {
+        /**
+         * Fermentação vazia por padrão: a maioria dos casos aqui é sobre a conferência do texto do modelo,
+         * não sobre a curva. Os testes que se importam com ela a preenchem.
+         */
+        Optional<FermentationLookup.Snapshot> fermentation = Optional.empty();
         Optional<BatchLookup.Snapshot> batch = Optional.of(new BatchLookup.Snapshot(BATCH,
                 UUID.randomUUID(), "LOTE-100", new BigDecimal("400"), new BigDecimal("390"),
                 "FERMENTING", RECIPE, 2, "IPA da casa"));
@@ -322,7 +378,8 @@ class BatchAssessmentHandlerTest {
                         return Optional.of(new PublishedForOrder(recipeId, 2, "IPA da casa", null,
                                 new BigDecimal("400"), scene.metrics));
                     }
-                });
+                },
+                (breweryId, batchId) -> scene.fermentation);
         return new BatchAssessmentHandler(assembler, gateway, audit,
                 Clock.fixed(Instant.parse("2026-08-08T12:00:00Z"), ZoneOffset.UTC));
     }

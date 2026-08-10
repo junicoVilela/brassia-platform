@@ -188,13 +188,33 @@ segundo passo manual.
 **Critério de remoção:** quando os três módulos publicarem porta de comando, o aceite passa a invocá-la na
 mesma transação da gravação da decisão, e `executionRoute` deixa de ser necessário.
 
-### DEB-AIA-001 — Fermentação fora dos fatos
+### DEB-AIA-001 — RESOLVIDO: a fermentação entrou nos fatos
 
-O módulo `fermentation` não publica consulta nenhuma no pacote raiz, e criar uma pertence à história dele, não
-a esta. Consequência: a avaliação não vê curva de fermentação, estágio nem levedura — que são justamente onde
-mora parte do risco de um lote.
-**Critério de remoção:** quando `fermentation` publicar uma consulta de lote, acrescentá-la ao
-`BatchFactsAssembler` como mais uma fonte de fatos.
+**Critério de remoção cumprido.** `fermentation.FermentationLookup` publica o retrato do lote e o
+`BatchFactsAssembler` passou de cinco para seis fontes. A avaliação enxerga o que estava cego: curva (última
+densidade, última temperatura, quantas leituras), agenda (planejadas, executadas, **atrasadas**) e geração da
+levedura inoculada.
+
+`etapas_atrasadas` é o fato de maior valor da leva. É o sinal mais direto de lote em apuros e o único que o
+modelo não teria como inferir dos outros — antes disto, um lote com três etapas vencidas e densidade parada
+chegava ao modelo idêntico a um lote saudável.
+
+**Retrato, não série — e a razão mudou de peso durante o trabalho.** A tentação era publicar a curva inteira.
+Desde `DEB-INT-001`, a telemetria alimenta a fermentação: um dispositivo de 30 segundos gera 2.880 pontos por
+dia, e uma fermentação de duas semanas passa de 40 mil. `findSeries` devolveria todos para o consumidor
+descartar 39.999 a cada avaliação. Entrou `ReadingRepository.latestOf`, com `DISTINCT ON (kind)`, que traz a
+ponta de cada grandeza em uma consulta. É o tipo de custo que a ligação anterior criou e que teria passado
+despercebido até um lote longo.
+
+**Ausência continua sendo ausência, em três níveis.** O retrato é `Optional`: lote que nem chegou ao
+fermentador devolve vazio, e o fato vira `fermentacao` ausente. Dentro dele, grandeza nunca medida é `null`,
+não zero — densidade zero não existe em cerveja, densidade ausente existe o tempo todo. E levedura não
+vinculada é `null`, não geração zero: a primeira quer dizer levedura nova. Colapsar qualquer um dos três
+faria a avaliação ler "0 etapas atrasadas" de um lote sem agenda como um lote rigorosamente em dia — a
+conclusão oposta da verdadeira. Há teste para cada um.
+
+**Leitura sinalizada como inválida conta e aparece.** Escondê-la faria a avaliação ver uma curva que parou,
+quando o que houve foi um sensor entregando absurdo — dois problemas diferentes, com respostas diferentes.
 
 ### DEB-AI-001 — Mês do orçamento vira em fuso configurado, não no da cervejaria
 

@@ -95,6 +95,15 @@ class JdbcYeastHarvestRepository implements YeastHarvestRepository {
     }
 
     @Override
+    public Optional<YeastHarvest> findPitchedInto(UUID breweryId, UUID batchId) {
+        return jdbc.sql(COLUMNS + """
+                 WHERE brewery_id = :brewery AND pitched_batch_id = :batch
+                """)
+                .param("brewery", breweryId).param("batch", batchId)
+                .query((rs, n) -> map(rs)).optional();
+    }
+
+    @Override
     public boolean existsByCode(UUID breweryId, String code) {
         return jdbc.sql("SELECT 1 FROM fermentation_yeast_harvest WHERE brewery_id = :brewery AND code = :code")
                 .param("brewery", breweryId).param("code", code)

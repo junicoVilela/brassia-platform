@@ -20,6 +20,7 @@ import br.com.brew.brassia.ai.domain.UnknownProposalException;
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.costing.BatchCostLookup;
+import br.com.brew.brassia.fermentation.FermentationLookup;
 import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.production.BatchOutcomeLookup;
 import br.com.brew.brassia.quality.BatchQualityLookup;
@@ -319,7 +320,8 @@ class CommandProposalHandlerTest {
                         return Optional.of(new PublishedForOrder(recipeId, 2, "IPA da casa", null,
                                 new BigDecimal("400"), scene.metrics));
                     }
-                });
+                },
+                (breweryId, batchId) -> scene.fermentation);
         return new CommandProposalHandler(assembler, gateway, repository, audit,
                 Clock.fixed(AGORA, ZoneOffset.UTC));
     }
@@ -329,6 +331,11 @@ class CommandProposalHandlerTest {
     }
 
     private static final class Scene {
+        /**
+         * Fermentação vazia por padrão: a maioria dos casos aqui é sobre a conferência do texto do modelo,
+         * não sobre a curva. Os testes que se importam com ela a preenchem.
+         */
+        Optional<FermentationLookup.Snapshot> fermentation = Optional.empty();
         Optional<BatchLookup.Snapshot> batch = Optional.of(new BatchLookup.Snapshot(BATCH,
                 UUID.randomUUID(), "LOTE-100", new BigDecimal("400"), new BigDecimal("390"),
                 "PACKAGED", RECIPE, 2, "IPA da casa"));

@@ -25,6 +25,7 @@ import br.com.brew.brassia.ai.application.service.ProbeHandler;
 import br.com.brew.brassia.ai.application.service.ProposalQueryService;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.costing.BatchCostLookup;
+import br.com.brew.brassia.fermentation.FermentationLookup;
 import br.com.brew.brassia.knowledge.KnowledgeRetrieval;
 import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.production.BatchOutcomeLookup;
@@ -84,15 +85,16 @@ class AiConfiguration {
     /**
      * Avaliar lote (AIA-002).
      *
-     * <p>O montador recebe as consultas publicadas de cinco módulos, e é assim de propósito: cada número da
+     * <p>O montador recebe as consultas publicadas de seis módulos, e é assim de propósito: cada número da
      * avaliação vem de quem responde por ele. Recalcular qualquer um aqui criaria uma segunda opinião sobre o
-     * mesmo fato.
+     * mesmo fato. A fermentação entrou por último (DEB-AIA-001), e era a que faltava para o modelo enxergar
+     * curva, agenda e levedura.
      */
     @Bean
     AssessmentCommands assessmentCommands(BatchLookup batches, BatchOutcomeLookup outcomes,
             BatchQualityLookup quality, BatchCostLookup costs, RecipeLookup recipes,
-            ModelGateway gateway, AuditTrail audit) {
-        var facts = new BatchFactsAssembler(batches, outcomes, quality, costs, recipes);
+            FermentationLookup fermentation, ModelGateway gateway, AuditTrail audit) {
+        var facts = new BatchFactsAssembler(batches, outcomes, quality, costs, recipes, fermentation);
         return new BatchAssessmentHandler(facts, gateway, audit, Clock.systemUTC());
     }
 
@@ -110,8 +112,9 @@ class AiConfiguration {
     @Bean
     ProposalCommands proposalCommands(BatchLookup batches, BatchOutcomeLookup outcomes,
             BatchQualityLookup quality, BatchCostLookup costs, RecipeLookup recipes,
-            ModelGateway gateway, CommandProposalRepository proposals, AuditTrail audit) {
-        var facts = new BatchFactsAssembler(batches, outcomes, quality, costs, recipes);
+            FermentationLookup fermentation, ModelGateway gateway, CommandProposalRepository proposals,
+            AuditTrail audit) {
+        var facts = new BatchFactsAssembler(batches, outcomes, quality, costs, recipes, fermentation);
         return new CommandProposalHandler(facts, gateway, proposals, audit, Clock.systemUTC());
     }
 

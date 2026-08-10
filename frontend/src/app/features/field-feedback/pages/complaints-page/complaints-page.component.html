@@ -1,0 +1,322 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+      <h1 class="h3 mb-1">Feedback de campo</h1>
+      <p class="text-body-secondary mb-0">
+        Reclamações ligadas ao lote, com armazenagem, amostra e as ações que cada caso exige.
+      </p>
+    </div>
+    <button type="button" class="btn btn-primary" (click)="showForm.set(!showForm())">
+      {{ showForm() ? 'Cancelar' : 'Registrar reclamação' }}
+    </button>
+  </div>
+
+  @if (showForm()) {
+    <div class="card mb-4">
+      <div class="card-header"><h2 class="h5 mb-0">Nova reclamação</h2></div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-5">
+            <label class="form-label" for="batch">Lote</label>
+            <select id="batch" class="form-select" [ngModel]="batchId()" (ngModelChange)="batchId.set($event)">
+              <option value="">Selecione…</option>
+              @for (batch of batches(); track batch.id) {
+                <option [value]="batch.id">{{ batch.code }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="reference">Protocolo</label>
+            <input id="reference" type="text" class="form-control" placeholder="SAC-1234"
+              [ngModel]="reference()" (ngModelChange)="reference.set($event)" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="category">Categoria</label>
+            <select id="category" class="form-select" [ngModel]="category()" (ngModelChange)="category.set($event)">
+              @for (c of categories; track c) {
+                <option [value]="c">{{ categoryLabels[c] }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="severity">Severidade</label>
+            <select id="severity" class="form-select" [ngModel]="severity()" (ngModelChange)="severity.set($event)">
+              @for (s of severities; track s) {
+                <option [value]="s">{{ severityLabels[s] }}</option>
+              }
+            </select>
+            <div class="form-text">{{ severityHints[severity()] }}</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="description">O que foi relatado</label>
+            <textarea id="description" class="form-control" rows="3"
+              [ngModel]="description()" (ngModelChange)="description.set($event)"></textarea>
+          </div>
+        </div>
+
+        <!--
+          Antecipar o que a classificação exige é diferente de descobrir depois de salvar: assim a pessoa
+          classifica sabendo a consequência, em vez de aprender a evitar a classificação que dá trabalho.
+        -->
+        @if (anticipatedActions().length > 0) {
+          <div class="alert alert-warning mt-3 py-2">
+            <strong>Esta classificação exigirá, antes do encerramento:</strong>
+            <ul class="mb-0 mt-1 small">
+              @for (action of anticipatedActions(); track action) {
+                <li>{{ action }}</li>
+              }
+            </ul>
+          </div>
+        }
+
+        <hr class="my-4" />
+        <h3 class="h6">Como o produto foi guardado</h3>
+        <!-- Separa defeito de maltrato: cerveja a 35 °C por duas semanas desenvolve off-flavor sozinha. -->
+        <p class="text-body-secondary small">
+          Em branco significa <strong>não perguntado</strong> — que é diferente de guardado corretamente.
+        </p>
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label" for="temp">Temperatura aproximada (°C)</label>
+            <input id="temp" type="number" class="form-control"
+              [ngModel]="temperature()" (ngModelChange)="temperature.set($event)" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="days">Dias desde a compra</label>
+            <input id="days" type="number" class="form-control"
+              [ngModel]="daysSincePurchase()" (ngModelChange)="daysSincePurchase.set($event)" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="notes">Observações</label>
+            <input id="notes" type="text" class="form-control"
+              [ngModel]="storageNotes()" (ngModelChange)="storageNotes.set($event)" />
+          </div>
+        </div>
+
+        <hr class="my-4" />
+        <h3 class="h6">Amostra</h3>
+        <!-- Sem amostra, quase nenhuma reclamação se confirma. -->
+        <div class="row g-3">
+          <div class="col-md-5">
+            <label class="form-label" for="sample">Situação</label>
+            <select id="sample" class="form-select" [ngModel]="sampleStatus()" (ngModelChange)="sampleStatus.set($event)">
+              @for (s of sampleStatuses; track s) {
+                <option [value]="s">{{ sampleLabels[s] }}</option>
+              }
+            </select>
+          </div>
+          @if (sampleStatus() === 'RETAINED') {
+            <div class="col-md-7">
+              <label class="form-label" for="location">Onde está</label>
+              <input id="location" type="text" class="form-control" placeholder="Geladeira 2, prateleira A"
+                [ngModel]="sampleLocation()" (ngModelChange)="sampleLocation.set($event)" />
+              <div class="form-text">Amostra sem lugar declarado é amostra que ninguém acha depois.</div>
+            </div>
+          }
+        </div>
+
+        <hr class="my-4" />
+        <h3 class="h6">Contato de quem reclamou <span class="text-body-secondary fw-normal">(opcional)</span></h3>
+        <!--
+          Opcional de propósito: reclamação anônima é reclamação. Exigir identificação para registrar um
+          corpo estranho coletaria dado desnecessário e perderia o relato de quem não quis se identificar.
+        -->
+        <p class="text-body-secondary small">
+          Guardado à parte da reclamação, com permissão própria. Cada leitura fica registrada, e os dados
+          podem ser apagados a pedido sem afetar a investigação.
+        </p>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label" for="cname">Nome</label>
+            <input id="cname" type="text" class="form-control"
+              [ngModel]="contactName()" (ngModelChange)="contactName.set($event)" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="cmail">E-mail</label>
+            <input id="cmail" type="email" class="form-control"
+              [ngModel]="contactEmail()" (ngModelChange)="contactEmail.set($event)" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="cphone">Telefone</label>
+            <input id="cphone" type="text" class="form-control"
+              [ngModel]="contactPhone()" (ngModelChange)="contactPhone.set($event)" />
+          </div>
+        </div>
+
+        @if (store.registerError(); as message) {
+          <div class="alert alert-danger mt-3">{{ message }}</div>
+        }
+        <button type="button" class="btn btn-primary mt-3" [disabled]="!canSubmit()" (click)="submit()">
+          Registrar
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (store.loading()) {
+    <p class="text-body-secondary">Carregando…</p>
+  } @else if (store.error(); as message) {
+    <div class="alert alert-danger">{{ message }}</div>
+  } @else {
+    @if (store.blocked().length > 0) {
+      <div class="alert alert-warning">
+        <strong>{{ store.blocked().length }} reclamação(ões) com ação exigida pendente.</strong>
+        Nenhuma delas pode ser encerrada enquanto isso.
+      </div>
+    }
+
+    <h2 class="h5">Em aberto</h2>
+    @if (store.open().length === 0) {
+      <p class="text-body-secondary">Nenhuma reclamação aberta.</p>
+    }
+    @for (complaint of store.open(); track complaint.id) {
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <span class="badge" [class]="severityClasses[complaint.severity]">
+                {{ severityLabels[complaint.severity] }}
+              </span>
+              <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">
+                {{ categoryLabels[complaint.category] }}
+              </span>
+              <span class="badge bg-light text-body ms-1">{{ statusLabels[complaint.status] }}</span>
+              <h3 class="h6 mt-2 mb-1">{{ complaint.description }}</h3>
+              <p class="text-body-secondary small mb-0">
+                Lote {{ batchLabel(complaint.batchId) }}
+                @if (complaint.reference) { · {{ complaint.reference }} }
+                · {{ complaint.registeredAt | date: 'dd/MM/yyyy' }}
+                · amostra: {{ sampleLabels[complaint.sample.status] }}
+                @if (!complaint.storage.conditionsKnown) {
+                  · <span class="text-warning-emphasis">armazenagem não levantada</span>
+                }
+              </p>
+            </div>
+            <div class="d-flex gap-2">
+              @if (complaint.status === 'OPEN') {
+                <button type="button" class="btn btn-sm btn-outline-primary"
+                  (click)="store.startAnalysis(complaint.id)">Analisar</button>
+              }
+              <button type="button" class="btn btn-sm btn-success"
+                [disabled]="complaint.pendingActions.length > 0"
+                (click)="store.close(complaint.id, 'Encerrada após análise')">
+                Encerrar
+              </button>
+            </div>
+          </div>
+
+          @if (complaint.requiredActions.length > 0) {
+            <div class="border rounded p-2 mt-3">
+              <strong class="small">Ações exigidas</strong>
+              @for (action of complaint.requiredActions; track action.code) {
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                  <div class="small">
+                    {{ action.description }}
+                    @if (!isPending(complaint, action.code)) {
+                      <span class="badge bg-success-subtle text-success-emphasis ms-1">resolvida</span>
+                    }
+                  </div>
+                  @if (isPending(complaint, action.code)) {
+                    <div class="d-flex gap-2">
+                      <input type="text" class="form-control form-control-sm" style="width: 18rem"
+                        placeholder="Id do registro criado"
+                        [attr.aria-label]="'Referência para ' + action.code"
+                        [ngModel]="fulfillReference()" (ngModelChange)="fulfillReference.set($event)" />
+                      <button type="button" class="btn btn-sm btn-primary"
+                        (click)="submitFulfillment(complaint.id, action.code)">Atendida</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary"
+                        (click)="openWaiver(complaint.id, action.code)">Dispensar</button>
+                    </div>
+                  }
+                </div>
+              }
+
+              @if (waiveFor() === complaint.id) {
+                <div class="mt-3">
+                  <!-- A dispensa é legítima, mas custa uma justificativa assinada. -->
+                  <label class="form-label small" [for]="'just-' + complaint.id">
+                    Por que esta exigência não se aplica
+                  </label>
+                  <textarea [id]="'just-' + complaint.id" class="form-control mb-2" rows="2"
+                    [ngModel]="justification()" (ngModelChange)="justification.set($event)"></textarea>
+                  <p class="text-body-secondary small">
+                    Fica registrada com seu nome e a data. Dispensar quarentena numa reclamação de risco é
+                    a decisão mais consequente desta tela.
+                  </p>
+                  <button type="button" class="btn btn-sm btn-warning"
+                    [disabled]="justification().trim().length < 15" (click)="submitWaiver()">
+                    Registrar dispensa
+                  </button>
+                </div>
+              }
+            </div>
+          }
+
+          <div class="mt-3">
+            @if (store.contactFor() === complaint.id) {
+              @if (store.contact(); as contact) {
+                <div class="border rounded p-2">
+                  @if (contact.erased) {
+                    <p class="mb-0 small text-body-secondary">
+                      Dados pessoais apagados em {{ contact.erasedAt | date: 'dd/MM/yyyy' }}.
+                      A reclamação permanece íntegra.
+                    </p>
+                  } @else {
+                    <p class="mb-1 small">
+                      {{ contact.name }}
+                      @if (contact.email) { · {{ contact.email }} }
+                      @if (contact.phone) { · {{ contact.phone }} }
+                    </p>
+                    <p class="text-body-secondary small mb-2">Esta leitura foi registrada.</p>
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                      (click)="store.eraseContact(complaint.id)">Apagar a pedido</button>
+                  }
+                  <button type="button" class="btn btn-sm btn-link" (click)="store.clearContact()">
+                    Ocultar
+                  </button>
+                </div>
+              } @else if (store.contactError(); as message) {
+                <p class="small text-body-secondary mb-0">{{ message }}</p>
+              }
+            } @else {
+              <button type="button" class="btn btn-sm btn-link p-0"
+                (click)="store.loadContact(complaint.id)">
+                Ver contato de quem reclamou
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
+    <h2 class="h5 mt-4">Encerradas</h2>
+    @if (store.closed().length === 0) {
+      <p class="text-body-secondary">Nada encerrado ainda.</p>
+    }
+    @for (complaint of store.closed(); track complaint.id) {
+      <div class="card mb-3">
+        <div class="card-body">
+          <span class="badge" [class]="severityClasses[complaint.severity]">
+            {{ severityLabels[complaint.severity] }}
+          </span>
+          <h3 class="h6 mt-2 mb-1">{{ complaint.description }}</h3>
+          <p class="text-body-secondary small mb-1">
+            Lote {{ batchLabel(complaint.batchId) }} ·
+            encerrada em {{ complaint.closedAt | date: 'dd/MM/yyyy' }}
+          </p>
+          @for (outcome of complaint.outcomes; track outcome.action) {
+            <div class="small">
+              @if (outcome.fulfilled) {
+                <span class="badge bg-success-subtle text-success-emphasis">atendida</span>
+                {{ outcome.action }} → {{ outcome.referenceId }}
+              } @else {
+                <span class="badge bg-warning-subtle text-warning-emphasis">dispensada</span>
+                {{ outcome.action }}: {{ outcome.justification }}
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

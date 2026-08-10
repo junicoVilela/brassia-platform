@@ -52,6 +52,23 @@ class JdbcTransferRepository implements TransferRepository {
                 .optional();
     }
 
+    @Override
+    public Optional<UUID> findFermentingBatchByEquipment(UUID breweryId, UUID equipmentId) {
+        return jdbc.sql("""
+                SELECT t.batch_id
+                FROM production_transfer t
+                JOIN production_batch b ON b.id = t.batch_id AND b.brewery_id = t.brewery_id
+                WHERE t.brewery_id = :brewery
+                  AND t.destination_equipment_id = :equipment
+                  AND b.status = 'FERMENTING'
+                ORDER BY t.transferred_at DESC
+                LIMIT 1
+                """)
+                .param("brewery", breweryId).param("equipment", equipmentId)
+                .query(UUID.class)
+                .optional();
+    }
+
     private BatchTransfer map(ResultSet rs) throws SQLException {
         return BatchTransfer.reconstitute(
                 rs.getObject("id", UUID.class),

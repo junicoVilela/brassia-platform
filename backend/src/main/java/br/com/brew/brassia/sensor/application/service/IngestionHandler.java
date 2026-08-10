@@ -1,6 +1,7 @@
 package br.com.brew.brassia.sensor.application.service;
 
 import br.com.brew.brassia.sensor.application.port.inbound.ReadingCommands;
+import br.com.brew.brassia.sensor.application.port.outbound.BatchCurveFeed;
 import br.com.brew.brassia.sensor.application.port.outbound.DeviceRepository;
 import br.com.brew.brassia.sensor.application.port.outbound.ReadingRepository;
 import br.com.brew.brassia.sensor.domain.Measure;
@@ -30,11 +31,14 @@ public final class IngestionHandler implements ReadingCommands {
 
     private final DeviceRepository devices;
     private final ReadingRepository readings;
+    private final BatchCurveFeed curve;
     private final Clock clock;
 
-    public IngestionHandler(DeviceRepository devices, ReadingRepository readings, Clock clock) {
+    public IngestionHandler(DeviceRepository devices, ReadingRepository readings, BatchCurveFeed curve,
+            Clock clock) {
         this.devices = Objects.requireNonNull(devices, "devices");
         this.readings = Objects.requireNonNull(readings, "readings");
+        this.curve = Objects.requireNonNull(curve, "curve");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -54,6 +58,10 @@ public final class IngestionHandler implements ReadingCommands {
                 request.measuredAt(), clock.instant());
 
         if (readings.insertIfAbsent(reading)) {
+            // Só a primeira gravação alimenta a curva. Encaminhar também na reentrega seria inofensivo —
+            // a leitura de fermentação é idempotente pela mesma chave natural — mas seria trabalho por
+            // engano num caminho que existe justamente para ser barato: o reenvio em rajada.
+            curve.forward(reading, device.equipmentId());
             return new Result(reading, false);
         }
 

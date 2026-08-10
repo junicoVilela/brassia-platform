@@ -5,6 +5,7 @@ import br.com.brew.brassia.calculator.CalculatorEngine;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
 import br.com.brew.brassia.production.BatchAlertPublisher;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.production.VesselOccupancyLookup;
 import br.com.brew.brassia.production.application.port.inbound.ApplyCorrectionUseCase;
 import br.com.brew.brassia.production.ProductionStockGateway;
 import br.com.brew.brassia.production.application.port.inbound.BrewConsumptionUseCases;
@@ -164,6 +165,18 @@ class ProductionConfiguration {
                                 .orElse(batch.volumeLiters()),
                         batch.status().name(), batch.recipeId(), batch.recipeVersion(),
                         batch.recipeName()));
+    }
+
+    /**
+     * Ocupação do fermentador publicada para outros módulos (ex.: telemetria de sensor, INT-001).
+     *
+     * <p>É consulta derivada: a transferência (PRD-005) diz qual tanque recebeu o lote, e o estado do lote
+     * diz se ele ainda está lá. Guardar isso numa coluna criaria um segundo lugar que divergiria do
+     * primeiro no dia em que um lote fosse cancelado sem alguém lembrar de limpá-la.
+     */
+    @Bean
+    VesselOccupancyLookup vesselOccupancyLookup(TransferRepository transfers) {
+        return transfers::findFermentingBatchByEquipment;
     }
 
     /**

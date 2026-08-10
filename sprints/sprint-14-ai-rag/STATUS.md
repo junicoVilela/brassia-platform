@@ -173,9 +173,15 @@ dita e ninguém inventa.
 
 ### DEB-AIA-002 — O aceite registra a decisão autorizada; não executa o comando
 
-Nenhum módulo publica porta de comando no pacote raiz hoje — só consultas. Criar `costing.CostCommands`,
+Nenhum módulo publicava porta de comando no pacote raiz — só consultas. Criar `costing.CostCommands`,
 `quality.NonConformityCommands` e `sanitation.CycleCommands` é mudança nas histórias daqueles módulos, não
-nesta. Consequência prática: quem confirma tem a decisão gravada e auditada, e é levado à rota onde o comando
+nesta.
+
+**Atualização (Sprint 15, DEB-INT-001):** `fermentation.FermentationCommands` existe e é a primeira porta de
+comando publicada do projeto. O obstáculo deixou de ser "não se sabe como fazer" e virou trabalho nos três
+módulos — com um precedente que também mostra a forma: porta estreita, um comando só, sem ator humano quando
+não há um. Os três casos daqui são diferentes num ponto que importa: eles **têm** ator humano (quem confirma
+a proposta), então a porta precisa carregar o ator e auditar, ao contrário daquela. Consequência prática: quem confirma tem a decisão gravada e auditada, e é levado à rota onde o comando
 vive (`ProposedAction.executionRoute`) para praticá-lo — o consentimento está registrado, a execução é um
 segundo passo manual.
 

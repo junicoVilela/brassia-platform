@@ -545,20 +545,52 @@ integração. A tradução de evento em entrega é coberta por unidade.
 **Critério de remoção:** quando houver um IT de jornada que já monte uma OP liberada, acrescentar a ele uma
 asserção sobre a fila de webhooks em vez de montar a OP de novo aqui.
 
-### DEB-INT-001 (INT-001) — A leitura de sensor não alimenta a curva de fermentação
+### DEB-INT-001 (INT-001) — RESOLVIDO: a leitura do sensor virou ponto na curva
 
-`fermentation` já tem `FermentationReading` com `ReadingSource.SENSOR`, mas não publica porta de comando no
-pacote raiz — o mesmo obstáculo registrado em DEB-AIA-001/002 da Sprint 14. Ligar a ingestão ao lote exigiria
-criar `fermentation.FermentationCommands`, o que é mudança na história daquele módulo, não nesta.
+O bloqueio era estrutural e valia registrar: até aqui **nenhum módulo publicava porta de comando** no pacote
+raiz, só consultas. Qualquer módulo podia *ler* o lote de outro; nenhum podia *pedir* nada a outro. O sensor
+guardava a série dele e quem quisesse ver a curva de fermentação registrava a leitura à mão — com o dado já
+dentro do sistema.
 
-Consequência prática: o sensor guarda a série dele, e quem quer ver a curva de fermentação continua
-registrando a leitura à mão. **Critério de remoção:** quando `fermentation` publicar porta de comando, a
-ingestão passa a encaminhar a leitura `GOOD` para o lote ativo do equipamento vinculado, na mesma transação.
+**Critério de remoção cumprido**, com três peças:
 
-Registro relacionado: `Measure` (sensor) e `ReadingKind` (fermentation) são enums separadas de propósito —
-uma descreve o que um *dispositivo* reporta (tem `FLOW`), a outra o que se mede *de um lote* (tem `PH`).
-Compartilhá-las criaria dependência entre módulos para economizar quatro constantes e amarraria a evolução
-de um à do outro.
+| Peça | O que resolve |
+|---|---|
+| `fermentation.FermentationCommands` | a primeira porta de comando publicada do projeto |
+| `production.VesselOccupancyLookup` | o elo que faltava: um sensor conhece o tanque, não o lote |
+| `sensor…BatchCurveFeed` + adapter | a tradução de vocabulário, no único lugar onde as duas linguagens se encontram |
+
+A ingestão encaminha dentro da própria transação, como o critério pedia: a leitura de telemetria e o ponto na
+curva caem juntos ou não caem.
+
+**A porta é estreita de propósito.** Publica um comando, não o módulo. Quem chama não planeja agenda, não
+colhe levedura e não avalia estabilidade de FG — essas nascem de decisão humana com ator, alçada e auditoria,
+e expô-las a chamada entre módulos criaria caminhos onde alguém age sem que se saiba quem agiu. Registrar
+telemetria é o oposto: não tem ator humano. Pelo mesmo motivo **não audita** — 2.880 leituras por dia
+encheriam a trilha até esconder o que ela existe para guardar.
+
+**Divergi do critério escrito num ponto, deliberadamente.** Ele dizia encaminhar "a leitura `GOOD`".
+Encaminho também a `OUT_OF_RANGE`: a fermentação avalia plausibilidade por conta própria, com as mesmas
+faixas, e grava o ponto sinalizado — pelo motivo que o próprio módulo de sensores já defende, de que um
+buraco na curva é indistinguível de "não mediu". Filtrar esconderia justamente o sintoma de sensor sujo ou
+fora d'água, que é quando olhar a curva mais importa. Já `FUTURE_CLOCK` **não** atravessa, e a assimetria é o
+ponto: o instante da medição é parte da chave natural da leitura e é por ele que a curva se ordena. Um valor
+absurdo fica visivelmente errado no gráfico; um instante inventado não — ele mente sobre a sequência dos
+fatos, que é a única coisa que uma curva serve para contar.
+
+`Measure` (sensor) e `ReadingKind` (fermentation) **seguem separadas**, e a ligação não as uniu: quem traduz
+é o adapter. `FLOW` não tem correspondente porque um lote não tem vazão, e é exatamente por casos assim que
+compartilhar as enums amarraria a evolução de um módulo à do outro.
+
+### OBS-INT-001 (INT-001) — Equipamento inexistente no cadastro de dispositivo devolve 500
+
+Encontrado ao escrever o IT da jornada, semeando um `equipmentId` aleatório: `sensor_device.equipment_id` tem
+chave estrangeira para `equipment`, e a violação sobe como **500**, não como 400. Quem integrar pelo API vai
+ler "erro do servidor" onde o problema é o dado enviado.
+
+Não corrigi junto porque é outra história — tratamento de erro do cadastro de dispositivo, não a ligação com
+a curva —, e emendar aqui misturaria as duas no mesmo PR. **Critério de remoção:** validar a existência do
+equipamento no caso de uso e responder 400 com Problem Details apontando o campo.
 
 ## Evidências de encerramento
 

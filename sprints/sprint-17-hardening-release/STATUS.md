@@ -6,10 +6,10 @@ Estado: NÃO INICIADA
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| REL-001 | A fazer | — | — | — |
-| REL-002 | A fazer | — | — | — |
+| REL-001 | Artefato pronto, execução pendente | Claude | `infra/backup/restore-drill.sh`, `table-counts.sql` | Script executado ponta a ponta contra o banco local: dump, restauração isolada, conferência e relatório. Falta rodar contra **backup de produção** — só então RPO/RTO são reais. Ver DEC-REL-004. |
+| REL-002 | Artefato pronto; **um gargalo real medido** | Claude | `infra/perf/seed-representative-dataset.sql`, `measure-journeys.sh` | `/api/v1/production/batches` não pagina e cruza a meta de 500 ms por volta de 4.700 lotes — medido, não extrapolado. Ver DEC-REL-005. |
 | REL-003 | Concluída | Claude | `InternalAddressGuard`, `SecurityConfiguration`, `.github/workflows/ci.yml`, `frontend/package-lock.json` | Um achado ALTO (SSRF no webhook) e dois médios resolvidos; varredura de CVE passou a barrar merge. Ver DEC-REL-001/002/003. |
-| REL-004 | A fazer | — | — | — |
+| REL-004 | Runbook pronto, ensaio pendente | Claude | `infra/runbooks/deploy-rollback.md` | Árvore de decisão, forward-fix e o registro de ensaios. Fecha com pelo menos uma linha na tabela de ensaios. Ver DEC-REL-006. |
 | REL-005 | A fazer | — | — | — |
 
 ## Decisões e bloqueios
@@ -115,6 +115,66 @@ administração do repositório).
 `dependabot_security_updates` **desabilitados** — os três são gratuitos em repositório público. O
 `gitleaks` no CI cobre parte do primeiro, mas só no que passa pelo pipeline; *push protection* age antes,
 que é onde um segredo vazado ainda dá para conter.
+
+### DEC-REL-004 (REL-001) — O ensaio existe e roda; o número ainda não é de produção
+
+`infra/backup/restore-drill.sh` faz dump, sobe um PostgreSQL isolado, restaura cronometrando, confere
+integridade e escreve relatório. **Executado ponta a ponta** contra o banco local: schema idêntico, zero
+divergências.
+
+Três coisas que só apareceram por rodar o script em vez de escrevê-lo:
+
+- **`n_live_tup` não serve para conferir integridade.** É estimativa do autovacuum, e vem **zerada** num
+  banco recém-restaurado — o ensaio acusaria divergência em todas as tabelas, sempre. Alarme que sempre
+  dispara é alarme que se aprende a ignorar. Trocado por `COUNT(*)` exato via `query_to_xml`.
+- **Exigir cliente PostgreSQL no host é barreira real** — não estava instalado. As ferramentas passaram a
+  rodar em container da mesma imagem do servidor, o que ainda garante que a versão do cliente casa com a
+  do servidor: `pg_dump` de versão menor recusa rodar, e é o tipo de detalhe que aparece no dia da
+  restauração de emergência.
+- **Senha com caractere especial quebra a URL.** `brassia85!@#` faz o parser ler `#@localhost` como host,
+  e o erro ("could not translate host name") não aponta para a senha. Documentado no cabeçalho.
+
+**O que falta para REL-001 fechar:** rodar contra um **backup de produção**. RPO e RTO medidos sobre um
+banco praticamente vazio não são RPO e RTO — o relatório diz isso explicitamente em vez de apresentar
+"1 segundo" como se fosse a resposta.
+
+### DEC-REL-005 (REL-002) — `/api/v1/production/batches` não pagina, e a meta cai perto de 4.700 lotes
+
+Medido, não estimado:
+
+| Lotes | p95 |
+|---|---|
+| 300 | 40 ms |
+| 3.000 | **319 ms** |
+
+Linear, ~0,106 ms por lote: a meta de 500 ms (`docs/15_NONFUNCTIONAL_REQUIREMENTS.md`) cai por volta de
+**4.700 lotes**. Uma cervejaria com três brassagens por dia chega lá em poucos anos; uma cervejaria cigana
+chega antes. Para comparar: `audit_event` com **121 mil linhas** responde em 5 ms — porque pagina.
+
+**Não corrigi**, e a razão não é esforço: mudar a resposta de `Batch[]` para página é **quebra de
+contrato**, e `docs/20_RELEASE_MIGRATION.md` exige versão nova e janela de transição. É uma história, não
+um ajuste de hardening — e cabe a você decidir se entra antes do release ou vira dívida com prazo.
+
+O medidor marca `VAZIO` quando a tabela tem menos de mil linhas. Sem isso, o relatório mostraria sete
+linhas verdes das quais seis mediram tabela vazia — o "número bonito e inútil" que o próprio gerador de
+dataset existe para evitar. Verde sobre tabela vazia não é evidência, e o relatório passou a dizer isso.
+
+### DEC-REL-006 (REL-004) — Runbook escrito em torno de uma regra: o banco não volta
+
+`docs/20_RELEASE_MIGRATION.md` define expand/contract, e a consequência operacional é que *rollback* é
+sempre da **aplicação**. Um runbook que promete desfazer migration promete o que não vai cumprir no dia
+em que precisar.
+
+Contém árvore de decisão (rollback / forward-fix / restaurar), o que observar no ensaio de lock
+(`ADD CONSTRAINT` sem `NOT VALID` varre a tabela inteira e bloqueia escrita; `CREATE INDEX` sem
+`CONCURRENTLY` idem), e a regra que só dói no incidente: **migration publicada não é editada** — o
+checksum diverge e o Flyway recusa subir, em produção, no meio do problema.
+
+Registra também o pré-requisito criado por `DEC-REL-002`: o coletor de métricas precisa de credencial,
+senão o painel fica cego exatamente durante o deploy.
+
+**O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
+honesto — significa que nenhum ensaio foi feito.
 
 ## Evidências de encerramento
 

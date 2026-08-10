@@ -2,6 +2,7 @@ package br.com.brew.brassia.sensor.adapter.inbound.web;
 
 import br.com.brew.brassia.sensor.domain.InactiveDeviceException;
 import br.com.brew.brassia.sensor.domain.UnknownDeviceException;
+import br.com.brew.brassia.sensor.domain.UnknownEquipmentException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -26,6 +27,25 @@ class SensorExceptionHandler {
     ProblemDetail handleUnknownDevice(UnknownDeviceException ex) {
         return ProblemDetails.of(HttpStatus.NOT_FOUND, "unknown_sensor_device",
                 "Este dispositivo não está cadastrado nesta cervejaria.");
+    }
+
+    /**
+     * Equipamento informado no cadastro não existe (OBS-INT-001).
+     *
+     * <p><strong>400 e não 404</strong>, apesar de ser "não encontrado": o recurso da requisição é o
+     * dispositivo que está sendo criado, e ele não existe mesmo — o que está errado é um <em>campo do
+     * corpo</em>. Responder 404 faria quem integra concluir que a rota está errada e procurar o problema no
+     * lugar onde ele não está.
+     *
+     * <p>O campo vai na resposta porque é a única informação acionável: sem ele, "equipamento inexistente"
+     * num corpo com meia dúzia de campos ainda deixa a pessoa adivinhando qual conserta.
+     */
+    @ExceptionHandler(UnknownEquipmentException.class)
+    ProblemDetail handleUnknownEquipment(UnknownEquipmentException ex) {
+        var problem = ProblemDetails.of(HttpStatus.BAD_REQUEST, "unknown_equipment",
+                "O equipamento informado não existe nesta cervejaria.");
+        problem.setProperty("field", "equipmentId");
+        return problem;
     }
 
     /**

@@ -17,8 +17,8 @@ import org.junit.jupiter.api.Test;
 
 class SessionContextResolverTest {
 
-    private final BreweryRef alpha = new BreweryRef(UUID.randomUUID(), "ALPHA", "Alpha");
-    private final BreweryRef beta = new BreweryRef(UUID.randomUUID(), "BETA", "Beta");
+    private final BreweryRef alpha = new BreweryRef(UUID.randomUUID(), "ALPHA", "Alpha", "America/Sao_Paulo");
+    private final BreweryRef beta = new BreweryRef(UUID.randomUUID(), "BETA", "Beta", "America/Manaus");
     private final UserId userId = UserId.newId();
 
     private SessionContextResolver resolver(boolean global, List<UUID> scoped, Set<String> perms) {

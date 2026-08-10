@@ -248,12 +248,21 @@ conclusão oposta da verdadeira. Há teste para cada um.
 **Leitura sinalizada como inválida conta e aparece.** Escondê-la faria a avaliação ver uma curva que parou,
 quando o que houve foi um sensor entregando absurdo — dois problemas diferentes, com respostas diferentes.
 
-### DEB-AI-001 — Mês do orçamento vira em fuso configurado, não no da cervejaria
+### DEB-AI-001 — RESOLVIDO: o mês vira no fuso da cervejaria
 
-O mês devia virar no fuso da cervejaria, mas `BreweryRef` não expõe fuso e ampliar a API publicada de
-outro módulo não pertence a esta história. Enquanto isso vale `brassia.ai.budget-zone` por instalação
-(default `America/Sao_Paulo`); o erro se limita às horas de virada do mês.
-**Critério de remoção:** quando `BreweryRef` passar a expor o fuso, ler dali e apagar a propriedade.
+**Critério de remoção cumprido**, e o trabalho foi menor que o registro sugeria: o fuso **já existia na
+tabela `brewery`** desde a `V6`, a primeira migration do módulo. O que faltava era atravessar até o
+`BreweryRef`. A propriedade `brassia.ai.budget-zone` foi apagada.
+
+**Por que não era detalhe.** Uma propriedade por instalação acerta para uma cervejaria e erra para todas as
+outras. No dia 1º, uma cervejaria a oeste ainda está no mês anterior enquanto o servidor já virou, e o gasto
+do mês novo é debitado do orçamento do mês que acabou. Dura poucas horas por mês e acontece justamente
+quando o orçamento está no limite — que é quando ele importa.
+
+**Fuso inválido no cadastro cai num de recurso em vez de derrubar a consulta.** `ZoneId.of` lança para
+identificador desconhecido, e um cadastro com fuso digitado errado não pode impedir a verificação de
+orçamento: ela é a proteção contra gasto descontrolado, e uma proteção que cai por erro de cadastro deixa
+de proteger exatamente quando alguém mais precisa dela.
 
 ### Pendência declarada — falta exercitar uma geração bem-sucedida contra o provedor real
 

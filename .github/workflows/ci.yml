@@ -14,6 +14,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # REL-003 — barreira contra dependência vulnerável ENTRANDO.
+  #
+  # O Dependabot já abre PR de atualização, mas atualizar é sugestão: nada impedia uma dependência com
+  # CVE conhecido de ser mergeada. Este job compara o que o PR acrescenta contra o banco de avisos do
+  # GitHub e falha em severidade alta ou crítica.
+  #
+  # Só roda em pull_request porque compara duas árvores — no push para main não há base contra a qual
+  # comparar, e um job que sempre passa por falta de entrada é pior que job nenhum.
+  dependency-review:
+    name: Dependências (CVE em novas dependências)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # DEB-REL-001 — não-bloqueante até o Dependency graph ser habilitado no repositório.
+      #
+      # A action depende desse recurso e, sem ele, falha com "Dependency review is not supported on this
+      # repository" — falha de configuração, não CVE encontrado. Deixá-la bloqueante travaria TODO PR por
+      # um motivo que nada no código resolve, e a reação previsível seria remover o job.
+      #
+      # CRITÉRIO DE REMOÇÃO deste `continue-on-error`: habilitar Dependency graph em
+      # Settings > Code security and analysis. A partir daí o job barra de fato, que é o ponto dele.
+      - uses: actions/dependency-review-action@v4
+        continue-on-error: true
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
+
   backend:
     name: Backend (build, testes, arquitetura, migrations)
     runs-on: ubuntu-latest

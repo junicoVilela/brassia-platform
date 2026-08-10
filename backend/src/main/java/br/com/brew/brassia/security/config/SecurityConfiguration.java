@@ -55,9 +55,21 @@ class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET,
                                 "/api/v1/security/csrf",
                                 "/scim/v2/ServiceProviderConfig",
+                                // Sondas de liveness/readiness precisam responder sem credencial, e não
+                                // revelam nada: `show-details` está no padrão `never`.
                                 "/actuator/health/**",
-                                "/actuator/info",
-                                "/actuator/prometheus").permitAll()
+                                "/actuator/info").permitAll()
+                        // MÉTRICAS EXIGEM AUTENTICAÇÃO (REL-003).
+                        //
+                        // `/actuator/prometheus` era público. O corpo não tem dado de negócio, mas tem o
+                        // inventário completo de rotas (label `uri`), volume de tráfego, taxa de erro por
+                        // endpoint e pressão de pool do banco — reconhecimento de graça para quem estiver
+                        // procurando por onde entrar, e um oráculo de disponibilidade para quem já entrou.
+                        //
+                        // O coletor passa a precisar de credencial: uma conta de serviço com API key
+                        // atende, e o runbook de operação registra isso como pré-requisito do deploy.
+                        .requestMatchers(HttpMethod.GET, "/actuator/prometheus", "/actuator/metrics/**")
+                                .authenticated()
                         .requestMatchers("/scim/v2/**", "/api/v1/security/service-accounts/me").authenticated()
                         .anyRequest().authenticated())
                 .addFilterBefore(apiKeyAuthenticationFilter, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)

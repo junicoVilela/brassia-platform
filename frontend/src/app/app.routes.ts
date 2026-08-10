@@ -77,6 +77,13 @@ export const routes: Routes = [
         loadChildren: () => import('./features/sanitation/sanitation.routes').then(m => m.SANITATION_ROUTES),
       },
       {
+        path: 'experiments',
+        canActivate: [permissionGuard],
+        data: { permission: 'experiment.plan.read' },
+        loadChildren: () =>
+          import('./features/experiments/experiments.routes').then(m => m.EXPERIMENTS_ROUTES),
+      },
+      {
         path: 'digital-twin',
         canActivate: [permissionGuard],
         data: { permission: 'digitaltwin.profile.read' },

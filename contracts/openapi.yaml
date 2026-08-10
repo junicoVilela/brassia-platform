@@ -5978,8 +5978,230 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /experiments:
+    get:
+      tags: [Experimentos]
+      summary: Lista experimentos de lote dividido (EXP-001)
+      parameters:
+        - {name: recipeId, in: query, required: false, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Experimentos da cervejaria, mais recentes primeiro
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Experiment'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Experimentos]
+      summary: Planeja um lote dividido (EXP-001)
+      description: >-
+        **Exatamente um fator pode diferir entre controle e variante.** Com dois fatores diferentes,
+        qualquer resultado tem duas explicações e nenhuma pode ser descartada — o experimento produz uma
+        conclusão que parece conhecimento e não é. Por isso o plano é recusado na criação, em vez de
+        aceito com um aviso que se perde.
+
+
+        Os fatores **iguais** também são declarados. "O resto ficou igual" é a afirmação sobre a qual toda
+        a conclusão se apoia, e sem os iguais registrados ninguém pode conferi-la meses depois.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PlanExperiment'}
+      responses:
+        '201':
+          description: Experimento planejado, já com as limitações do desenho
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Experiment'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `experiment_pair_already_active` — o mesmo par de lotes já está em outro experimento em
+            andamento. Dois experimentos sobre o mesmo par testam variáveis diferentes nos mesmos lotes,
+            e aí nenhuma das duas está isolada
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '422':
+          description: >-
+            `confounded_experiment` — mais de um fator difere, ou nenhum difere. Ou
+            `invalid_experiment_subject` — os lotes são de outra receita, e a diferença medida seria das
+            receitas e não do fator isolado
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /experiments/{experimentId}:
+    get:
+      tags: [Experimentos]
+      summary: Um experimento (EXP-001)
+      parameters:
+        - {name: experimentId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: O experimento
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Experiment'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /experiments/{experimentId}/start:
+    post:
+      tags: [Experimentos]
+      summary: Inicia o experimento (EXP-001)
+      parameters:
+        - {name: experimentId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Experimento em andamento
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Experiment'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /experiments/{experimentId}/conclusion:
+    post:
+      tags: [Experimentos]
+      summary: Registra a leitura do experimento (EXP-001)
+      description: >-
+        **Não há campo de limitações neste contrato, e é deliberado.** Elas são derivadas do desenho do
+        experimento e vão na resposta sempre. Limitação que depende de alguém lembrar de escrevê-la some
+        justamente quando o resultado agrada.
+
+
+        Exige `experiment.plan.conclude`, separada de planejar: concluir define o que a cervejaria vai
+        passar a acreditar sobre a própria receita.
+      parameters:
+        - {name: experimentId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ConcludeExperiment'}
+      responses:
+        '200':
+          description: Experimento concluído, com as limitações que a conclusão carrega
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Experiment'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /experiments/{experimentId}/abandon:
+    post:
+      tags: [Experimentos]
+      summary: Abandona o experimento (EXP-001)
+      description: >-
+        Não apaga: um experimento abandonado é informação — alguém já tentou isto e parou. Apagar faria a
+        próxima pessoa repetir a mesma tentativa sem saber que ela existiu.
+      parameters:
+        - {name: experimentId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Experimento abandonado, preservado no histórico
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Experiment'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    PlanExperiment:
+      type: object
+      required: [recipeId, hypothesis, controlBatchId, variantBatchId, factors]
+      properties:
+        recipeId: {type: string, format: uuid}
+        hypothesis:
+          type: string
+          maxLength: 2000
+          description: >-
+            Declarada antes de existir resultado, e depois imutável. Um experimento cuja hipótese pode ser
+            reescrita depois de ver o resultado sempre confirma a hipótese
+        controlBatchId: {type: string, format: uuid}
+        variantBatchId: {type: string, format: uuid}
+        factors:
+          type: array
+          minItems: 1
+          description: Todos os fatores comparados, inclusive os iguais. Exatamente um pode diferir
+          items: {$ref: '#/components/schemas/ExperimentFactor'}
+        plannedMeasurements:
+          type: array
+          description: >-
+            Grandezas definidas ANTES. Sem elas, a comparação vira escolher depois o número que favorece
+            a conclusão — e sempre há alguma grandeza em que a variante ganha
+          items: {type: string}
+        sensoryPlanned: {type: boolean}
+        sensoryBlind:
+          type: boolean
+          description: >-
+            Sensorial não cego vira limitação declarada: quem sabe qual copo é a variante encontra o que
+            espera encontrar
+    ExperimentFactor:
+      type: object
+      required: [name, controlValue, variantValue]
+      properties:
+        name: {type: string, maxLength: 120}
+        controlValue: {type: string, maxLength: 200}
+        variantValue: {type: string, maxLength: 200}
+        differs: {type: boolean, readOnly: true}
+    ConcludeExperiment:
+      type: object
+      required: [supported, observation]
+      properties:
+        supported:
+          type: boolean
+          description: >-
+            Compatível com a hipótese. Nunca "provado" — um par de lotes não prova nada, e o nome do campo
+            é o que impede o relatório de dizer que provou
+        observation: {type: string, maxLength: 4000}
+    ExperimentLimitation:
+      type: object
+      description: O que esta conclusão NÃO pode afirmar, derivado do desenho do experimento
+      properties:
+        code:
+          type: string
+          enum: [SINGLE_PAIR, SENSORY_NOT_BLIND, NO_SENSORY, NO_PLANNED_MEASUREMENT, SINGLE_METRIC]
+        description: {type: string}
+    Experiment:
+      type: object
+      description: >-
+        O experimento. `limitations` nunca vem vazio e não é filtrável: um lote dividido é sempre n=1, e
+        quem consome a API recebe as restrições junto com o resultado
+      properties:
+        id: {type: string, format: uuid}
+        recipeId: {type: string, format: uuid}
+        hypothesis: {type: string}
+        controlBatchId: {type: string, format: uuid}
+        variantBatchId: {type: string, format: uuid}
+        isolatedVariable: {$ref: '#/components/schemas/ExperimentFactor'}
+        factors:
+          type: array
+          items: {$ref: '#/components/schemas/ExperimentFactor'}
+        plannedMeasurements: {type: array, items: {type: string}}
+        sensoryPlanned: {type: boolean}
+        sensoryBlind: {type: boolean}
+        status: {type: string, enum: [PLANNED, RUNNING, CONCLUDED, ABANDONED]}
+        limitations:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/ExperimentLimitation'}
+        conclusion:
+          nullable: true
+          description: Nulo é "ainda não se concluiu", diferente de concluir que não houve efeito
+          allOf: [{$ref: '#/components/schemas/ExperimentConclusion'}]
+        plannedBy: {type: string, format: uuid}
+        plannedAt: {type: string, format: date-time}
+    ExperimentConclusion:
+      type: object
+      properties:
+        supported: {type: boolean}
+        observation: {type: string}
+        concludedBy: {type: string, format: uuid}
+        concludedAt: {type: string, format: date-time}
     AnalyzeControlChart:
       type: object
       required: [recipeId, kind, batchIds]

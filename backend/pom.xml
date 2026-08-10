@@ -38,6 +38,26 @@
 
   <dependencyManagement>
     <dependencies>
+      <!-- Jackson 2 ALINHADO PELO BOM, e não artefato a artefato.
+           O `jackson2.version` governava só o `jackson-databind`; `core`, `annotations` e os `datatype`
+           continuavam vindo do BOM do Spring Boot, que fixa a linha 2 numa versão própria. Ao subir só o
+           databind (#138), a família ficou dividida: databind 2.22.1 com core 2.21.4 e annotations 2.21.
+
+           A orientação do próprio Jackson é manter databind, core e annotations no mesmo minor — mistura
+           entre minors é o tipo de coisa que passa na suíte inteira e falha depois, com NoSuchMethodError,
+           num caminho menos exercitado.
+
+           Importar o BOM resolve os SEIS artefatos de uma vez (core, annotations, datatype-jdk8,
+           datatype-jsr310, module-kotlin) em vez de fixar cada um e esquecer o próximo que entrar
+           transitivo. Vem ANTES do spring-modulith-bom porque, em dependencyManagement, o primeiro import
+           que declara a versão vence — e aqui é intencional que a nossa vença a do Boot. -->
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${jackson2.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
       <dependency>
         <groupId>org.springframework.modulith</groupId>
         <artifactId>spring-modulith-bom</artifactId>

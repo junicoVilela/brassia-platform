@@ -617,53 +617,6 @@ estrangeira.
 O `field` na resposta é a única informação acionável — sem ele, "equipamento inexistente" num corpo com meia
 dúzia de campos ainda deixa a pessoa adivinhando qual conserta.
 
-### DEB-INT-001 (INT-001) — RESOLVIDO: a leitura do sensor virou ponto na curva
-
-O bloqueio era estrutural e valia registrar: até aqui **nenhum módulo publicava porta de comando** no pacote
-raiz, só consultas. Qualquer módulo podia *ler* o lote de outro; nenhum podia *pedir* nada a outro. O sensor
-guardava a série dele e quem quisesse ver a curva de fermentação registrava a leitura à mão — com o dado já
-dentro do sistema.
-
-**Critério de remoção cumprido**, com três peças:
-
-| Peça | O que resolve |
-|---|---|
-| `fermentation.FermentationCommands` | a primeira porta de comando publicada do projeto |
-| `production.VesselOccupancyLookup` | o elo que faltava: um sensor conhece o tanque, não o lote |
-| `sensor…BatchCurveFeed` + adapter | a tradução de vocabulário, no único lugar onde as duas linguagens se encontram |
-
-A ingestão encaminha dentro da própria transação, como o critério pedia: a leitura de telemetria e o ponto na
-curva caem juntos ou não caem.
-
-**A porta é estreita de propósito.** Publica um comando, não o módulo. Quem chama não planeja agenda, não
-colhe levedura e não avalia estabilidade de FG — essas nascem de decisão humana com ator, alçada e auditoria,
-e expô-las a chamada entre módulos criaria caminhos onde alguém age sem que se saiba quem agiu. Registrar
-telemetria é o oposto: não tem ator humano. Pelo mesmo motivo **não audita** — 2.880 leituras por dia
-encheriam a trilha até esconder o que ela existe para guardar.
-
-**Divergi do critério escrito num ponto, deliberadamente.** Ele dizia encaminhar "a leitura `GOOD`".
-Encaminho também a `OUT_OF_RANGE`: a fermentação avalia plausibilidade por conta própria, com as mesmas
-faixas, e grava o ponto sinalizado — pelo motivo que o próprio módulo de sensores já defende, de que um
-buraco na curva é indistinguível de "não mediu". Filtrar esconderia justamente o sintoma de sensor sujo ou
-fora d'água, que é quando olhar a curva mais importa. Já `FUTURE_CLOCK` **não** atravessa, e a assimetria é o
-ponto: o instante da medição é parte da chave natural da leitura e é por ele que a curva se ordena. Um valor
-absurdo fica visivelmente errado no gráfico; um instante inventado não — ele mente sobre a sequência dos
-fatos, que é a única coisa que uma curva serve para contar.
-
-`Measure` (sensor) e `ReadingKind` (fermentation) **seguem separadas**, e a ligação não as uniu: quem traduz
-é o adapter. `FLOW` não tem correspondente porque um lote não tem vazão, e é exatamente por casos assim que
-compartilhar as enums amarraria a evolução de um módulo à do outro.
-
-### OBS-INT-001 (INT-001) — Equipamento inexistente no cadastro de dispositivo devolve 500
-
-Encontrado ao escrever o IT da jornada, semeando um `equipmentId` aleatório: `sensor_device.equipment_id` tem
-chave estrangeira para `equipment`, e a violação sobe como **500**, não como 400. Quem integrar pelo API vai
-ler "erro do servidor" onde o problema é o dado enviado.
-
-Não corrigi junto porque é outra história — tratamento de erro do cadastro de dispositivo, não a ligação com
-a curva —, e emendar aqui misturaria as duas no mesmo PR. **Critério de remoção:** validar a existência do
-equipamento no caso de uso e responder 400 com Problem Details apontando o campo.
-
 ## Evidências de encerramento
 
 - **Build/commit:** `mvnw verify` verde; `eslint` e `ng build` limpos; E2E contra API real
@@ -690,10 +643,9 @@ equipamento no caso de uso e responder 400 com Problem Details apontando o campo
 - **Contratos atualizados:** `contracts/openapi.yaml` (`/sensors/**`, `/integration/webhooks*`,
   `/integration/scan`, `clientRequestId` em `RecordMeasurement`) e `contracts/security.openapi.yaml`
   (`/security/sso/**`)
-- **Riscos remanescentes:** dois, ambos declarados e com critério de remoção —
-  **`DEB-INT-003`** (transporte MQTT não entregue) e **`DEB-SEC-001`** (troca com IdP real não exercitada).
-  Os demais débitos estão registrados acima.
-- **Aceite:** **5 histórias completas** (INT-001, INT-002, PWA-001, PWA-002, INT-003) e **2 parciais com
-  pendência declarada** (INT-006 sem MQTT, SEC-B07 sem a troca real). Nenhuma pendência foi escondida em
-  TODO: as duas têm identificador, motivo e critério de remoção. **A decisão de aceitar a sprint com as duas
-  parciais, ou de abrir histórias próprias para elas, é do mantenedor.**
+- **Riscos remanescentes:** nenhum em aberto nesta sprint. `DEB-INT-003` (MQTT) e `DEB-SEC-001` (troca com
+  IdP real) fecharam depois deste registro, exercitados contra broker HiveMQ e Keycloak reais; `DEB-INT-001`,
+  `DEB-INT-002`, `DEB-PWA-001` e `OBS-INT-001` também estão resolvidos acima.
+- **Aceite:** **7 histórias completas.** As duas que foram entregues parciais (INT-006 sem MQTT, SEC-B07 sem
+  a troca real) fecharam depois, e nenhuma pendência ficou escondida em TODO — as duas tinham identificador,
+  motivo e critério de remoção, e foram os critérios que guiaram o fechamento.

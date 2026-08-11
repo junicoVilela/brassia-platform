@@ -2,6 +2,7 @@ package br.com.brew.brassia.traceability;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -200,6 +201,44 @@ class RecallDrillIT {
     }
 
     // --- cenário ---
+
+    @Test
+    @DisplayName("EXPEDIÇÃO ESTORNADA SAI DO ESCOPO DO RECALL, e a linha continua no histórico")
+    void estornoTiraDoEscopo() throws Exception {
+        // FDS-003-A: uma expedição digitada errada fazia o simulado medir cobertura sobre um destino que
+        // nunca recebeu nada — e escondia, no saldo sem destino, cerveja que ninguém sabia onde estava.
+        var session = login();
+        var scene = shippedLot(session);
+        var errada = idOf(ship(session, scene.finishedLotId(), "Distribuidora Errada", null, 40)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        // Com as duas valendo, o escopo soma 160 e alcança dois destinos.
+        var comErro = idOf(start(session, scene.batchId(), "antes do estorno")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        mockMvc.perform(get(DRILLS + "/" + comErro).session(session))
+                .andExpect(jsonPath("$.unitsInScope", is(160)))
+                .andExpect(jsonPath("$.destinationsReached", is(2)));
+
+        mockMvc.perform(post(SHIPMENTS + "/" + errada + "/reversal").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"reason\":\"Destino digitado errado: a carga foi para o Bar do Zé\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reversedAt").exists());
+
+        // Estornada, some do escopo — sem que nada precise ser recalculado: as consultas do recall
+        // passaram a olhar só expedições vivas.
+        var depois = idOf(start(session, scene.batchId(), "depois do estorno")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        mockMvc.perform(get(DRILLS + "/" + depois).session(session))
+                .andExpect(jsonPath("$.unitsInScope", is(120)))
+                .andExpect(jsonPath("$.destinationsReached", is(1)));
+
+        // E a linha continua na listagem, marcada: sumir seria indistinguível de nunca ter existido.
+        var lista = mockMvc.perform(get(SHIPMENTS).session(session).param("finishedLotId",
+                        scene.finishedLotId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(lista).contains("Distribuidora Errada").contains("digitado errado");
+    }
 
     private record Scene(String batchId, String finishedLotId) {}
 

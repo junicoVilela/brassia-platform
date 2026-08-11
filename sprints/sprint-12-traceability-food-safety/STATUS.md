@@ -256,9 +256,11 @@ por extenso no próprio interceptor.
   onde está — e é a razão de ela existir antes de haver qualquer coisa comercial.
 - **O dossiê separa três coisas na tela:** o que foi comunicado, o que foi descoberto depois da
   abertura e o que não tem destino nenhum. Juntá-las faria a cobertura parecer maior do que é.
-- **`FDS-003-A` — a expedição não tem correção nem estorno.** Registrar é fato; devolução, cancelamento
-  e transferência entre destinos não existem. *Critério de remoção:* as sprints 19/20 definirem
-  movimentação comercial, com o recall passando a enxergar a saída líquida.
+- ~~**`FDS-003-A`**~~ — **FECHADO EM 2026-08-11, e não como o critério previa.** O critério apontava para
+  as sprints 19/20 definirem movimentação comercial. Só uma das três lacunas era urgente, e não é
+  comercial: **a expedição digitada errada**. Devolução e transferência entre destinos continuam fora —
+  exigem cliente, pedido e nota, que é o que esta sprint se recusou a inventar por conta própria. O que
+  entrou foi o **estorno**, e o recall passou a enxergar a saída líquida. Ver DEC-FDS-001 na Sprint 17.
 
 ### FDS-004 — simulado de recall
 
@@ -343,7 +345,7 @@ Todos com critério de remoção registrado nas seções acima.
 | `FDS-001-A` | A embalagem do plano não entra no perfil de alergênicos |
 | `FDS-001-B` | A troca de produto só é checada no envase |
 | `FDS-002-B` | O bloqueio da quarentena enxerga seis saltos e não avisa quando o corte esconde algo |
-| `FDS-003-A` | A expedição não tem correção nem estorno |
+| ~~`FDS-003-A`~~ | **Fechado em 2026-08-11**: a expedição registrada errada passou a ter estorno (V113). Devolução e transferência entre destinos seguem nas sprints 19/20 |
 | `FDS-004-A` | Ação corretiva do simulado é texto livre, não item de CAPA |
 
 Fechados nesta sprint: **`TRC-001-B`** (lote de produto acabado), **`TRC-001-D`** (expedição e

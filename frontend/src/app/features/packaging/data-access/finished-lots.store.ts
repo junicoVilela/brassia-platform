@@ -86,6 +86,26 @@ export class FinishedLotsStore {
       });
   }
 
+  /**
+   * Estorna e recarrega.
+   *
+   * <p>Recarrega em vez de remendar a lista local: o estorno muda o saldo sem destino do lote, e um
+   * saldo remendado na tela divergiria do que o servidor calcula na próxima abertura.
+   */
+  reverseShipment(shipmentId: string, reason: string): void {
+    this.actionError.set(null);
+    this.api
+      .reverseShipment(shipmentId, reason)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success('Expedição estornada.');
+          this.load();
+        },
+        error: (e: ShipmentError) => this.actionError.set(this.messageFor(e)),
+      });
+  }
+
   private messageFor(e: ShipmentError): string {
     if (e.code === 'shipment_exceeds_lot') {
       return `Este lote só tem ${e.shipment?.available ?? 0} unidade(s) sem destino registrado.`;

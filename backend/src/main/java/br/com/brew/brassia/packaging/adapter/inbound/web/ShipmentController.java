@@ -19,18 +19,22 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Expedição do lote de produto acabado (TRC-001-D).
  *
- * <p>Só registro e leitura. Não há edição nem exclusão: expedição é fato, e reescrever um destino
- * já comunicado num recall apagaria a única prova de que ele foi avisado.
+ * <p>Registro, leitura e estorno. Não há edição nem exclusão: expedição é fato, e reescrever um destino
+ * já comunicado num recall apagaria a única prova de que ele foi avisado. O estorno (FDS-003-A) mantém a
+ * linha e marca que ela não vale mais.
  */
 @RestController
 @RequestMapping("/api/v1/packaging/shipments")
 final class ShipmentController {
 
     private final ShipmentUseCases.Record record;
+    private final ShipmentUseCases.Reverse reverse;
     private final ShipmentUseCases.Queries queries;
 
-    ShipmentController(ShipmentUseCases.Record record, ShipmentUseCases.Queries queries) {
+    ShipmentController(ShipmentUseCases.Record record, ShipmentUseCases.Reverse reverse,
+            ShipmentUseCases.Queries queries) {
         this.record = record;
+        this.reverse = reverse;
         this.queries = queries;
     }
 
@@ -53,5 +57,21 @@ final class ShipmentController {
                 principal.requireBrewery(), principal.userId(), request.finishedLotId(),
                 request.destination(), request.contact(), request.units(), request.shippedOn(),
                 request.note())));
+    }
+
+    /**
+     * Estorna a expedição registrada errada.
+     *
+     * <p>Alçada própria (`packaging.shipment.reverse`), separada de registrar: registrar é o trabalho do
+     * dia; estornar desfaz um destino que pode já ter sido comunicado num recall. Quem faz um não faz
+     * necessariamente o outro.
+     */
+    @PostMapping("/{shipmentId}/reversal")
+    ShipmentDtos.ShipmentView reverse(@AuthenticationPrincipal SecurityPrincipal principal,
+            @org.springframework.web.bind.annotation.PathVariable UUID shipmentId,
+            @Valid @RequestBody ShipmentDtos.ReverseShipmentRequest request) {
+        principal.requirePermission("packaging.shipment.reverse");
+        return ShipmentDtos.ShipmentView.from(reverse.handle(new ShipmentUseCases.Reverse.Command(
+                principal.requireBrewery(), principal.userId(), shipmentId, request.reason())));
     }
 }

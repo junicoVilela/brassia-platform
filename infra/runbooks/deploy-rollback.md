@@ -42,6 +42,29 @@ JAVA_HOME=~/.sdkman/candidates/java/25.0.3-tem ./mvnw -pl backend spring-boot:ru
   escrita**. Em `production_measurement` ou `audit_event`, isso é indisponibilidade.
 - **Índice sem `CONCURRENTLY`.** `CREATE INDEX` bloqueia escrita na tabela durante toda a criação.
 
+### Como medir o bloqueio, e não só o tempo
+
+Tempo de migration e tempo de escrita bloqueada **não são a mesma medida**, e é a segunda que descreve o
+impacto. Uma migration de 148 ms pode ter deixado a escrita parada por 143 ms ou por 3 ms, e a diferença
+está em qual lock ela pegou. `flyway_schema_history.execution_time` responde a primeira pergunta; a segunda
+só se responde escrevendo na tabela **enquanto** a migration roda:
+
+```sql
+-- probe.sql — uma escrita real na tabela suspeita, repetida durante a migration.
+-- O maior "Time:" do log é quanto tempo a aplicação teria ficado esperando.
+\timing on
+INSERT INTO production_measurement (id, brewery_id, batch_id, kind, measured_value, unit,
+                                    recorded_at, recorded_by, source)
+SELECT gen_random_uuid(), b.brewery_id, b.id, 'TEMPERATURE', 19.5, 'C', now(),
+       gen_random_uuid(), 'MANUAL'
+FROM production_batch b LIMIT 1;
+\watch i=0.05
+```
+
+Rode a sonda contra a cópia, aplique as migrations uma versão por vez (`-target=`) e guarde o maior tempo
+por versão. Aplicar tudo de uma vez mede o conjunto e não diz **qual** migration parou a escrita — que é
+justamente a que precisa ser reescrita ou movida para janela.
+
 ---
 
 ## 2. Deploy
@@ -121,7 +144,56 @@ pessoa nomeada, nunca automática.
 
 | Data | Versão | Migrations | Maior lock | RTO medido | Resultado |
 |---|---|---|---|---|---|
-| | | | | | |
+| 2026-08-10 | `dc80b4e` (sprints 15–16) | V98 → V109 | **143 ms** — escrita em `production_measurement` durante a `V100` | **9,8 s** (retorno da versão anterior até `/actuator/health` 200) | OK — ver ensaio 2026-08-10 abaixo |
 
 > Tabela vazia é um estado honesto: significa que nenhum ensaio foi feito ainda. Preenchê-la é o que
 > transforma este runbook de documento em controle — `REL-004` só fecha com pelo menos uma linha aqui.
+
+### Ensaio 2026-08-10 — o que foi medido e o que ficou de fora
+
+**Ambiente.** PostgreSQL 18.4 em contêiner local, isolado na porta 5544 — **não é cópia de produção**, e
+essa é a limitação que acompanha todo número abaixo. Baseline em `V97` (release anterior, commit `bcdbd09`),
+depois `infra/perf/seed-representative-dataset.sql` com 3.000 lotes, **1.500.000 medições** e 1.000.000 de
+eventos de auditoria — as três tabelas que crescem sem teto. Migrations aplicadas uma por vez com
+`flyway -target=`, com a sonda de escrita acima rodando durante cada uma.
+
+**Uma migration destoou, e só uma.** Onze das doze ficaram entre 15 ms e 52 ms, com bloqueio de escrita
+indistinguível do ruído da sonda (3–13 ms, contra ~6 ms de piso). A `V100` levou **148 ms** e parou a
+escrita por **143 ms**.
+
+**O custo não estava onde a leitura sugere.** A `V100` faz duas coisas: `ADD COLUMN` sem default e um
+índice único **parcial** (`WHERE client_request_id IS NOT NULL`). O predicado exclui todas as 1,5 milhão de
+linhas existentes — o índice nasce vazio. Repetindo só o `CREATE INDEX` isolado: **104,6 ms**, com a sonda
+bloqueada por 59 ms. **O índice parcial é barato no que grava e caro no que varre**: o predicado decide o
+tamanho do índice, não o trabalho de construí-lo. A tabela é lida inteira de qualquer jeito, com lock que
+bloqueia escrita durante toda a leitura.
+
+**A consequência prática é de escala, não deste número.** 143 ms em 1,5 milhão de linhas é aceitável em
+qualquer janela. O mesmo `CREATE INDEX` numa `production_measurement` com 15 milhões custa ~1,4 s de escrita
+parada, e é aí que ele precisa de `CONCURRENTLY` — que o Flyway exige rodar fora de transação
+(`-- flyway:executeInTransaction=false`). **Não é dívida desta release**: é o gatilho para a próxima
+migration que indexar essa tabela.
+
+**O retorno da aplicação foi exercido de verdade**, não deduzido do documento. O artefato anterior
+(`bcdbd09`, que conhece 97 migrations) subiu contra o schema em `V109`:
+
+- O Flyway **avisa e prossegue** — `Schema "public" has a version (109) that is newer than the latest
+  available migration (97)`. Vale saber que é WARN e não ERROR: quem vir essa linha no meio de um incidente
+  vai achar que é a causa, e não é.
+- O `ddl-auto: validate` do Hibernate passou: colunas e tabelas a mais não quebram validação. É exatamente
+  isso que expand/contract compra, e agora está medido em vez de prometido.
+- Não parou no boot — autenticou e **serviu dados de produção** (`GET /api/v1/production/batches` → 200).
+
+**Um efeito colateral que o ensaio expôs:** o artefato anterior devolve a listagem de lotes **sem paginação**
+— 988 KB para 3.000 lotes, que é a `REL-002` desfeita (p95 de 319 ms). Rollback de aplicação restaura o
+comportamento antigo *inteiro*, inclusive o que foi corrigido por performance. Não impede o rollback; muda o
+que se observa depois dele, e evita concluir que "o rollback deixou o sistema lento" como se fosse novidade.
+
+**O que este ensaio não mediu**, e continua em aberto:
+
+- **Volume e hardware de produção.** Contêiner local com dataset sintético. Os tempos escalam com a tabela,
+  e o número que vale é o da cópia restaurada — que depende do ensaio de restauração (`REL-001`,
+  fora de escopo por DEC-REL-008).
+- **Concorrência real.** A sonda é uma escrita por vez. Em produção há dezenas, e uma fila que se forma
+  atrás do lock demora mais para drenar do que o lock durou.
+- **O rollback sob carga.** O artefato anterior subiu com o banco ocioso.

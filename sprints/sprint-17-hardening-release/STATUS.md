@@ -1,7 +1,7 @@
 # Status — Sprint 17
 
-Estado: EM EXECUÇÃO — REL-002 e REL-003 concluídas; REL-001 fora de escopo por decisão do mantenedor;
-REL-004 aguarda um ensaio real; REL-005 depende de homologação.
+Estado: EM EXECUÇÃO — REL-002, REL-003 e REL-004 concluídas; REL-001 fora de escopo por decisão do
+mantenedor; REL-005 depende de homologação.
 
 ## Controle das histórias
 
@@ -10,7 +10,7 @@ REL-004 aguarda um ensaio real; REL-005 depende de homologação.
 | REL-001 | **Fora de escopo** (decisão do mantenedor) | — | — | O ensaio de restauração foi removido do repositório a pedido do mantenedor. A história **não fecha** como especificada — não há RPO/RTO medidos. Ver DEC-REL-008. |
 | REL-002 | Concluída | Claude | `infra/perf/*`, `ListBatchesUseCase`, `JdbcBatchRepository`, `PageResponse` | Gargalo medido **e corrigido**: com 3.000 lotes, p95 caiu de 319 ms para 9,8 ms. Ver DEC-REL-007. |
 | REL-003 | Concluída | Claude | `InternalAddressGuard`, `SecurityConfiguration`, `.github/workflows/ci.yml`, `frontend/package-lock.json` | Um achado ALTO (SSRF no webhook) e dois médios resolvidos; varredura de CVE passou a barrar merge. Ver DEC-REL-001/002/003. |
-| REL-004 | Runbook pronto, ensaio pendente | Claude | `infra/runbooks/deploy-rollback.md` | Árvore de decisão, forward-fix e o registro de ensaios. Fecha com pelo menos uma linha na tabela de ensaios. Ver DEC-REL-006. |
+| REL-004 | Concluída | Claude | `infra/runbooks/deploy-rollback.md` | Ensaio executado em 2026-08-10: bloqueio de escrita medido migration a migration (`V100` = 143 ms) e retorno do artefato anterior contra o schema novo exercitado de verdade. Ambiente local, não cópia de produção — limitação registrada. Ver DEC-REL-006/009. |
 | REL-005 | A fazer | — | — | — |
 
 ## Decisões e bloqueios
@@ -161,7 +161,35 @@ Registra também o pré-requisito criado por `DEC-REL-002`: o coletor de métric
 senão o painel fica cego exatamente durante o deploy.
 
 **O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
-honesto — significa que nenhum ensaio foi feito.
+honesto — significa que nenhum ensaio foi feito. **Preenchida em 2026-08-10 — ver DEC-REL-009.**
+
+### DEC-REL-009 (REL-004) — O ensaio foi feito, e mediu o bloqueio em vez do tempo
+
+Ensaio executado contra PostgreSQL 18.4 local isolado, baseline em `V97`, dataset de 1,5 milhão de medições
+e 1 milhão de eventos de auditoria, migrations `V98`→`V109` aplicadas uma por vez com sonda de escrita
+concorrente. Registro completo em `infra/runbooks/deploy-rollback.md`.
+
+**A medida que o runbook não tinha e passou a ter.** Tempo de migration e tempo de escrita bloqueada são
+grandezas diferentes, e a segunda é a que descreve indisponibilidade. Onze das doze migrations ficaram no
+ruído; a `V100` parou a escrita em `production_measurement` por **143 ms**.
+
+**O achado que muda uma crença.** O custo da `V100` não está no `ADD COLUMN`, está no índice único
+**parcial** — que nasce vazio, porque o predicado exclui todas as linhas existentes, e mesmo assim varre a
+tabela inteira para descobrir isso, com lock que bloqueia escrita durante toda a varredura. "Índice parcial
+é barato" vale para o que ele grava, não para o que ele custa criar. Em 1,5 M de linhas são 143 ms; em 15 M
+seriam ~1,4 s, e aí `CONCURRENTLY` deixa de ser luxo. Não é dívida desta release — é critério para a próxima
+migration que indexar essa tabela.
+
+**O retorno da aplicação foi exercido, não deduzido.** O artefato anterior (`bcdbd09`, 97 migrations) subiu
+contra o schema em `V109` em 9,8 s, com `ddl-auto: validate` passando, autenticou e serviu
+`GET /api/v1/production/batches` com 200. É a promessa central do expand/contract medida em vez de afirmada.
+Dois detalhes que só aparecem fazendo: o Flyway emite **WARN e prossegue** diante de um schema à frente do
+artefato (quem ler isso no meio do incidente vai achar que é a causa), e o rollback restaura o comportamento
+antigo **inteiro** — inclusive a listagem sem paginação que a `REL-002` corrigiu.
+
+**Os limites estão registrados junto com os números:** contêiner local e não cópia de produção, uma escrita
+por vez em vez de concorrência real, e banco ocioso durante o rollback. A linha da tabela vale pelo que
+mediu, não como carimbo.
 
 ### DEC-REL-007 (REL-002) — O gargalo era N+1, não payload; corrigidos os dois
 

@@ -6,6 +6,7 @@ import br.com.brew.brassia.traceability.LineageSource;
 import br.com.brew.brassia.traceability.QuarantineCheck;
 import br.com.brew.brassia.traceability.application.port.inbound.QuarantineCommands;
 import br.com.brew.brassia.traceability.application.port.inbound.QuarantineQueries;
+import br.com.brew.brassia.traceability.CorrectiveActionSink;
 import br.com.brew.brassia.traceability.application.port.inbound.DrillCommands;
 import br.com.brew.brassia.traceability.application.port.inbound.DrillQueries;
 import br.com.brew.brassia.traceability.application.port.inbound.RecallCommands;
@@ -145,12 +146,12 @@ class TraceabilityConfiguration {
      */
     @Bean
     DrillCommands.Finish finishRecallDrillUseCase(DrillRepository drills, List<LineageSource> sources,
-            List<DestinationSource> destinations, AuditTrail audit,
+            List<DestinationSource> destinations, CorrectiveActionSink capa, AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new DrillHandlers.Finish(drills, sources, destinations, audit);
+        var handler = new DrillHandlers.Finish(drills, sources, destinations, capa, audit);
         var transaction = new TransactionTemplate(transactionManager);
-        return (actorId, breweryId, drillId, unitsLocated, summary, actions) ->
-                transaction.executeWithoutResult(status ->
-                        handler.handle(actorId, breweryId, drillId, unitsLocated, summary, actions));
+        return (actorId, breweryId, drillId, unitsLocated, summary, text, nonConformityId, actions) ->
+                transaction.executeWithoutResult(status -> handler.handle(actorId, breweryId, drillId,
+                        unitsLocated, summary, text, nonConformityId, actions));
     }
 }

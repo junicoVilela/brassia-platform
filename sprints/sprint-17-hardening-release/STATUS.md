@@ -163,6 +163,42 @@ senão o painel fica cego exatamente durante o deploy.
 **O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
 honesto — significa que nenhum ensaio foi feito. **Preenchida em 2026-08-10 — ver DEC-REL-009.**
 
+### DEC-FDS-002 (FDS-004-A) — A porta ficou na direção contrária à do critério, e o teste mandou
+
+Decisão do mantenedor em 2026-08-11: a ação corretiva do simulado vira item de CAPA. O critério de
+remoção dizia "o CAPA publicar porta de abertura de ação" — e foi exatamente isso que **não** deu certo.
+
+**O ciclo que a primeira tentativa criou.** Publiquei `quality.CapaActionOpening` e chamei do
+encerramento do simulado. O `ModularityTest` recusou: `quality` depende de `production` desde a QLT-001
+(alerta de lote), `production` depende de `traceability` (implementa `LineageSource`), e a aresta nova
+fechou o ciclo. A solução foi inverter — `traceability.CorrectiveActionSink` declarada na rastreabilidade
+e implementada pela qualidade, exatamente como o `LineageSource` já fazia. Quem depende é quem implementa,
+e a rastreabilidade continua sem saber que CAPA existe.
+
+**Um efeito colateral necessário:** a checagem de existência do lote na abertura de NC (DEB-AIA-003, de
+horas antes) saiu do handler e virou **chave estrangeira**. Ela era a outra ponta da dependência
+`quality → production`. A troca melhora o que já estava lá: checagem prévia não é garantia — duas
+requisições simultâneas passariam as duas, e um lote cancelado entre a checagem e o INSERT deixaria a NC
+apontando para o nada.
+
+**O simulado não abre a NC sozinho.** Isso exigiria o sistema decidir a severidade, e o quanto uma
+cobertura de 75% é grave depende do produto e de quem audita. Quem encerra escolhe uma NC entre as que
+estão prontas para receber ação.
+
+**E não fura a ordem das fases do CAPA.** Descobri implementando: `planAction` recusa NC que ainda não foi
+investigada. Está certo — planejar solução antes de conhecer a causa é o que o CAPA existe para impedir —
+e o simulado se submete à regra em vez de contorná-la. A tela diz isso quando não há NC investigada, em
+vez de mostrar uma lista vazia sem explicação.
+
+**Texto e CAPA são excludentes**, garantido por `CHECK` e por teste: os dois juntos deixariam quem lê o
+relatório sem saber qual é a ação de verdade — a escrita no texto, sem dono nem prazo, ou a que tem os
+dois.
+
+**Por que o texto não bastava**, que é a razão do débito existir: "revisar contatos dos distribuidores"
+escrito no relatório de um simulado não tem dono, não tem prazo e não aparece em lista nenhuma. Seis meses
+depois, o próximo simulado encontra a mesma lacuna e o relatório anterior está lá dizendo o que fazer —
+que é a definição de um exercício que não melhora nada.
+
 ### DEC-FDS-001 (FDS-003-A) — Estorno, e só estorno: o resto continua sendo comercial
 
 Decisão do mantenedor em 2026-08-11. O critério de remoção do débito apontava para as sprints 19/20

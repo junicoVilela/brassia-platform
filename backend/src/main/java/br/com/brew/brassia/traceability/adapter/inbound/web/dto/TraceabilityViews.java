@@ -187,19 +187,36 @@ public final class TraceabilityViews {
     public record StartDrillRequest(@NotNull LineageSource.NodeType nodeType, @NotNull UUID nodeId,
             @Size(max = 500) String note) {}
 
+    /**
+     * @param correctiveActions texto livre, mantido para o simulado que não gerou ação. Não pode vir
+     *                          junto com {@code nonConformityId}: ação escrita como texto E como item de
+     *                          CAPA deixaria quem lê sem saber qual é a de verdade
+     * @param nonConformityId a NC onde as ações viram itens de CAPA (FDS-004-A). Quem encerra escolhe uma
+     *                        aberta ou abre uma antes — o simulado não abre NC sozinho, porque isso
+     *                        exigiria o sistema decidir a severidade
+     */
     public record FinishDrillRequest(@jakarta.validation.constraints.Min(0) int unitsLocated,
             @NotBlank @Size(max = 1000) String summary,
-            @Size(max = 2000) String correctiveActions) {}
+            @Size(max = 2000) String correctiveActions,
+            java.util.UUID nonConformityId,
+            java.util.List<@jakarta.validation.Valid CapaActionRequest> capaActions) {}
+
+    /** Ação de CAPA nascida de uma lacuna do simulado: com tipo, dono e prazo. */
+    public record CapaActionRequest(@NotBlank String kind, @NotBlank @Size(max = 1000) String description,
+            @NotBlank @Size(max = 120) String owner,
+            @jakarta.validation.constraints.NotNull java.time.LocalDate dueOn) {}
 
     /**
      * @param locatedPercent nulo quando não havia nada no escopo: não localizar o que não existe não
      *                       é cobertura perfeita, é simulado sem objeto
      * @param elapsedSeconds tempo da cervejaria, não do sistema — é o que a norma cobra
+     * @param nonConformityId a NC onde as ações corretivas viraram itens de CAPA (FDS-004-A); nula quando
+     *                        o simulado não gerou ação, e nunca preenchida junto com o texto livre
      */
     public record DrillView(UUID id, String code, NodeView origin, String note, String status,
             Instant startedAt, Instant finishedAt, Integer unitsInScope, Integer unitsLocated,
             Integer locatedPercent, Integer destinationsReached, Integer gapsFound, String summary,
-            String correctiveActions, long elapsedSeconds) {
+            String correctiveActions, UUID nonConformityId, long elapsedSeconds) {
 
         public static DrillView of(RecallDrill drill, long elapsedSeconds) {
             return new DrillView(drill.id(), drill.code(),
@@ -207,7 +224,7 @@ public final class TraceabilityViews {
                     drill.note(), drill.status().name(), drill.startedAt(), drill.finishedAt(),
                     drill.unitsInScope(), drill.unitsLocated(), drill.locatedPercent(),
                     drill.destinationsReached(), drill.gapsFound(), drill.summary(),
-                    drill.correctiveActions(), elapsedSeconds);
+                    drill.correctiveActions(), drill.nonConformityId().orElse(null), elapsedSeconds);
         }
 
         public static List<DrillView> of(List<RecallDrill> drills, Instant now) {

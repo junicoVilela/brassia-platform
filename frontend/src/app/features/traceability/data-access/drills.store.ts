@@ -2,7 +2,7 @@ import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { DrillReport, RecallDrill } from '../domain/drill.model';
+import { DrillReport, RecallDrill, DrillCapaAction } from '../domain/drill.model';
 import { NodeType } from '../domain/genealogy.model';
 import { DrillsApi } from './drills.api';
 
@@ -72,9 +72,20 @@ export class DrillsStore {
     this.run('start', this.api.start(nodeType, nodeId, note), 'Simulado iniciado.', null);
   }
 
-  finish(id: string, unitsLocated: number, summary: string, actions: string | null): void {
-    this.run(`finish:${id}`, this.api.finish(id, unitsLocated, summary, actions),
-      'Simulado encerrado.', id);
+  finish(
+    id: string,
+    unitsLocated: number,
+    summary: string,
+    actions: string | null,
+    nonConformityId: string | null = null,
+    capaActions: DrillCapaAction[] = [],
+  ): void {
+    this.run(
+      `finish:${id}`,
+      this.api.finish(id, unitsLocated, summary, actions, nonConformityId, capaActions),
+      nonConformityId ? 'Simulado encerrado e ações abertas no CAPA.' : 'Simulado encerrado.',
+      id,
+    );
   }
 
   private run<T>(key: string, call: Observable<T>, message: string, reload: string | null): void {

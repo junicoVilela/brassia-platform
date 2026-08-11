@@ -4291,8 +4291,35 @@ paths:
                   type: string
                   maxLength: 2000
                   description: >-
-                    Texto livre. Transformar ação em item com dono e prazo é trabalho do CAPA
-                    (QLT-002); duplicá-lo aqui criaria um segundo lugar para acompanhar a mesma coisa.
+                    Texto livre, mantido para o simulado que não gerou ação. **Não pode vir junto com
+                    `nonConformityId`** (400): ação escrita como texto E como item de CAPA deixaria quem
+                    lê sem saber qual é a de verdade.
+                nonConformityId:
+                  type: string
+                  format: uuid
+                  description: >-
+                    A não conformidade onde as ações viram itens de CAPA (FDS-004-A). **O simulado não
+                    abre NC sozinho** — isso exigiria o sistema decidir a severidade, e o quanto uma
+                    cobertura de 75% é grave depende do produto e de quem audita.
+
+
+                    A NC precisa já estar **investigada**: o CAPA recusa planejar ação antes de conhecer
+                    a causa (409), e o simulado não fura a ordem das fases — planejar solução antes de
+                    saber o porquê é o que o CAPA existe para impedir.
+                capaActions:
+                  type: array
+                  description: >-
+                    Ações a planejar na NC, com tipo, dono e prazo — é o dono que distingue uma ação de
+                    uma intenção. Texto livre no relatório não aparece em lista nenhuma, e seis meses
+                    depois o próximo simulado encontra a mesma lacuna.
+                  items:
+                    type: object
+                    required: [kind, description, owner, dueOn]
+                    properties:
+                      kind: {type: string, enum: [CORRECTIVE, PREVENTIVE]}
+                      description: {type: string, maxLength: 1000}
+                      owner: {type: string, maxLength: 120}
+                      dueOn: {type: string, format: date}
       responses:
         '200': {description: Simulado encerrado}
         '400':

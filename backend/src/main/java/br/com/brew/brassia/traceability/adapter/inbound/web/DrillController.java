@@ -72,6 +72,11 @@ final class DrillController {
             @Valid @RequestBody TraceabilityViews.FinishDrillRequest request) {
         principal.requirePermission("traceability.drill.manage");
         finish.handle(principal.userId(), principal.requireBrewery(), id, request.unitsLocated(),
-                request.summary(), request.correctiveActions());
+                request.summary(), request.correctiveActions(), request.nonConformityId(),
+                request.capaActions() == null ? java.util.List.of()
+                        : request.capaActions().stream()
+                                .map(a -> new DrillCommands.Finish.Action(a.kind(), a.description(),
+                                        a.owner(), a.dueOn()))
+                                .toList());
     }
 }

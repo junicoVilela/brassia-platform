@@ -289,7 +289,10 @@ por extenso no próprio interceptor.
 - **Acompanhar ação corretiva é trabalho do CAPA (QLT-002), não daqui.** O campo é texto livre de
   propósito: duplicar item com dono e prazo criaria um segundo lugar para acompanhar a mesma coisa.
   *`FDS-004-A`, critério de remoção:* o CAPA publicar porta de abertura de ação, e o encerramento do
-  simulado passar a criar as ações lá em vez de escrevê-las como texto.
+  simulado passar a criar as ações lá em vez de escrevê-las como texto. **CUMPRIDO EM 2026-08-11 — com a
+  porta na direção oposta.** Declará-la em `quality` fecharia o ciclo
+  `production → traceability → quality → production`; a rastreabilidade declara `CorrectiveActionSink` e
+  a qualidade implementa, como já acontece com o `LineageSource`. Ver DEC-FDS-002 na Sprint 17.
 - **O item de E2E do DoD, herdado do aceite da sprint 11, está fechado.** A jornada
   `business-journey.spec.ts` vai do insumo recebido ao relatório do simulado, contra a stack real:
   recebimento, receita publicada, ordem, lote, transferência, limpeza liberada, envase executado,
@@ -346,7 +349,7 @@ Todos com critério de remoção registrado nas seções acima.
 | `FDS-001-B` | A troca de produto só é checada no envase |
 | `FDS-002-B` | O bloqueio da quarentena enxerga seis saltos e não avisa quando o corte esconde algo |
 | ~~`FDS-003-A`~~ | **Fechado em 2026-08-11**: a expedição registrada errada passou a ter estorno (V113). Devolução e transferência entre destinos seguem nas sprints 19/20 |
-| `FDS-004-A` | Ação corretiva do simulado é texto livre, não item de CAPA |
+| ~~`FDS-004-A`~~ | **Fechado em 2026-08-11**: a ação vira item de CAPA com tipo, dono e prazo (V114) |
 
 Fechados nesta sprint: **`TRC-001-B`** (lote de produto acabado), **`TRC-001-D`** (expedição e
 destino), **`PKG-004-A`** (alergênicos sem fonte no catálogo, aberto desde a sprint 10) e

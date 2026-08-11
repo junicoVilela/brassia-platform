@@ -33,7 +33,7 @@ import org.springframework.stereotype.Repository;
 class JdbcNonConformityRepository implements NonConformityRepository {
 
     private static final String COLUMNS = """
-            SELECT id, brewery_id, code, title, description, source, deviation_id, severity, status,
+            SELECT id, brewery_id, code, title, description, source, deviation_id, batch_id, severity, status,
                    containment_due_on, investigation_due_on, verification_due_on,
                    containment_description, containment_at, containment_by,
                    investigation_root_cause, investigation_method, investigation_at, investigation_by,
@@ -51,20 +51,32 @@ class JdbcNonConformityRepository implements NonConformityRepository {
     public void insert(NonConformity nc) {
         jdbc.sql("""
                 INSERT INTO quality_non_conformity (id, brewery_id, code, title, description, source,
-                    deviation_id, severity, status, containment_due_on, investigation_due_on,
+                    deviation_id, batch_id, severity, status, containment_due_on, investigation_due_on,
                     verification_due_on, opened_at, opened_by, lock_version)
-                VALUES (:id, :brewery, :code, :title, :description, :source, :deviation, :severity, :status,
+                VALUES (:id, :brewery, :code, :title, :description, :source, :deviation, :batch, :severity, :status,
                     :containmentDue, :investigationDue, :verificationDue, :openedAt, :openedBy, 0)
                 """)
                 .param("id", nc.id()).param("brewery", nc.breweryId()).param("code", nc.code())
                 .param("title", nc.title()).param("description", nc.description())
                 .param("source", nc.source().name()).param("deviation", nc.deviationId().orElse(null))
+                .param("batch", nc.batchId().orElse(null))
                 .param("severity", nc.severity().name()).param("status", nc.status().name())
                 .param("containmentDue", nc.containmentDueOn())
                 .param("investigationDue", nc.investigationDueOn())
                 .param("verificationDue", nc.verificationDueOn())
                 .param("openedAt", Timestamp.from(nc.openedAt())).param("openedBy", nc.openedBy())
                 .update();
+    }
+
+    @Override
+    public long nextSequence(UUID breweryId, int year) {
+        return jdbc.sql("""
+                INSERT INTO quality_nc_sequence (brewery_id, year, next_val) VALUES (:brewery, :year, 1)
+                ON CONFLICT (brewery_id, year) DO UPDATE SET next_val = quality_nc_sequence.next_val + 1
+                RETURNING next_val
+                """)
+                .param("brewery", breweryId).param("year", year)
+                .query(Long.class).single();
     }
 
     @Override
@@ -171,6 +183,7 @@ class JdbcNonConformityRepository implements NonConformityRepository {
                 rs.getString("description"),
                 NonConformitySource.valueOf(rs.getString("source")),
                 rs.getObject("deviation_id", UUID.class),
+                rs.getObject("batch_id", UUID.class),
                 Severity.valueOf(rs.getString("severity")),
                 NonConformityStatus.valueOf(rs.getString("status")),
                 rs.getObject("containment_due_on", LocalDate.class),

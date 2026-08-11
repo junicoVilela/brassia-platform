@@ -12,8 +12,14 @@ public final class NonConformityCommands {
     public interface Open {
         UUID handle(Command command);
 
+        /**
+         * @param code nulo ou em branco faz o sistema numerar (NC-AAAA-NNNN). Sempre foi digitado por
+         *             quem abria, o que funciona com uma pessoa na frente da tela — um comando executado
+         *             a partir de uma proposta não tem quem digite
+         * @param batchId o lote de que a NC fala; nulo em NC de auditoria, fornecedor ou processo
+         */
         record Command(UUID actorId, UUID breweryId, String code, String title, String description,
-                String source, UUID deviationId, String severity, LocalDate containmentDueOn,
+                String source, UUID deviationId, UUID batchId, String severity, LocalDate containmentDueOn,
                 LocalDate investigationDueOn, LocalDate verificationDueOn) {}
     }
 

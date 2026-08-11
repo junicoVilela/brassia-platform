@@ -5,6 +5,8 @@ import br.com.brew.brassia.metrology.InstrumentStatusLookup;
 import br.com.brew.brassia.production.BatchAlertPublisher;
 import br.com.brew.brassia.quality.application.port.inbound.ControlPlanCommands;
 import br.com.brew.brassia.quality.application.port.inbound.MeasurementCommands;
+import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.quality.NonConformityOpening;
 import br.com.brew.brassia.quality.application.port.inbound.NonConformityCommands;
 import br.com.brew.brassia.quality.application.port.inbound.QualityQueries;
 import br.com.brew.brassia.quality.application.port.outbound.CapaPolicyRepository;
@@ -97,11 +99,30 @@ class QualityConfiguration {
 
     // --- não conformidade e CAPA (QLT-002) ---
 
+    /**
+     * Abertura publicada para o copiloto (DEB-AIA-003).
+     *
+     * <p>Passa pelo mesmo caso de uso da tela — mesma validação de lote, mesma numeração, mesma política
+     * de prazos, mesma auditoria. Um caminho paralelo para a IA seria um segundo lugar onde as regras
+     * precisariam ser mantidas iguais, e elas divergiriam na primeira mudança.
+     */
+    @Bean
+    NonConformityOpening nonConformityOpening(NonConformityCommands.Open open) {
+        // Origem OTHER, e não DEVIATION: a NC de origem DEVIATION exige apontar um desvio registrado
+        // (CHECK da V77), e a avaliação de lote que gera a proposta não é um desvio da tela de qualidade.
+        // Declarar DEVIATION sem desvio seria mentir para passar numa restrição.
+        //
+        // Código nulo pede numeração ao sistema; os três prazos nulos deixam a política da casa decidi-los.
+        return (breweryId, actorId, batchId, title, severity, origin) -> open.handle(
+                new NonConformityCommands.Open.Command(actorId, breweryId, null, title, origin,
+                        "OTHER", null, batchId, severity, null, null, null));
+    }
+
     @Bean
     NonConformityCommands.Open openNonConformityUseCase(NonConformityRepository nonConformities,
-            MeasurementRepository measurements, CapaPolicyRepository policies, AuditTrail audit,
-            PlatformTransactionManager transactionManager) {
-        var handler = new NonConformityHandlers.Open(nonConformities, measurements, policies, audit);
+            MeasurementRepository measurements, CapaPolicyRepository policies, BatchLookup batches,
+            AuditTrail audit, PlatformTransactionManager transactionManager) {
+        var handler = new NonConformityHandlers.Open(nonConformities, measurements, policies, batches, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }

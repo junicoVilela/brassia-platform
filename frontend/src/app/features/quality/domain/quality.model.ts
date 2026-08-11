@@ -190,6 +190,8 @@ export interface NonConformity {
   source: NcSourceCode;
   sourceLabel: string;
   deviationId: string | null;
+  /** O lote de que a NC fala; nulo em NC de auditoria, fornecedor ou processo (DEB-AIA-003). */
+  batchId: string | null;
   severity: SeverityCode;
   severityLabel: string;
   status: NcStatusCode;

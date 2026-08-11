@@ -19,4 +19,13 @@ public interface NonConformityRepository {
     List<NonConformity> findAll(UUID breweryId);
 
     boolean existsByCode(UUID breweryId, String code);
+
+    /**
+     * Próximo número da NC no ano, atômico.
+     *
+     * <p>Mesmo desenho da numeração das ordens (V36): o `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`
+     * resolve incremento e leitura numa ida ao banco, e é ele que impede duas aberturas simultâneas de
+     * receberem o mesmo número. Ler-e-somar na aplicação daria o mesmo número às duas.
+     */
+    long nextSequence(UUID breweryId, int year);
 }

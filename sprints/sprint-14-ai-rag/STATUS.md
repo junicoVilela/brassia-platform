@@ -10,7 +10,7 @@ Estado: CONCLUÍDA
 | RAG-001 | Concluída | Claude | `backend/.../knowledge`, `V94__knowledge_document.sql`, `frontend/.../features/knowledge`, ADR 0015 | Módulo `knowledge` novo. Indexação com versão/vigência, busca textual em português sem acento, filtro de permissão dentro da consulta. |
 | RAG-002 | Concluída | Claude | `ai/domain/Grounding`, `ai/.../GroundedAnswerHandler`, `V95__ai_grounded_answer.sql`, `frontend/.../copilot-page` | Resposta com citação **conferida** contra as fontes, inferência em campo separado, limitação declarada sem fonte. |
 | AIA-002 | Concluída | Claude | `ai/domain/Fact`, `ai/domain/FactGrounding`, `ai/.../BatchFactsAssembler`, `V96__ai_batch_assessment.sql`, `frontend/.../assessment-page` | O domínio calcula, o modelo interpreta. Todo número conferido contra os fatos que a afirmação cita. |
-| AIA-003 | Concluída | Claude | `ai/domain/ProposedAction`, `ai/domain/CommandProposal`, `ai/.../CommandProposalHandler`, `V97__ai_command_proposal.sql`, `frontend/.../proposals-page` | Allowlist fechada, proposta persistida com prazo, **nova autorização no aceite exigindo a permissão do comando**, decisão auditada. Não executa — ver DEB-AIA-002. |
+| AIA-003 | Concluída | Claude | `ai/domain/ProposedAction`, `ai/domain/CommandProposal`, `ai/.../CommandProposalHandler`, `V97__ai_command_proposal.sql`, `frontend/.../proposals-page` | Allowlist fechada, proposta persistida com prazo, **nova autorização no aceite exigindo a permissão do comando**, decisão auditada. **Passou a executar em 2026-08-11** — ver DEB-AIA-003. |
 
 ## Decisões e bloqueios
 
@@ -201,26 +201,50 @@ era só impreciso; num botão que inicia, é engano. O rótulo virou "Iniciar ci
 nome da constante (`SCHEDULE_CLEANING_CYCLE`) ficou: ele está gravado na coluna `action` das propostas já
 existentes, e renomear reescreveria histórico por questão de estética.
 
-### DEB-AIA-003 — Abrir não conformidade continua sendo um passo manual, e não por falta de porta
+### DEB-AIA-003 — RESOLVIDO: abrir NC executa, e metade do débito já tinha caído sozinha
 
-Herdado do `DEB-AIA-002`, que fecha nos outros dois casos. **Duas barreiras, nenhuma de código:**
+**Critério de remoção cumprido em 2026-08-11.** Ele pedia duas respostas: (a) se a NC passa a referenciar
+lote, e (b) de onde vêm os três prazos. O mantenedor respondeu **sim** para a primeira e **da severidade,
+pela política da casa** para a segunda.
 
-1. **`quality_non_conformity` não tem vínculo com lote.** Ela liga a um *desvio*, opcionalmente. A proposta
-   afirma "abrir NC **para o lote**" e o modelo de dados não sabe expressar isso. Abrir a NC sem o vínculo
-   entregaria um registro solto, perdendo justamente o que a proposta afirma.
-2. **`code`, `description` e três prazos** — contenção, investigação e verificação — são `NOT NULL` e nenhum
-   vem nos parâmetros da proposta. Prazo de contenção de uma não conformidade **é regra de negócio**, não
-   padrão técnico: depende da severidade e do que a cervejaria assumiu com quem audita. Inventá-lo aqui seria
-   exatamente o que o `AGENTS.md` proíbe.
+**A segunda barreira já não existia quando fui olhar.** O registro dizia que `code`, `description` e os
+três prazos eram `NOT NULL` e não vinham nos parâmetros da proposta. Mas a PRM-001 criou
+`quality_capa_policy` depois deste débito ser escrito, e desde então a abertura **já derivava os três
+prazos da severidade** quando nenhum era informado. Sobraram o vínculo com lote, o código e a descrição —
+um terço do trabalho que o débito descrevia.
 
-Enquanto isso, confirmar registra a decisão auditada e leva à rota — o comportamento que valia para as três.
-`executedOnConfirm: false` diz isso à tela em vez de deixá-la adivinhar.
+**O vínculo (`V112`).** `batch_id` anulável: NC de auditoria, fornecedor ou processo não tem lote, e
+exigir o vínculo forçaria a inventar um lote para a não conformidade de um treinamento vencido. Com ele, a
+proposta finalmente consegue afirmar o que dizia — "abrir NC **para o lote**" — e "quais NCs este lote
+teve?" deixa de se responder adivinhando pelo título.
 
-**Critério de remoção:** decidir (a) se NC passa a referenciar lote, e (b) de onde vêm os três prazos — regra
-por severidade, ou campos que a proposta precise carregar. Respondidas as duas, a porta
-`quality.NonConformityCommands` é trabalho pequeno, e o executor já tem o lugar dela reservado.
+**O código passou a ser numerado: `NC-AAAA-NNNN`.** Sempre foi digitado por quem abria, o que funciona
+enquanto há uma pessoa na frente da tela. Por ano, e não sequencial puro, porque é assim que se referencia
+NC numa auditoria — "a NC-2026-0007" diz quando aconteceu. `NC-<uuid>` seria ilegível em voz alta, que é
+onde o código mais é usado. A numeração usa o mesmo `INSERT ... ON CONFLICT ... RETURNING` das ordens
+(V36): quem impede duas aberturas simultâneas de receberem o mesmo número é o banco.
 
-### DEB-AIA-001 — RESOLVIDO: a fermentação entrou nos fatos
+**A descrição diz de onde a NC veio.** Meses depois, "quem abriu isto?" tem como resposta um copiloto. Se
+isso não estiver escrito na própria NC, o histórico mostra só o nome de quem confirmou — e some metade da
+história. Há teste dedicado a essa frase.
+
+**O que NÃO entrou na porta publicada é o registro mais importante.** `NonConformityOpening` não recebe
+prazo, nem código, nem status. Prazo sai da política, código é do sistema, e NC nasce aberta. Qualquer um
+dos três entrando por ali abriria caminho para um chamador — inclusive a IA — decidir o que a cervejaria
+decidiu uma vez, na tela de parâmetros. E a porta passa pelo **mesmo caso de uso da tela**: um caminho
+paralelo para a IA seria um segundo lugar onde as regras precisariam ser mantidas iguais, e elas
+divergiriam na primeira mudança.
+
+**Sem política configurada, o aceite FALHA — e isso é regra, não lacuna.** Há teste afirmando que a
+proposta continua `PENDING` e nenhuma NC é criada: o aceite e a execução caem juntos, então não sobra uma
+proposta marcada como aceita sem a NC que ela afirma ter aberto. Um default embutido de prazos pareceria
+conveniência e viraria o prazo que ninguém escolheu — exatamente o que o `AGENTS.md` proíbe.
+
+**Origem `OTHER`, e não `DEVIATION`.** A NC de origem `DEVIATION` exige apontar um desvio registrado
+(CHECK da V77), e a avaliação de lote que gera a proposta não é um desvio da tela de qualidade. Declarar
+`DEVIATION` sem desvio seria mentir para passar numa restrição.
+
+### DEB-AIA-001### DEB-AIA-001 — RESOLVIDO: a fermentação entrou nos fatos
 
 **Critério de remoção cumprido.** `fermentation.FermentationLookup` publica o retrato do lote e o
 `BatchFactsAssembler` passou de cinco para seis fontes. A avaliação enxerga o que estava cego: curva (última

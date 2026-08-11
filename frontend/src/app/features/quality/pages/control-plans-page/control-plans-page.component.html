@@ -343,6 +343,11 @@
                 <span class="fw-medium">{{ nc.code }}</span>
                 <span class="text-muted small">
                   · {{ nc.title }} · {{ nc.sourceLabel }} · aberta em {{ nc.openedAt | date:'short' }}
+                  <!-- O lote é o que liga a NC ao que ela investiga; sem ele a lista obriga a ler título
+                       por título para descobrir de que lote cada uma fala. -->
+                  @if (nc.batchId) {
+                    · lote {{ nc.batchId.slice(0, 8) }}
+                  }
                 </span>
                 @if (nc.overduePhases.length > 0) {
                   <p class="small text-danger mb-0 mt-1">

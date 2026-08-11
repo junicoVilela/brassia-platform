@@ -27,9 +27,14 @@ public final class QualityDtos {
 
     // --- não conformidade e CAPA (QLT-002) ---
 
-    public record OpenNonConformity(@NotBlank @Size(max = 40) String code,
+    /**
+     * @param code opcional desde a DEB-AIA-003: em branco, o sistema numera (NC-AAAA-NNNN). Deixou de ser
+     *             obrigatório porque um comando executado a partir de uma proposta não tem quem digite
+     * @param batchId o lote de que a NC fala; nulo em NC de auditoria, fornecedor ou processo
+     */
+    public record OpenNonConformity(@Size(max = 40) String code,
             @NotBlank @Size(max = 200) String title, @NotBlank @Size(max = 2000) String description,
-            @NotBlank String source, UUID deviationId, @NotBlank String severity,
+            @NotBlank String source, UUID deviationId, UUID batchId, @NotBlank String severity,
             LocalDate containmentDueOn, LocalDate investigationDueOn,
             LocalDate verificationDueOn) {}
 

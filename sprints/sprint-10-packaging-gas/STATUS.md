@@ -220,4 +220,4 @@ bloqueando o uso das histórias entregues: **PKG-001-A** (validade do CIP por te
 (pressão máxima por embalagem), **GAS-001-A** (custo e estoque do gás, previsto para a sprint 13),
 **GAS-001-B** (periodicidade da requalificação), **PKG-004-A** (alergênicos sem fonte no catálogo)
 e **PKG-004-B** (ABV calculado, não medido). Nenhum débito de sprint anterior foi removido nesta;
-o CLN-004-A da sprint 08, citado em PKG-001, continua aberto e sem dono.
+o CLN-004-A da sprint 08, citado em PKG-001, continua aberto e sem dono. **Fechado em 2026-08-11 — ver DEC-CLN-001 na Sprint 17.**

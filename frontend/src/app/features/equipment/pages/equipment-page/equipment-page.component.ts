@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { UiSearchService } from '../../../../core/search/ui-search.service';
@@ -9,7 +10,7 @@ import { EquipmentStore } from '../../data-access/equipment.store';
 @Component({
   selector: 'app-equipment-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, PageHeaderComponent, EmptyStateComponent, LoadingIndicatorComponent],
+  imports: [DatePipe, ReactiveFormsModule, PageHeaderComponent, EmptyStateComponent, LoadingIndicatorComponent],
   providers: [EquipmentStore],
   templateUrl: './equipment-page.component.html',
 })

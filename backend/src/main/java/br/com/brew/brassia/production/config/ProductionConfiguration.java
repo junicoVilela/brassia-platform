@@ -3,6 +3,8 @@ package br.com.brew.brassia.production.config;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.calculator.CalculatorEngine;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
+import br.com.brew.brassia.equipment.EquipmentCleanlinessLookup;
+import br.com.brew.brassia.equipment.EquipmentUsageCommands;
 import br.com.brew.brassia.production.BatchAlertPublisher;
 import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.production.VesselOccupancyLookup;
@@ -123,8 +125,9 @@ class ProductionConfiguration {
     @Bean
     TransferBatchUseCase transferBatchUseCase(
             BatchRepository batches, TransferRepository transfers, EquipmentCapacityLookup equipment,
+            EquipmentCleanlinessLookup cleanliness, EquipmentUsageCommands usage,
             AuditTrail audit, PlatformTransactionManager transactionManager) {
-        var handler = new TransferBatchHandler(batches, transfers, equipment, audit);
+        var handler = new TransferBatchHandler(batches, transfers, equipment, cleanliness, usage, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }

@@ -239,6 +239,10 @@ paths:
   /equipment:
     get:
       operationId: listEquipment
+      summary: >-
+        Página de equipamentos. Cada item traz `cleanliness` (CLEAN/DIRTY) e `soiledSince` (CLN-004-A):
+        o estado vem na mesma consulta da página, e não item a item — o N+1 do estado ficaria invisível
+        em quem lê o código, porque moraria no mapeador
       parameters:
         - {name: page, in: query, schema: {type: integer, default: 0}}
         - {name: size, in: query, schema: {type: integer, default: 20}}
@@ -702,7 +706,7 @@ paths:
         '403': {$ref: '#/components/responses/Problem'}
     post:
       operationId: transferBatch
-      summary: "Transfere o lote ao fermentador (valida capacidade e balanço de massa; move para FERMENTING)"
+      summary: "Transfere o lote ao fermentador (valida capacidade, balanço de massa e limpeza; move para FERMENTING)"
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       requestBody:
@@ -714,7 +718,13 @@ paths:
         '201': {description: Lote transferido}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
-        '409': {description: "Capacidade do fermentador ou balanço de massa excedido; ou já transferido"}
+        '409':
+          description: >-
+            Capacidade do fermentador ou balanço de massa excedido; já transferido; ou o tanque de destino
+            não tem limpeza liberada (`equipment_not_clean`, CLN-004-A). Neste último caso a resposta traz
+            `soiledSince` — a ação muda com ele: um tanque que esvaziou hoje precisa de um CIP; um parado
+            sujo há três semanas precisa de uma conversa antes do CIP
+          $ref: '#/components/responses/Problem'
   /production/batches/{id}/steps/{stepId}/complete:
     post:
       operationId: completeBatchStep

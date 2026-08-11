@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import br.com.brew.brassia.production.domain.DirtyEquipmentException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -19,6 +20,23 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(0)
 @RestControllerAdvice
 class ProductionExceptionHandler {
+
+    /**
+     * Tanque sem limpeza liberada (CLN-004-A).
+     *
+     * <p>409 e não 422: o pedido está correto, o mundo é que não permite — o tanque está sujo. A resposta
+     * diz <strong>desde quando</strong>, porque a ação muda com isso: um tanque que esvaziou hoje de manhã
+     * precisa de um CIP; um parado sujo há três semanas precisa de uma conversa antes do CIP.
+     */
+    @ExceptionHandler(DirtyEquipmentException.class)
+    ProblemDetail handleDirtyEquipment(DirtyEquipmentException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "equipment_not_clean",
+                "O equipamento de destino não tem limpeza liberada. Execute e libere um ciclo de limpeza "
+                        + "antes de transferir.");
+        problem.setProperty("equipmentId", ex.equipmentId());
+        ex.soiledSince().ifPresent(since -> problem.setProperty("soiledSince", since));
+        return problem;
+    }
 
     /**
      * Consumo declarado acima do que o lote tem (TRC-001-C). A falta vai lote a lote: ou a

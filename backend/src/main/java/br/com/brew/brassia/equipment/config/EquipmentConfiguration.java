@@ -3,6 +3,11 @@ package br.com.brew.brassia.equipment.config;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.equipment.EquipmentAvailabilityLookup;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
+import br.com.brew.brassia.equipment.EquipmentCleanlinessCommands;
+import br.com.brew.brassia.equipment.EquipmentCleanlinessLookup;
+import br.com.brew.brassia.equipment.EquipmentUsageCommands;
+import br.com.brew.brassia.equipment.application.port.outbound.CleanlinessRepository;
+import br.com.brew.brassia.equipment.application.service.CleanlinessHandlers;
 import br.com.brew.brassia.equipment.EquipmentProfileLookup;
 import br.com.brew.brassia.equipment.application.port.inbound.CancelMaintenanceUseCase;
 import br.com.brew.brassia.equipment.application.port.inbound.CheckEquipmentAvailabilityUseCase;
@@ -48,8 +53,9 @@ class EquipmentConfiguration {
     }
 
     @Bean
-    ListEquipmentUseCase listEquipmentUseCase(EquipmentRepository repository) {
-        return new ListEquipmentHandler(repository);
+    ListEquipmentUseCase listEquipmentUseCase(EquipmentRepository repository,
+            CleanlinessRepository cleanliness) {
+        return new ListEquipmentHandler(repository, cleanliness);
     }
 
     /** Consulta publicada de capacidade, consumida por outros módulos (ex.: receitas). */
@@ -57,6 +63,26 @@ class EquipmentConfiguration {
     EquipmentCapacityLookup equipmentCapacityLookup(EquipmentRepository repository) {
         return (breweryId, equipmentId) -> repository.findById(breweryId, equipmentId)
                 .map(br.com.brew.brassia.equipment.domain.Equipment::capacityLiters);
+    }
+
+    /** Estado de limpeza publicado, para quem vai colocar cerveja perguntar a uma fonte só (CLN-004-A). */
+    @Bean
+    EquipmentCleanlinessLookup equipmentCleanlinessLookup(CleanlinessRepository cleanliness) {
+        return CleanlinessHandlers.lookup(cleanliness);
+    }
+
+    /** Usar suja. */
+    @Bean
+    EquipmentUsageCommands equipmentUsageCommands(CleanlinessRepository cleanliness) {
+        return CleanlinessHandlers.usage(cleanliness);
+    }
+
+    /** Limpar exige o ciclo que sustenta a limpeza — não há caminho sem ele (CLN-004-A). */
+    @Bean
+    EquipmentCleanlinessCommands equipmentCleanlinessCommands(CleanlinessRepository cleanliness,
+            AuditTrail audit) {
+        return (breweryId, equipmentId, cycleId, actorId, releasedAt) -> CleanlinessHandlers.applyRelease(
+                cleanliness, audit, breweryId, equipmentId, cycleId, actorId, releasedAt);
     }
 
     /** Perfil publicado (capacidade, perdas, eficiência, evaporação) para cálculos de outros módulos. */

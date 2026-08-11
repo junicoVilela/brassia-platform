@@ -4,6 +4,7 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.quality.application.port.inbound.NonConformityCommands;
 import br.com.brew.brassia.quality.application.port.outbound.MeasurementRepository;
+import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.quality.application.port.outbound.CapaPolicyRepository;
 import br.com.brew.brassia.quality.application.port.outbound.NonConformityRepository;
 import br.com.brew.brassia.quality.domain.CapaActionKind;
@@ -44,25 +45,46 @@ public final class NonConformityHandlers {
                 .orElseThrow(() -> new IllegalArgumentException("não conformidade inexistente"));
     }
 
+    /**
+     * NC-AAAA-NNNN, numerada por cervejaria e ano.
+     *
+     * <p>Por ano porque é assim que se referencia não conformidade numa auditoria: "a NC-2026-0007" diz
+     * quando aconteceu. Um identificador aleatório seria ilegível em voz alta, que é onde ele mais é usado.
+     */
+    private static String nextCode(NonConformityRepository repository, UUID breweryId) {
+        var year = LocalDate.now(ZoneOffset.UTC).getYear();
+        return "NC-%d-%04d".formatted(year, repository.nextSequence(breweryId, year));
+    }
+
     public static final class Open implements NonConformityCommands.Open {
 
         private final NonConformityRepository nonConformities;
         private final MeasurementRepository measurements;
         private final CapaPolicyRepository policies;
+        private final BatchLookup batches;
         private final AuditTrail audit;
 
         public Open(NonConformityRepository nonConformities, MeasurementRepository measurements,
-                CapaPolicyRepository policies, AuditTrail audit) {
+                CapaPolicyRepository policies, BatchLookup batches, AuditTrail audit) {
             this.nonConformities = Objects.requireNonNull(nonConformities);
             this.measurements = Objects.requireNonNull(measurements);
             this.policies = Objects.requireNonNull(policies);
+            this.batches = Objects.requireNonNull(batches);
             this.audit = Objects.requireNonNull(audit);
         }
 
         @Override
         public UUID handle(Command command) {
-            if (nonConformities.existsByCode(command.breweryId(), command.code())) {
-                throw new IllegalStateException("já existe não conformidade com o código " + command.code());
+            var code = command.code() == null || command.code().isBlank()
+                    ? nextCode(nonConformities, command.breweryId())
+                    : command.code();
+            if (nonConformities.existsByCode(command.breweryId(), code)) {
+                throw new IllegalStateException("já existe não conformidade com o código " + code);
+            }
+            // Lote inexistente viraria uma NC afirmando falar de um lote que não existe — e é justamente
+            // essa afirmação que o vínculo existe para sustentar.
+            if (command.batchId() != null && !batches.exists(command.breweryId(), command.batchId())) {
+                throw new IllegalArgumentException("lote inexistente");
             }
             // Desvio inexistente viraria uma NC apontando para o nada, e o encerramento não teria o
             // que fechar.
@@ -85,16 +107,17 @@ public final class NonConformityHandlers {
             var verification = command.verificationDueOn() != null ? command.verificationDueOn()
                     : requireDerived(derived, CapaPolicy.Dates::verificationDueOn);
 
-            var nc = NonConformity.open(command.breweryId(), command.code(), command.title(),
+            var nc = NonConformity.open(command.breweryId(), code, command.title(),
                     command.description(), NonConformitySource.valueOf(command.source()),
-                    command.deviationId(), severity, containment, investigation, verification,
-                    Instant.now(), command.actorId());
+                    command.deviationId(), command.batchId(), severity, containment, investigation,
+                    verification, Instant.now(), command.actorId());
             nonConformities.insert(nc);
 
             audit.record(AuditEvent.success(command.breweryId(), command.actorId(), "quality.nc.open",
                     "quality.non_conformity", nc.id().toString(),
                     Map.of("code", nc.code(), "source", nc.source().name(),
-                            "severity", nc.severity().name())));
+                            "severity", nc.severity().name(),
+                            "batchId", nc.batchId().map(UUID::toString).orElse(""))));
             return nc.id();
         }
     }

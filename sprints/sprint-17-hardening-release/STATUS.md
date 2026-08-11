@@ -163,6 +163,24 @@ senão o painel fica cego exatamente durante o deploy.
 **O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
 honesto — significa que nenhum ensaio foi feito. **Preenchida em 2026-08-10 — ver DEC-REL-009.**
 
+### DEC-AIA-001 (DEB-AIA-003) — O copiloto abre NC, e um terço do débito já tinha caído sozinho
+
+Decisão do mantenedor em 2026-08-11: **a NC passa a referenciar lote, e os prazos vêm da severidade** pela
+política da casa. Registro completo em `sprints/sprint-14-ai-rag/STATUS.md`.
+
+**O achado que encurtou o trabalho.** O débito listava duas barreiras; a segunda — "os três prazos são
+`NOT NULL` e não vêm na proposta" — **já não existia**. A PRM-001 criou `quality_capa_policy` depois do
+débito ser escrito, e desde então a abertura já derivava os prazos da severidade. Débito antigo descreve o
+mundo do dia em que foi escrito, e vale reler o código antes de aceitar o diagnóstico.
+
+**O que não entrou na porta publicada é o registro que importa.** `NonConformityOpening` não recebe prazo,
+nem código, nem status: prazo sai da política, código é numerado pelo sistema (`NC-AAAA-NNNN`, por ano,
+porque é assim que se cita NC em auditoria), e NC nasce aberta. Qualquer um dos três entrando por ali
+deixaria um chamador — inclusive a IA — decidir o que a cervejaria decidiu uma vez, na tela de parâmetros.
+
+**Sem política, o aceite falha, e há teste afirmando isso.** A proposta continua `PENDING` e nenhuma NC é
+criada. Um default de prazos embutido pareceria conveniência e viraria o prazo que ninguém escolheu.
+
 ### DEC-CLN-001 (CLN-004-A) — O evento tinha oito sprints sem consumidor, e o consumidor virou porta
 
 Débito aberto na Sprint 08: `CleaningCycleReleased` era publicado e ninguém escutava. **A metade que

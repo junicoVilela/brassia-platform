@@ -99,6 +99,79 @@ class CommandProposalIT {
     }
 
     @Test
+    @DisplayName("ACEITAR A PROPOSTA ABRE A NC DE VERDADE, com lote, número e prazos da política")
+    void aceiteAbreNaoConformidade() throws Exception {
+        // O DEB-AIA-003 fechando: a ação era a única das três que não executava ao ser aceita. As duas
+        // barreiras eram a falta de vínculo com lote e a falta de origem para os três prazos.
+        var lote = seedBatch();
+        seedCapaPolicy();
+        var id = pendingNonConformityProposal(lote);
+        var confirmador = new SecurityPrincipal(UUID.randomUUID(), brewery, "Qualidade",
+                Set.of("quality.nc.manage", "ai.command.read"));
+
+        mockMvc.perform(post(PROPOSALS + "/" + id + "/acceptance").with(csrf())
+                        .with(authentication(new UsernamePasswordAuthenticationToken(confirmador, "n/a",
+                                Set.of())))
+                        .contentType("application/json")
+                        .content("{\"note\":\"Confirmado com a qualidade.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", Matchers.is("ACCEPTED")))
+                .andExpect(jsonPath("$.executedOnConfirm", Matchers.is(true)));
+
+        var nc = jdbc.sql("""
+                        SELECT code, batch_id::text AS lote, severity, description,
+                               containment_due_on, investigation_due_on, verification_due_on
+                        FROM quality_non_conformity WHERE brewery_id = :brewery AND batch_id = :batch
+                        """)
+                .param("brewery", brewery).param("batch", lote)
+                .query((rs, row) -> new String[] {rs.getString("code"), rs.getString("lote"),
+                        rs.getString("severity"), rs.getString("description"),
+                        rs.getString("containment_due_on"), rs.getString("investigation_due_on"),
+                        rs.getString("verification_due_on")})
+                .list();
+
+        assertThat(nc).as("a NC foi aberta de verdade, não só marcada como aceita").hasSize(1);
+        // Numerada pelo sistema: não havia quem digitasse o código.
+        assertThat(nc.get(0)[0]).matches("NC-\\d{4}-\\d{4}");
+        assertThat(nc.get(0)[1]).isEqualTo(lote.toString());
+        assertThat(nc.get(0)[2]).isEqualTo("MAJOR");
+        // A descrição diz de onde veio: meses depois, "quem abriu isto?" tem como resposta um copiloto.
+        assertThat(nc.get(0)[3]).contains("copiloto");
+        // Os três prazos vieram da política da casa, e nenhum foi inventado aqui.
+        assertThat(nc.get(0)[4]).isNotNull();
+        assertThat(nc.get(0)[5]).isNotNull();
+        assertThat(nc.get(0)[6]).isNotNull();
+    }
+
+    @Test
+    @DisplayName("SEM POLÍTICA DE PRAZOS, O ACEITE FALHA — a IA não inventa prazo de contenção")
+    void semPoliticaNaoAbre() throws Exception {
+        // É a regra que sobreviveu ao débito: prazo de contenção é decisão da cervejaria com quem a
+        // audita. Um default embutido pareceria conveniência e viraria o prazo que ninguém escolheu.
+        var lote = seedBatch();
+        // Limpa a política: o outro teste desta classe a semeia, e o banco é o mesmo. Sem isto, este
+        // teste passaria ou falharia conforme a ordem de execução — que é a pior forma de um teste mentir.
+        jdbc.sql("DELETE FROM quality_capa_policy WHERE brewery_id = :brewery")
+                .param("brewery", brewery).update();
+        var id = pendingNonConformityProposal(lote);
+        var confirmador = new SecurityPrincipal(UUID.randomUUID(), brewery, "Qualidade",
+                Set.of("quality.nc.manage", "ai.command.read"));
+
+        mockMvc.perform(post(PROPOSALS + "/" + id + "/acceptance").with(csrf())
+                        .with(authentication(new UsernamePasswordAuthenticationToken(confirmador, "n/a",
+                                Set.of())))
+                        .contentType("application/json").content("{\"note\":\"ok\"}"))
+                .andExpect(status().isBadRequest());
+
+        // E a proposta continua pendente: o aceite e a execução caem juntos, então não sobra uma proposta
+        // marcada como aceita sem a NC que ela afirma ter aberto.
+        assertThat(statusOf(id)).isEqualTo("PENDING");
+        var abertas = jdbc.sql("SELECT count(*) FROM quality_non_conformity WHERE batch_id = :batch")
+                .param("batch", lote).query(Integer.class).single();
+        assertThat(abertas).isZero();
+    }
+
+    @Test
     @DisplayName("com a alçada do comando, o aceite registra quem consentiu e fica auditado")
     void aceiteRegistraQuemConsentiu() throws Exception {
         var id = pendingProposal(Instant.now().plus(Duration.ofHours(6)));
@@ -323,6 +396,47 @@ class CommandProposalIT {
                 .param("by", UUID.randomUUID())
                 .param("at", Timestamp.from(proposedAt))
                 .param("expires", Timestamp.from(expiresAt))
+                .update();
+        return id;
+    }
+
+    /**
+     * A política de prazos da casa (PRM-001).
+     *
+     * <p>Semeada porque é dela que os três prazos saem. Sem ela a abertura é recusada, e isso é regra e
+     * não lacuna — prazo de contenção é decisão da cervejaria com quem a audita, não padrão técnico.
+     */
+    private void seedCapaPolicy() {
+        for (var severidade : new String[] {"MINOR", "MAJOR", "CRITICAL"}) {
+            jdbc.sql("""
+                    INSERT INTO quality_capa_policy (brewery_id, severity, containment_days,
+                            investigation_days, verification_days)
+                    VALUES (:brewery, :severity, 2, 10, 30)
+                    ON CONFLICT (brewery_id, severity) DO NOTHING
+                    """)
+                    .param("brewery", brewery).param("severity", severidade)
+                    .update();
+        }
+    }
+
+    /** Proposta de abrir NC para um lote semeado (DEB-AIA-003). */
+    private UUID pendingNonConformityProposal(UUID batchId) {
+        var id = UUID.randomUUID();
+        var proposedAt = Instant.now();
+        jdbc.sql("""
+                INSERT INTO ai_command_proposal (id, brewery_id, action, parameters, rationale, proposed_by,
+                        proposed_at, expires_at, status)
+                VALUES (:id, :brewery, :action, :parameters::jsonb, :rationale, :by, :at, :expires, 'PENDING')
+                """)
+                .param("id", id)
+                .param("brewery", brewery)
+                .param("action", ProposedAction.OPEN_NON_CONFORMITY.name())
+                .param("parameters", "{\"batchId\":\"" + batchId + "\",\"title\":\"FG fora da faixa\","
+                        + "\"severity\":\"MAJOR\"}")
+                .param("rationale", "FG acima do teto da especificação sem NC aberta.")
+                .param("by", UUID.randomUUID())
+                .param("at", Timestamp.from(proposedAt))
+                .param("expires", Timestamp.from(proposedAt.plus(Duration.ofHours(6))))
                 .update();
         return id;
     }

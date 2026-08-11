@@ -3,6 +3,7 @@ package br.com.brew.brassia.ai.adapter.outbound.command;
 import br.com.brew.brassia.ai.application.port.outbound.ProposalExecutor;
 import br.com.brew.brassia.ai.domain.CommandProposal;
 import br.com.brew.brassia.costing.BatchCostCommands;
+import br.com.brew.brassia.quality.NonConformityOpening;
 import br.com.brew.brassia.sanitation.CleaningCycleCommands;
 import java.util.Objects;
 import java.util.UUID;
@@ -26,10 +27,13 @@ class ProposalExecutorAdapter implements ProposalExecutor {
 
     private final BatchCostCommands costs;
     private final CleaningCycleCommands cycles;
+    private final NonConformityOpening nonConformities;
 
-    ProposalExecutorAdapter(BatchCostCommands costs, CleaningCycleCommands cycles) {
+    ProposalExecutorAdapter(BatchCostCommands costs, CleaningCycleCommands cycles,
+            NonConformityOpening nonConformities) {
         this.costs = Objects.requireNonNull(costs, "costs");
         this.cycles = Objects.requireNonNull(cycles, "cycles");
+        this.nonConformities = Objects.requireNonNull(nonConformities, "nonConformities");
     }
 
     @Override
@@ -44,8 +48,14 @@ class ProposalExecutorAdapter implements ProposalExecutor {
                     "Fechado a partir de proposta do copiloto: " + proposal.rationale());
             case SCHEDULE_CLEANING_CYCLE -> cycles.start(actorId, proposal.breweryId(),
                     UUID.fromString(parameters.get("equipmentId")), parameters.get("procedureCode"));
-            // Continua manual, e o motivo está na própria ação: executá-la exigiria inventar três prazos.
-            case OPEN_NON_CONFORMITY -> { }
+            // Deixou de ser manual (DEB-AIA-003). Os três prazos não são inventados: saem da política de
+            // severidade da casa (PRM-001). O código é numerado pelo sistema, e a descrição diz de onde a
+            // NC veio — meses depois, "quem abriu isto?" tem como resposta um copiloto, e é a descrição
+            // que registra isso.
+            case OPEN_NON_CONFORMITY -> nonConformities.openForBatch(proposal.breweryId(), actorId,
+                    UUID.fromString(parameters.get("batchId")), parameters.get("title"),
+                    parameters.get("severity"),
+                    "Aberta a partir de proposta do copiloto: " + proposal.rationale());
         }
     }
 }

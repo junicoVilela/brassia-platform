@@ -39,9 +39,14 @@ public enum ProposedAction {
      *
      * <p>A avaliação de lote encontra o caso típico: medição fora da especificação sem NC aberta. O que a
      * qualidade decide é se aquilo é não conformidade — a proposta só aponta a lacuna.
+     *
+     * <p><strong>Passou a executar ao ser confirmada (DEB-AIA-003).</strong> Continuava manual por duas
+     * barreiras, nenhuma de código: a NC não sabia dizer de que lote falava, e os três prazos não tinham
+     * de onde vir. A primeira caiu com o vínculo; a segunda já tinha caído sozinha quando a PRM-001 criou
+     * a política de prazos por severidade — a abertura deriva os três desde então.
      */
     OPEN_NON_CONFORMITY("quality.nc.manage", Set.of("batchId", "title", "severity"),
-            "Abrir não conformidade para o lote", "/quality/non-conformities", false),
+            "Abrir não conformidade para o lote", "/quality/non-conformities", true),
 
     /**
      * Programar ciclo de limpeza.

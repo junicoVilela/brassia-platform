@@ -7510,10 +7510,15 @@ components:
       enum: [CORRECTIVE, PREVENTIVE]
     OpenNonConformity:
       type: object
-      required: [code, title, description, source, severity, containmentDueOn, investigationDueOn,
-                 verificationDueOn]
+      required: [title, description, source, severity]
       properties:
-        code: {type: string, maxLength: 40}
+        code:
+          type: string
+          maxLength: 40
+          description: >-
+            Opcional desde a DEB-AIA-003. Em branco, o sistema numera como NC-AAAA-NNNN — por ano, porque
+            é assim que se referencia não conformidade numa auditoria. Deixou de ser obrigatório porque um
+            comando executado a partir de uma proposta do copiloto não tem quem digite
         title: {type: string, maxLength: 200}
         description: {type: string, maxLength: 2000}
         source: {$ref: '#/components/schemas/NonConformitySource'}
@@ -7522,10 +7527,25 @@ components:
           format: uuid
           nullable: true
           description: Obrigatório quando a origem é DEVIATION
+        batchId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >-
+            O lote de que a NC fala (DEB-AIA-003). Nulo é legítimo e permanece: NC de auditoria, de
+            fornecedor ou de processo não tem lote — exigir o vínculo forçaria a inventar um lote para a
+            não conformidade de um treinamento vencido
         severity: {$ref: '#/components/schemas/QualitySeverity'}
-        containmentDueOn: {type: string, format: date}
-        investigationDueOn: {type: string, format: date}
-        verificationDueOn: {type: string, format: date}
+        containmentDueOn:
+          type: string
+          format: date
+          nullable: true
+          description: >-
+            Os três prazos são opcionais: omitidos os três, saem da política de severidade da casa
+            (PRM-001). Sem política configurada a abertura é RECUSADA, e isso é regra e não lacuna — prazo
+            de contenção é decisão da cervejaria com quem a audita, não padrão técnico
+        investigationDueOn: {type: string, format: date, nullable: true}
+        verificationDueOn: {type: string, format: date, nullable: true}
     PlanCapaAction:
       type: object
       required: [kind, description, owner, dueOn]

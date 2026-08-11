@@ -18,7 +18,7 @@ class NonConformityTest {
 
     private static NonConformity aberta() {
         return NonConformity.open(BREWERY, "NC-001", "pH fora da faixa no lote L-2608",
-                "Medição de pH acusou 6,2 contra o teto de 5,5", NonConformitySource.DEVIATION, DESVIO,
+                "Medição de pH acusou 6,2 contra o teto de 5,5", NonConformitySource.DEVIATION, DESVIO, null,
                 Severity.MAJOR, HOJE.plusDays(1), HOJE.plusDays(5), HOJE.plusDays(30), AGORA, ATOR);
     }
 
@@ -220,7 +220,7 @@ class NonConformityTest {
     @Test
     void osPrazosSeguemAOrdemDasFases() {
         assertThatThrownBy(() -> NonConformity.open(BREWERY, "NC-002", "t", "d",
-                NonConformitySource.AUDIT, null, Severity.MINOR,
+                NonConformitySource.AUDIT, null, null, Severity.MINOR,
                 HOJE.plusDays(10), HOJE.plusDays(5), HOJE.plusDays(30), AGORA, ATOR))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("ordem das fases");
@@ -231,16 +231,40 @@ class NonConformityTest {
     @Test
     void origemDesvioExigeApontarODesvio() {
         assertThatThrownBy(() -> NonConformity.open(BREWERY, "NC-003", "t", "d",
-                NonConformitySource.DEVIATION, null, Severity.MAJOR,
+                NonConformitySource.DEVIATION, null, null, Severity.MAJOR,
                 HOJE.plusDays(1), HOJE.plusDays(5), HOJE.plusDays(30), AGORA, ATOR))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("apontar o desvio");
     }
 
     @Test
+    void aNcSabeDeQueLoteFala() {
+        // O vínculo é o que sustenta a afirmação "abrir NC para o lote" (DEB-AIA-003). Sem ele, a NC
+        // saía solta e "quais NCs este lote teve?" só se respondia adivinhando pelo título.
+        var lote = java.util.UUID.randomUUID();
+
+        var nc = NonConformity.open(BREWERY, "NC-005", "FG fora da faixa", "d",
+                NonConformitySource.OTHER, null, lote, Severity.MAJOR,
+                HOJE.plusDays(1), HOJE.plusDays(5), HOJE.plusDays(30), AGORA, ATOR);
+
+        assertThat(nc.batchId()).contains(lote);
+    }
+
+    @Test
+    void ncSemLoteContinuaValida() {
+        // Auditoria, fornecedor e processo não têm lote. Exigir o vínculo forçaria a inventar um lote
+        // para a não conformidade de um treinamento vencido.
+        var nc = NonConformity.open(BREWERY, "NC-006", "Treinamento vencido", "d",
+                NonConformitySource.AUDIT, null, null, Severity.MINOR,
+                HOJE.plusDays(1), HOJE.plusDays(5), HOJE.plusDays(30), AGORA, ATOR);
+
+        assertThat(nc.batchId()).isEmpty();
+    }
+
+    @Test
     void origemSemDesvioNaoExigeVinculo() {
         var nc = NonConformity.open(BREWERY, "NC-004", "Reclamação de turbidez",
-                "Cliente relatou turvação em garrafa", NonConformitySource.COMPLAINT, null, Severity.MINOR,
+                "Cliente relatou turvação em garrafa", NonConformitySource.COMPLAINT, null, null, Severity.MINOR,
                 HOJE.plusDays(1), HOJE.plusDays(5), HOJE.plusDays(30), AGORA, ATOR);
 
         assertThat(nc.deviationId()).isEmpty();

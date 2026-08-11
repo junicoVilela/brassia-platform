@@ -32,6 +32,7 @@ public final class NonConformity {
     private final String description;
     private final NonConformitySource source;
     private final UUID deviationId;
+    private final UUID batchId;
     private final Severity severity;
     private NonConformityStatus status;
     private final LocalDate containmentDueOn;
@@ -48,13 +49,17 @@ public final class NonConformity {
     private final long lockVersion;
 
     private NonConformity(UUID id, UUID breweryId, String code, String title, String description,
-            NonConformitySource source, UUID deviationId, Severity severity, NonConformityStatus status,
+            NonConformitySource source, UUID deviationId, UUID batchId, Severity severity,
+            NonConformityStatus status,
             LocalDate containmentDueOn, LocalDate investigationDueOn, LocalDate verificationDueOn,
             Containment containment, Investigation investigation, List<CapaAction> actions,
             List<Verification> verifications, Instant openedAt, UUID openedBy, Instant closedAt,
             UUID closedBy, long lockVersion) {
         this.id = Objects.requireNonNull(id, "id");
         this.breweryId = Objects.requireNonNull(breweryId, "breweryId");
+        // Nulo é legítimo: NC de auditoria, de fornecedor ou de processo não tem lote. Exigir o vínculo
+        // forçaria a inventar um lote para a não conformidade de um treinamento vencido.
+        this.batchId = batchId;
         this.code = Texts.require(code, "código", 40);
         this.title = Texts.require(title, "título", 200);
         this.description = Texts.require(description, "descrição", 2000);
@@ -81,22 +86,23 @@ public final class NonConformity {
     }
 
     public static NonConformity open(UUID breweryId, String code, String title, String description,
-            NonConformitySource source, UUID deviationId, Severity severity, LocalDate containmentDueOn,
-            LocalDate investigationDueOn, LocalDate verificationDueOn, Instant openedAt, UUID openedBy) {
+            NonConformitySource source, UUID deviationId, UUID batchId, Severity severity,
+            LocalDate containmentDueOn, LocalDate investigationDueOn, LocalDate verificationDueOn,
+            Instant openedAt, UUID openedBy) {
         return new NonConformity(UUID.randomUUID(), breweryId, code, title, description, source, deviationId,
-                severity, NonConformityStatus.OPEN, containmentDueOn, investigationDueOn, verificationDueOn,
-                null, null, List.of(), List.of(), openedAt, openedBy, null, null, 0);
+                batchId, severity, NonConformityStatus.OPEN, containmentDueOn, investigationDueOn,
+                verificationDueOn, null, null, List.of(), List.of(), openedAt, openedBy, null, null, 0);
     }
 
     public static NonConformity reconstitute(UUID id, UUID breweryId, String code, String title,
-            String description, NonConformitySource source, UUID deviationId, Severity severity,
+            String description, NonConformitySource source, UUID deviationId, UUID batchId, Severity severity,
             NonConformityStatus status, LocalDate containmentDueOn, LocalDate investigationDueOn,
             LocalDate verificationDueOn, Containment containment, Investigation investigation,
             List<CapaAction> actions, List<Verification> verifications, Instant openedAt, UUID openedBy,
             Instant closedAt, UUID closedBy, long lockVersion) {
-        return new NonConformity(id, breweryId, code, title, description, source, deviationId, severity,
-                status, containmentDueOn, investigationDueOn, verificationDueOn, containment, investigation,
-                actions, verifications, openedAt, openedBy, closedAt, closedBy, lockVersion);
+        return new NonConformity(id, breweryId, code, title, description, source, deviationId, batchId,
+                severity, status, containmentDueOn, investigationDueOn, verificationDueOn, containment,
+                investigation, actions, verifications, openedAt, openedBy, closedAt, closedBy, lockVersion);
     }
 
     public void contain(String description, Instant at, UUID by) {
@@ -222,6 +228,11 @@ public final class NonConformity {
 
     public Optional<UUID> deviationId() {
         return Optional.ofNullable(deviationId);
+    }
+
+    /** O lote de que esta NC fala; vazio quando ela não é sobre um lote (auditoria, fornecedor). */
+    public java.util.Optional<UUID> batchId() {
+        return java.util.Optional.ofNullable(batchId);
     }
 
     public Severity severity() {

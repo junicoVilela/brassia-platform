@@ -134,6 +134,65 @@
             <button type="button" class="btn btn-link p-0" (click)="addOutput()">
               + Adicionar destino
             </button>
+
+            <h3 class="h6 mt-3">Lote novo como resultado</h3>
+            <p class="text-body-secondary small mb-2">
+              O lote é criado quando a operação for executada, no tanque escolhido. A receita diz o que o
+              resultado é — ela não é herdada da origem maior.
+            </p>
+            @for (row of results(); track $index) {
+              <div class="row g-2 mb-2">
+                <div class="col-12 col-lg-5">
+                  <select
+                    class="form-select"
+                    [ngModel]="row.recipeId"
+                    (ngModelChange)="updateResult($index, 'recipeId', $event)"
+                    [attr.aria-label]="'Receita do resultado ' + ($index + 1)"
+                  >
+                    <option value="">Receita publicada…</option>
+                    @for (recipe of recipes(); track recipe.id) {
+                      <option [value]="recipe.id">{{ recipe.name }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="col-7 col-lg-4">
+                  <select
+                    class="form-select"
+                    [ngModel]="row.equipmentId"
+                    (ngModelChange)="updateResult($index, 'equipmentId', $event)"
+                    [attr.aria-label]="'Tanque do resultado ' + ($index + 1)"
+                  >
+                    <option value="">Tanque…</option>
+                    @for (item of equipment(); track item.id) {
+                      <option [value]="item.id">{{ item.name }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="col-4 col-lg-2">
+                  <input
+                    type="number"
+                    class="form-control"
+                    placeholder="Litros"
+                    [ngModel]="row.liters"
+                    (ngModelChange)="updateResult($index, 'liters', $event)"
+                    [attr.aria-label]="'Litros do resultado ' + ($index + 1)"
+                  />
+                </div>
+                <div class="col-1">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    (click)="removeResult($index)"
+                    aria-label="Remover resultado"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            }
+            <button type="button" class="btn btn-link p-0" (click)="addResult()">
+              + Adicionar lote novo
+            </button>
           </div>
         </div>
 
@@ -283,6 +342,22 @@
               · executada em {{ operation.executedAt | date: 'dd/MM/yyyy HH:mm' }}
             }
           </p>
+          @if (operation.results.length) {
+            <ul class="list-unstyled small mb-2">
+              @for (result of operation.results; track result.seq) {
+                <li>
+                  {{ result.liters | number: '1.0-3' }} L de
+                  <strong>{{ recipeLabel(result.recipeId) }}</strong> em
+                  {{ equipmentLabel(result.equipmentId) }} —
+                  @if (result.batchId) {
+                    lote criado
+                  } @else {
+                    <span class="text-body-secondary">o lote nasce quando a operação for executada</span>
+                  }
+                </li>
+              }
+            </ul>
+          }
           @if (operation.contributesLineage) {
             <div class="alert alert-info mb-0 py-2 small">
               Vale na genealogia: um recall que alcançar qualquer um destes lotes alcança os demais.

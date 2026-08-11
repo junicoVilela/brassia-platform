@@ -8,6 +8,7 @@ import br.com.brew.brassia.blend.application.service.BlendHandler;
 import br.com.brew.brassia.blend.application.service.BlendQueryService;
 import br.com.brew.brassia.blend.domain.BlendOperation;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.production.BlendResultCommands;
 import java.time.Clock;
 import java.util.Objects;
 import java.util.UUID;
@@ -29,9 +30,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 class BlendConfiguration {
 
     @Bean
-    BlendCommands blendCommands(BlendRepository operations, BatchLookup batches, AuditTrail audit,
+    BlendCommands blendCommands(BlendRepository operations, BatchLookup batches,
+            BlendResultCommands production, AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new BlendHandler(operations, batches, audit, Clock.systemUTC());
+        var handler = new BlendHandler(operations, batches, production, audit, Clock.systemUTC());
         return new TransactionalBlendCommands(handler, new TransactionTemplate(transactionManager));
     }
 

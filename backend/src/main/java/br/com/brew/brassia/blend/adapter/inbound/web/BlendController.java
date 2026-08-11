@@ -67,8 +67,13 @@ final class BlendController {
                 principal.requireBrewery(), request.kind(),
                 request.inputs().stream()
                         .map(m -> new BlendCommands.MovementInput(m.batchId(), m.liters())).toList(),
-                request.outputs().stream()
-                        .map(m -> new BlendCommands.MovementInput(m.batchId(), m.liters())).toList(),
+                request.outputs() == null ? java.util.List.<BlendCommands.MovementInput>of()
+                        : request.outputs().stream()
+                                .map(m -> new BlendCommands.MovementInput(m.batchId(), m.liters())).toList(),
+                request.results() == null ? java.util.List.<BlendCommands.ResultInput>of()
+                        : request.results().stream()
+                                .map(r -> new BlendCommands.ResultInput(r.recipeId(), r.equipmentId(),
+                                        r.liters())).toList(),
                 request.declaredLossLiters() == null ? BigDecimal.ZERO : request.declaredLossLiters(),
                 request.reason(), principal.userId()));
         return ResponseEntity.status(HttpStatus.CREATED).body(BlendResponse.from(operation));
@@ -101,9 +106,20 @@ final class BlendController {
     record SimulateRequest(
             @NotNull BlendKind kind,
             @NotEmpty List<@Valid MovementRequest> inputs,
-            @NotEmpty List<@Valid MovementRequest> outputs,
+            // Sem @NotEmpty desde a DEC-BLD-003: uma união cujo destino é um lote novo não tem nenhuma
+            // saída pré-existente. Quem exige ao menos uma saída — de qualquer tipo — é o domínio, que é
+            // onde a regra pode contar as duas listas juntas.
+            List<@Valid MovementRequest> outputs,
+            List<@Valid ResultRequest> results,
             @DecimalMin("0.0") BigDecimal declaredLossLiters,
             @NotBlank @Size(max = 500) String reason) {
+    }
+
+    /** Saída que ainda não é lote: a receita declara o que o resultado é. */
+    record ResultRequest(
+            @NotNull UUID recipeId,
+            @NotNull UUID equipmentId,
+            @NotNull @DecimalMin(value = "0.0", inclusive = false) BigDecimal liters) {
     }
 
     record MovementRequest(

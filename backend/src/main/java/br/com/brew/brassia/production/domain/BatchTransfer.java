@@ -16,6 +16,7 @@ public final class BatchTransfer {
     private final UUID breweryId;
     private final UUID batchId;
     private final UUID destinationEquipmentId;
+    private final TransferKind kind;
     private final BigDecimal volumeLiters;
     private final BigDecimal ogSg;
     private final BigDecimal lossesLiters;
@@ -23,14 +24,18 @@ public final class BatchTransfer {
     private final UUID transferredBy;
 
     private BatchTransfer(UUID id, UUID breweryId, UUID batchId, UUID destinationEquipmentId,
-            BigDecimal volumeLiters, BigDecimal ogSg, BigDecimal lossesLiters, Instant transferredAt,
-            UUID transferredBy) {
+            TransferKind kind, BigDecimal volumeLiters, BigDecimal ogSg, BigDecimal lossesLiters,
+            Instant transferredAt, UUID transferredBy) {
+        this.kind = Objects.requireNonNull(kind, "kind");
         this.id = Objects.requireNonNull(id, "id");
         this.breweryId = Objects.requireNonNull(breweryId, "breweryId");
         this.batchId = Objects.requireNonNull(batchId, "batchId");
         this.destinationEquipmentId = Objects.requireNonNull(destinationEquipmentId, "destinationEquipmentId");
         this.volumeLiters = requirePositive(volumeLiters, "volume transferido");
-        this.ogSg = requirePositive(ogSg, "OG");
+        // OG e tipo andam juntos nos dois sentidos. Exigir OG do enchimento de blend obrigaria a inventar
+        // uma densidade que ninguém mediu; aceitar transferência de brassa sem OG perderia a medição que
+        // o acompanhamento da fermentação usa como ponto de partida.
+        this.ogSg = kind == TransferKind.BREW_TRANSFER ? requirePositive(ogSg, "OG") : requireAbsent(ogSg);
         this.lossesLiters = requireNonNegative(lossesLiters);
         this.transferredAt = Objects.requireNonNull(transferredAt, "transferredAt");
         this.transferredBy = Objects.requireNonNull(transferredBy, "transferredBy");
@@ -39,15 +44,27 @@ public final class BatchTransfer {
     public static BatchTransfer record(UUID breweryId, UUID batchId, UUID destinationEquipmentId,
             BigDecimal volumeLiters, BigDecimal ogSg, BigDecimal lossesLiters, Instant transferredAt,
             UUID transferredBy) {
-        return new BatchTransfer(UUID.randomUUID(), breweryId, batchId, destinationEquipmentId, volumeLiters, ogSg,
-                lossesLiters, transferredAt, transferredBy);
+        return new BatchTransfer(UUID.randomUUID(), breweryId, batchId, destinationEquipmentId,
+                TransferKind.BREW_TRANSFER, volumeLiters, ogSg, lossesLiters, transferredAt, transferredBy);
+    }
+
+    /**
+     * O tanque que recebeu o lote produzido por um blend (DEC-BLD-003).
+     *
+     * <p>Sem perdas declaradas: a perda do blend já foi declarada na operação, e repeti-la aqui a contaria
+     * duas vezes.
+     */
+    public static BatchTransfer fillFromBlend(UUID breweryId, UUID batchId, UUID destinationEquipmentId,
+            BigDecimal volumeLiters, Instant transferredAt, UUID transferredBy) {
+        return new BatchTransfer(UUID.randomUUID(), breweryId, batchId, destinationEquipmentId,
+                TransferKind.BLEND_FILL, volumeLiters, null, BigDecimal.ZERO, transferredAt, transferredBy);
     }
 
     public static BatchTransfer reconstitute(UUID id, UUID breweryId, UUID batchId, UUID destinationEquipmentId,
-            BigDecimal volumeLiters, BigDecimal ogSg, BigDecimal lossesLiters, Instant transferredAt,
-            UUID transferredBy) {
-        return new BatchTransfer(id, breweryId, batchId, destinationEquipmentId, volumeLiters, ogSg, lossesLiters,
-                transferredAt, transferredBy);
+            TransferKind kind, BigDecimal volumeLiters, BigDecimal ogSg, BigDecimal lossesLiters,
+            Instant transferredAt, UUID transferredBy) {
+        return new BatchTransfer(id, breweryId, batchId, destinationEquipmentId, kind, volumeLiters, ogSg,
+                lossesLiters, transferredAt, transferredBy);
     }
 
     private static BigDecimal requirePositive(BigDecimal value, String field) {
@@ -55,6 +72,13 @@ public final class BatchTransfer {
             throw new IllegalArgumentException(field + " deve ser positivo");
         }
         return value;
+    }
+
+    private static BigDecimal requireAbsent(BigDecimal value) {
+        if (value != null) {
+            throw new IllegalArgumentException("enchimento de blend não tem OG: ninguém mediu");
+        }
+        return null;
     }
 
     private static BigDecimal requireNonNegative(BigDecimal value) {
@@ -71,6 +95,7 @@ public final class BatchTransfer {
     public UUID breweryId() { return breweryId; }
     public UUID batchId() { return batchId; }
     public UUID destinationEquipmentId() { return destinationEquipmentId; }
+    public TransferKind kind() { return kind; }
     public BigDecimal volumeLiters() { return volumeLiters; }
     public BigDecimal ogSg() { return ogSg; }
     public BigDecimal lossesLiters() { return lossesLiters; }

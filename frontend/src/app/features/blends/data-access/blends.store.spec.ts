@@ -27,6 +27,7 @@ describe('BlendsStore', () => {
       declaredLossLiters: 0,
       reason: 'Aproveitamento de sobra',
       status: 'SIMULATED',
+      results: [],
       contributesLineage: false,
       simulatedBy: 'u1',
       simulatedAt: '2026-08-09T10:00:00Z',
@@ -45,6 +46,7 @@ describe('BlendsStore', () => {
       { batchId: 'b2', liters: 200 },
     ],
     outputs: [{ batchId: 'b3', liters: 600 }],
+    results: [],
     declaredLossLiters: 0,
     reason: 'x',
   };

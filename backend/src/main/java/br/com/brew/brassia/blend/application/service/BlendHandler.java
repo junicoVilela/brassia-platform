@@ -7,7 +7,9 @@ import br.com.brew.brassia.blend.application.port.outbound.BlendRepository;
 import br.com.brew.brassia.blend.domain.BlendOperation;
 import br.com.brew.brassia.blend.domain.UnknownBlendBatchException;
 import br.com.brew.brassia.blend.domain.UnknownBlendOperationException;
+import br.com.brew.brassia.blend.domain.PlannedOutput;
 import br.com.brew.brassia.blend.domain.VolumeMovement;
+import br.com.brew.brassia.production.BlendResultCommands;
 import br.com.brew.brassia.production.BatchLookup;
 import java.time.Clock;
 import java.util.LinkedHashMap;
@@ -27,12 +29,15 @@ public final class BlendHandler implements BlendCommands {
 
     private final BlendRepository operations;
     private final BatchLookup batches;
+    private final BlendResultCommands production;
     private final AuditTrail audit;
     private final Clock clock;
 
-    public BlendHandler(BlendRepository operations, BatchLookup batches, AuditTrail audit, Clock clock) {
+    public BlendHandler(BlendRepository operations, BatchLookup batches, BlendResultCommands production,
+            AuditTrail audit, Clock clock) {
         this.operations = Objects.requireNonNull(operations, "operations");
         this.batches = Objects.requireNonNull(batches, "batches");
+        this.production = Objects.requireNonNull(production, "production");
         this.audit = Objects.requireNonNull(audit, "audit");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
@@ -42,9 +47,10 @@ public final class BlendHandler implements BlendCommands {
         Objects.requireNonNull(command, "command");
         var inputs = movements(command.breweryId(), command.inputs(), "origem");
         var outputs = movements(command.breweryId(), command.outputs(), "destino");
+        var results = plannedOutputs(command.results());
 
         var operation = BlendOperation.simulate(UUID.randomUUID(), command.breweryId(), command.kind(),
-                inputs, outputs, command.declaredLossLiters(), command.reason(), command.actor(),
+                inputs, outputs, results, command.declaredLossLiters(), command.reason(), command.actor(),
                 clock.instant());
         operations.insert(operation);
 
@@ -79,9 +85,35 @@ public final class BlendHandler implements BlendCommands {
         operation.execute(actor, clock.instant());
         operations.updateProgress(operation);
 
+        // O volume se move aqui, e só aqui. Antes da execução nenhuma cerveja se tocou; depois dela, a
+        // origem não tem mais o que cedeu — sem este passo o sistema passaria a ter o dobro da cerveja
+        // que existe no tanque, com o lote de resultado cheio e as origens intactas.
+        var at = operation.executedAt().orElseThrow();
+        for (var input : operation.inputs()) {
+            production.adjustVolume(new BlendResultCommands.AdjustBatchVolume(breweryId, actor,
+                    input.batchId(), input.liters().negate(), operation.id(), at));
+        }
+        for (var output : operation.outputs()) {
+            production.adjustVolume(new BlendResultCommands.AdjustBatchVolume(breweryId, actor,
+                    output.batchId(), output.liters(), operation.id(), at));
+        }
+        var created = new LinkedHashMap<Integer, UUID>();
+        for (var planned : operation.plannedOutputs()) {
+            var batchId = production.openBlendBatch(new BlendResultCommands.OpenBlendBatch(breweryId,
+                    actor, planned.recipeId(), planned.equipmentId(), planned.liters(), operation.id(),
+                    planned.seq(), at));
+            operation.linkResultBatch(planned.seq(), batchId);
+            operations.linkResultBatch(operation.id(), planned.seq(), batchId);
+            created.put(planned.seq(), batchId);
+        }
+
         var metadata = new LinkedHashMap<String, String>();
         metadata.put("inputBatches", ids(operation.inputs()));
         metadata.put("outputBatches", ids(operation.outputs()));
+        if (!created.isEmpty()) {
+            metadata.put("resultBatches", created.values().stream().map(UUID::toString)
+                    .reduce((a, b) -> a + "," + b).orElse(""));
+        }
         record(breweryId, actor, "blend.operation.execute", operation, metadata);
         return operation;
     }
@@ -110,6 +142,25 @@ public final class BlendHandler implements BlendCommands {
             }
             return new VolumeMovement(input.batchId(), input.liters());
         }).toList();
+    }
+
+    /**
+     * As saídas novas ganham posição estável na ordem em que foram declaradas.
+     *
+     * <p>A posição é o que liga o lote criado de volta ao que foi planejado. Derivá-la do índice da lista
+     * mantém simulação e execução falando da mesma saída sem exigir que quem chama invente números.
+     */
+    private static List<PlannedOutput> plannedOutputs(List<BlendCommands.ResultInput> results) {
+        if (results == null) {
+            return List.of();
+        }
+        var planned = new java.util.ArrayList<PlannedOutput>(results.size());
+        for (var index = 0; index < results.size(); index++) {
+            var result = results.get(index);
+            planned.add(new PlannedOutput(index + 1, result.recipeId(), result.equipmentId(),
+                    result.liters()));
+        }
+        return List.copyOf(planned);
     }
 
     private static String ids(List<VolumeMovement> movements) {

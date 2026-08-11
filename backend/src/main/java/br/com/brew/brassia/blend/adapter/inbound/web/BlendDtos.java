@@ -24,6 +24,7 @@ final class BlendDtos {
             String kind,
             List<MovementResponse> inputs,
             List<MovementResponse> outputs,
+            List<ResultResponse> results,
             BigDecimal inputLiters,
             BigDecimal outputLiters,
             BigDecimal declaredLossLiters,
@@ -45,6 +46,11 @@ final class BlendDtos {
                             .map(m -> new MovementResponse(m.batchId(), m.liters())).toList(),
                     operation.outputs().stream()
                             .map(m -> new MovementResponse(m.batchId(), m.liters())).toList(),
+                    operation.plannedOutputs().stream()
+                            .map(planned -> new ResultResponse(planned.seq(), planned.recipeId(),
+                                    planned.equipmentId(), planned.liters(),
+                                    operation.resultBatch(planned.seq()).orElse(null)))
+                            .toList(),
                     operation.inputLiters(),
                     operation.outputLiters(),
                     operation.declaredLossLiters(),
@@ -63,5 +69,15 @@ final class BlendDtos {
     }
 
     record MovementResponse(UUID batchId, BigDecimal liters) {
+    }
+
+    /**
+     * Saída que vira lote na execução.
+     *
+     * <p>{@code batchId} nulo é o estado honesto de quem ainda não executou: o lote não existe. Devolver
+     * um identificador vazio ou omitir o campo faria a tela precisar adivinhar a diferença entre "ainda
+     * não" e "não vai ter".
+     */
+    record ResultResponse(int seq, UUID recipeId, UUID equipmentId, BigDecimal liters, UUID batchId) {
     }
 }

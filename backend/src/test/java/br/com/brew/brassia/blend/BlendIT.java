@@ -154,8 +154,8 @@ class BlendIT {
         var d2 = batch(session);
 
         var body = """
-                {"kind":"SPLIT","inputs":[{"batchId":"%s","liters":600}],
-                 "outputs":[{"batchId":"%s","liters":300},{"batchId":"%s","liters":295}],
+                {"kind":"SPLIT","inputs":[{"batchId":"%s","liters":400}],
+                 "outputs":[{"batchId":"%s","liters":200},{"batchId":"%s","liters":195}],
                  "declaredLossLiters":5,"reason":"Separar para dry hopping distinto"}
                 """.formatted(origem, d1, d2);
         var id = idOf(mockMvc.perform(post(BLENDS).session(session).with(csrf())
@@ -281,7 +281,189 @@ class BlendIT {
                 .andExpect(status().isBadRequest());
     }
 
+
+    @Test
+    @DisplayName("A UNIÃO PRODUZ UM LOTE NOVO: em fermentação, no tanque declarado, sem ordem")
+    void uniaoProduzLoteNovo() throws Exception {
+        // A decisão de negócio da DEC-BLD-003. O lote nasce FERMENTING porque o envase recusa lote fora de
+        // fermentação — em brassa, ele nunca poderia ser envasado, o que anularia a razão de criá-lo.
+        var session = login();
+        var a = batch(session);
+        var b = batch(session);
+        var receita = publishedRecipe(session);
+        var tanque = equipment(session);
+
+        var resposta = simulateWithResult(session, movements(a, "400", b, "200"), receita, tanque, "588", "12")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        var operacao = JSON.readTree(resposta);
+        var id = operacao.get("id").asText();
+        // Antes de executar, a saída existe no plano e o lote não: nenhuma cerveja se tocou.
+        org.assertj.core.api.Assertions.assertThat(operacao.get("results").get(0).get("batchId").isNull())
+                .isTrue();
+
+        mockMvc.perform(post(BLENDS + "/" + id + "/approval").session(session).with(csrf()));
+        var executada = mockMvc.perform(post(BLENDS + "/" + id + "/execution").session(session).with(csrf()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        var novoLote = JSON.readTree(executada).get("results").get(0).get("batchId").asText();
+        var detalhe = batchDetail(session, novoLote);
+        org.assertj.core.api.Assertions.assertThat(detalhe.get("status").asText()).isEqualTo("FERMENTING");
+        org.assertj.core.api.Assertions.assertThat(detalhe.get("orderId").isNull()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(detalhe.get("code").asText()).startsWith("BLD-");
+        org.assertj.core.api.Assertions.assertThat(detalhe.get("volumeLiters").asDouble()).isEqualTo(588.0);
+    }
+
+    @Test
+    @DisplayName("O VOLUME SAI DA ORIGEM, e a origem que zera é encerrada")
+    void volumeSaiDaOrigem() throws Exception {
+        // Sem isto, o sistema passaria a ter o dobro da cerveja que existe: lote de resultado cheio e
+        // origens intactas.
+        var session = login();
+        var a = batch(session);
+        var b = batch(session);
+        var receita = publishedRecipe(session);
+        var tanque = equipment(session);
+
+        var id = idOf(simulateWithResult(session, movements(a, "400", b, "200"), receita, tanque, "588", "12")
+                .andExpect(status().isCreated()));
+        mockMvc.perform(post(BLENDS + "/" + id + "/approval").session(session).with(csrf()));
+        mockMvc.perform(post(BLENDS + "/" + id + "/execution").session(session).with(csrf()))
+                .andExpect(status().isOk());
+
+        // `a` cedeu os 400 L inteiros: não sobrou cerveja, e lote vazio em aberto continuaria aparecendo
+        // como disponível para envase.
+        org.assertj.core.api.Assertions.assertThat(batchDetail(session, a).get("status").asText())
+                .isEqualTo("COMPLETED");
+        // `b` cedeu 200 dos 400 e continua vivo com o saldo.
+        org.assertj.core.api.Assertions.assertThat(batchDetail(session, b).get("status").asText())
+                .isEqualTo("IN_PROGRESS");
+    }
+
+    @Test
+    @DisplayName("TIRAR MAIS DO QUE O LOTE TEM É RECUSADO, com quanto existe e quanto foi pedido")
+    void volumeInsuficiente() throws Exception {
+        var session = login();
+        var a = batch(session);
+        var b = batch(session);
+        var receita = publishedRecipe(session);
+        var tanque = equipment(session);
+
+        // 900 L de dois lotes de 400: a conta fecha com a saída, mas a cerveja não existe no tanque.
+        var id = idOf(simulateWithResult(session, movements(a, "500", b, "400"), receita, tanque, "900", "0")
+                .andExpect(status().isCreated()));
+        mockMvc.perform(post(BLENDS + "/" + id + "/approval").session(session).with(csrf()));
+
+        mockMvc.perform(post(BLENDS + "/" + id + "/execution").session(session).with(csrf()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("insufficient_batch_volume"))
+                .andExpect(jsonPath("$.availableLiters").exists())
+                .andExpect(jsonPath("$.requestedLiters").exists());
+    }
+
+    @Test
+    @DisplayName("tanque ocupado recusa o resultado e nomeia quem está lá")
+    void tanqueOcupado() throws Exception {
+        var session = login();
+        var a = batch(session);
+        var b = batch(session);
+        var receita = publishedRecipe(session);
+        var tanque = equipment(session);
+
+        var primeiro = idOf(simulateWithResult(session, movements(a, "200", b, "200"), receita, tanque,
+                "400", "0").andExpect(status().isCreated()));
+        mockMvc.perform(post(BLENDS + "/" + primeiro + "/approval").session(session).with(csrf()));
+        mockMvc.perform(post(BLENDS + "/" + primeiro + "/execution").session(session).with(csrf()))
+                .andExpect(status().isOk());
+
+        var c = batch(session);
+        var d = batch(session);
+        var segundo = idOf(simulateWithResult(session, movements(c, "200", d, "200"), receita, tanque,
+                "400", "0").andExpect(status().isCreated()));
+        mockMvc.perform(post(BLENDS + "/" + segundo + "/approval").session(session).with(csrf()));
+
+        mockMvc.perform(post(BLENDS + "/" + segundo + "/execution").session(session).with(csrf()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("vessel_occupied"))
+                .andExpect(jsonPath("$.occupiedBy").exists());
+    }
+
+    @Test
+    @DisplayName("o lote de resultado entra na genealogia como destino")
+    void resultadoNaGenealogia() throws Exception {
+        // Para quem investiga um recall, lote de resultado não é diferente de um destino que já existia.
+        var session = login();
+        var a = batch(session);
+        var b = batch(session);
+        var receita = publishedRecipe(session);
+        var tanque = equipment(session);
+
+        var id = idOf(simulateWithResult(session, movements(a, "300", b, "300"), receita, tanque, "600", "0")
+                .andExpect(status().isCreated()));
+        mockMvc.perform(post(BLENDS + "/" + id + "/approval").session(session).with(csrf()));
+        var executada = mockMvc.perform(post(BLENDS + "/" + id + "/execution").session(session).with(csrf()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        var novoLote = JSON.readTree(executada).get("results").get(0).get("batchId").asText();
+
+        var descendentes = mockMvc.perform(get(GENEALOGY).session(session)
+                        .param("nodeType", "BATCH").param("nodeId", a)
+                        .param("direction", "FORWARD"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(descendentes).contains(novoLote);
+    }
+
     // --- infraestrutura ---
+
+    /** Equipamento livre, para receber o lote que o blend produz. */
+    private String equipment(MockHttpSession session) throws Exception {
+        var sfx = UUID.randomUUID().toString().substring(0, 8);
+        return idOf(mockMvc.perform(post("/api/v1/equipment").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"code\":\"tk-" + sfx + "\",\"name\":\"Tanque\",\"capacityLiters\":1000,"
+                                + "\"deadSpaceLiters\":20,\"mashEfficiencyPercent\":72,"
+                                + "\"boilOffLitersPerHour\":8}"))
+                .andExpect(status().isCreated()));
+    }
+
+    /** Receita publicada, para declarar o que o resultado do blend é. */
+    private String publishedRecipe(MockHttpSession session) throws Exception {
+        var sfx = UUID.randomUUID().toString().substring(0, 8);
+        var equipmentId = equipment(session);
+        var maltId = createIngredient(session, "MALT", "rm-" + sfx, "KG",
+                "{\"potentialSg\":\"1.037\",\"colorEbc\":\"4\"}");
+        var hopId = createIngredient(session, "HOP", "rh-" + sfx, "G", "{\"alphaAcid\":\"12\"}");
+        var yeastId = createIngredient(session, "YEAST", "ry-" + sfx, "UNIT", "{\"attenuation\":\"78\"}");
+        var content = """
+                {"name":"RES %s","equipmentId":"%s","batchVolumeLiters":400,"boilTimeMinutes":60,
+                 "targetIbu":30,
+                 "items":[{"ingredientId":"%s","stage":"MASH","quantity":20,"unit":"KG"},
+                          {"ingredientId":"%s","stage":"BOIL","quantity":60,"unit":"G","timingMinutes":60},
+                          {"ingredientId":"%s","stage":"FERMENTATION","quantity":1,"unit":"UNIT"}]}
+                """.formatted(sfx, equipmentId, maltId, hopId, yeastId);
+        var recipeId = idOf(mockMvc.perform(post("/api/v1/recipes").session(session).with(csrf())
+                        .contentType("application/json").content(content))
+                .andExpect(status().isCreated()));
+        mockMvc.perform(post("/api/v1/recipes/" + recipeId + "/metrics").session(session).with(csrf()));
+        mockMvc.perform(post("/api/v1/recipes/" + recipeId + "/publish").session(session).with(csrf()));
+        return recipeId;
+    }
+
+    private ResultActions simulateWithResult(MockHttpSession session, String inputs, String recipeId,
+            String equipmentId, String liters, String loss) throws Exception {
+        var body = """
+                {"kind":"MERGE","inputs":[%s],
+                 "results":[{"recipeId":"%s","equipmentId":"%s","liters":%s}],
+                 "declaredLossLiters":%s,"reason":"União para lote novo"}
+                """.formatted(inputs, recipeId, equipmentId, liters, loss);
+        return mockMvc.perform(post(BLENDS).session(session).with(csrf())
+                .contentType("application/json").content(body));
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode batchDetail(MockHttpSession session, String batchId)
+            throws Exception {
+        var body = mockMvc.perform(get("/api/v1/production/batches/" + batchId).session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return JSON.readTree(body);
+    }
 
     private ResultActions simulate(MockHttpSession session, String kind, String inputs, String outputs,
             String loss) throws Exception {

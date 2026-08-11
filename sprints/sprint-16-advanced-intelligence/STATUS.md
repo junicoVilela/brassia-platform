@@ -9,7 +9,7 @@ Estado: CONCLUÍDA — 6/6 histórias entregues e mergeadas; aguardando aceite (
 | DTW-001 | Concluída | Claude | `backend/.../digitaltwin`, `V103__digital_twin_profile.sql`, `frontend/.../features/digital-twin` | Estimativa com faixa e confiança explícitas; amostra informada e gravada, o que torna o número reproduzível. Ver DEC-DTW-001/002/003. |
 | SPC-001 | Concluída | Claude | `digitaltwin/domain/ControlLimits`, `ControlSignal`, `production/BatchMeasurementLookup` | Limite de controle é calculado e não pode ser injetado; deslocamento e tendência detectados. Ver DEC-SPC-001/002. |
 | EXP-001 | Concluída | Claude | PR #180, `backend/.../experiment`, `V104__experiment_split_batch.sql`, `frontend/.../features/experiments` | Uma variável isolada é condição de existência do plano; a conclusão não tem campo para limitações — elas derivam do desenho. Ver DEC-EXP-001/002. |
-| BLD-001 | Concluída | Claude | PR #181, `backend/.../blend`, `V105__blend_operation.sql`, `frontend/.../features/blends` | Balanço fecha na simulação; recall recalculado é consequência da aresta de genealogia, não um passo. Ver DEC-BLD-001/002/003 — **DEC-BLD-003 é premissa declarada e precisa de decisão de negócio**. |
+| BLD-001 | Concluída | Claude | PR #181 e `V110__blend_result_batch.sql`, `backend/.../blend`, `frontend/.../features/blends` | Balanço fecha na simulação; recall recalculado é consequência da aresta de genealogia, não um passo. **DEC-BLD-003 resolvida em 2026-08-11**: o blend produz lote novo e o volume passa a se mover — a premissa caiu. Ver DEC-BLD-001/002/003. |
 | FLD-001 | Concluída | Claude | PR #182, `backend/.../fieldfeedback`, `V106__field_feedback.sql`, `frontend/.../features/field-feedback` | Severidade exige em vez de sugerir; dado pessoal em tabela, permissão e endpoint próprios, com apagamento que preserva a investigação. Ver DEC-FLD-001/002. |
 | OPT-001 | Concluída | Claude | PR #183, `backend/.../optimization`, `V107__optimization_run.sql`, `frontend/.../features/optimization` | Restrições descartam e o objetivo ordena; método e versões viajam com o resultado; a IA explica sem poder alterar o score. Ver DEC-OPT-001/002/003. |
 
@@ -221,21 +221,59 @@ Aprovar e executar são permissões críticas separadas: uma autoriza misturar, 
 de misturadas, duas cervejas não se separam — a operação é irreversível de um jeito que quase nenhuma outra
 na plataforma é.
 
-### DEC-BLD-003 (BLD-001) — PREMISSA DECLARADA: origem e destino são lotes que já existem
+### DEC-BLD-003 (BLD-001) — RESOLVIDA: o blend produz lote, e o volume passa a se mover
 
-**Esta é uma pergunta de negócio em aberto, resolvida por premissa para não travar a entrega.**
+**A pergunta de negócio foi respondida pelo mantenedor em 2026-08-11: blend produz lote novo.** O registro
+abaixo substitui a premissa que valia até então (origem e destino eram lotes pré-existentes, porque
+`production_batch.order_id` era `NOT NULL` e inventar uma ordem sintética criaria uma ordem que ninguém
+programou). A ordem sintética continua recusada pelos mesmos motivos; o que mudou foi a coluna.
 
-A alternativa natural seria a operação *criar* um lote novo como resultado. Ela esbarra na estrutura:
-`production_batch.order_id` é `NOT NULL` com `UNIQUE (brewery_id, order_id)`. Um resultado de blend não nasce
-de uma ordem de produção, e inventar uma ordem sintética criaria uma ordem que ninguém programou — que
-aparece no planejamento, que o custeio tentaria ratear e que o indicador de aderência contaria como desvio.
+**O achado que mudou a ordem das coisas.** Ao implementar, apareceu que o blend **nunca moveu volume**:
+registrava movimentos e a aresta de genealogia, e o volume envasável continuava vindo só da transferência.
+Criar o lote de resultado sem mover volume seria pior do que não criá-lo — uma união de 400 L + 400 L
+deixaria as duas origens cheias e um lote novo de 800 L, dando à cervejaria 1.600 L no sistema e 800 L no
+tanque. Por isso as duas coisas entraram juntas.
 
-Implementei com **lotes pré-existentes dos dois lados**: a operação move volume entre lotes que já estão no
-sistema. Tudo o mais da história funciona sobre isso — balanço, aprovação, execução, genealogia, recall.
+Cinco decisões, cada uma com o erro que ela evita:
 
-**O que precisa de decisão:** um blend deve produzir um lote novo? Se sim, de onde vem a ordem dele — uma
-ordem sintética marcada como tal, ou `order_id` passa a aceitar nulo com um `CHECK` que exige origem
-alternativa? A resposta muda o modelo de produção, e não é minha para dar.
+- **`origin` existe, mesmo com a ordem nula bastando.** Um nulo diz "não tem", não diz por quê. Lote sem
+  ordem tanto pode ser resultado de blend quanto defeito de importação, e as duas coisas exigem reação
+  oposta. O `CHECK` amarra origem e ordem **nos dois sentidos**.
+- **A receita do resultado é declarada, não herdada da origem predominante.** Uma união de 60% de IPA com
+  40% de Stout não é "uma IPA": herdar a receita da maior parte imprimiria o ABV e o estilo dela no rótulo
+  de outra cerveja. Quem planeja diz o que o resultado é, porque é isso que vai ser vendido. Como efeito
+  colateral, `recipe_id` continua não-nulo — os **15 módulos** que leem `BatchLookup` não precisaram saber
+  que blend existe.
+- **O lote nasce `FERMENTING`, e não em brassa.** Não é detalhe de estado: `PlanPackagingHandler` recusa
+  lote fora de fermentação, e um lote de blend em brassa jamais poderia ser envasado — o que anularia a
+  razão de criá-lo. Nasce também **sem roteiro**: não houve dia de brassa, e etapas de brassa descreveriam
+  o que ninguém executou.
+- **O saldo não é guardado, é conta.** Volume envasável = o que a transferência determinou, mais os
+  ajustes. Uma coluna de saldo criaria um segundo número que diverge do primeiro no dia em que alguém
+  corrigir a transferência.
+- **O tanque entra como transferência**, não como conceito novo. A ocupação de vaso já é derivada da
+  transferência desde a PRD-005; uma segunda tabela dizendo onde o lote está divergiria da primeira. Isso
+  obrigou `og_sg` a aceitar nulo, com `CHECK` amarrando ao tipo: um blend **não tem OG** — ninguém mediu
+  densidade inicial de uma mistura de cervejas prontas, e inventar `1.0500` criaria um número que pareceria
+  medido.
+
+**A origem que zera é encerrada**, e essa é a **primeira transição para `COMPLETED` da plataforma** —
+nenhum caminho alcançava esse estado. Encerra em brassa ou em fermentação: um lote sem cerveja acabou,
+esteja onde estiver. Um lote drenado que ficasse aberto continuaria aparecendo como disponível para envase.
+
+**O que os testes de integração pegaram, e que a leitura do código não pegaria:**
+
+- O caso `divisaoAtravessa` **passou a falhar**, e estava certo em falhar: dividia 600 L de um lote de
+  400 L. Passava antes porque nenhum volume se movia — a conta era ficção.
+- A recusa por volume insuficiente saía como **500**. Virou 422 com quanto existe e quanto foi pedido:
+  sem os dois números, quem opera refaz no chute até passar.
+- A genealogia **parava no lote criado**: a travessia lia só as saídas pré-existentes. Corrigido para
+  incluir os lotes que a operação produziu — para quem investiga um recall, a diferença entre os dois é de
+  origem, não de consequência.
+
+**Limite declarado:** tanque já ocupado é recusado (409 `vessel_occupied`), o que significa que unir dois
+lotes exige um tanque livre. É o comportamento correto — duas cervejas no mesmo vaso não é estado que o
+sistema deva saber representar — mas vale saber que a operação depende de vaso disponível.
 
 ### DEC-FLD-001 (FLD-001) — A severidade exige, não sugere
 
@@ -360,8 +398,9 @@ corridas antigas continuam dizendo qual estava valendo.
   (`SimulateBlend`, que já existia para mistura de águas) passou pela validação do CI: `yaml.safe_load`
   aceita chave repetida em silêncio e fica com a última.
 - **Riscos remanescentes:**
-  - **DEC-BLD-003** — premissa declarada, não decisão minha: origem e destino do blend são lotes que já
-    existem. Um blend deve produzir lote novo? De onde viria a ordem dele? Muda o modelo de produção.
+  - ~~**DEC-BLD-003**~~ — **resolvida em 2026-08-11**: o mantenedor decidiu que blend produz lote novo.
+    Implementado com `origin` em `production_batch`, ajuste de volume derivado e o tanque entrando como
+    transferência. A implementação expôs que o blend nunca movia volume — corrigido junto.
   - **DEC-OPT-003** — uma substituição por vez. Limitação nomeada no próprio resultado; ampliar é
     acrescentar um `SolverMethod`.
   - ~~Pendências herdadas da Sprint 15~~ — **as três fecharam depois deste registro**: `DEB-INT-003` (MQTT

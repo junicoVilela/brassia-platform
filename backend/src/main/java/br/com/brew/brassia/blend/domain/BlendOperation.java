@@ -2,10 +2,13 @@ package br.com.brew.brassia.blend.domain;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * União ou divisão de volume entre lotes, com genealogia (BLD-001).
@@ -35,10 +38,14 @@ public final class BlendOperation {
     private final BlendKind kind;
     private final List<VolumeMovement> inputs;
     private final List<VolumeMovement> outputs;
+    private final List<PlannedOutput> plannedOutputs;
     private final BigDecimal declaredLossLiters;
     private final String reason;
     private final UUID simulatedBy;
     private final Instant simulatedAt;
+
+    /** Lote criado por saída planejada, preenchido na execução. Vazio enquanto ela não aconteceu. */
+    private final Map<Integer, UUID> resultBatches = new LinkedHashMap<>();
 
     private BlendStatus status;
     private UUID approvedBy;
@@ -47,7 +54,8 @@ public final class BlendOperation {
     private Instant executedAt;
 
     private BlendOperation(UUID id, UUID breweryId, BlendKind kind, List<VolumeMovement> inputs,
-            List<VolumeMovement> outputs, BigDecimal declaredLossLiters, String reason,
+            List<VolumeMovement> outputs, List<PlannedOutput> plannedOutputs,
+            BigDecimal declaredLossLiters, String reason,
             BlendStatus status, UUID simulatedBy, Instant simulatedAt, UUID approvedBy,
             Instant approvedAt, UUID executedBy, Instant executedAt) {
         this.id = id;
@@ -55,6 +63,7 @@ public final class BlendOperation {
         this.kind = kind;
         this.inputs = List.copyOf(inputs);
         this.outputs = List.copyOf(outputs);
+        this.plannedOutputs = List.copyOf(plannedOutputs);
         this.declaredLossLiters = declaredLossLiters;
         this.reason = reason;
         this.status = status;
@@ -72,21 +81,24 @@ public final class BlendOperation {
      * @throws UnbalancedBlendException quando entrada, saída e perda declarada não batem
      */
     public static BlendOperation simulate(UUID id, UUID breweryId, BlendKind kind,
-            List<VolumeMovement> inputs, List<VolumeMovement> outputs, BigDecimal declaredLossLiters,
+            List<VolumeMovement> inputs, List<VolumeMovement> outputs,
+            List<PlannedOutput> plannedOutputs, BigDecimal declaredLossLiters,
             String reason, UUID actor, Instant at) {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(breweryId, "breweryId");
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(actor, "actor");
         Objects.requireNonNull(at, "at");
+        Objects.requireNonNull(plannedOutputs, "plannedOutputs");
         var loss = Objects.requireNonNull(declaredLossLiters, "declaredLossLiters");
         if (loss.signum() < 0) {
             // Perda negativa seria cerveja aparecendo do nada com nome de perda.
             throw new IllegalArgumentException("perda declarada não pode ser negativa: " + loss);
         }
-        requireShape(kind, inputs, outputs);
+        requireShape(kind, inputs, outputs, plannedOutputs);
         requireDistinctBatches(inputs, outputs);
-        requireBalance(inputs, outputs, loss);
+        requireDistinctSequences(plannedOutputs);
+        requireBalance(inputs, outputs, plannedOutputs, loss);
 
         var text = Objects.requireNonNull(reason, "reason").trim();
         if (text.isEmpty()) {
@@ -95,17 +107,22 @@ public final class BlendOperation {
             throw new IllegalArgumentException("o motivo da operação não pode ser vazio");
         }
 
-        return new BlendOperation(id, breweryId, kind, inputs, outputs, loss, text,
+        return new BlendOperation(id, breweryId, kind, inputs, outputs, plannedOutputs, loss, text,
                 BlendStatus.SIMULATED, actor, at, null, null, null, null);
     }
 
     /** Reconstrói do banco sem revalidar: o que já foi gravado aconteceu. */
     public static BlendOperation reconstitute(UUID id, UUID breweryId, BlendKind kind,
-            List<VolumeMovement> inputs, List<VolumeMovement> outputs, BigDecimal declaredLossLiters,
+            List<VolumeMovement> inputs, List<VolumeMovement> outputs,
+            List<PlannedOutput> plannedOutputs, Map<Integer, UUID> resultBatches,
+            BigDecimal declaredLossLiters,
             String reason, BlendStatus status, UUID simulatedBy, Instant simulatedAt, UUID approvedBy,
             Instant approvedAt, UUID executedBy, Instant executedAt) {
-        return new BlendOperation(id, breweryId, kind, inputs, outputs, declaredLossLiters, reason,
-                status, simulatedBy, simulatedAt, approvedBy, approvedAt, executedBy, executedAt);
+        var operation = new BlendOperation(id, breweryId, kind, inputs, outputs, plannedOutputs,
+                declaredLossLiters, reason, status, simulatedBy, simulatedAt, approvedBy, approvedAt,
+                executedBy, executedAt);
+        operation.resultBatches.putAll(resultBatches);
+        return operation;
     }
 
     /**
@@ -153,9 +170,51 @@ public final class BlendOperation {
         return sum(inputs);
     }
 
-    /** O total que sai, sem contar a perda declarada. */
+    /** O total que sai, sem contar a perda declarada — lotes existentes e resultados novos juntos. */
     public BigDecimal outputLiters() {
-        return sum(outputs);
+        return totalOutput(outputs, plannedOutputs);
+    }
+
+    /**
+     * Liga o lote criado à saída que o planejou.
+     *
+     * <p>Só depois de executar: um lote de resultado antes da execução seria cerveja no tanque sem
+     * ninguém ter aberto válvula. E só uma vez por posição — a segunda tentativa é uma execução repetida,
+     * que criaria um segundo lote com o mesmo volume e dobraria a cerveja no sistema.
+     */
+    public void linkResultBatch(int seq, UUID batchId) {
+        Objects.requireNonNull(batchId, "batchId");
+        if (status != BlendStatus.EXECUTED) {
+            throw new IllegalStateException("o lote de resultado só existe depois da execução");
+        }
+        if (plannedOutputs.stream().noneMatch(planned -> planned.seq() == seq)) {
+            throw new IllegalArgumentException("não há saída planejada na posição " + seq);
+        }
+        if (resultBatches.containsKey(seq)) {
+            throw new IllegalStateException("a saída " + seq + " já tem lote de resultado");
+        }
+        resultBatches.put(seq, batchId);
+    }
+
+    /** O lote criado para uma saída planejada, quando já existe. */
+    public Optional<UUID> resultBatch(int seq) {
+        return Optional.ofNullable(resultBatches.get(seq));
+    }
+
+    /** Cópia do vínculo entre saída planejada e lote criado. */
+    public Map<Integer, UUID> resultBatches() {
+        return Map.copyOf(resultBatches);
+    }
+
+    /**
+     * Todo lote que recebe cerveja desta operação — os que já existiam e os que ela criou.
+     *
+     * <p>É o que a genealogia percorre: para quem investiga um recall, um lote de resultado não é
+     * diferente de um lote de destino que já existia. A diferença é de origem, não de consequência.
+     */
+    public List<UUID> destinationBatchIds() {
+        return Stream.concat(outputs.stream().map(VolumeMovement::batchId), resultBatches.values().stream())
+                .toList();
     }
 
     /**
@@ -170,8 +229,12 @@ public final class BlendOperation {
     }
 
     private static void requireShape(BlendKind kind, List<VolumeMovement> inputs,
-            List<VolumeMovement> outputs) {
-        if (inputs.isEmpty() || outputs.isEmpty()) {
+            List<VolumeMovement> outputs, List<PlannedOutput> plannedOutputs) {
+        // Saída é saída, exista o lote ou não. Contar só os lotes existentes recusaria a operação mais
+        // natural que a DEC-BLD-003 destravou — duas origens virando um lote novo, que não tem nenhuma
+        // saída pré-existente.
+        var outputCount = outputs.size() + plannedOutputs.size();
+        if (inputs.isEmpty() || outputCount == 0) {
             throw new IllegalArgumentException("a operação precisa de ao menos uma entrada e uma saída");
         }
         // A forma é o que distingue união de divisão. Sem esta checagem, "MERGE" com uma entrada e três
@@ -179,8 +242,17 @@ public final class BlendOperation {
         if (kind == BlendKind.MERGE && inputs.size() < 2) {
             throw new IllegalArgumentException("união precisa de ao menos dois lotes de origem");
         }
-        if (kind == BlendKind.SPLIT && (inputs.size() != 1 || outputs.size() < 2)) {
+        if (kind == BlendKind.SPLIT && (inputs.size() != 1 || outputCount < 2)) {
             throw new IllegalArgumentException("divisão parte de um lote e chega a ao menos dois");
+        }
+    }
+
+    private static void requireDistinctSequences(List<PlannedOutput> plannedOutputs) {
+        var distinct = plannedOutputs.stream().map(PlannedOutput::seq).distinct().count();
+        if (distinct != plannedOutputs.size()) {
+            // A posição é o que liga o lote criado de volta à saída planejada. Repetida, dois lotes
+            // disputariam o mesmo vínculo e um deles ficaria órfão do plano que o justificou.
+            throw new IllegalArgumentException("a posição da saída não pode repetir");
         }
     }
 
@@ -201,13 +273,20 @@ public final class BlendOperation {
     }
 
     private static void requireBalance(List<VolumeMovement> inputs, List<VolumeMovement> outputs,
-            BigDecimal loss) {
+            List<PlannedOutput> plannedOutputs, BigDecimal loss) {
         var in = sum(inputs);
-        var out = sum(outputs);
+        var out = totalOutput(outputs, plannedOutputs);
         var difference = in.subtract(out).subtract(loss);
         if (difference.abs().compareTo(TOLERANCE_LITERS) > 0) {
             throw new UnbalancedBlendException(in, out, loss, difference);
         }
+    }
+
+    private static BigDecimal totalOutput(List<VolumeMovement> outputs,
+            List<PlannedOutput> plannedOutputs) {
+        return Stream.concat(outputs.stream().map(VolumeMovement::liters),
+                        plannedOutputs.stream().map(PlannedOutput::liters))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private static BigDecimal sum(List<VolumeMovement> movements) {
@@ -233,6 +312,10 @@ public final class BlendOperation {
 
     public List<VolumeMovement> outputs() {
         return outputs;
+    }
+
+    public List<PlannedOutput> plannedOutputs() {
+        return plannedOutputs;
     }
 
     public BigDecimal declaredLossLiters() {

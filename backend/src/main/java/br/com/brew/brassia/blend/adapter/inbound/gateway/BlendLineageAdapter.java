@@ -44,8 +44,11 @@ class BlendLineageAdapter implements LineageSource {
         var edges = new ArrayList<Edge>();
         for (var operation : operations.executedTouching(breweryId, node.id())) {
             if (isInput(operation, node.id())) {
-                for (var output : operation.outputs()) {
-                    edges.add(edge(operation, node, batch(output.batchId())));
+                // Destinos são os lotes que já existiam E os que a operação criou. Deixar os criados de
+                // fora pararia a travessia exatamente no lote que a união produziu — que é o que sai da
+                // fábrica e o que um recall precisa alcançar.
+                for (var destination : operation.destinationBatchIds()) {
+                    edges.add(edge(operation, node, batch(destination)));
                 }
             }
         }
@@ -92,6 +95,6 @@ class BlendLineageAdapter implements LineageSource {
     }
 
     private static boolean isOutput(BlendOperation operation, UUID batchId) {
-        return operation.outputs().stream().anyMatch(m -> m.batchId().equals(batchId));
+        return operation.destinationBatchIds().stream().anyMatch(id -> id.equals(batchId));
     }
 }

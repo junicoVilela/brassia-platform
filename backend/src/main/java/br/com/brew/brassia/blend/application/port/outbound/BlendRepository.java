@@ -19,6 +19,9 @@ public interface BlendRepository {
 
     List<BlendOperation> list(UUID breweryId);
 
-    /** Operações executadas que tocam este lote — de qualquer um dos lados. */
+    /** Liga o lote criado à saída planejada que o justificou. Só depois da execução. */
+    void linkResultBatch(UUID operationId, int seq, UUID batchId);
+
+    /** Operações executadas que tocam este lote — de qualquer um dos lados, inclusive como resultado. */
     List<BlendOperation> executedTouching(UUID breweryId, UUID batchId);
 }

@@ -4,6 +4,10 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { BatchesApi } from '../../../production/data-access/batches.api';
 import { Batch } from '../../../production/domain/batch.model';
+import { EquipmentApi } from '../../../equipment/data-access/equipment.api';
+import { Equipment } from '../../../equipment/domain/equipment.model';
+import { RecipesApi } from '../../../recipes/data-access/recipes.api';
+import { RecipeSummary } from '../../../recipes/domain/recipe.model';
 import { BlendsStore } from '../../data-access/blends.store';
 import {
   BlendKind,
@@ -15,6 +19,13 @@ import {
 
 interface MovementRow {
   batchId: string;
+  liters: number | null;
+}
+
+/** Saída que ainda não é lote: a receita diz o que o resultado é, e o tanque diz onde ele fica. */
+interface ResultRow {
+  recipeId: string;
+  equipmentId: string;
   liters: number | null;
 }
 
@@ -35,6 +46,8 @@ interface MovementRow {
 })
 export class BlendsPageComponent implements OnInit {
   private readonly batchesApi = inject(BatchesApi);
+  private readonly recipesApi = inject(RecipesApi);
+  private readonly equipmentApi = inject(EquipmentApi);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly store = inject(BlendsStore);
@@ -55,9 +68,18 @@ export class BlendsPageComponent implements OnInit {
     { batchId: '', liters: null },
   ]);
   readonly outputs = signal<MovementRow[]>([{ batchId: '', liters: null }]);
+  readonly results = signal<ResultRow[]>([]);
+
+  /** Receitas publicadas: rascunho não serve de resultado — o snapshot ainda vai mudar. */
+  readonly recipes = signal<RecipeSummary[]>([]);
+  readonly equipment = signal<Equipment[]>([]);
 
   readonly inputTotal = computed(() => total(this.inputs()));
-  readonly outputTotal = computed(() => total(this.outputs()));
+  // Saída é saída, exista o lote ou não: somar só os existentes faria uma união para lote novo aparecer
+  // como se estivesse perdendo tudo.
+  readonly outputTotal = computed(
+    () => total(this.outputs()) + this.results().reduce((sum, r) => sum + (r.liters ?? 0), 0),
+  );
 
   /** Positivo: sumiu cerveja. Negativo: apareceu cerveja. */
   readonly difference = computed(
@@ -71,7 +93,7 @@ export class BlendsPageComponent implements OnInit {
       this.balanced() &&
       !!this.reason().trim() &&
       this.filled(this.inputs()).length >= (this.kind() === 'MERGE' ? 2 : 1) &&
-      this.filled(this.outputs()).length >= (this.kind() === 'SPLIT' ? 2 : 1) &&
+      this.filledOutputCount() >= (this.kind() === 'SPLIT' ? 2 : 1) &&
       !this.store.simulating(),
   );
 
@@ -89,6 +111,22 @@ export class BlendsPageComponent implements OnInit {
         },
         error: () => undefined,
       });
+
+    this.recipesApi
+      .list()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: page => this.recipes.set(page.content.filter(r => r.status === 'PUBLISHED')),
+        error: () => undefined,
+      });
+
+    this.equipmentApi
+      .list(0, 200)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: page => this.equipment.set(page.content),
+        error: () => undefined,
+      });
   }
 
   onKindChange(kind: BlendKind): void {
@@ -101,12 +139,14 @@ export class BlendsPageComponent implements OnInit {
         { batchId: '', liters: null },
       ]);
       this.outputs.set([{ batchId: '', liters: null }]);
+      this.results.set([]);
     } else {
       this.inputs.set([{ batchId: '', liters: null }]);
       this.outputs.set([
         { batchId: '', liters: null },
         { batchId: '', liters: null },
       ]);
+      this.results.set([]);
     }
   }
 
@@ -116,6 +156,27 @@ export class BlendsPageComponent implements OnInit {
 
   addOutput(): void {
     this.outputs.update(rows => [...rows, { batchId: '', liters: null }]);
+  }
+
+  addResult(): void {
+    this.results.update(rows => [...rows, { recipeId: '', equipmentId: '', liters: null }]);
+  }
+
+  updateResult(index: number, field: keyof ResultRow, value: string): void {
+    this.results.update(rows =>
+      rows.map((row, i) => {
+        if (i !== index) {
+          return row;
+        }
+        return field === 'liters'
+          ? { ...row, liters: value === '' ? null : Number(value) }
+          : { ...row, [field]: value };
+      }),
+    );
+  }
+
+  removeResult(index: number): void {
+    this.results.update(rows => rows.filter((_, i) => i !== index));
   }
 
   updateInput(index: number, field: keyof MovementRow, value: string): void {
@@ -140,6 +201,11 @@ export class BlendsPageComponent implements OnInit {
         kind: this.kind(),
         inputs: this.filled(this.inputs()).map(r => ({ batchId: r.batchId, liters: r.liters! })),
         outputs: this.filled(this.outputs()).map(r => ({ batchId: r.batchId, liters: r.liters! })),
+        results: this.filledResults().map(r => ({
+          recipeId: r.recipeId,
+          equipmentId: r.equipmentId,
+          liters: r.liters!,
+        })),
         declaredLossLiters: this.declaredLoss() || 0,
         reason: this.reason().trim(),
       },
@@ -151,8 +217,28 @@ export class BlendsPageComponent implements OnInit {
     return this.batches().find(b => b.id === batchId)?.code ?? batchId.slice(0, 8);
   }
 
+  batchOf(result: { batchId: string | null }): string | null {
+    return result.batchId;
+  }
+
+  recipeLabel(recipeId: string): string {
+    return this.recipes().find(r => r.id === recipeId)?.name ?? recipeId.slice(0, 8);
+  }
+
+  equipmentLabel(equipmentId: string): string {
+    return this.equipment().find(e => e.id === equipmentId)?.name ?? equipmentId.slice(0, 8);
+  }
+
   private filled(rows: MovementRow[]): MovementRow[] {
     return rows.filter(r => r.batchId && r.liters !== null && r.liters > 0);
+  }
+
+  private filledResults(): ResultRow[] {
+    return this.results().filter(r => r.recipeId && r.equipmentId && r.liters !== null && r.liters > 0);
+  }
+
+  private filledOutputCount(): number {
+    return this.filled(this.outputs()).length + this.filledResults().length;
   }
 
   private resetForm(): void {

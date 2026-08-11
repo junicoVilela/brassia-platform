@@ -44,7 +44,17 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Registro**: permitido em ciclo com execução encerrada (COMPLETED/RELEASED/REJECTED), **upsert** (re-registrável para correção); IN_PROGRESS/INTERRUPTED → 409. Permissões `sanitation.consumption.read/manage`.
 
 ### Débitos técnicos
-- **CLN-004-A** — Reação do módulo `equipment` ao evento `CleaningCycleReleased` (desbloquear/marcar equipamento como limpo). Critério de remoção: quando existir estado de bloqueio de equipamento, um listener em `equipment` consome o evento e atualiza o equipamento; hoje o evento é publicado sem consumidor.
+- ~~**CLN-004-A**~~ — **FECHADO EM 2026-08-11.** O critério de remoção era "quando existir estado de
+  bloqueio de equipamento". Ele passou a existir (`V111`), e com ele a volta inteira: usar suja o tanque,
+  tanque sujo recusa cerveja, ciclo liberado limpa. Ver DEC-CLN-001 na Sprint 17.
+
+  **O consumidor não virou listener, e vale registrar por quê.** A primeira implementação foi um
+  `@TransactionalEventListener` em `equipment`, exatamente como este débito previa — e ela criou **ciclo
+  entre módulos**, porque `sanitation` já depende de `equipment` desde a CLN-003 (o ciclo valida o
+  equipamento ao iniciar). O `ModularityTest` pegou. Invertendo para uma porta publicada
+  (`EquipmentCleanlinessCommands`, chamada pela liberação), a dependência ficou numa direção só — e o
+  efeito passou a acontecer dentro da transação da liberação, fechando a janela em que um ciclo aparecia
+  liberado com o tanque ainda sujo.
 - **CLN-005-A** — Consumo detalhado por item de produto/químico (produto+quantidade+unidade) em tabela filha, além do agregado `product_kg`. Critério de remoção: quando o relatório de otimização precisar discriminar por químico.
 
 ## Evidências de encerramento

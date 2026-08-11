@@ -1,6 +1,7 @@
 package br.com.brew.brassia.sanitation.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.equipment.EquipmentCleanlinessCommands;
 import br.com.brew.brassia.equipment.EquipmentProfileLookup;
 import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
 import br.com.brew.brassia.sanitation.application.port.inbound.CompleteCycleUseCase;
@@ -174,8 +175,9 @@ class SanitationConfiguration {
 
     @Bean
     ReleaseCycleUseCase releaseCycleUseCase(CleaningCycleRepository cycles, CleaningCycleEventPublisher events,
-            AuditTrail audit, PlatformTransactionManager transactionManager) {
-        var handler = new ReleaseCycleHandler(cycles, events, audit);
+            EquipmentCleanlinessCommands equipment, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ReleaseCycleHandler(cycles, events, equipment, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> transaction.executeWithoutResult(status -> handler.handle(command));
     }

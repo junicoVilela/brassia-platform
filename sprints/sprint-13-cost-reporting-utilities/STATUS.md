@@ -389,9 +389,9 @@ Todos com critério de remoção registrado nas seções acima.
 | `CST-002-A` | Não há perda esperada cadastrada, nem na transferência nem no envase |
 | `UTL-001-A` | O CO₂ não declara cobertura: não existe consumo esperado contra o qual comparar |
 | `RPT-001-A` | A exportação é JSON, não PDF: layout e identidade visual não foram decididos |
-| `RPT-003-A` | Não há transporte de entrega — a plataforma registra, não envia |
+| ~~`RPT-003-A`~~ | **Fechado em 2026-08-11 por decisão**: a plataforma registra e não envia; enviar exige SMTP, bounce e LGPD. Ver DEC-DEBT-001 na Sprint 17 |
 | `RPT-003-B` | O agendador é de instância única: não duplica, mas não distribui carga |
-| `GAS-001-A` | Custo e estoque do gás — previsto para esta sprint e adiado por decisão |
+| `GAS-001-A` | Custo e estoque do gás. **Adiado de novo em 2026-08-11, agora por decisão registrada**: entra quando alguém reclamar da ausência dele no custo do lote. Ver DEC-DEBT-001 na Sprint 17 |
 
 Fechado nesta sprint: **`TRC-001-C`** — o dia de brassa passou a registrar consumo por lote, o que
 era pré-requisito do custo realizado.

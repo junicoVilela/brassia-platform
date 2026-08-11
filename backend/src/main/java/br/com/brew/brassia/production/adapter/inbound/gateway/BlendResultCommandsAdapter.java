@@ -3,12 +3,15 @@ package br.com.brew.brassia.production.adapter.inbound.gateway;
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditOutcome;
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.equipment.EquipmentCleanlinessLookup;
+import br.com.brew.brassia.equipment.EquipmentUsageCommands;
 import br.com.brew.brassia.production.BlendResultCommands;
 import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
 import br.com.brew.brassia.production.application.port.outbound.TransferRepository;
 import br.com.brew.brassia.production.application.port.outbound.VolumeAdjustmentRepository;
 import br.com.brew.brassia.production.domain.Batch;
 import br.com.brew.brassia.production.domain.BatchTransfer;
+import br.com.brew.brassia.production.domain.DirtyEquipmentException;
 import br.com.brew.brassia.recipe.RecipeLookup;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
@@ -34,14 +37,19 @@ class BlendResultCommandsAdapter implements BlendResultCommands {
     private final TransferRepository transfers;
     private final VolumeAdjustmentRepository adjustments;
     private final RecipeLookup recipes;
+    private final EquipmentCleanlinessLookup cleanliness;
+    private final EquipmentUsageCommands usage;
     private final AuditTrail audit;
 
     BlendResultCommandsAdapter(BatchRepository batches, TransferRepository transfers,
-            VolumeAdjustmentRepository adjustments, RecipeLookup recipes, AuditTrail audit) {
+            VolumeAdjustmentRepository adjustments, RecipeLookup recipes,
+            EquipmentCleanlinessLookup cleanliness, EquipmentUsageCommands usage, AuditTrail audit) {
         this.batches = Objects.requireNonNull(batches, "batches");
         this.transfers = Objects.requireNonNull(transfers, "transfers");
         this.adjustments = Objects.requireNonNull(adjustments, "adjustments");
         this.recipes = Objects.requireNonNull(recipes, "recipes");
+        this.cleanliness = Objects.requireNonNull(cleanliness, "cleanliness");
+        this.usage = Objects.requireNonNull(usage, "usage");
         this.audit = Objects.requireNonNull(audit, "audit");
     }
 
@@ -57,6 +65,13 @@ class BlendResultCommandsAdapter implements BlendResultCommands {
                     throw new VesselOccupiedException(command.equipmentId(), occupant);
                 });
 
+        // CLN-004-A: encher um tanque com cerveja é encher um tanque com cerveja, venha ela de um dia de
+        // brassa ou de um blend. A regra é a mesma, e vale pelo mesmo caminho.
+        var status = cleanliness.status(command.breweryId(), command.equipmentId());
+        if (status.isPresent() && !status.get().clean()) {
+            throw new DirtyEquipmentException(command.equipmentId(), status.get().soiledSince());
+        }
+
         var batch = Batch.openFromBlend(command.breweryId(), code(command), recipe.id(), recipe.version(),
                 recipe.name(), command.liters(), command.occurredAt(), command.actorId());
         batches.insert(batch);
@@ -65,6 +80,7 @@ class BlendResultCommandsAdapter implements BlendResultCommands {
         // continuaria aparecendo livre para o próximo.
         transfers.insert(BatchTransfer.fillFromBlend(command.breweryId(), batch.id().value(),
                 command.equipmentId(), command.liters(), command.occurredAt(), command.actorId()));
+        usage.markSoiled(command.breweryId(), command.equipmentId(), command.occurredAt());
 
         var metadata = new LinkedHashMap<String, String>();
         metadata.put("origin", batch.origin().name());

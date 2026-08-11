@@ -43,7 +43,9 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
   crítico (designar exige estar apto; a designação cai sozinha quando vence) e a porta publicada
   `InstrumentStatusLookup` responde `fitForCritical`. Critério de remoção: ao modelar QLT-001,
   ligar instrumento ↔ ponto de controle e mover a verificação para o momento da medição.
-- **MTR-001-B — "aprovado com restrição" não estreita a faixa automaticamente.** A restrição é
+- **MTR-001-B — FECHADO EM 2026-08-11 COMO "NÃO VAI SER FEITO"** (ver DEC-DEBT-001 na Sprint 17):
+  interpretar a restrição exigiria inventar semântica sobre texto livre, e uma faixa adivinhada errada é
+  pior que nenhuma — ela parece conferida. O caminho continua humano. Registro original: a restrição é
   texto obrigatório e viaja junto da aptidão para quem consulta, mas o sistema não a interpreta:
   interpretar "faixa útil de 0 a 60 °C" exigiria parsear texto livre e inventar semântica.
   Critério de remoção: dar estrutura à restrição (faixa reduzida tipada) e validar a medição

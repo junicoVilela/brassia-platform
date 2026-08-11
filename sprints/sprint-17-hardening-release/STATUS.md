@@ -163,6 +163,78 @@ senão o painel fica cego exatamente durante o deploy.
 **O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
 honesto — significa que nenhum ensaio foi feito. **Preenchida em 2026-08-10 — ver DEC-REL-009.**
 
+### DEC-CLN-001 (CLN-004-A) — O evento tinha oito sprints sem consumidor, e o consumidor virou porta
+
+Débito aberto na Sprint 08: `CleaningCycleReleased` era publicado e ninguém escutava. **A metade que
+faltava não era o listener — era o estado que ele atualizaria.** Sem estado, a plataforma afirmava
+condicionar o uso à sanitização e só cumpria isso no envase, que consultava a última liberação por conta
+própria. Um fermentador recebia cerveja logo depois de esvaziar o lote anterior sem ninguém perguntar nada.
+
+**A regra, em três movimentos:** usar suja o tanque; tanque sujo recusa a próxima cerveja (409
+`equipment_not_clean`); ciclo verificado e liberado limpa. Vale tanto para a transferência do dia de
+brassa quanto para o enchimento vindo de um blend — encher um tanque com cerveja é a mesma coisa, venha
+ela de onde vier.
+
+**Não existe "marcar limpo".** Existe "foi limpo por este ciclo", e o ciclo é obrigatório no contrato e no
+tipo. A diferença não é de nome: um método sem ciclo seria o caminho usado no dia de correria, e "limpo"
+passaria a significar "alguém clicou" em vez de "há evidência de sanitização, com concentração,
+temperatura e ATP medidos". Um teste afirma que concluir o ciclo não limpa — só liberar limpa, porque
+concluir é ter feito, e liberar é ter conferido que funcionou.
+
+**O listener virou porta, e o `ModularityTest` foi quem mandou.** A primeira implementação foi um
+`@TransactionalEventListener` em `equipment`, exatamente como o débito previa em 2026 — e criou **ciclo
+entre módulos**: `sanitation` já dependia de `equipment` desde a CLN-003. Invertida a direção
+(`EquipmentCleanlinessCommands`, chamada pela liberação), a dependência ficou numa direção só. O ganho não
+foi só arquitetural: dentro da transação da liberação, deixou de existir a janela em que um ciclo aparece
+liberado com o tanque ainda sujo — e o estado deixou de depender de alguém ter registrado um listener.
+
+**Equipamento novo nasce limpo.** Exigir ciclo antes do primeiro uso obrigaria a registrar a limpeza de um
+tanque recém-chegado, e é assim que se ensina alguém a burlar a regra.
+
+**Sujar de novo não renova a data.** É a data antiga que denuncia o tanque parado sujo há três semanas —
+que é um problema pior que o tanque esvaziado hoje de manhã, e ficaria escondido atrás de um uso recente.
+Por isso a resposta do 409 traz `soiledSince`: sem ele, "tanque sujo" manda todo mundo fazer a mesma coisa
+em dois casos que pedem reações diferentes.
+
+**Limpeza não é perfil.** O estado mora na tabela de equipamento e tem repositório próprio: passar pelo
+`EquipmentRepository.update` geraria uma revisão de perfil a cada tanque esvaziado, enchendo o histórico
+de mudanças que não mudaram medida nenhuma. E a versão otimista do perfil não é tocada — limpar um tanque
+não pode fazer a edição de capacidade de outra pessoa falhar por conflito.
+
+**A listagem carrega o estado em bloco**, não item a item: é a lição da REL-002, onde o N+1 estava
+invisível porque morava no mapeador.
+
+### DEC-DEBT-001 — Quatro débitos fechados por decisão, sem código
+
+Em 2026-08-11 o mantenedor decidiu catorze débitos de uma vez. **Dez viram trabalho**; estes quatro
+fecham aqui, porque a resposta certa era decidir, não implementar. Débito sem decisão fica aberto para
+sempre e vai apodrecendo na lista até ninguém mais lembrar do que se tratava.
+
+**`FER-002` — as faixas de plausibilidade ficam como estão.** SG 0,980–1,180; −10 a 45 °C; 0–60 psi;
+pH 2,5–7,5, fixas no domínio. Cobrem qualquer cerveja com folga larga, e a pergunta que a sprint 09
+deixou em aberto ("estão certas para a operação real?") foi respondida: estão. Torná-las configuráveis
+seria dar a alguém a chance de afrouxar a checagem até ela não recusar nada — que é o mesmo que não ter
+checagem. Se um dia uma cervejaria precisar de faixa fora disso, vira história própria, com o caso
+concreto na mão.
+
+**`GAS-001-A` — custo e estoque do CO₂ ficam adiados, agora de propósito e por escrito.** Já tinham sido
+adiados na sprint 13 por falta de tempo; a diferença é que agora é decisão. O CO₂ é fração pequena do
+custo do litro e o modelo é caro de acertar — cilindro, comodato, retorno de vasilhame, perda por
+vazamento. Entra quando alguém olhar o custo do lote e reclamar da ausência dele; até lá, o `UTL-001`
+mede consumo, que é a metade que importa para quem opera.
+
+**`MTR-001-B` — não vai ser feito, e o débito fecha.** "Aprovado com restrição" não vai estreitar a faixa
+do instrumento automaticamente, porque a restrição é texto livre num certificado, e interpretá-la exigiria
+inventar semântica em cima do que um metrologista escreveu em português. Um sistema que adivinha a
+restrição errada é pior que um que não adivinha: ele produz uma faixa que parece conferida. O caminho
+correto continua sendo humano — quem lê o certificado bloqueia o instrumento ou registra a faixa nova à
+mão, e as duas ações já existem.
+
+**`RPT-003-A` — a plataforma registra a entrega e não envia, e continua assim.** Enviar exige SMTP
+configurado por cervejaria, tratamento de bounce, lista de destinatários e a conversa de LGPD que vem
+junto com mandar dado de produção para fora por e-mail. O relatório agendado que fica disponível na
+plataforma é honesto sobre o que faz. O débito fecha como decisão, não como pendência.
+
 ### DEC-REL-009 (REL-004) — O ensaio foi feito, e mediu o bloqueio em vez do tempo
 
 Ensaio executado contra PostgreSQL 18.4 local isolado, baseline em `V97`, dataset de 1,5 milhão de medições

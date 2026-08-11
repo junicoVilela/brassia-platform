@@ -21,6 +21,28 @@ class QualityExceptionHandler {
      * Ponto crítico com instrumento não apto. Devolvemos a aptidão junto: sem ela a pessoa não
      * sabe se recalibra, se desbloqueia ou se troca de instrumento.
      */
+    /**
+     * Lote inexistente na NC (DEB-AIA-003).
+     *
+     * <p>Quem recusa é a chave estrangeira, e não uma checagem prévia: duas requisições simultâneas
+     * passariam as duas por ela, e um lote cancelado entre a checagem e o INSERT deixaria a NC apontando
+     * para o nada. Aqui só se traduz o que o banco decidiu.
+     *
+     * <p>O `field` é a única informação acionável — sem ele, "referência inválida" num corpo com meia
+     * dúzia de campos deixa quem opera adivinhando qual conserta.
+     */
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    ProblemDetail handleIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {
+        var message = ex.getMostSpecificCause().getMessage();
+        if (message != null && message.contains("fk_quality_nc_batch")) {
+            var problem = ProblemDetails.of(HttpStatus.BAD_REQUEST, "unknown_batch",
+                    "O lote informado não existe nesta cervejaria.");
+            problem.setProperty("field", "batchId");
+            return problem;
+        }
+        throw ex;
+    }
+
     @ExceptionHandler(CriticalPointInstrumentException.class)
     ProblemDetail handleCriticalPoint(CriticalPointInstrumentException ex) {
         var problem = ProblemDetails.of(HttpStatus.CONFLICT, "instrument_not_fit", ex.getMessage());

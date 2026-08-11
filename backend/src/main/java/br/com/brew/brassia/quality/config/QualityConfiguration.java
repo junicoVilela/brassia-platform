@@ -5,7 +5,6 @@ import br.com.brew.brassia.metrology.InstrumentStatusLookup;
 import br.com.brew.brassia.production.BatchAlertPublisher;
 import br.com.brew.brassia.quality.application.port.inbound.ControlPlanCommands;
 import br.com.brew.brassia.quality.application.port.inbound.MeasurementCommands;
-import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.quality.NonConformityOpening;
 import br.com.brew.brassia.quality.application.port.inbound.NonConformityCommands;
 import br.com.brew.brassia.quality.application.port.inbound.QualityQueries;
@@ -120,9 +119,9 @@ class QualityConfiguration {
 
     @Bean
     NonConformityCommands.Open openNonConformityUseCase(NonConformityRepository nonConformities,
-            MeasurementRepository measurements, CapaPolicyRepository policies, BatchLookup batches,
+            MeasurementRepository measurements, CapaPolicyRepository policies,
             AuditTrail audit, PlatformTransactionManager transactionManager) {
-        var handler = new NonConformityHandlers.Open(nonConformities, measurements, policies, batches, audit);
+        var handler = new NonConformityHandlers.Open(nonConformities, measurements, policies, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }

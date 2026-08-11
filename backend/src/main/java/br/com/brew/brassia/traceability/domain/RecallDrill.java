@@ -45,6 +45,8 @@ public final class RecallDrill {
     private Integer gapsFound;
     private String summary;
     private String correctiveActions;
+    /** A NC onde as ações corretivas viraram itens de CAPA (FDS-004-A). */
+    private UUID nonConformityId;
 
     private RecallDrill(UUID id, UUID breweryId, String code, NodeType nodeType, UUID nodeId,
             String originLabel, String note, UUID startedBy, Instant startedAt, DrillStatus status,
@@ -82,10 +84,12 @@ public final class RecallDrill {
             UUID nodeId, String originLabel, String note, UUID startedBy, Instant startedAt,
             DrillStatus status, UUID finishedBy, Instant finishedAt, Integer unitsInScope,
             Integer unitsLocated, Integer destinationsReached, Integer gapsFound, String summary,
-            String correctiveActions) {
-        return new RecallDrill(id, breweryId, code, nodeType, nodeId, originLabel, note, startedBy,
+            String correctiveActions, UUID nonConformityId) {
+        var drill = new RecallDrill(id, breweryId, code, nodeType, nodeId, originLabel, note, startedBy,
                 startedAt, status, finishedBy, finishedAt, unitsInScope, unitsLocated, destinationsReached,
                 gapsFound, summary, correctiveActions);
+        drill.nonConformityId = nonConformityId;
+        return drill;
     }
 
     /**
@@ -99,7 +103,7 @@ public final class RecallDrill {
      * é sinal de erro de contagem e não de excelência.
      */
     public void finish(UUID actorId, int unitsInScope, int unitsLocated, int destinationsReached,
-            int gapsFound, String summary, String correctiveActions, Instant at) {
+            int gapsFound, String summary, String correctiveActions, UUID nonConformityId, Instant at) {
         if (status != DrillStatus.RUNNING) {
             throw new IllegalStateException("este simulado já foi encerrado");
         }
@@ -118,7 +122,15 @@ public final class RecallDrill {
         this.destinationsReached = destinationsReached;
         this.gapsFound = gapsFound;
         this.summary = closing;
-        this.correctiveActions = trimToNull(correctiveActions, MAX_ACTIONS);
+        var text = trimToNull(correctiveActions, MAX_ACTIONS);
+        if (text != null && nonConformityId != null) {
+            // Os dois juntos deixariam quem lê o relatório sem saber qual é a ação de verdade: a escrita
+            // no texto ou a que tem dono e prazo no CAPA.
+            throw new IllegalArgumentException(
+                    "a ação corretiva ou é texto ou é item de CAPA, não as duas");
+        }
+        this.correctiveActions = text;
+        this.nonConformityId = nonConformityId;
         this.status = DrillStatus.FINISHED;
     }
 
@@ -191,6 +203,11 @@ public final class RecallDrill {
     public Integer destinationsReached() { return destinationsReached; }
     public Integer gapsFound() { return gapsFound; }
     public String summary() { return summary; }
+    /** A NC onde as ações viraram itens de CAPA; vazio quando o simulado não gerou ação (FDS-004-A). */
+    public java.util.Optional<UUID> nonConformityId() {
+        return java.util.Optional.ofNullable(nonConformityId);
+    }
+
     public String correctiveActions() { return correctiveActions; }
 
     public enum DrillStatus {

@@ -1,10 +1,15 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
 import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator.component';
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { QualityApi } from '../../../quality/data-access/quality.api';
+import { NonConformity } from '../../../quality/domain/quality.model';
+import { DrillCapaAction } from '../../domain/drill.model';
 import { DrillsStore } from '../../data-access/drills.store';
 import { RecallDrill } from '../../domain/drill.model';
 import { NODE_ICONS, NODE_LABELS } from '../../domain/genealogy.model';
@@ -22,7 +27,9 @@ import { NODE_ICONS, NODE_LABELS } from '../../domain/genealogy.model';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe,
+    FormsModule,
     ReactiveFormsModule,
+    RouterLink,
     PageHeaderComponent,
     LoadingIndicatorComponent,
     EmptyStateComponent,
@@ -32,6 +39,8 @@ import { NODE_ICONS, NODE_LABELS } from '../../domain/genealogy.model';
 })
 export class DrillsPageComponent implements OnInit {
   protected readonly store = inject(DrillsStore);
+  private readonly quality = inject(QualityApi);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
 
@@ -45,10 +54,19 @@ export class DrillsPageComponent implements OnInit {
     unitsLocated: [0, [Validators.required, Validators.min(0)]],
     summary: ['', [Validators.required, Validators.maxLength(1000)]],
     correctiveActions: ['', [Validators.maxLength(2000)]],
+    // Escolhida entre as NCs prontas para receber ação. O simulado não abre NC sozinho: isso exigiria
+    // decidir a severidade, e o quanto uma cobertura de 75% é grave depende do produto e de quem audita.
+    nonConformityId: [''],
   });
 
   ngOnInit(): void {
     this.store.load();
+    // As NCs vêm da qualidade: é lá que a ação vai ser acompanhada, e duplicar a lista aqui criaria um
+    // segundo lugar para manter igual.
+    this.quality
+      .nonConformities()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: list => this.nonConformities.set(list), error: () => undefined });
   }
 
   protected select(drill: RecallDrill): void {
@@ -67,6 +85,7 @@ export class DrillsPageComponent implements OnInit {
       unitsLocated: this.store.report()?.unitsInScope ?? 0,
       summary: '',
       correctiveActions: '',
+      nonConformityId: '',
     });
   }
 
@@ -80,9 +99,44 @@ export class DrillsPageComponent implements OnInit {
       return;
     }
     const value = this.finishForm.getRawValue();
-    this.store.finish(drill.id, value.unitsLocated, value.summary, value.correctiveActions || null);
+    const nc = value.nonConformityId || null;
+    this.store.finish(
+      drill.id,
+      value.unitsLocated,
+      value.summary,
+      nc ? null : value.correctiveActions || null,
+      nc,
+      nc ? this.capaActions() : [],
+    );
+    this.capaActions.set([]);
     this.finishing.set(null);
   }
+
+  /** Ações a abrir no CAPA quando uma NC é escolhida. Com dono e prazo — sem eles é intenção. */
+  protected readonly capaActions = signal<DrillCapaAction[]>([]);
+  protected readonly nonConformities = signal<NonConformity[]>([]);
+
+  protected addCapaAction(): void {
+    this.capaActions.update(rows => [
+      ...rows,
+      { kind: 'CORRECTIVE', description: '', owner: '', dueOn: '' },
+    ]);
+  }
+
+  protected updateCapaAction(index: number, field: keyof DrillCapaAction, value: string): void {
+    this.capaActions.update(rows =>
+      rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
+    );
+  }
+
+  protected removeCapaAction(index: number): void {
+    this.capaActions.update(rows => rows.filter((_, i) => i !== index));
+  }
+
+  /** Só NCs investigadas recebem ação: o CAPA recusa planejar solução antes de conhecer a causa. */
+  protected readonly nonConformitiesReady = computed(() =>
+    this.nonConformities().filter(nc => nc.status === 'INVESTIGATED' || nc.status === 'ACTION_PLANNED'),
+  );
 
   /** Tempo em horas e minutos: um simulado se mede em horas, não em segundos. */
   protected elapsed(seconds: number): string {

@@ -20,8 +20,18 @@ export interface RecallDrill {
   gapsFound: number | null;
   summary: string | null;
   correctiveActions: string | null;
+  /** A NC onde as ações viraram itens de CAPA (FDS-004-A); nula quando o simulado não gerou ação. */
+  nonConformityId: string | null;
   /** Tempo da cervejaria, não do sistema — é o que a norma cobra. */
   elapsedSeconds: number;
+}
+
+/** Ação corretiva do simulado, com o que a distingue de uma intenção: tipo, dono e prazo. */
+export interface DrillCapaAction {
+  kind: 'CORRECTIVE' | 'PREVENTIVE';
+  description: string;
+  owner: string;
+  dueOn: string;
 }
 
 export interface DrillDestination {

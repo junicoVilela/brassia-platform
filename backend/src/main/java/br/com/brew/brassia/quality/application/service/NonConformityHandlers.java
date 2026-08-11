@@ -4,7 +4,6 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.quality.application.port.inbound.NonConformityCommands;
 import br.com.brew.brassia.quality.application.port.outbound.MeasurementRepository;
-import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.quality.application.port.outbound.CapaPolicyRepository;
 import br.com.brew.brassia.quality.application.port.outbound.NonConformityRepository;
 import br.com.brew.brassia.quality.domain.CapaActionKind;
@@ -61,15 +60,13 @@ public final class NonConformityHandlers {
         private final NonConformityRepository nonConformities;
         private final MeasurementRepository measurements;
         private final CapaPolicyRepository policies;
-        private final BatchLookup batches;
         private final AuditTrail audit;
 
         public Open(NonConformityRepository nonConformities, MeasurementRepository measurements,
-                CapaPolicyRepository policies, BatchLookup batches, AuditTrail audit) {
+                CapaPolicyRepository policies, AuditTrail audit) {
             this.nonConformities = Objects.requireNonNull(nonConformities);
             this.measurements = Objects.requireNonNull(measurements);
             this.policies = Objects.requireNonNull(policies);
-            this.batches = Objects.requireNonNull(batches);
             this.audit = Objects.requireNonNull(audit);
         }
 
@@ -81,11 +78,10 @@ public final class NonConformityHandlers {
             if (nonConformities.existsByCode(command.breweryId(), code)) {
                 throw new IllegalStateException("já existe não conformidade com o código " + code);
             }
-            // Lote inexistente viraria uma NC afirmando falar de um lote que não existe — e é justamente
-            // essa afirmação que o vínculo existe para sustentar.
-            if (command.batchId() != null && !batches.exists(command.breweryId(), command.batchId())) {
-                throw new IllegalArgumentException("lote inexistente");
-            }
+            // Lote inexistente viraria uma NC afirmando falar de um lote que não existe. Quem garante é
+            // a CHAVE ESTRANGEIRA, e não uma consulta a `production`: a checagem prévia daria a este
+            // módulo uma dependência de produção que fecharia o ciclo
+            // production → traceability → quality → production. O banco recusa, e o handler traduz.
             // Desvio inexistente viraria uma NC apontando para o nada, e o encerramento não teria o
             // que fechar.
             if (command.deviationId() != null

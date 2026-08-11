@@ -1,7 +1,7 @@
 # Status — Sprint 17
 
 Estado: EM EXECUÇÃO — REL-002, REL-003 e REL-004 concluídas; REL-001 fora de escopo por decisão do
-mantenedor; REL-005 depende de homologação.
+mantenedor; REL-005 com o manual mínimo entregue e o ciclo em homologação pendente.
 
 ## Controle das histórias
 
@@ -11,7 +11,7 @@ mantenedor; REL-005 depende de homologação.
 | REL-002 | Concluída | Claude | `infra/perf/*`, `ListBatchesUseCase`, `JdbcBatchRepository`, `PageResponse` | Gargalo medido **e corrigido**: com 3.000 lotes, p95 caiu de 319 ms para 9,8 ms. Ver DEC-REL-007. |
 | REL-003 | Concluída | Claude | `InternalAddressGuard`, `SecurityConfiguration`, `.github/workflows/ci.yml`, `frontend/package-lock.json` | Um achado ALTO (SSRF no webhook) e dois médios resolvidos; varredura de CVE passou a barrar merge. Ver DEC-REL-001/002/003. |
 | REL-004 | Concluída | Claude | `infra/runbooks/deploy-rollback.md` | Ensaio executado em 2026-08-10: bloqueio de escrita medido migration a migration (`V100` = 143 ms) e retorno do artefato anterior contra o schema novo exercitado de verdade. Ambiente local, não cópia de produção — limitação registrada. Ver DEC-REL-006/009. |
-| REL-005 | A fazer | — | — | — |
+| REL-005 | Parcial — manual entregue, ciclo pendente | Claude | `docs/44_MINIMUM_OPERATING_MANUAL.md` | O entregável que não depende de ambiente está pronto, com o roteiro de homologação e a evidência exigida por etapa. O ciclo em homologação continua aberto: depende do ambiente e de quem opera. Ver DEC-REL-010. |
 
 ## Decisões e bloqueios
 
@@ -190,6 +190,35 @@ antigo **inteiro** — inclusive a listagem sem paginação que a `REL-002` corr
 **Os limites estão registrados junto com os números:** contêiner local e não cópia de produção, uma escrita
 por vez em vez de concorrência real, e banco ocioso durante o rollback. A linha da tabela vale pelo que
 mediu, não como carimbo.
+
+### DEC-REL-010 (REL-005) — O manual descreve a sequência, não as telas; e o roteiro veio antes do ciclo
+
+O critério pede três coisas — evidências anexadas, bloqueadores encerrados e manual mínimo entregue. Só a
+terceira não depende de ambiente, e é a que este registro fecha.
+
+**O manual não cataloga campos.** Rótulo e validação já estão na tela, e repeti-los aqui criaria uma segunda
+fonte que envelhece na primeira mudança de layout — com o agravante de que a cópia desatualizada *parece*
+autoridade. O que o manual traz é a **sequência e o porquê de cada porta**: que ordem só aceita receita
+publicada, que o lote nasce no início da ordem e não na criação dela, que a linha de envase não recebe plano
+sem limpeza liberada dentro da validade da casa.
+
+**A fonte é o teste, e está dito no texto.** O ciclo descrito é o de `business-journey.spec.ts`, que roda
+contra a API real a cada mudança. O manual declara que, se divergirem, o teste está certo — sem isso, um
+manual escrito uma vez vira folclore em três releases.
+
+**A seção que mais vai ser usada é a das recusas.** Quase toda recusa do primeiro ciclo é regra, não defeito:
+receita não publicada, estoque não reservado, limpeza vencida, permissão do tipo errado, conflito de versão.
+Quem não sabe disso abre chamado; quem sabe, volta um passo. Por isso a tabela diz *o que a recusa está
+afirmando*, e não só como sair dela.
+
+**O roteiro de homologação foi escrito antes do ciclo, de propósito.** Rodar primeiro e listar depois produz
+exatamente a evidência que sobrou — a etapa que ninguém capturou some do relatório, e o aceite fica
+parecendo completo. Cada linha nomeia a evidência mínima, incluindo as duas que costumam faltar por não
+serem "o fluxo": um 403 com Problem Details e a tentativa de outra cervejaria.
+
+**O que continua aberto:** o ciclo em homologação, que depende do ambiente e de quem opera. E o manual
+registra na própria seção final que, sem ensaio de restauração (`DEC-REL-008`), **não há RPO nem RTO de
+dados medidos** — isso é informação operacional para quem for entrar em produção, não nota de rodapé.
 
 ### DEC-REL-007 (REL-002) — O gargalo era N+1, não payload; corrigidos os dois
 

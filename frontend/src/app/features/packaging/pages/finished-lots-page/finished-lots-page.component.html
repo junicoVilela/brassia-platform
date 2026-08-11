@@ -76,18 +76,54 @@
           @if (row.shipments.length > 0) {
             <ul class="list-unstyled small mb-0 mt-2 d-flex flex-column gap-1">
               @for (shipment of row.shipments; track shipment.id) {
-                <li>
+                <!--
+                  A estornada continua na lista, riscada e com o motivo. Sumir seria indistinguível de
+                  nunca ter existido, e o histórico precisa mostrar que alguém registrou errado e corrigiu.
+                -->
+                <li [class.text-body-secondary]="!!shipment.reversedAt">
                   <i class="ri-truck-line me-1" aria-hidden="true"></i>
-                  <strong>{{ shipment.destination }}</strong> — {{ shipment.units }} un em
-                  {{ shipment.shippedOn | date: 'dd/MM/yyyy' }}
+                  <strong [class.text-decoration-line-through]="!!shipment.reversedAt">
+                    {{ shipment.destination }}
+                  </strong>
+                  — {{ shipment.units }} un em {{ shipment.shippedOn | date: 'dd/MM/yyyy' }}
                   @if (shipment.contact) {
                     · {{ shipment.contact }}
-                  } @else {
+                  } @else if (!shipment.reversedAt) {
                     · <span class="text-warning-emphasis">sem contato registrado</span>
+                  }
+                  @if (shipment.reversedAt) {
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">estornada</span>
+                    <span class="d-block ms-4">{{ shipment.reversalReason }}</span>
+                  } @else if (canReverse) {
+                    <button type="button" class="btn btn-link btn-sm p-0 ms-2 align-baseline"
+                            (click)="startReversal(shipment)">
+                      estornar
+                    </button>
                   }
                 </li>
               }
             </ul>
+          }
+
+          @if (reversing()) {
+            <form class="mt-3 border-top pt-3" (ngSubmit)="confirmReversal()">
+              <label class="form-label small" for="reversalReason">
+                Motivo do estorno — o histórico precisa distinguir digitação, destino trocado e carga que
+                não saiu
+              </label>
+              <div class="d-flex gap-2">
+                <input id="reversalReason" class="form-control form-control-sm"
+                       [ngModel]="reversalReason()" (ngModelChange)="reversalReason.set($event)"
+                       [ngModelOptions]="{ standalone: true }" required minlength="5">
+                <button type="submit" class="btn btn-sm btn-warning text-nowrap"
+                        [disabled]="reversalReason().trim().length < 5">
+                  Estornar
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancelReversal()">
+                  Cancelar
+                </button>
+              </div>
+            </form>
           }
 
           @if (isShipping(row)) {

@@ -15,9 +15,13 @@ import java.util.UUID;
  * destino é texto de quem expediu, porque distribuição comercial é assunto das sprints 19 e 20, e
  * criar um cadastro de clientes por aqui seria decidir por elas.
  *
- * <p>Não há comando de correção: expedição é fato registrado. Corrigir uma saída errada é assunto
- * de outra história, e sobrescrevê-la em silêncio apagaria o destino que já foi comunicado num
- * recall.
+ * <p><strong>Não se corrige: estorna-se (FDS-003-A).</strong> Sobrescrever a saída apagaria o destino que
+ * já foi comunicado num recall. O estorno mantém a linha, marca que ela não vale mais e exige o porquê —
+ * assim "nunca houve expedição" continua distinguível de "houve e foi estornada", e a segunda é
+ * demonstrável para quem recebeu a comunicação baseada nela.
+ *
+ * <p>Devolução e transferência entre destinos continuam fora: são movimentação comercial, dependem de
+ * cliente e pedido, e são assunto das sprints 19 e 20.
  */
 public final class Shipment {
 
@@ -34,9 +38,12 @@ public final class Shipment {
     private final String note;
     private final UUID recordedBy;
     private final Instant recordedAt;
+    private Reversal reversal;
 
     private Shipment(UUID id, UUID breweryId, UUID finishedLotId, String destination, String contact,
-            int units, LocalDate shippedOn, String note, UUID recordedBy, Instant recordedAt) {
+            int units, LocalDate shippedOn, String note, UUID recordedBy, Instant recordedAt,
+            Reversal reversal) {
+        this.reversal = reversal;
         this.id = Objects.requireNonNull(id);
         this.breweryId = Objects.requireNonNull(breweryId, "cervejaria é obrigatória");
         this.finishedLotId = Objects.requireNonNull(finishedLotId, "lote de produto acabado é obrigatório");
@@ -55,13 +62,84 @@ public final class Shipment {
     public static Shipment record(UUID breweryId, UUID finishedLotId, String destination, String contact,
             int units, LocalDate shippedOn, String note, UUID actorId, Instant at) {
         return new Shipment(UUID.randomUUID(), breweryId, finishedLotId, destination, contact, units,
-                shippedOn, note, actorId, at);
+                shippedOn, note, actorId, at, null);
     }
 
     public static Shipment reconstitute(UUID id, UUID breweryId, UUID finishedLotId, String destination,
-            String contact, int units, LocalDate shippedOn, String note, UUID recordedBy, Instant recordedAt) {
+            String contact, int units, LocalDate shippedOn, String note, UUID recordedBy, Instant recordedAt,
+            Reversal reversal) {
         return new Shipment(id, breweryId, finishedLotId, destination, contact, units, shippedOn, note,
-                recordedBy, recordedAt);
+                recordedBy, recordedAt, reversal);
+    }
+
+    /**
+     * Estorna a expedição registrada errada.
+     *
+     * <p>A justificativa é obrigatória e não aceita evasiva. Sem ela, o histórico mostraria uma expedição
+     * que deixou de valer sem dizer se foi erro de digitação, destino trocado ou carga que não saiu — e as
+     * três exigem reações diferentes de quem investiga.
+     *
+     * <p>Estornar duas vezes é recusado: a segunda tentativa é uma repetição, e aceitá-la sobrescreveria o
+     * autor e a data do estorno que realmente aconteceu.
+     */
+    public void reverse(UUID actorId, String reason, Instant at) {
+        if (reversal != null) {
+            throw new AlreadyReversedException(id, reversal.at());
+        }
+        reversal = new Reversal(Objects.requireNonNull(actorId, "autor do estorno é obrigatório"),
+                requireReason(reason), Objects.requireNonNull(at, "instante do estorno é obrigatório"));
+    }
+
+    /** Vale para o recall? Estornada não conta como saída, e é isso que a torna diferente de apagada. */
+    public boolean isActive() {
+        return reversal == null;
+    }
+
+    public java.util.Optional<Reversal> reversal() {
+        return java.util.Optional.ofNullable(reversal);
+    }
+
+    private static String requireReason(String reason) {
+        var text = reason == null ? "" : reason.trim();
+        if (text.length() < 5) {
+            // Curto demais é "n/a" com outro nome: a justificativa existe para ser lida meses depois.
+            throw new IllegalArgumentException("o motivo do estorno precisa dizer o que houve");
+        }
+        if (text.length() > MAX_NOTE) {
+            throw new IllegalArgumentException("motivo excede " + MAX_NOTE + " caracteres");
+        }
+        return text;
+    }
+
+    /** Quem estornou, por quê e quando. Os três juntos ou nenhum — meio estorno não existe. */
+    public record Reversal(UUID by, String reason, Instant at) {
+
+        public Reversal {
+            Objects.requireNonNull(by, "autor do estorno");
+            Objects.requireNonNull(reason, "motivo do estorno");
+            Objects.requireNonNull(at, "instante do estorno");
+        }
+    }
+
+    /** Segunda tentativa de estornar a mesma expedição. */
+    public static final class AlreadyReversedException extends RuntimeException {
+
+        private final UUID shipmentId;
+        private final Instant reversedAt;
+
+        AlreadyReversedException(UUID shipmentId, Instant reversedAt) {
+            super("expedição já estornada em " + reversedAt);
+            this.shipmentId = shipmentId;
+            this.reversedAt = reversedAt;
+        }
+
+        public UUID shipmentId() {
+            return shipmentId;
+        }
+
+        public Instant reversedAt() {
+            return reversedAt;
+        }
     }
 
     private static String requireText(String value, String field, int max) {

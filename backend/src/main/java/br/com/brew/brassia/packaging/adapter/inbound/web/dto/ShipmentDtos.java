@@ -25,12 +25,24 @@ public final class ShipmentDtos {
     /**
      * @param contact pode vir nulo — destino sem contato é lacuna que o recall mostra, não esconde
      */
+    /**
+     * @param reversedAt nulo enquanto a expedição vale. A estornada continua na lista, marcada: sumir da
+     *                   tela seria indistinguível de nunca ter existido, e o histórico precisa mostrar
+     *                   que alguém registrou errado e corrigiu
+     */
+    /** Motivo do estorno: obrigatório, e o domínio recusa evasiva curta. */
+    public record ReverseShipmentRequest(@jakarta.validation.constraints.NotBlank
+            @jakarta.validation.constraints.Size(max = 500) String reason) {}
+
     public record ShipmentView(UUID id, UUID finishedLotId, String destination, String contact, int units,
-            LocalDate shippedOn, String note) {
+            LocalDate shippedOn, String note, java.time.Instant reversedAt, String reversalReason) {
 
         public static ShipmentView from(Shipment shipment) {
+            var reversal = shipment.reversal();
             return new ShipmentView(shipment.id(), shipment.finishedLotId(), shipment.destination(),
-                    shipment.contact(), shipment.units(), shipment.shippedOn(), shipment.note());
+                    shipment.contact(), shipment.units(), shipment.shippedOn(), shipment.note(),
+                    reversal.map(Shipment.Reversal::at).orElse(null),
+                    reversal.map(Shipment.Reversal::reason).orElse(null));
         }
 
         public static List<ShipmentView> from(List<Shipment> shipments) {

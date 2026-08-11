@@ -24,6 +24,9 @@ export interface Shipment {
   units: number;
   shippedOn: string;
   note: string | null;
+  /** Preenchido quando a expedição foi estornada (FDS-003-A). Estornada não conta no recall. */
+  reversedAt: string | null;
+  reversalReason: string | null;
 }
 
 export interface RecordShipmentRequest {

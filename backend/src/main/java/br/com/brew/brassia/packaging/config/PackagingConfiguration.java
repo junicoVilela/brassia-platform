@@ -39,6 +39,7 @@ import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
 import br.com.brew.brassia.packaging.application.port.inbound.ShipmentUseCases;
 import br.com.brew.brassia.packaging.application.port.outbound.ShipmentRepository;
 import br.com.brew.brassia.packaging.application.service.RecordShipmentHandler;
+import br.com.brew.brassia.packaging.application.service.ReverseShipmentHandler;
 import br.com.brew.brassia.packaging.application.service.ShipmentQueriesHandler;
 import br.com.brew.brassia.traceability.QuarantineCheck;
 import java.util.Objects;
@@ -122,6 +123,15 @@ class PackagingConfiguration {
             FinishedLotRepository finishedLots, QuarantineCheck quarantines, AuditTrail audit,
             PlatformTransactionManager transactionManager) {
         var handler = new RecordShipmentHandler(shipments, finishedLots, quarantines, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    /** Estorno da expedição registrada errada (FDS-003-A). */
+    @Bean
+    ShipmentUseCases.Reverse reverseShipmentUseCase(ShipmentRepository shipments, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ReverseShipmentHandler(shipments, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }

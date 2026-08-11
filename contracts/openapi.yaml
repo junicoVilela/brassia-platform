@@ -4011,6 +4011,48 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /packaging/shipments/{shipmentId}/reversal:
+    post:
+      tags: [Envase]
+      summary: Estornar expedição registrada errada (FDS-003-A)
+      description: >-
+        O caminho de volta de um registro errado — não é devolução nem transferência entre destinos, que
+        são movimentação comercial e dependem de cliente e pedido (sprints 19 e 20).
+
+
+        **A linha permanece.** Apagar tornaria indistinguível "nunca houve expedição" de "houve e foi
+        estornada", e a segunda precisa ser demonstrável, inclusive para quem recebeu a comunicação de um
+        recall baseado nela. Estornada, ela sai do escopo do recall e o saldo sem destino do lote volta a
+        mostrar a cerveja que a expedição errada escondia.
+
+
+        O motivo é obrigatório e o domínio recusa evasiva curta: o histórico precisa distinguir erro de
+        digitação, destino trocado e carga que não saiu — as três exigem reações diferentes. Alçada
+        própria (`packaging.shipment.reverse`), separada de registrar.
+      parameters:
+        - {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, maxLength: 500}
+      responses:
+        '200':
+          description: Expedição estornada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Shipment'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "`shipment_already_reversed`"
+          content:
+            application/problem+json:
+              schema: {type: object}
   /traceability/recalls:
     get:
       tags: [Rastreabilidade]
@@ -9480,6 +9522,15 @@ components:
         units: {type: integer}
         shippedOn: {type: string, format: date}
         note: {type: string, nullable: true}
+        reversedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Preenchido quando a expedição foi estornada (FDS-003-A). Ela continua na listagem, marcada:
+            sumir da tela seria indistinguível de nunca ter existido, e o histórico precisa mostrar que
+            alguém registrou errado e corrigiu. Estornada não conta no escopo de um recall
+        reversalReason: {type: string, nullable: true}
     Recall:
       type: object
       properties:

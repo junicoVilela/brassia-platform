@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
 import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator.component';
@@ -19,6 +19,7 @@ import { FinishedLotsStore, LotWithShipments } from '../../data-access/finished-
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe,
+    FormsModule,
     ReactiveFormsModule,
     PageHeaderComponent,
     LoadingIndicatorComponent,
@@ -33,6 +34,11 @@ export class FinishedLotsPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
 
   protected readonly canShip = this.auth.hasPermission('packaging.shipment.manage');
+  protected readonly canReverse = this.auth.hasPermission('packaging.shipment.reverse');
+
+  /** Expedição sendo estornada; uma por vez, e o motivo é obrigatório. */
+  protected readonly reversing = signal<string | null>(null);
+  protected readonly reversalReason = signal('');
 
   /** Lote cuja expedição está sendo escrita; uma por vez. */
   protected readonly shipping = signal<string | null>(null);
@@ -47,6 +53,25 @@ export class FinishedLotsPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.load();
+  }
+
+  protected startReversal(shipment: { id: string }): void {
+    this.reversing.set(shipment.id);
+    this.reversalReason.set('');
+  }
+
+  protected cancelReversal(): void {
+    this.reversing.set(null);
+    this.reversalReason.set('');
+  }
+
+  protected confirmReversal(): void {
+    const id = this.reversing();
+    if (!id) {
+      return;
+    }
+    this.store.reverseShipment(id, this.reversalReason().trim());
+    this.cancelReversal();
   }
 
   protected startShipment(row: LotWithShipments): void {

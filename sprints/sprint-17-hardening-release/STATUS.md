@@ -163,6 +163,41 @@ senão o painel fica cego exatamente durante o deploy.
 **O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
 honesto — significa que nenhum ensaio foi feito. **Preenchida em 2026-08-10 — ver DEC-REL-009.**
 
+### DEC-FDS-001 (FDS-003-A) — Estorno, e só estorno: o resto continua sendo comercial
+
+Decisão do mantenedor em 2026-08-11. O critério de remoção do débito apontava para as sprints 19/20
+definirem movimentação comercial — **e fechá-lo não precisou disso**. Das três lacunas registradas
+(devolução, cancelamento e transferência entre destinos), só uma é urgente e nenhuma parte dela é
+comercial: a expedição digitada errada.
+
+**Por que não podia esperar.** Um erro de digitação contamina o recall, que é onde o dado precisa estar
+certo. 200 unidades registradas para o distribuidor errado fazem o simulado medir cobertura sobre um
+destino que nunca recebeu nada, e fazem o saldo sem destino do lote mentir **para menos** — escondendo
+cerveja que ninguém sabe onde está. Devolução e transferência continuam fora: dependem de cliente e
+pedido, que é o que a Sprint 12 se recusou a inventar.
+
+**Estorno não apaga, e é o `AGENTS.md` que manda.** A linha permanece marcada. Apagar tornaria
+indistinguível "nunca houve expedição" de "houve e foi estornada" — e a segunda precisa ser demonstrável,
+inclusive para quem recebeu a comunicação de um recall baseado nela. Na tela ela aparece riscada, com o
+motivo ao lado.
+
+**O efeito no recall é consequência, não passo.** As consultas que o alimentam passaram a olhar só
+expedições vivas; nada é recalculado. Há teste de integração que monta o caso inteiro: com a expedição
+errada valendo, o escopo soma 160 unidades e dois destinos; estornada, volta a 120 e um destino — e a
+linha continua na listagem.
+
+**O motivo é obrigatório e o domínio recusa evasiva curta.** Sem conteúdo, o histórico mostraria uma
+expedição que deixou de valer sem dizer se foi digitação, destino trocado ou carga que não saiu — e as
+três exigem reações diferentes de quem investiga.
+
+**Alçada própria (`packaging.shipment.reverse`), não crítica.** Registrar é o trabalho do dia e muita
+gente faz; estornar desfaz um destino que pode já ter sido comunicado. Não é crítica de propósito:
+dificultar demais o estorno empurraria quem opera a conviver com o dado errado, que é o problema original.
+
+**Erro meu no caminho:** a migration reusou um id de permissão já existente (`...131`) e derrubou o
+contexto inteiro dos testes com violação de chave primária. O `ON CONFLICT (code)` não cobre isso — a
+chave primária é o id. Corrigido para o próximo livre da sequência.
+
 ### DEC-AIA-001 (DEB-AIA-003) — O copiloto abre NC, e um terço do débito já tinha caído sozinho
 
 Decisão do mantenedor em 2026-08-11: **a NC passa a referenciar lote, e os prazos vêm da severidade** pela

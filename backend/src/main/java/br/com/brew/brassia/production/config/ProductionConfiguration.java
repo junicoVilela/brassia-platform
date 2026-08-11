@@ -29,6 +29,7 @@ import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
 import br.com.brew.brassia.production.application.port.outbound.MeasurementRepository;
 import br.com.brew.brassia.production.application.port.outbound.ProductionEventPublisher;
 import br.com.brew.brassia.production.application.port.outbound.TransferRepository;
+import br.com.brew.brassia.production.application.port.outbound.VolumeAdjustmentRepository;
 import br.com.brew.brassia.production.application.service.ApplyCorrectionHandler;
 import br.com.brew.brassia.production.application.service.BrewConsumptionHandlers;
 import br.com.brew.brassia.production.application.service.CompleteBatchStepHandler;
@@ -156,13 +157,18 @@ class ProductionConfiguration {
 
     /** Existência de lote publicada para outros módulos (ex.: leituras de fermentação, FER-002). */
     @Bean
-    BatchLookup batchLookup(BatchRepository batches, TransferRepository transfers) {
+    BatchLookup batchLookup(BatchRepository batches, TransferRepository transfers,
+            VolumeAdjustmentRepository adjustments) {
         return (breweryId, batchId) -> batches.findById(breweryId, batchId)
                 .map(batch -> new BatchLookup.Snapshot(batch.id().value(), batch.orderId(), batch.code(),
                         batch.volumeLiters(),
+                        // Volume envasável = o que a transferência determinou, mais o que o blend moveu.
+                        // Somar aqui, e não numa coluna, é o que mantém uma única resposta para "quanta
+                        // cerveja tem neste tanque" quando alguém corrige a transferência depois.
                         transfers.findByBatch(breweryId, batchId)
                                 .map(transfer -> transfer.volumeLiters())
-                                .orElse(batch.volumeLiters()),
+                                .orElse(batch.volumeLiters())
+                                .add(adjustments.totalFor(breweryId, batchId)),
                         batch.status().name(), batch.recipeId(), batch.recipeVersion(),
                         batch.recipeName()));
     }

@@ -2,6 +2,7 @@ package br.com.brew.brassia.production.adapter.outbound.persistence;
 
 import br.com.brew.brassia.production.application.port.outbound.TransferRepository;
 import br.com.brew.brassia.production.domain.BatchTransfer;
+import br.com.brew.brassia.production.domain.TransferKind;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -23,15 +24,16 @@ class JdbcTransferRepository implements TransferRepository {
     public void insert(BatchTransfer t) {
         jdbc.sql("""
                 INSERT INTO production_transfer (
-                    id, brewery_id, batch_id, destination_equipment_id, volume_liters, og_sg, losses_liters,
+                    id, brewery_id, batch_id, destination_equipment_id, kind, volume_liters, og_sg, losses_liters,
                     transferred_at, transferred_by)
-                VALUES (:id, :brewery, :batch, :dest, :volume, :og, :losses, :at, :by)
+                VALUES (:id, :brewery, :batch, :dest, :kind, :volume, :og, :losses, :at, :by)
                 """)
                 .param("id", t.id())
                 .param("brewery", t.breweryId())
                 .param("batch", t.batchId())
                 .param("dest", t.destinationEquipmentId())
                 .param("volume", t.volumeLiters())
+                .param("kind", t.kind().name())
                 .param("og", t.ogSg())
                 .param("losses", t.lossesLiters())
                 .param("at", Timestamp.from(t.transferredAt()))
@@ -42,7 +44,7 @@ class JdbcTransferRepository implements TransferRepository {
     @Override
     public Optional<BatchTransfer> findByBatch(UUID breweryId, UUID batchId) {
         return jdbc.sql("""
-                SELECT id, brewery_id, batch_id, destination_equipment_id, volume_liters, og_sg, losses_liters,
+                SELECT id, brewery_id, batch_id, destination_equipment_id, kind, volume_liters, og_sg, losses_liters,
                        transferred_at, transferred_by
                 FROM production_transfer
                 WHERE brewery_id = :brewery AND batch_id = :batch
@@ -75,6 +77,7 @@ class JdbcTransferRepository implements TransferRepository {
                 rs.getObject("brewery_id", UUID.class),
                 rs.getObject("batch_id", UUID.class),
                 rs.getObject("destination_equipment_id", UUID.class),
+                TransferKind.valueOf(rs.getString("kind")),
                 rs.getBigDecimal("volume_liters"),
                 rs.getBigDecimal("og_sg"),
                 rs.getBigDecimal("losses_liters"),

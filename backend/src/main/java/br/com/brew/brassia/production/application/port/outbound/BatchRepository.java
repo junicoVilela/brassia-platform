@@ -36,4 +36,13 @@ public interface BatchRepository {
      * andamento (transferência única).
      */
     boolean markFermenting(UUID breweryId, UUID batchId, Instant at);
+
+    /**
+     * Encerra o lote que ficou sem volume (FERMENTING → COMPLETED), guardado pelo estado.
+     *
+     * <p>Retorna {@code false} quando o lote já não estava em fermentação. É a primeira conclusão de lote
+     * da plataforma, e ela é consequência, não comando: ninguém "conclui" um lote — ele acaba quando a
+     * cerveja acaba.
+     */
+    boolean markCompleted(UUID breweryId, UUID batchId, Instant at);
 }

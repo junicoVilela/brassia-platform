@@ -4,6 +4,7 @@ import br.com.brew.brassia.blend.domain.BlendOperation;
 import br.com.brew.brassia.blend.domain.UnknownBlendBatchException;
 import br.com.brew.brassia.blend.domain.UnknownBlendOperationException;
 import br.com.brew.brassia.blend.domain.UnbalancedBlendException;
+import br.com.brew.brassia.production.BlendResultCommands;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -23,6 +24,43 @@ class BlendExceptionHandler {
      * devolve as três parcelas e a diferença porque a correção é aritmética — quem opera precisa saber se
      * faltam 12 litros ou 120, e de que lado.
      */
+    /**
+     * Sai mais cerveja do que o lote tem.
+     *
+     * <p>422 pelo mesmo motivo do balanço: o pedido está bem formado e é a realidade do tanque que o
+     * recusa. A resposta diz quanto existe e quanto foi pedido — sem os dois números, quem opera só sabe
+     * que falhou, e refaz a operação no chute até passar.
+     *
+     * <p>A checagem vive na execução, e não na simulação, porque é a execução que move: entre simular e
+     * executar, um envase pode ter esvaziado o lote que a simulação viu cheio.
+     */
+    /**
+     * O tanque de destino já tem cerveja.
+     *
+     * <p>409 e não 422: não é a conta que está errada, é o mundo que mudou — outro lote ocupou o tanque
+     * entre planejar e executar. A resposta nomeia o ocupante porque "tanque ocupado" sozinho manda quem
+     * opera procurar em todas as telas qual lote está lá.
+     */
+    @ExceptionHandler(BlendResultCommands.VesselOccupiedException.class)
+    ProblemDetail handleVesselOccupied(BlendResultCommands.VesselOccupiedException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "vessel_occupied",
+                "O tanque de destino já tem um lote fermentando. Escolha outro tanque ou libere este.");
+        problem.setProperty("equipmentId", ex.equipmentId());
+        problem.setProperty("occupiedBy", ex.occupiedBy());
+        return problem;
+    }
+
+    @ExceptionHandler(BlendResultCommands.InsufficientBatchVolumeException.class)
+    ProblemDetail handleInsufficientVolume(BlendResultCommands.InsufficientBatchVolumeException ex) {
+        var problem = ProblemDetails.of(HttpStatus.UNPROCESSABLE_ENTITY, "insufficient_batch_volume",
+                "O lote tem " + ex.availableLiters() + " L e a operação tira " + ex.requestedLiters()
+                        + " L. Confira o volume medido ou o lote de origem.");
+        problem.setProperty("batchId", ex.batchId());
+        problem.setProperty("availableLiters", ex.availableLiters());
+        problem.setProperty("requestedLiters", ex.requestedLiters());
+        return problem;
+    }
+
     @ExceptionHandler(UnbalancedBlendException.class)
     ProblemDetail handleUnbalanced(UnbalancedBlendException ex) {
         var sumiu = ex.difference().signum() > 0;

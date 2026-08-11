@@ -16,6 +16,7 @@ public final class Batch {
     private final BatchId id;
     private final UUID breweryId;
     private final UUID orderId;
+    private final BatchOrigin origin;
     private final String code;
     private final UUID recipeId;
     private final int recipeVersion;
@@ -26,12 +27,21 @@ public final class Batch {
     private final UUID startedBy;
     private final List<BatchStep> steps;
 
-    private Batch(BatchId id, UUID breweryId, UUID orderId, String code, UUID recipeId, int recipeVersion,
-            String recipeName, BigDecimal volumeLiters, BatchStatus status, Instant startedAt, UUID startedBy,
-            List<BatchStep> steps) {
+    private Batch(BatchId id, UUID breweryId, UUID orderId, BatchOrigin origin, String code, UUID recipeId,
+            int recipeVersion, String recipeName, BigDecimal volumeLiters, BatchStatus status,
+            Instant startedAt, UUID startedBy, List<BatchStep> steps) {
         this.id = Objects.requireNonNull(id, "id");
         this.breweryId = Objects.requireNonNull(breweryId, "breweryId");
-        this.orderId = Objects.requireNonNull(orderId, "orderId");
+        this.origin = Objects.requireNonNull(origin, "origin");
+        // Ordem e origem andam juntas nos dois sentidos: lote de ordem sem ordem seria um lote órfão do
+        // planejamento, e lote de blend com ordem faria o custeio ratear uma ordem que ninguém programou.
+        if (origin == BatchOrigin.BREW_ORDER && orderId == null) {
+            throw new IllegalArgumentException("lote de ordem precisa da ordem que o gerou");
+        }
+        if (origin == BatchOrigin.BLEND && orderId != null) {
+            throw new IllegalArgumentException("lote de blend não nasce de ordem de produção");
+        }
+        this.orderId = orderId;
         this.code = requireText(code, "código");
         this.recipeId = Objects.requireNonNull(recipeId, "recipeId");
         this.recipeVersion = recipeVersion;
@@ -45,15 +55,29 @@ public final class Batch {
 
     public static Batch open(UUID breweryId, UUID orderId, String code, UUID recipeId, int recipeVersion,
             String recipeName, BigDecimal volumeLiters, Instant startedAt, UUID startedBy, List<BatchStep> steps) {
-        return new Batch(BatchId.newId(), breweryId, orderId, code, recipeId, recipeVersion, recipeName,
-                volumeLiters, BatchStatus.IN_PROGRESS, startedAt, startedBy, steps);
+        return new Batch(BatchId.newId(), breweryId, orderId, BatchOrigin.BREW_ORDER, code, recipeId,
+                recipeVersion, recipeName, volumeLiters, BatchStatus.IN_PROGRESS, startedAt, startedBy, steps);
     }
 
-    public static Batch reconstitute(BatchId id, UUID breweryId, UUID orderId, String code, UUID recipeId,
-            int recipeVersion, String recipeName, BigDecimal volumeLiters, BatchStatus status, Instant startedAt,
-            UUID startedBy, List<BatchStep> steps) {
-        return new Batch(id, breweryId, orderId, code, recipeId, recipeVersion, recipeName, volumeLiters, status,
-                startedAt, startedBy, steps);
+    /**
+     * Lote produzido pela execução de um blend (DEC-BLD-003).
+     *
+     * <p><strong>Nasce em fermentação, e sem roteiro.</strong> Não houve dia de brassa: a cerveja já
+     * existia nos lotes de origem, e o que aconteceu foi ela mudar de tanque. Um roteiro de brassa aqui
+     * descreveria etapas que ninguém executou, e o estado de brassa impediria o envase — que é justamente
+     * o destino desta cerveja.
+     */
+    public static Batch openFromBlend(UUID breweryId, String code, UUID recipeId, int recipeVersion,
+            String recipeName, BigDecimal volumeLiters, Instant startedAt, UUID startedBy) {
+        return new Batch(BatchId.newId(), breweryId, null, BatchOrigin.BLEND, code, recipeId, recipeVersion,
+                recipeName, volumeLiters, BatchStatus.FERMENTING, startedAt, startedBy, List.of());
+    }
+
+    public static Batch reconstitute(BatchId id, UUID breweryId, UUID orderId, BatchOrigin origin, String code,
+            UUID recipeId, int recipeVersion, String recipeName, BigDecimal volumeLiters, BatchStatus status,
+            Instant startedAt, UUID startedBy, List<BatchStep> steps) {
+        return new Batch(id, breweryId, orderId, origin, code, recipeId, recipeVersion, recipeName, volumeLiters,
+                status, startedAt, startedBy, steps);
     }
 
     private static String requireText(String value, String field) {
@@ -66,6 +90,7 @@ public final class Batch {
     public BatchId id() { return id; }
     public UUID breweryId() { return breweryId; }
     public UUID orderId() { return orderId; }
+    public BatchOrigin origin() { return origin; }
     public String code() { return code; }
     public UUID recipeId() { return recipeId; }
     public int recipeVersion() { return recipeVersion; }

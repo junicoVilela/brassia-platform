@@ -4,12 +4,15 @@ import br.com.brew.brassia.blend.application.port.outbound.BlendRepository;
 import br.com.brew.brassia.blend.domain.BlendKind;
 import br.com.brew.brassia.blend.domain.BlendOperation;
 import br.com.brew.brassia.blend.domain.BlendStatus;
+import br.com.brew.brassia.blend.domain.PlannedOutput;
 import br.com.brew.brassia.blend.domain.VolumeMovement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -50,6 +53,33 @@ class JdbcBlendRepository implements BlendRepository {
 
         insertSide(operation.id(), "INPUT", operation.inputs());
         insertSide(operation.id(), "OUTPUT", operation.outputs());
+
+        for (var planned : operation.plannedOutputs()) {
+            jdbc.sql("""
+                    INSERT INTO blend_planned_output (operation_id, seq, recipe_id, equipment_id, liters)
+                    VALUES (:operation, :seq, :recipe, :equipment, :liters)
+                    """)
+                    .param("operation", operation.id()).param("seq", planned.seq())
+                    .param("recipe", planned.recipeId()).param("equipment", planned.equipmentId())
+                    .param("liters", planned.liters())
+                    .update();
+        }
+    }
+
+    /**
+     * Grava o lote criado para a saída planejada.
+     *
+     * <p>Separado do {@code updateProgress} porque acontece depois dele: o lote só existe quando a
+     * operação já está executada, e é a execução que autoriza criá-lo.
+     */
+    @Override
+    public void linkResultBatch(UUID operationId, int seq, UUID batchId) {
+        jdbc.sql("""
+                UPDATE blend_planned_output SET created_batch_id = :batch
+                WHERE operation_id = :operation AND seq = :seq AND created_batch_id IS NULL
+                """)
+                .param("batch", batchId).param("operation", operationId).param("seq", seq)
+                .update();
     }
 
     private void insertSide(UUID operationId, String side, List<VolumeMovement> movements) {
@@ -113,8 +143,13 @@ class JdbcBlendRepository implements BlendRepository {
     public List<BlendOperation> executedTouching(UUID breweryId, UUID batchId) {
         return jdbc.sql(SELECT + """
                  WHERE brewery_id = :brewery AND status = 'EXECUTED'
-                   AND EXISTS (SELECT 1 FROM blend_movement m
-                               WHERE m.operation_id = blend_operation.id AND m.batch_id = :batch)
+                   AND (EXISTS (SELECT 1 FROM blend_movement m
+                                WHERE m.operation_id = blend_operation.id AND m.batch_id = :batch)
+                        -- O lote criado pela operação também é tocado por ela: sem esta metade, a
+                        -- genealogia pararia justamente no lote que a união produziu.
+                        OR EXISTS (SELECT 1 FROM blend_planned_output p
+                                   WHERE p.operation_id = blend_operation.id
+                                     AND p.created_batch_id = :batch))
                  ORDER BY executed_at
                 """)
                 .param("brewery", breweryId).param("batch", batchId)
@@ -134,6 +169,8 @@ class JdbcBlendRepository implements BlendRepository {
                 BlendKind.valueOf(rs.getString("kind")),
                 movementsOf(id, "INPUT"),
                 movementsOf(id, "OUTPUT"),
+                plannedOutputsOf(id),
+                resultBatchesOf(id),
                 rs.getBigDecimal("declared_loss_liters"),
                 rs.getString("reason"),
                 BlendStatus.valueOf(rs.getString("status")),
@@ -147,6 +184,31 @@ class JdbcBlendRepository implements BlendRepository {
 
     private static Instant instantOf(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toInstant();
+    }
+
+    private List<PlannedOutput> plannedOutputsOf(UUID operationId) {
+        return jdbc.sql("""
+                SELECT seq, recipe_id, equipment_id, liters FROM blend_planned_output
+                WHERE operation_id = :operation ORDER BY seq
+                """)
+                .param("operation", operationId)
+                .query((rs, n) -> new PlannedOutput(rs.getInt("seq"),
+                        rs.getObject("recipe_id", UUID.class), rs.getObject("equipment_id", UUID.class),
+                        rs.getBigDecimal("liters")))
+                .list();
+    }
+
+    private Map<Integer, UUID> resultBatchesOf(UUID operationId) {
+        var links = new LinkedHashMap<Integer, UUID>();
+        jdbc.sql("""
+                SELECT seq, created_batch_id FROM blend_planned_output
+                WHERE operation_id = :operation AND created_batch_id IS NOT NULL ORDER BY seq
+                """)
+                .param("operation", operationId)
+                .query((rs, n) -> Map.entry(rs.getInt("seq"), rs.getObject("created_batch_id", UUID.class)))
+                .list()
+                .forEach(entry -> links.put(entry.getKey(), entry.getValue()));
+        return links;
     }
 
     private List<VolumeMovement> movementsOf(UUID operationId, String side) {

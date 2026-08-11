@@ -3,6 +3,7 @@ package br.com.brew.brassia.production.adapter.outbound.persistence;
 import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
 import br.com.brew.brassia.production.domain.Batch;
 import br.com.brew.brassia.production.domain.BatchId;
+import br.com.brew.brassia.production.domain.BatchOrigin;
 import br.com.brew.brassia.production.domain.BatchStatus;
 import br.com.brew.brassia.production.domain.BatchStep;
 import br.com.brew.brassia.production.domain.BatchStepStatus;
@@ -23,8 +24,8 @@ import org.springframework.stereotype.Repository;
 class JdbcBatchRepository implements BatchRepository {
 
     private static final String COLUMNS = """
-            SELECT id, brewery_id, order_id, code, recipe_id, recipe_version, recipe_name, volume_liters,
-                   status, started_at, started_by
+            SELECT id, brewery_id, order_id, origin, code, recipe_id, recipe_version, recipe_name,
+                   volume_liters, status, started_at, started_by
             FROM production_batch
             """;
 
@@ -38,14 +39,15 @@ class JdbcBatchRepository implements BatchRepository {
     public void insert(Batch b) {
         jdbc.sql("""
                 INSERT INTO production_batch (
-                    id, brewery_id, order_id, code, recipe_id, recipe_version, recipe_name, volume_liters,
-                    status, started_at, started_by)
-                VALUES (:id, :brewery, :order, :code, :recipe, :recipeVersion, :recipeName, :volume,
+                    id, brewery_id, order_id, origin, code, recipe_id, recipe_version, recipe_name,
+                    volume_liters, status, started_at, started_by)
+                VALUES (:id, :brewery, :order, :origin, :code, :recipe, :recipeVersion, :recipeName, :volume,
                         :status, :at, :by)
                 """)
                 .param("id", b.id().value())
                 .param("brewery", b.breweryId())
                 .param("order", b.orderId())
+                .param("origin", b.origin().name())
                 .param("code", b.code())
                 .param("recipe", b.recipeId())
                 .param("recipeVersion", b.recipeVersion())
@@ -147,6 +149,22 @@ class JdbcBatchRepository implements BatchRepository {
                 .optional();
     }
 
+    @Override
+    public boolean markCompleted(UUID breweryId, UUID batchId, java.time.Instant at) {
+        // Os dois estados vivos encerram, e não só FERMENTING: um lote sem cerveja acabou, esteja ele em
+        // brassa ou em fermentação. Restringir a FERMENTING deixaria um lote drenado em brassa aberto para
+        // sempre, aparecendo como disponível para uma cerveja que não está mais lá.
+        //
+        // O estado antigo está no WHERE: duas execuções simultâneas de blend esvaziando o mesmo lote não
+        // encerram duas vezes, e a segunda descobre isso pelo banco em vez de por uma leitura anterior.
+        return jdbc.sql("""
+                UPDATE production_batch SET status = 'COMPLETED'
+                WHERE brewery_id = :brewery AND id = :batch AND status IN ('IN_PROGRESS', 'FERMENTING')
+                """)
+                .param("brewery", breweryId).param("batch", batchId)
+                .update() == 1;
+    }
+
     private Batch map(ResultSet rs) throws SQLException {
         var batchId = rs.getObject("id", UUID.class);
         var breweryId = rs.getObject("brewery_id", UUID.class);
@@ -154,6 +172,7 @@ class JdbcBatchRepository implements BatchRepository {
                 new BatchId(batchId),
                 breweryId,
                 rs.getObject("order_id", UUID.class),
+                BatchOrigin.valueOf(rs.getString("origin")),
                 rs.getString("code"),
                 rs.getObject("recipe_id", UUID.class),
                 rs.getInt("recipe_version"),
@@ -198,7 +217,7 @@ class JdbcBatchRepository implements BatchRepository {
      * torna o N+1 invisível em quem lê o código: a consulta extra não aparece na chamada, aparece no
      * mapeador.
      */
-    private record Row(UUID id, UUID breweryId, UUID orderId, String code, UUID recipeId,
+    private record Row(UUID id, UUID breweryId, UUID orderId, BatchOrigin origin, String code, UUID recipeId,
             int recipeVersion, String recipeName, java.math.BigDecimal volumeLiters, BatchStatus status,
             java.time.Instant startedAt, UUID startedBy) {
 
@@ -206,6 +225,7 @@ class JdbcBatchRepository implements BatchRepository {
             this(rs.getObject("id", UUID.class),
                     rs.getObject("brewery_id", UUID.class),
                     rs.getObject("order_id", UUID.class),
+                    BatchOrigin.valueOf(rs.getString("origin")),
                     rs.getString("code"),
                     rs.getObject("recipe_id", UUID.class),
                     rs.getInt("recipe_version"),
@@ -217,7 +237,7 @@ class JdbcBatchRepository implements BatchRepository {
         }
 
         Batch toBatch(List<BatchStep> steps) {
-            return Batch.reconstitute(new BatchId(id), breweryId, orderId, code, recipeId,
+            return Batch.reconstitute(new BatchId(id), breweryId, orderId, origin, code, recipeId,
                     recipeVersion, recipeName, volumeLiters, status, startedAt, startedBy, steps);
         }
     }

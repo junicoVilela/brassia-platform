@@ -6833,7 +6833,7 @@ components:
         registeredAt: {type: string, format: date-time}
     SimulateBlendOperation:
       type: object
-      required: [kind, inputs, outputs, reason]
+      required: [kind, inputs, reason]
       properties:
         kind:
           type: string
@@ -6848,8 +6848,17 @@ components:
           items: {$ref: '#/components/schemas/BlendMovement'}
         outputs:
           type: array
-          minItems: 1
           items: {$ref: '#/components/schemas/BlendMovement'}
+          description: >-
+            Lotes que já existem e recebem volume. Pode vir vazio desde a DEC-BLD-003: uma união cujo
+            destino é um lote novo não tem nenhuma saída pré-existente. Quem exige ao menos uma saída — de
+            qualquer tipo — é o domínio, que conta as duas listas juntas
+        results:
+          type: array
+          items: {$ref: '#/components/schemas/BlendResultPlan'}
+          description: >-
+            Saídas que ainda não são lote. Cada uma vira um lote na execução, nunca na simulação: antes de
+            executar nenhuma cerveja se tocou
         declaredLossLiters:
           type: number
           minimum: 0
@@ -6863,6 +6872,44 @@ components:
           description: >-
             Obrigatório. Blend sem motivo é decisão sem rastro: meses depois ninguém sabe se foi correção
             de desvio, ajuste de estilo ou aproveitamento de sobra
+    BlendResultPlan:
+      type: object
+      required: [recipeId, equipmentId, liters]
+      properties:
+        recipeId:
+          type: string
+          format: uuid
+          description: >-
+            A receita publicada que o resultado passa a ser, DECLARADA por quem planeja e não inferida da
+            origem predominante. Uma união de 60% de IPA com 40% de Stout não é "uma IPA", e herdar a
+            receita da maior parte imprimiria o ABV e o estilo dela no rótulo de outra cerveja
+        equipmentId:
+          type: string
+          format: uuid
+          description: >-
+            O tanque que recebe o resultado. Cerveja está sempre em algum lugar, e é o tanque que liga
+            sensor e fermentação ao lote. Tanque já ocupado é recusado com 409 `vessel_occupied`
+        liters:
+          type: number
+          exclusiveMinimum: 0
+    BlendResult:
+      type: object
+      description: >-
+        Saída planejada e, depois da execução, o lote que ela produziu.
+      properties:
+        seq:
+          type: integer
+          description: Posição na operação; é por ela que o lote criado se liga de volta ao que foi planejado
+        recipeId: {type: string, format: uuid}
+        equipmentId: {type: string, format: uuid}
+        liters: {type: number}
+        batchId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >-
+            O lote criado. Nulo enquanto a operação não executou é o estado honesto — o lote não existe.
+            Omitir o campo faria a tela adivinhar a diferença entre "ainda não" e "não vai ter"
     BlendMovement:
       type: object
       required: [batchId, liters]
@@ -6884,6 +6931,7 @@ components:
         kind: {type: string, enum: [MERGE, SPLIT]}
         inputs: {type: array, items: {$ref: '#/components/schemas/BlendMovement'}}
         outputs: {type: array, items: {$ref: '#/components/schemas/BlendMovement'}}
+        results: {type: array, items: {$ref: '#/components/schemas/BlendResult'}}
         inputLiters: {type: number}
         outputLiters: {type: number}
         declaredLossLiters: {type: number}

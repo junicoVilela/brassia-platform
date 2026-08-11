@@ -3,6 +3,8 @@ package br.com.brew.brassia.blend.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -23,6 +25,7 @@ class BlendOperationTest {
     private static final UUID CERVEJARIA = UUID.randomUUID();
     private static final UUID ATOR = UUID.randomUUID();
     private static final Instant AGORA = Instant.parse("2026-08-09T12:00:00Z");
+    private static final List<PlannedOutput> NENHUM_RESULTADO = List.of();
 
     private static VolumeMovement mov(String litros) {
         return new VolumeMovement(UUID.randomUUID(), new BigDecimal(litros));
@@ -31,7 +34,7 @@ class BlendOperationTest {
     private static BlendOperation uniao(List<VolumeMovement> entradas, List<VolumeMovement> saidas,
             String perda) {
         return BlendOperation.simulate(UUID.randomUUID(), CERVEJARIA, BlendKind.MERGE, entradas, saidas,
-                new BigDecimal(perda), "Aproveitamento de sobra de tanque", ATOR, AGORA);
+                NENHUM_RESULTADO, new BigDecimal(perda), "Aproveitamento de sobra de tanque", ATOR, AGORA);
     }
 
     @Nested
@@ -116,14 +119,14 @@ class BlendOperationTest {
 
             assertThatIllegalArgumentException().isThrownBy(() -> BlendOperation.simulate(
                     UUID.randomUUID(), CERVEJARIA, BlendKind.SPLIT, List.of(mov("300"), mov("300")),
-                    List.of(mov("300"), mov("300")), BigDecimal.ZERO, "x", ATOR, AGORA));
+                    List.of(mov("300"), mov("300")), NENHUM_RESULTADO, BigDecimal.ZERO, "x", ATOR, AGORA));
         }
 
         @Test
         @DisplayName("divisão de um lote em dois é aceita")
         void divisaoValida() {
             var op = BlendOperation.simulate(UUID.randomUUID(), CERVEJARIA, BlendKind.SPLIT,
-                    List.of(mov("600")), List.of(mov("300"), mov("295")), new BigDecimal("5"),
+                    List.of(mov("600")), List.of(mov("300"), mov("295")), NENHUM_RESULTADO, new BigDecimal("5"),
                     "Separar para dry hopping distinto", ATOR, AGORA);
 
             assertThat(op.kind()).isEqualTo(BlendKind.SPLIT);
@@ -141,7 +144,7 @@ class BlendOperationTest {
 
             assertThatIllegalArgumentException().isThrownBy(() -> BlendOperation.simulate(
                     UUID.randomUUID(), CERVEJARIA, BlendKind.MERGE, List.of(entrada, outra),
-                    List.of(saida), BigDecimal.ZERO, "x", ATOR, AGORA));
+                    List.of(saida), NENHUM_RESULTADO, BigDecimal.ZERO, "x", ATOR, AGORA));
         }
 
         @Test
@@ -153,7 +156,7 @@ class BlendOperationTest {
 
             assertThatIllegalArgumentException().isThrownBy(() -> BlendOperation.simulate(
                     UUID.randomUUID(), CERVEJARIA, BlendKind.MERGE, List.of(a, b),
-                    List.of(mov("600")), BigDecimal.ZERO, "x", ATOR, AGORA));
+                    List.of(mov("600")), NENHUM_RESULTADO, BigDecimal.ZERO, "x", ATOR, AGORA));
         }
 
         @Test
@@ -163,7 +166,7 @@ class BlendOperationTest {
             // ajuste de estilo ou aproveitamento de sobra.
             assertThatIllegalArgumentException().isThrownBy(() -> BlendOperation.simulate(
                     UUID.randomUUID(), CERVEJARIA, BlendKind.MERGE, List.of(mov("300"), mov("300")),
-                    List.of(mov("600")), BigDecimal.ZERO, "   ", ATOR, AGORA));
+                    List.of(mov("600")), NENHUM_RESULTADO, BigDecimal.ZERO, "   ", ATOR, AGORA));
         }
     }
 
@@ -246,6 +249,149 @@ class BlendOperationTest {
             assertThat(op.approvedBy()).contains(aprovador);
             assertThat(op.executedBy()).contains(operador);
             assertThat(op.executedAt()).contains(AGORA.plusSeconds(600));
+        }
+    }
+
+    @Nested
+    @DisplayName("o resultado é um lote novo (DEC-BLD-003)")
+    class LoteDeResultado {
+
+        private static final UUID RECEITA = UUID.randomUUID();
+        private static final UUID TANQUE = UUID.randomUUID();
+
+        private BlendOperation uniaoParaLoteNovo() {
+            return BlendOperation.simulate(UUID.randomUUID(), CERVEJARIA, BlendKind.MERGE,
+                    List.of(mov("400"), mov("200")), List.of(),
+                    List.of(new PlannedOutput(1, RECEITA, TANQUE, new BigDecimal("588"))),
+                    new BigDecimal("12"), "União para lote novo", ATOR, AGORA);
+        }
+
+        @Test
+        @DisplayName("DUAS ORIGENS PODEM VIRAR UM LOTE NOVO, sem nenhuma saída pré-existente")
+        void saidaSoPlanejada() {
+            // É a operação que a DEC-BLD-003 destravou, e a que a forma antiga recusava: contar apenas
+            // lotes existentes como saída tornaria inexprimível justamente o caso pedido.
+            var op = uniaoParaLoteNovo();
+
+            assertThat(op.outputs()).isEmpty();
+            assertThat(op.plannedOutputs()).hasSize(1);
+            assertThat(op.outputLiters()).isEqualByComparingTo("588");
+        }
+
+        @Test
+        @DisplayName("o balanço soma o lote novo junto com os que já existem")
+        void balancoSomaOsDois() {
+            // Sem somar os dois, uma união de 600 L com 300 L indo para lote existente e 288 L para lote
+            // novo pareceria estar perdendo 288 L sem ninguém declarar.
+            var op = BlendOperation.simulate(UUID.randomUUID(), CERVEJARIA, BlendKind.MERGE,
+                    List.of(mov("400"), mov("200")), List.of(mov("300")),
+                    List.of(new PlannedOutput(1, RECEITA, TANQUE, new BigDecimal("288"))),
+                    new BigDecimal("12"), "Parte para tanque existente, parte para lote novo", ATOR, AGORA);
+
+            assertThat(op.outputLiters()).isEqualByComparingTo("588");
+        }
+
+        @Test
+        @DisplayName("saída planejada que não fecha o balanço é recusada igual às outras")
+        void planejadaEntraNoBalanco() {
+            assertThatExceptionOfType(UnbalancedBlendException.class).isThrownBy(
+                    () -> BlendOperation.simulate(UUID.randomUUID(), CERVEJARIA, BlendKind.MERGE,
+                            List.of(mov("400"), mov("200")), List.of(),
+                            List.of(new PlannedOutput(1, RECEITA, TANQUE, new BigDecimal("500"))),
+                            BigDecimal.ZERO, "x", ATOR, AGORA));
+        }
+
+        @Test
+        @DisplayName("divisão em dois lotes novos é aceita; a forma conta saída planejada")
+        void divisaoEmDoisLotesNovos() {
+            var op = BlendOperation.simulate(UUID.randomUUID(), CERVEJARIA, BlendKind.SPLIT,
+                    List.of(mov("600")), List.of(),
+                    List.of(new PlannedOutput(1, RECEITA, TANQUE, new BigDecimal("300")),
+                            new PlannedOutput(2, RECEITA, TANQUE, new BigDecimal("295"))),
+                    new BigDecimal("5"), "Separar para dry hopping distinto", ATOR, AGORA);
+
+            assertThat(op.plannedOutputs()).hasSize(2);
+        }
+
+        @Test
+        @DisplayName("O LOTE SÓ SE LIGA DEPOIS DA EXECUÇÃO")
+        void naoLigaAntesDeExecutar() {
+            // Um lote de resultado antes da execução seria cerveja no tanque sem ninguém ter aberto
+            // válvula — e apareceria nas telas de produção como lote existente.
+            var op = uniaoParaLoteNovo();
+
+            assertThatIllegalStateException()
+                    .isThrownBy(() -> op.linkResultBatch(1, UUID.randomUUID()));
+
+            op.approve(ATOR, AGORA);
+            assertThatIllegalStateException()
+                    .isThrownBy(() -> op.linkResultBatch(1, UUID.randomUUID()));
+        }
+
+        @Test
+        @DisplayName("A MESMA SAÍDA NÃO GERA DOIS LOTES")
+        void naoLigaDuasVezes() {
+            // Uma execução repetida criaria um segundo lote com o mesmo volume, dobrando cerveja que
+            // nunca existiu. A recusa é do agregado, não da tela que chama.
+            var op = uniaoParaLoteNovo();
+            op.approve(ATOR, AGORA);
+            op.execute(ATOR, AGORA);
+            op.linkResultBatch(1, UUID.randomUUID());
+
+            assertThatIllegalStateException()
+                    .isThrownBy(() -> op.linkResultBatch(1, UUID.randomUUID()));
+        }
+
+        @Test
+        @DisplayName("posição sem saída planejada é recusada")
+        void posicaoInexistente() {
+            var op = uniaoParaLoteNovo();
+            op.approve(ATOR, AGORA);
+            op.execute(ATOR, AGORA);
+
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> op.linkResultBatch(2, UUID.randomUUID()));
+        }
+
+        @Test
+        @DisplayName("posição repetida no plano é recusada")
+        void posicaoRepetida() {
+            assertThatIllegalArgumentException().isThrownBy(
+                    () -> BlendOperation.simulate(UUID.randomUUID(), CERVEJARIA, BlendKind.SPLIT,
+                            List.of(mov("600")), List.of(),
+                            List.of(new PlannedOutput(1, RECEITA, TANQUE, new BigDecimal("300")),
+                                    new PlannedOutput(1, RECEITA, TANQUE, new BigDecimal("300"))),
+                            BigDecimal.ZERO, "x", ATOR, AGORA));
+        }
+
+        @Test
+        @DisplayName("PARA A GENEALOGIA, LOTE CRIADO É DESTINO COMO OUTRO QUALQUER")
+        void destinoIncluiOCriado() {
+            // Quem investiga um recall não distingue lote de resultado de lote de destino pré-existente:
+            // a diferença é de origem, não de consequência. Se o criado ficasse de fora, o recall pararia
+            // exatamente no lote que a união produziu.
+            var existente = mov("300");
+            var op = BlendOperation.simulate(UUID.randomUUID(), CERVEJARIA, BlendKind.MERGE,
+                    List.of(mov("400"), mov("200")), List.of(existente),
+                    List.of(new PlannedOutput(1, RECEITA, TANQUE, new BigDecimal("288"))),
+                    new BigDecimal("12"), "x", ATOR, AGORA);
+            op.approve(ATOR, AGORA);
+            op.execute(ATOR, AGORA);
+            var criado = UUID.randomUUID();
+            op.linkResultBatch(1, criado);
+
+            assertThat(op.destinationBatchIds()).containsExactlyInAnyOrder(existente.batchId(), criado);
+        }
+
+        @Test
+        @DisplayName("saída planejada sem receita ou com volume zero é recusada")
+        void planejadaInvalida() {
+            assertThatNullPointerException()
+                    .isThrownBy(() -> new PlannedOutput(1, null, TANQUE, BigDecimal.TEN));
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> new PlannedOutput(1, RECEITA, TANQUE, BigDecimal.ZERO));
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> new PlannedOutput(0, RECEITA, TANQUE, BigDecimal.TEN));
         }
     }
 }

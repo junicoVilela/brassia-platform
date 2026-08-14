@@ -87,10 +87,11 @@ Estado: ACEITA
   junto do resultado, em vez de um número com precisão que ele não tem.
 - Recalcular substitui a decisão inteira (1:1 com o plano): trocar de método não deixa resíduo do
   anterior, então entrada e resultado nunca divergem.
-- **PKG-002-A — não existe limite de pressão por embalagem.** O sistema bloqueia o caso claro
-  (priming sem espaço para o alvo), mas não sabe quanta pressão cada embalagem suporta: lata, long
-  neck e garrafa de champanhe têm limites diferentes, e esse dado não está no catálogo. Critério de
-  remoção: cadastrar pressão máxima por embalagem no catálogo e validar o alvo contra ela.
+- ~~**PKG-002-A**~~ — **FECHADO EM 2026-08-11.** O critério era "cadastrar pressão máxima por embalagem
+  no catálogo e validar o alvo contra ela", e é o que foi feito: `maxPressureBar` entrou nos atributos do
+  tipo `PACKAGING`, e a carbonatação recusa alvo acima do limite (409 `container_pressure_exceeded`).
+  A validação usa a **pressão de equilíbrio**, calculada nos dois métodos — a física não pergunta se o CO₂
+  veio de açúcar ou de cilindro, e o caso perigoso é justamente o priming. Ver DEC-PKG-001 na Sprint 17.
 
 ### PKG-003
 

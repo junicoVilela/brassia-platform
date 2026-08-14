@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -278,11 +279,83 @@ class CarbonationIT {
         return JSON.readTree(body).get(field).asDouble();
     }
 
+    @Test
+    @DisplayName("ALVO ACIMA DO QUE A LATA SUPORTA É RECUSADO, com a pressão, o limite e a temperatura")
+    void recusaAlvoAcimaDoLimiteDaEmbalagem() throws Exception {
+        // PKG-002-A. O sistema já barrava o caso claro (priming sem espaço para o alvo) e deixava passar
+        // o perigoso: alvo alto em embalagem frágil. Lata estourando é acidente de trabalho.
+        var session = login();
+        var planId = plannedPlan(session, "2.5");
+
+        carbonate(session, planId, "FORCED", "3.2", "20", null, true)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("container_pressure_exceeded")))
+                .andExpect(jsonPath("$.maxPressureBar", is(2.5)))
+                .andExpect(jsonPath("$.expectedPressureBar").exists())
+                // Sem a temperatura, quem opera não sabe que estocar mais quente piora o número.
+                .andExpect(jsonPath("$.referenceTempC", is(20)));
+    }
+
+    @Test
+    @DisplayName("A REGRA VALE NO PRIMING TAMBÉM: a física não pergunta de onde veio o CO₂")
+    void recusaPrimingAcimaDoLimite() throws Exception {
+        // É o caso que mais importa: garrafa com açúcar demais é a bomba clássica. A pressão de
+        // equilíbrio é a mesma conta nos dois métodos.
+        var session = login();
+        var planId = plannedPlan(session, "2.5");
+
+        carbonate(session, planId, "PRIMING", "3.2", "20", "SUCROSE", true)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("container_pressure_exceeded")));
+    }
+
+    @Test
+    @DisplayName("alvo dentro do limite passa, e o alerta diz a pressão contra o limite")
+    void dentroDoLimitePassaComAlerta() throws Exception {
+        var session = login();
+        var planId = plannedPlan(session, "5.0");
+
+        carbonate(session, planId, "FORCED", "2.4", "4", null, true)
+                .andExpect(status().isOk());
+
+        var body = mockMvc.perform(get(PLANS + "/" + planId + "/carbonation").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(body).contains("limite de 5.0 bar");
+    }
+
+    @Test
+    @DisplayName("SEM LIMITE CADASTRADO, O ALERTA DIZ QUE NADA FOI CONFERIDO")
+    void semLimiteAvisaQueNaoConferiu() throws Exception {
+        // Ausência declarada: é melhor dizer que não conferiu do que deixar quem opera supor que sim.
+        var session = login();
+        var planId = plannedPlan(session);
+
+        carbonate(session, planId, "FORCED", "2.4", "4", null, true)
+                .andExpect(status().isOk());
+
+        var body = mockMvc.perform(get(PLANS + "/" + planId + "/carbonation").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(body).contains("não tem pressão máxima cadastrada");
+    }
+
     /** Plano de envase de 800 latas de 355 ml (284 L) para um lote em fermentação. */
     private String plannedPlan(MockHttpSession session) throws Exception {
+        return plannedPlan(session, null);
+    }
+
+    /**
+     * O mesmo plano, com limite de pressão da embalagem quando informado (PKG-002-A).
+     *
+     * <p>Sem limite cadastrado o sistema não recusa nada — é o estado em que a plataforma estava, e os
+     * testes antigos continuam descrevendo esse mundo.
+     */
+    private String plannedPlan(MockHttpSession session, String maxPressureBar) throws Exception {
         var batchId = fermentingBatch(session);
         var containerId = createIngredient(session, "PACKAGING", "UNIT",
-                "{\"volumeMl\":\"355\",\"material\":\"lata\"}");
+                maxPressureBar == null
+                        ? "{\"volumeMl\":\"355\",\"material\":\"lata\"}"
+                        : "{\"volumeMl\":\"355\",\"material\":\"lata\",\"maxPressureBar\":\""
+                                + maxPressureBar + "\"}");
         var lineId = createEquipment(session);
         var content = """
                 {"code":"ENV-%s","batchId":"%s","containerId":"%s","plannedUnits":800,"lineEquipmentId":"%s",

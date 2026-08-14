@@ -2,6 +2,7 @@ package br.com.brew.brassia.packaging.adapter.inbound.web;
 
 import br.com.brew.brassia.packaging.domain.BatchVolumeExceededException;
 import br.com.brew.brassia.packaging.domain.LabelNotPrintableException;
+import br.com.brew.brassia.packaging.domain.ContainerPressureExceededException;
 import br.com.brew.brassia.packaging.domain.OverCarbonationException;
 import br.com.brew.brassia.packaging.domain.PackagingBlockedException;
 import br.com.brew.brassia.packaging.domain.PackagingStockShortfallException;
@@ -57,6 +58,25 @@ class PackagingExceptionHandler {
      * Priming sobre CO₂ que já atinge o alvo (PKG-002): o alvo e o residual acompanham o erro para
      * o cervejeiro decidir entre elevar o alvo, resfriar antes ou trocar de método.
      */
+    /**
+     * O alvo gera mais pressão do que a embalagem suporta (PKG-002-A).
+     *
+     * <p>409 e recusa, não alerta: alerta é lido no dia em que a linha está atrasada, e a consequência de
+     * ignorá-lo é garrafa estourando. A resposta traz a pressão esperada, o limite e a temperatura em que
+     * a conta foi feita — sem a temperatura, quem opera não sabe que estocar mais quente piora o número.
+     */
+    @ExceptionHandler(ContainerPressureExceededException.class)
+    ProblemDetail handleContainerPressure(ContainerPressureExceededException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "container_pressure_exceeded",
+                "O alvo de carbonatação gera " + ex.expectedPressureBar() + " bar a " + ex.referenceTempC()
+                        + " °C, acima do limite de " + ex.maxPressureBar() + " bar desta embalagem. "
+                        + "Reduza o alvo ou escolha uma embalagem que suporte a pressão.");
+        problem.setProperty("expectedPressureBar", ex.expectedPressureBar());
+        problem.setProperty("maxPressureBar", ex.maxPressureBar());
+        problem.setProperty("referenceTempC", ex.referenceTempC());
+        return problem;
+    }
+
     @ExceptionHandler(OverCarbonationException.class)
     ProblemDetail handleOverCarbonation(OverCarbonationException ex) {
         var problem = ProblemDetails.of(HttpStatus.CONFLICT, "over_carbonation",

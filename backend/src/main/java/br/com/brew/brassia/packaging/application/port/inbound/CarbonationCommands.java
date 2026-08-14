@@ -45,8 +45,18 @@ public final class CarbonationCommands {
      *
      * @param beerVolumeLiters volume planejado do envase, que entra no cálculo do priming
      */
+    /**
+     * @param pressureBar pressão aplicada na carbonatação forçada; nula no priming, onde não há pressão
+     *                    aplicada — quem pressuriza é o próprio açúcar
+     * @param equilibriumPressureBar a pressão que a embalagem vai ver quando o CO₂ equilibrar, na
+     *                    temperatura de referência. Vale para os DOIS métodos: a física é a mesma,
+     *                    independente de como o gás chegou lá (PKG-002-A)
+     * @param containerMaxPressureBar o limite da embalagem, quando cadastrado
+     */
     public record Recommendation(String method, BigDecimal targetVolumes, BigDecimal referenceTempC,
             BigDecimal residualVolumes, BigDecimal missingVolumes, BigDecimal beerVolumeLiters,
-            String primingSugar, BigDecimal primingSugarGrams, BigDecimal pressureBar, String calculationMethod,
-            String calculatorVersion, List<String> assumptions, List<String> alerts) {}
+            String primingSugar, BigDecimal primingSugarGrams, BigDecimal pressureBar,
+            BigDecimal equilibriumPressureBar, BigDecimal containerMaxPressureBar,
+            String calculationMethod, String calculatorVersion, List<String> assumptions,
+            List<String> alerts) {}
 }

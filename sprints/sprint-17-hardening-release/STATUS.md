@@ -163,6 +163,39 @@ senão o painel fica cego exatamente durante o deploy.
 **O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
 honesto — significa que nenhum ensaio foi feito. **Preenchida em 2026-08-10 — ver DEC-REL-009.**
 
+### DEC-QLT-001 (QLT-001-A) — O bloqueio estava desatualizado, e só uma das quatro cadências é julgável
+
+Decisão do mantenedor em 2026-08-14: **alerta, não bloqueio**. Parar a produção por um controle atrasado
+pararia a fábrica por causa de uma medição, e quem opera passaria a burlar a regra em vez de cumpri-la. O
+aviso entra na central do lote, onde o desvio grave (QLT-001) e a etapa atrasada (FER-004) já aparecem —
+uma segunda central seria um segundo lugar para ninguém olhar.
+
+**O débito estava aberto por leitura antiga.** O critério pedia "existir agendador na plataforma", e ele
+existe desde a Sprint 13. Vale como lembrete: débito descreve o mundo do dia em que foi escrito, e é a
+terceira vez nesta leva que reler o código encurtou o trabalho.
+
+**Só uma das quatro cadências é julgável por relógio, e isso ficou no tipo.** `PER_HOURS` é cobrada;
+`PER_BATCH` só está atrasada quando o lote acaba sem a medição — não há instante *durante* o lote em que
+ela esteja; `PER_SHIFT` exigiria um calendário de turnos que a plataforma não tem, e inventá-lo (8 h a
+partir da meia-noite?) produziria atraso onde a cervejaria não vê atraso nenhum; `PER_PACKAGING_RUN` se
+refere à corrida de envase, não ao lote em produção. As três continuam declaradas e não fiscalizadas — a
+diferença é que agora isso está dito, com o porquê, e há teste afirmando que elas não alertam.
+
+**Uma consulta publicada nova.** As consultas de produção respondiam por *um* lote de cada vez, o que
+serve a quem já tem o identificador e não a quem procura o que está atrasado. `OpenBatchLookup` lista os
+lotes abertos — e só os abertos: cadência não se cobra de lote encerrado, porque a medição que faltou já
+não pode ser feita e o aviso viraria ruído permanente.
+
+**O aviso não se repete, e a chave é a janela perdida.** Sem memória, a varredura de hora em hora
+avisaria de novo a cada hora sobre o mesmo atraso — central que repete 24 vezes por dia é central que
+ninguém lê. Enquanto ninguém mede, a janela perdida continua sendo a mesma, então o aviso é **um só**.
+Depois que alguém mede, a janela passa a contar dali: atrasar outra vez é fato novo e avisa de novo. Os
+dois casos têm teste, e o segundo só existe porque o primeiro teste que escrevi estava errado sobre a
+semântica — o código estava certo.
+
+**O ator é o sistema**, com identificador fixo: não há pessoa por trás de uma varredura, e emprestar o
+nome de alguém faria a trilha dizer que um humano avisou.
+
 ### DEC-PKG-002 (PKG-004-B) — O medido vence o calculado, e ABV coube num tipo que já existia
 
 Decisão do mantenedor em 2026-08-14: manter o "calculado, não medido" e acrescentar ABV medido, que

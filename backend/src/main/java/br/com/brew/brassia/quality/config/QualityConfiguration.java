@@ -5,7 +5,10 @@ import br.com.brew.brassia.metrology.InstrumentStatusLookup;
 import br.com.brew.brassia.production.BatchAlertPublisher;
 import br.com.brew.brassia.quality.application.port.inbound.ControlPlanCommands;
 import br.com.brew.brassia.quality.application.port.inbound.MeasurementCommands;
+import br.com.brew.brassia.production.OpenBatchLookup;
 import br.com.brew.brassia.quality.NonConformityOpening;
+import br.com.brew.brassia.quality.application.port.outbound.FrequencySweepRepository;
+import br.com.brew.brassia.quality.application.service.FrequencySweepService;
 import br.com.brew.brassia.quality.application.port.inbound.NonConformityCommands;
 import br.com.brew.brassia.quality.application.port.inbound.QualityQueries;
 import br.com.brew.brassia.quality.application.port.outbound.CapaPolicyRepository;
@@ -97,6 +100,13 @@ class QualityConfiguration {
     }
 
     // --- não conformidade e CAPA (QLT-002) ---
+
+    /** Varredura de cadência: avisa controle atrasado na central do lote (QLT-001-A). */
+    @Bean
+    FrequencySweepService frequencySweepService(FrequencySweepRepository sweep, OpenBatchLookup batches,
+            BatchAlertPublisher alerts) {
+        return new FrequencySweepService(sweep, batches, alerts, java.time.Clock.systemUTC());
+    }
 
     /**
      * Abertura publicada para o copiloto (DEB-AIA-003).

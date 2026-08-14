@@ -45,4 +45,7 @@ public interface BatchRepository {
      * cerveja acaba.
      */
     boolean markCompleted(UUID breweryId, UUID batchId, Instant at);
+
+    /** Lotes ainda em produção — em brassa ou fermentando (QLT-001-A). */
+    List<Batch> findOpen(UUID breweryId);
 }

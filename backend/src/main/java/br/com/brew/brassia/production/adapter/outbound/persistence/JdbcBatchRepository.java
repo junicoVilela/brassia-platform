@@ -165,6 +165,17 @@ class JdbcBatchRepository implements BatchRepository {
                 .update() == 1;
     }
 
+    @Override
+    public List<Batch> findOpen(UUID breweryId) {
+        // Sem os passos: quem varre cadência não olha roteiro, e carregá-los aqui seria o N+1 que a
+        // REL-002 ensinou a evitar — invisível, porque moraria no mapeador.
+        return jdbc.sql(COLUMNS + " WHERE brewery_id = :brewery AND status IN ('IN_PROGRESS', 'FERMENTING')"
+                        + " ORDER BY started_at")
+                .param("brewery", breweryId)
+                .query((rs, n) -> new Row(rs).toBatch(List.of()))
+                .list();
+    }
+
     private Batch map(ResultSet rs) throws SQLException {
         var batchId = rs.getObject("id", UUID.class);
         var breweryId = rs.getObject("brewery_id", UUID.class);

@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -365,9 +366,54 @@ class LabelIT {
                         + "\"purgeVerified\":true,\"sealCheckMethod\":\"recravação\",\"sealCheckPassed\":true}"));
     }
 
+    @Test
+    @DisplayName("O ABV MEDIDO VENCE O CALCULADO, e a origem diz qual foi usado")
+    void abvMedidoVenceOCalculado() throws Exception {
+        // PKG-004-B. O calculado vem das métricas da receita e é honesto ao dizer que é conta; o medido
+        // em laboratório é outro tipo de afirmação, e é ele que a legislação cobra no rótulo.
+        var session = login();
+        // Os campos da regra entram no template: outro teste desta classe grava uma regra obrigando
+        // BEER_NAME, BATCH_CODE e VOLUME_ML, e o preview recusa template que não a atende.
+        var template = saveTemplate(session, "BEER_NAME", "BATCH_CODE", "VOLUME_ML", "ABV");
+        var planId = executedPlan(session);
+
+        // Sem medição, o rótulo diz de onde tirou a conta.
+        mockMvc.perform(get(PLANS + "/" + planId + "/label/preview").session(session)
+                        .param("templateId", template))
+                .andExpect(jsonPath("$.lines[?(@.field=='ABV')].source",
+                        hasItem(containsString("calculado, não medido"))));
+
+        medirAbv(session, lastBatchId, "5.4");
+
+        mockMvc.perform(get(PLANS + "/" + planId + "/label/preview").session(session)
+                        .param("templateId", template))
+                .andExpect(jsonPath("$.lines[?(@.field=='ABV')].value", hasItem("5.4")))
+                .andExpect(jsonPath("$.lines[?(@.field=='ABV')].source", hasItem(containsString("medido"))));
+
+        // Uma remedição corrige a anterior, e é a correção que vai para a lata impressa: ABV se mede uma
+        // vez, e quando se mede de novo é porque a primeira estava errada.
+        medirAbv(session, lastBatchId, "5.1");
+
+        mockMvc.perform(get(PLANS + "/" + planId + "/label/preview").session(session)
+                        .param("templateId", template))
+                .andExpect(jsonPath("$.lines[?(@.field=='ABV')].value", hasItem("5.1")));
+    }
+
+    private void medirAbv(MockHttpSession session, String batchId, String valor) throws Exception {
+        mockMvc.perform(post("/api/v1/production/batches/" + batchId + "/measurements").session(session)
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"kind\":\"ABV\",\"value\":" + valor + ",\"unit\":\"%ABV\","
+                                + "\"source\":\"MANUAL\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    /** O lote do último plano montado — para medir ABV nele (PKG-004-B). */
+    private String lastBatchId;
+
     /** Plano com envase executado: é dele que o rótulo tira lote, volume e validade. */
     private String executedPlan(MockHttpSession session) throws Exception {
         var batchId = fermentingBatch(session);
+        this.lastBatchId = batchId;
         var containerId = createIngredient(session, "PACKAGING", "UNIT",
                 "{\"volumeMl\":\"355\",\"material\":\"lata\"}");
         receiveContainers(session, containerId, 1000);

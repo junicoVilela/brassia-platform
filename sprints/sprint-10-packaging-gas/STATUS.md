@@ -185,10 +185,12 @@ Estado: ACEITA
   regulatória. O campo existe no rótulo e sai como ausente: se a regra da casa o exigir, a prévia
   barra a impressão — que é o comportamento correto até o dado existir. Critério de remoção:
   cadastrar alergênicos declarados no catálogo e ligar a fonte.
-- **PKG-004-B — o ABV é calculado, não medido.** Vem das métricas da receita publicada (fonte
-  rastreável, com versão), não de OG/FG reais do lote. A origem diz isso em voz alta no rótulo
-  ("calculado, não medido"). Critério de remoção: expor OG medido (transferência) e FG estável
-  (FER-003) como fonte e recalcular o ABV do lote.
+- ~~**PKG-004-B**~~ — **FECHADO EM 2026-08-14, por um caminho diferente do critério.** O critério
+  propunha recalcular o ABV a partir de OG medido e FG estável. O mantenedor decidiu outra coisa, e
+  melhor: **o ABV medido em laboratório entra como medição do lote e vence o calculado**, que continua
+  valendo — e continua dizendo em voz alta que é conta — quando ninguém mediu. Recalcular de OG/FG
+  produziria uma terceira estimativa; o que a legislação cobra no rótulo é o medido. Ver DEC-PKG-002 na
+  Sprint 17.
 
 ## Evidências de encerramento
 

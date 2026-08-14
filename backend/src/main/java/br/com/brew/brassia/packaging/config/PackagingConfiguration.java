@@ -33,6 +33,7 @@ import br.com.brew.brassia.packaging.application.service.PackagingPlanHandlers;
 import br.com.brew.brassia.packaging.application.service.PlanPackagingHandler;
 import br.com.brew.brassia.packaging.application.service.ReservePackagingPlanHandler;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.production.BatchMeasurementLookup;
 import br.com.brew.brassia.recipe.RecipeLookup;
 import br.com.brew.brassia.sanitation.CleaningPolicyLookup;
 import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
@@ -221,17 +222,18 @@ class PackagingConfiguration {
     @Bean
     LabelCommands.Preview previewLabelUseCase(LabelRepository labels, PackagingPlanRepository plans,
             FreshnessRepository freshness, BatchLookup batches, RecipeLookup recipes,
-            AllergenProfileLookup allergenProfiles) {
-        return new LabelHandlers.Preview(labels, plans, freshness, batches, recipes, allergenProfiles);
+            AllergenProfileLookup allergenProfiles, BatchMeasurementLookup measurements) {
+        return new LabelHandlers.Preview(labels, plans, freshness, batches, recipes, allergenProfiles,
+                measurements);
     }
 
     @Bean
     LabelCommands.Print printLabelUseCase(LabelRepository labels, PackagingPlanRepository plans,
             FreshnessRepository freshness, BatchLookup batches, RecipeLookup recipes,
-            AllergenProfileLookup allergenProfiles, AuditTrail audit,
+            AllergenProfileLookup allergenProfiles, BatchMeasurementLookup measurements, AuditTrail audit,
             PlatformTransactionManager transactionManager) {
         var handler = new LabelHandlers.Print(labels, plans, freshness, batches, recipes, allergenProfiles,
-                audit);
+                measurements, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }

@@ -40,8 +40,20 @@ public final class RecordMeasurementHandler implements RecordMeasurementUseCase 
     public Result handle(Command command) {
         var batch = batches.findById(command.breweryId(), command.batchId())
                 .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
-        if (batch.status() != BatchStatus.IN_PROGRESS) {
+        // Medição de brassa exige lote em andamento: acrescentar temperatura de mostura a um lote
+        // encerrado descreveria um dia que já acabou.
+        //
+        // ABV é a exceção, e por definição (PKG-004-B): mede-se álcool na cerveja PRONTA, depois de
+        // fermentar. Exigir lote em andamento para ele tornaria a medição inexprimível justamente no
+        // momento em que ela existe — e o rótulo continuaria imprimindo a conta da receita para sempre.
+        var kind = MeasurementKind.of(command.kind());
+        var brewDayOnly = kind != MeasurementKind.ABV;
+        if (brewDayOnly && batch.status() != BatchStatus.IN_PROGRESS) {
             throw new IllegalStateException("lote não está em andamento");
+        }
+        if (!brewDayOnly && batch.status() == BatchStatus.CANCELLED) {
+            // Lote cancelado não tem cerveja para medir.
+            throw new IllegalStateException("lote cancelado");
         }
         if (command.stepId() != null
                 && batch.steps().stream().noneMatch(s -> s.id().equals(command.stepId()))) {
@@ -49,7 +61,7 @@ public final class RecordMeasurementHandler implements RecordMeasurementUseCase 
         }
 
         var measurement = Measurement.record(command.breweryId(), command.batchId(), command.stepId(),
-                MeasurementKind.of(command.kind()), command.value(), command.unit(), command.temperatureC(),
+                kind, command.value(), command.unit(), command.temperatureC(),
                 command.method(), MeasurementSource.of(command.source()), Instant.now(), command.actorId(),
                 command.clientRequestId());
 

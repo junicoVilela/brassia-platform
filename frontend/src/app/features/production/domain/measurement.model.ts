@@ -5,6 +5,9 @@ export const MEASUREMENT_KINDS: { value: string; label: string; units: string[] 
   { value: 'PH', label: 'pH', units: ['PH'] },
   { value: 'COLOR', label: 'Cor', units: ['EBC', 'SRM'] },
   { value: 'IBU', label: 'Amargor', units: ['IBU'] },
+  // Único que se mede na cerveja pronta, e não na brassa (PKG-004-B): quando registrado, é ele que vai
+  // para o rótulo no lugar do ABV calculado pela receita.
+  { value: 'ABV', label: 'Álcool medido', units: ['%ABV'] },
 ];
 
 export const MEASUREMENT_SOURCES: { value: string; label: string }[] = [

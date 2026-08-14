@@ -163,6 +163,37 @@ senão o painel fica cego exatamente durante o deploy.
 **O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
 honesto — significa que nenhum ensaio foi feito. **Preenchida em 2026-08-10 — ver DEC-REL-009.**
 
+### DEC-PKG-002 (PKG-004-B) — O medido vence o calculado, e ABV coube num tipo que já existia
+
+Decisão do mantenedor em 2026-08-14: manter o "calculado, não medido" e acrescentar ABV medido, que
+prevalece quando existe.
+
+**Diferente do critério de remoção, e de propósito.** Ele propunha recalcular o ABV de OG medido e FG
+estável. Isso produziria uma **terceira** estimativa — melhor que a da receita, ainda assim uma conta. O
+que a legislação cobra no rótulo é o valor medido, e uma cervejaria que mede em laboratório não tinha onde
+guardá-lo.
+
+**Coube num tipo que já existia.** ABV é grandeza medida do lote, como cor e amargor, que são
+`MeasurementKind` desde a V52. Entrando ali, herda quem pode registrar, o rastro de quem registrou, a
+carta de controle e a série histórica. Um campo próprio criaria um segundo caminho para registrar medição,
+com outra permissão, outra auditoria e outra tela, para a mesma coisa.
+
+**O que a implementação revelou:** a medição de lote exigia status `IN_PROGRESS` — e ABV se mede na cerveja
+**pronta**, depois de fermentar. A regra existe por bom motivo (acrescentar temperatura de mostura a um
+lote encerrado descreveria um dia que já acabou), então virou regra por grandeza em vez de cair: brassa
+exige lote em andamento, ABV não. Sem isso, a medição seria inexprimível justamente no momento em que ela
+existe.
+
+**Dois detalhes que só aparecem imprimindo:**
+
+- A unidade é `%ABV`, não `%`. Porcentagem de quê separa álcool por volume de álcool por massa, e as duas
+  circulam em rótulo pelo mundo. (A coluna `unit` é `VARCHAR(8)`, o que descartou `ABV_PERCENT` — e a
+  notação curta, que é a impressa no rótulo, acabou sendo a melhor das duas.)
+- O valor sai com `stripTrailingZeros`: a coluna guarda `5.4000` e a lata precisa dizer `5.4`.
+
+**A remedição vale.** Mede-se ABV uma vez, e quando se mede de novo é porque a primeira estava errada — o
+rótulo leva a última.
+
 ### DEC-PKG-001 (PKG-002-A) — A pressão que importa é a de equilíbrio, e ela existia calculada do lado errado
 
 Decisão do mantenedor em 2026-08-11: cadastrar pressão máxima por embalagem e bloquear alvo acima dela.

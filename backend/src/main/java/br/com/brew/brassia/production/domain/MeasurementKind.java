@@ -13,7 +13,16 @@ public enum MeasurementKind {
     VOLUME(Set.of("L", "ML")),
     PH(Set.of("PH")),
     COLOR(Set.of("EBC", "SRM")),
-    IBU(Set.of("IBU"));
+    IBU(Set.of("IBU")),
+    /**
+     * Álcool por volume medido (PKG-004-B).
+     *
+     * <p>A unidade é {@code %ABV}, e não {@code %}: porcentagem de quê é o que separa álcool por volume
+     * de álcool por massa, e as duas circulam em rótulo pelo mundo. É também a notação que aparece no
+     * rótulo, então quem lê a série reconhece. A plataforma não converte — a conversão pertence a quem
+     * mediu.
+     */
+    ABV(Set.of("%ABV"));
 
     private final Set<String> units;
 

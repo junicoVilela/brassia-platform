@@ -15,6 +15,7 @@ import br.com.brew.brassia.packaging.domain.LabelRegulatoryRule;
 import br.com.brew.brassia.packaging.domain.LabelTemplate;
 import br.com.brew.brassia.packaging.domain.PackagingPlan;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.production.BatchMeasurementLookup;
 import br.com.brew.brassia.recipe.RecipeLookup;
 import java.time.Instant;
 import java.util.EnumMap;
@@ -95,9 +96,12 @@ public final class LabelHandlers {
         private final BatchLookup batches;
         private final RecipeLookup recipes;
         private final AllergenProfileLookup allergenProfiles;
+        private final BatchMeasurementLookup measurements;
 
         public Preview(LabelRepository labels, PackagingPlanRepository plans, FreshnessRepository freshness,
-                BatchLookup batches, RecipeLookup recipes, AllergenProfileLookup allergenProfiles) {
+                BatchLookup batches, RecipeLookup recipes, AllergenProfileLookup allergenProfiles,
+                BatchMeasurementLookup measurements) {
+            this.measurements = Objects.requireNonNull(measurements);
             this.labels = Objects.requireNonNull(labels);
             this.plans = Objects.requireNonNull(plans);
             this.freshness = Objects.requireNonNull(freshness);
@@ -112,7 +116,7 @@ public final class LabelHandlers {
             var rule = rule(labels, breweryId);
             var plan = plans.findById(breweryId, planId)
                     .orElseThrow(() -> new IllegalArgumentException("plano de envase inexistente"));
-            return assemble(template, rule, plan, freshness, batches, recipes, allergenProfiles);
+            return assemble(template, rule, plan, freshness, batches, recipes, allergenProfiles, measurements);
         }
     }
 
@@ -124,11 +128,13 @@ public final class LabelHandlers {
         private final BatchLookup batches;
         private final RecipeLookup recipes;
         private final AllergenProfileLookup allergenProfiles;
+        private final BatchMeasurementLookup measurements;
         private final AuditTrail audit;
 
         public Print(LabelRepository labels, PackagingPlanRepository plans, FreshnessRepository freshness,
                 BatchLookup batches, RecipeLookup recipes, AllergenProfileLookup allergenProfiles,
-                AuditTrail audit) {
+                BatchMeasurementLookup measurements, AuditTrail audit) {
+            this.measurements = Objects.requireNonNull(measurements);
             this.labels = Objects.requireNonNull(labels);
             this.plans = Objects.requireNonNull(plans);
             this.freshness = Objects.requireNonNull(freshness);
@@ -148,7 +154,7 @@ public final class LabelHandlers {
             // A prévia é a mesma que o operador viu: imprimir não relaxa a checagem. É também o que
             // revalida o rótulo — declaração de alergênico alterada muda a prévia, e a reimpressão
             // volta a ser avaliada contra a matriz vigente, não contra a que valia na primeira vez.
-            var preview = assemble(template, rule, plan, freshness, batches, recipes, allergenProfiles);
+            var preview = assemble(template, rule, plan, freshness, batches, recipes, allergenProfiles, measurements);
             if (!preview.printable()) {
                 throw new LabelNotPrintableException(preview.missingRequired(), preview.requiredNotDrawn());
             }
@@ -216,7 +222,7 @@ public final class LabelHandlers {
      */
     private static LabelPreview assemble(LabelTemplate template, LabelRegulatoryRule rule, PackagingPlan plan,
             FreshnessRepository freshness, BatchLookup batches, RecipeLookup recipes,
-            AllergenProfileLookup allergenProfiles) {
+            AllergenProfileLookup allergenProfiles, BatchMeasurementLookup measurements) {
         var values = new EnumMap<LabelField, String>(LabelField.class);
         var sources = new EnumMap<LabelField, String>(LabelField.class);
 
@@ -225,11 +231,25 @@ public final class LabelHandlers {
             put(values, sources, LabelField.BEER_NAME, b.recipeName(),
                     "lote " + b.code() + " (nome congelado na abertura)");
             put(values, sources, LabelField.BATCH_CODE, b.code(), "lote de produção");
-            recipes.findPublishedForOrder(plan.breweryId(), b.recipeId())
-                    .flatMap(RecipeLookup.PublishedForOrder::metrics)
-                    .map(RecipeLookup.Metrics::abv)
-                    .ifPresent(abv -> put(values, sources, LabelField.ABV, abv.toPlainString(),
-                            "receita publicada v" + b.recipeVersion() + " (calculado, não medido)"));
+            // PKG-004-B: o medido vence o calculado, e a origem diz qual foi. O calculado continua
+            // valendo quando ninguém mediu — e continua dizendo em voz alta que é conta, não medição.
+            var measured = measurements.ofBatch(plan.breweryId(), plan.batchId(), "ABV");
+            if (!measured.isEmpty()) {
+                // A última: ABV se mede uma vez, mas uma remedição corrige a anterior, e é a correção
+                // que deve ir para o rótulo.
+                var last = measured.get(measured.size() - 1);
+                // `stripTrailingZeros` porque isto vai para uma lata impressa: a coluna guarda 5.4000 e
+                // o rótulo precisa dizer 5.4. Mesmo tratamento do volume da embalagem.
+                put(values, sources, LabelField.ABV,
+                        last.value().stripTrailingZeros().toPlainString(),
+                        "medido no lote " + b.code() + " em " + last.measuredAt());
+            } else {
+                recipes.findPublishedForOrder(plan.breweryId(), b.recipeId())
+                        .flatMap(RecipeLookup.PublishedForOrder::metrics)
+                        .map(RecipeLookup.Metrics::abv)
+                        .ifPresent(abv -> put(values, sources, LabelField.ABV, abv.toPlainString(),
+                                "receita publicada v" + b.recipeVersion() + " (calculado, não medido)"));
+            }
         });
 
         put(values, sources, LabelField.VOLUME_ML, plan.containerVolumeMl().stripTrailingZeros().toPlainString(),

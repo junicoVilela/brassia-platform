@@ -18,8 +18,12 @@ public interface IngredientSpecLookup {
      * @param alphaAcidPercent  alfa-ácido do lúpulo, em %
      * @param attenuationPercent atenuação aparente da levedura, em %
      * @param volumeMl          volume nominal da embalagem, em ml
+     * @param maxPressureBar    pressão máxima que a embalagem suporta, em bar (PKG-002-A). Vazio quando
+     *                          a cervejaria ainda não cadastrou o limite — e aí o sistema não tem como
+     *                          recusar um alvo alto em embalagem frágil, que é o que o débito dizia
      * @param useUnit           unidade de uso do ingrediente
      */
     record Spec(String type, BigDecimal potentialSg, BigDecimal colorEbc, BigDecimal alphaAcidPercent,
-            BigDecimal attenuationPercent, BigDecimal volumeMl, String useUnit) {}
+            BigDecimal attenuationPercent, BigDecimal volumeMl, BigDecimal maxPressureBar,
+            String useUnit) {}
 }

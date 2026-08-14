@@ -60,6 +60,7 @@ class CatalogConfiguration {
                     number(attributes.get("alphaAcid")),
                     number(attributes.get("attenuation")),
                     number(attributes.get("volumeMl")),
+                    number(attributes.get("maxPressureBar")),
                     ingredient.useUnit().name());
         });
     }

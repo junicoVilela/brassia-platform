@@ -570,6 +570,19 @@
                       {{ r.referenceTempC }} °C · faltam {{ r.missingVolumes | number:'1.0-2' }} vol ·
                       {{ r.beerVolumeLiters | number:'1.0-1' }} L de cerveja
                     </p>
+                    <!--
+                      PKG-002-A: a pressão de equilíbrio é o que a embalagem vai ver, nos dois métodos.
+                      Mostrada junto do limite porque é a comparação que decide se a garrafa aguenta.
+                    -->
+                    <p class="small mb-2"
+                       [class.text-warning-emphasis]="r.containerMaxPressureBar === null">
+                      Equilíbrio {{ r.equilibriumPressureBar | number:'1.0-2' }} bar
+                      @if (r.containerMaxPressureBar !== null) {
+                        · limite da embalagem {{ r.containerMaxPressureBar | number:'1.0-2' }} bar
+                      } @else {
+                        · embalagem sem limite cadastrado: nada foi conferido
+                      }
+                    </p>
                     <p class="small text-muted mb-1"><code>{{ r.calculationMethod }}</code></p>
                     <p class="small text-muted mb-0">Método versão {{ r.calculatorVersion }}</p>
                     <ul class="small text-muted mb-0 mt-2 ps-3">

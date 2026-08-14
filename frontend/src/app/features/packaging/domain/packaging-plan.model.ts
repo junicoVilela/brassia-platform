@@ -104,6 +104,10 @@ export interface CarbonationRecommendation {
   primingSugar: PrimingSugarCode | null;
   primingSugarGrams: number | null;
   pressureBar: number | null;
+  /** A pressão que a embalagem vai ver no equilíbrio — vale nos dois métodos (PKG-002-A). */
+  equilibriumPressureBar: number;
+  /** Limite da embalagem; nulo quando não cadastrado, e aí nada foi conferido. */
+  containerMaxPressureBar: number | null;
   calculationMethod: string;
   calculatorVersion: string;
   assumptions: string[];

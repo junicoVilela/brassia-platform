@@ -155,15 +155,16 @@ class PackagingConfiguration {
     /** Prévia de carbonatação: calcula e explica, sem gravar nada. */
     @Bean
     CarbonationCommands.Preview previewCarbonationUseCase(PackagingPlanRepository plans,
-            CalculatorEngine calculator) {
-        return new CarbonationHandlers.Preview(plans, calculator);
+            CalculatorEngine calculator, IngredientSpecLookup ingredients) {
+        return new CarbonationHandlers.Preview(plans, calculator, ingredients);
     }
 
     @Bean
     CarbonationCommands.Record recordCarbonationUseCase(PackagingPlanRepository plans,
-            CarbonationRepository carbonations, CalculatorEngine calculator, AuditTrail audit,
+            CarbonationRepository carbonations, CalculatorEngine calculator,
+            IngredientSpecLookup ingredients, AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new CarbonationHandlers.Record(plans, carbonations, calculator, audit);
+        var handler = new CarbonationHandlers.Record(plans, carbonations, calculator, ingredients, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> transaction.executeWithoutResult(status -> handler.handle(command));
     }

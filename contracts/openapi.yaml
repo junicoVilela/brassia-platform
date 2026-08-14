@@ -1643,6 +1643,11 @@ paths:
         O volume planejado é derivado de unidades × volume da embalagem e nunca informado;
         planejar mais do que o lote comporta responde 400. Só lote em fermentação aceita plano
         (409); a embalagem precisa ser ingrediente do tipo PACKAGING com `volumeMl` declarado.
+
+
+        `maxPressureBar` é opcional no cadastro da embalagem e é o que permite recusar um alvo de
+        carbonatação acima do que ela suporta (PKG-002-A): lata, long neck e garrafa de champanhe têm
+        limites diferentes, e sem o dado o sistema não tem como barrar o caso perigoso.
       requestBody:
         required: true
         content:
@@ -9048,7 +9053,20 @@ components:
         beerVolumeLiters: {type: number, description: "Volume planejado do envase, vindo do plano"}
         primingSugar: {type: string, nullable: true}
         primingSugarGrams: {type: number, nullable: true}
-        pressureBar: {type: number, nullable: true}
+        pressureBar: {type: number, nullable: true, description: "Pressão aplicada; nula no priming"}
+        equilibriumPressureBar:
+          type: number
+          description: >-
+            A pressão que a embalagem vai ver quando o CO₂ equilibrar, na temperatura de referência.
+            Vale para os DOIS métodos — a física não pergunta se o gás veio de açúcar ou de cilindro
+            (PKG-002-A)
+        containerMaxPressureBar:
+          type: number
+          nullable: true
+          description: >-
+            Limite da embalagem, do catálogo. Nulo quando não cadastrado, e nesse caso um alerta diz que
+            o alvo **não foi conferido contra limite nenhum** — melhor do que deixar quem opera supor
+            que foi
         calculationMethod: {type: string, description: "Fórmula aplicada, legível"}
         calculatorVersion: {type: string}
         assumptions: {type: array, items: {type: string}}

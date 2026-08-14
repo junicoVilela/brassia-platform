@@ -218,7 +218,10 @@ class YeastReuseIT {
 
     private String collect(MockHttpSession session, String batchId, String strainId, String viability, int ageDays)
             throws Exception {
-        var harvestedAt = Instant.parse("2026-07-31T10:00:00Z").minus(Duration.ofDays(ageDays));
+        // Ancorado em AGORA, e não numa data fixa. A recomendação compara a idade da coleta contra o
+        // instante da consulta: com uma âncora fixa, `ageDays` deixava de significar a idade assim que o
+        // calendário andava, e o teste passava a falhar sozinho num dia qualquer — foi o que aconteceu.
+        var harvestedAt = Instant.now().minus(Duration.ofDays(ageDays));
         var content = """
                 {"code":"LV-%s","strainId":"%s","sourceBatchId":"%s","harvestedAt":"%s","viabilityPercent":%s,
                  "condition":"Creme limpo","storageLocation":"Câmara 1","storageTempC":4}

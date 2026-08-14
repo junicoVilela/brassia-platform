@@ -163,6 +163,31 @@ senão o painel fica cego exatamente durante o deploy.
 **O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
 honesto — significa que nenhum ensaio foi feito. **Preenchida em 2026-08-10 — ver DEC-REL-009.**
 
+### DEC-PKG-001 (PKG-002-A) — A pressão que importa é a de equilíbrio, e ela existia calculada do lado errado
+
+Decisão do mantenedor em 2026-08-11: cadastrar pressão máxima por embalagem e bloquear alvo acima dela.
+
+**O que a plataforma já sabia, e onde não usava.** A pressão de equilíbrio só era calculada para a
+carbonatação **forçada**, onde ela é o valor a aplicar no cilindro. Mas é a mesma conta para o priming: a
+física não pergunta se o CO₂ veio de açúcar ou de gás — dada uma quantidade de volumes numa temperatura, a
+pressão é aquela. Passou a ser calculada nos dois métodos, e é ela que se compara ao limite.
+
+**E o caso perigoso é justamente o priming.** Garrafa com açúcar demais é a bomba clássica; carbonatação
+forçada é limitada pelo regulador. O débito descrevia o sistema como bloqueando "o caso claro e deixando
+passar o perigoso", e era literal.
+
+**Recusa, não alerta.** Alerta é lido no dia em que a linha está atrasada, e a consequência de ignorá-lo é
+alguém se machucando. É o único caso desta leva de decisões em que a consequência é física, e por isso é o
+único que bloqueia em vez de avisar.
+
+**A temperatura viaja com a recusa.** A conta vale na temperatura informada, e estocagem mais quente sobe a
+pressão. Sem esse número na resposta, quem opera baixa o alvo até passar e guarda a caixa num galpão a
+40 °C. Quando o alvo passa, o alerta diz a pressão contra o limite pelo mesmo motivo.
+
+**Ausência declarada.** Sem `maxPressureBar` cadastrado, um alerta diz que **nada foi conferido** — é
+melhor que quem opera saiba que a checagem não aconteceu do que suponha que aconteceu. O débito volta a
+existir, na prática, para toda embalagem sem o dado; a diferença é que agora ele fala.
+
 ### DEC-FDS-002 (FDS-004-A) — A porta ficou na direção contrária à do critério, e o teste mandou
 
 Decisão do mantenedor em 2026-08-11: a ação corretiva do simulado vira item de CAPA. O critério de

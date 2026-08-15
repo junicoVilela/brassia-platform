@@ -7704,6 +7704,22 @@ components:
     FrequencyKind:
       type: string
       enum: [PER_BATCH, PER_HOURS, PER_SHIFT, PER_PACKAGING_RUN]
+      description: >-
+        **Só `PER_HOURS` é fiscalizada** (QLT-001-A): uma varredura de hora em hora abre alerta na central
+        do lote quando a medição passa da janela. É alerta e não bloqueio — parar a produção por um
+        controle atrasado pararia a fábrica por causa de uma medição, e quem opera passaria a burlar a
+        regra.
+
+
+        As outras três continuam declaradas e não fiscalizadas, com motivo: `PER_BATCH` só está atrasada
+        quando o lote acaba sem a medição, e não há instante durante o lote em que ela esteja; `PER_SHIFT`
+        exigiria um calendário de turnos que a plataforma não tem, e inventá-lo produziria atraso onde a
+        cervejaria não vê nenhum; `PER_PACKAGING_RUN` se refere à corrida de envase, não ao lote em
+        produção.
+
+
+        O aviso não se repete enquanto ninguém mede — a janela perdida é a mesma, e repetir esvaziaria a
+        central. Depois de medir, atrasar outra vez é fato novo e avisa de novo.
     CreateControlPlan:
       type: object
       required: [code, name, stage]

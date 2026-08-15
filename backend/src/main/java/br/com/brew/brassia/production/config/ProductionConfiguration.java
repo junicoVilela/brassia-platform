@@ -7,6 +7,7 @@ import br.com.brew.brassia.equipment.EquipmentCleanlinessLookup;
 import br.com.brew.brassia.equipment.EquipmentUsageCommands;
 import br.com.brew.brassia.production.BatchAlertPublisher;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.production.OpenBatchLookup;
 import br.com.brew.brassia.production.VesselOccupancyLookup;
 import br.com.brew.brassia.production.application.port.inbound.ApplyCorrectionUseCase;
 import br.com.brew.brassia.production.ProductionStockGateway;
@@ -174,6 +175,15 @@ class ProductionConfiguration {
                                 .add(adjustments.totalFor(breweryId, batchId)),
                         batch.status().name(), batch.recipeId(), batch.recipeVersion(),
                         batch.recipeName()));
+    }
+
+    /** Lotes abertos publicados, para quem precisa varrer e não tem os identificadores (QLT-001-A). */
+    @Bean
+    OpenBatchLookup openBatchLookup(BatchRepository batches) {
+        return breweryId -> batches.findOpen(breweryId).stream()
+                .map(b -> new OpenBatchLookup.OpenBatch(b.id().value(), b.code(), b.recipeId(),
+                        b.startedAt()))
+                .toList();
     }
 
     /**

@@ -107,9 +107,11 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
   medição passa com instrumento vencido, mas grava a aptidão e sinaliza.
 - **Desvio grave avisa na central do lote** (`BatchAlertPublisher`, PRD-006), como FER-004 faz com
   etapa atrasada, em vez de manter uma segunda central. Alerta é aviso: não muda estado do lote.
-- **QLT-001-A — a frequência é declarada, não fiscalizada.** O plano registra a cadência, mas
-  ninguém é avisado de medição atrasada: isso pede varredura agendada, o mesmo débito aberto desde
-  FER-004. Critério de remoção: existir agendador na plataforma e ligá-lo à cadência do ponto.
+- ~~**QLT-001-A**~~ — **FECHADO EM 2026-08-14, e o bloqueio registrado estava desatualizado.** O
+  critério era "existir agendador na plataforma e ligá-lo à cadência do ponto": o agendador existe desde
+  a Sprint 13 (`@Scheduled` em webhooks e relatórios), e o débito ficou aberto por leitura antiga, não
+  por falta de ferramenta. A varredura passa de hora em hora e **avisa na central do lote** — alerta, não
+  bloqueio, por decisão do mantenedor. Ver DEC-QLT-001 na Sprint 17.
 - **Colisões de nome no Spring.** O scan é global por nome simples: `JdbcMeasurementRepository` e o
   bean `recordMeasurementUseCase` já existiam em `production`. Renomeados aqui para
   `JdbcQualityMeasurementRepository` e `recordQualityMeasurementUseCase`.

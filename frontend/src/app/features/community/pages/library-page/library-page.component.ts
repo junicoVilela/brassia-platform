@@ -9,6 +9,8 @@ import { LibraryStore } from '../../data-access/library.store';
 import {
   LibraryPublication,
   OwnedPublication,
+  SharePermission,
+  ShareLink,
   VISIBILITY_HELP,
   VISIBILITY_LABELS,
   Visibility,
@@ -56,6 +58,12 @@ export class LibraryPageComponent implements OnInit {
   protected readonly showForm = signal(false);
   protected readonly canPublish = this.auth.hasPermission('community.recipe.publish');
 
+  protected readonly linkForm = this.fb.nonNullable.group({
+    permission: ['READ' as SharePermission, Validators.required],
+    label: ['', Validators.maxLength(120)],
+    expiresAt: [''],
+  });
+
   protected readonly form = this.fb.nonNullable.group({
     recipeId: ['', Validators.required],
     title: ['', [Validators.required, Validators.maxLength(160)]],
@@ -100,5 +108,26 @@ export class LibraryPageComponent implements OnInit {
 
   protected changeVisibility(publication: OwnedPublication, value: string): void {
     this.store.changeVisibility(publication, value as Visibility);
+  }
+
+  protected openLinks(publication: OwnedPublication): void {
+    this.linkForm.reset({ permission: 'READ', label: '', expiresAt: '' });
+    this.store.openLinks(publication);
+  }
+
+  protected submitLink(): void {
+    if (this.linkForm.invalid) {
+      this.linkForm.markAllAsTouched();
+      return;
+    }
+    const v = this.linkForm.getRawValue();
+    // Data vazia vira nulo: "sem prazo" é estado legítimo. O campo é `date`, e o servidor espera um
+    // instante — meia-noite local convertida para UTC, e não a string crua.
+    const expira = v.expiresAt ? new Date(`${v.expiresAt}T23:59:59`).toISOString() : null;
+    this.store.createLink(v.permission, v.label || null, expira);
+  }
+
+  protected revoke(link: ShareLink): void {
+    this.store.revokeLink(link);
   }
 }

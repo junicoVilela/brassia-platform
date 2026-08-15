@@ -6,6 +6,8 @@ import {
   LibraryPublication,
   OwnedPublication,
   RecipeLicense,
+  SharePermission,
+  ShareLink,
   Visibility,
 } from '../domain/library.model';
 import { LibraryApi } from './library.api';
@@ -34,6 +36,18 @@ export class LibraryStore {
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly saving = signal(false);
+
+  readonly links = signal<ShareLink[]>([]);
+  readonly linksOf = signal<OwnedPublication | null>(null);
+
+  /**
+   * O token recém-criado, para a tela mostrar UMA vez.
+   *
+   * <p>Fica em memória e some ao fechar: guardá-lo em qualquer lugar — storage, URL, histórico — o
+   * transformaria num segredo persistido, que é justamente o que o servidor evitou ao guardar só o
+   * hash.
+   */
+  readonly freshToken = signal<string | null>(null);
 
   /** O que está fora de circulação continua na estante, e a tela separa as duas coisas. */
   readonly live = computed(() => this.mine().filter(p => p.published));
@@ -107,6 +121,64 @@ export class LibraryStore {
         },
         error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível retirar.')),
       });
+  }
+
+  openLinks(publication: OwnedPublication): void {
+    this.linksOf.set(publication);
+    this.freshToken.set(null);
+    this.reloadLinks(publication.id);
+  }
+
+  closeLinks(): void {
+    this.linksOf.set(null);
+    this.links.set([]);
+    // O token some junto: ele não sobrevive ao fechamento da tela.
+    this.freshToken.set(null);
+  }
+
+  createLink(permission: SharePermission, label: string | null, expiresAt: string | null): void {
+    const publication = this.linksOf();
+    if (!publication) {
+      return;
+    }
+    this.saving.set(true);
+    this.api
+      .createLink(publication.id, { permission, label, expiresAt })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.saving.set(false)),
+      )
+      .subscribe({
+        next: created => {
+          this.freshToken.set(created.token);
+          this.reloadLinks(publication.id);
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível criar o link.')),
+      });
+  }
+
+  revokeLink(link: ShareLink): void {
+    const publication = this.linksOf();
+    if (!publication) {
+      return;
+    }
+    this.api
+      .revokeLink(link.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success('Link revogado.');
+          this.reloadLinks(publication.id);
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível revogar.')),
+      });
+  }
+
+  private reloadLinks(publicationId: string): void {
+    this.api
+      .links(publicationId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: list => this.links.set(list) });
   }
 
   private message(e: ApiError, fallback: string): string {

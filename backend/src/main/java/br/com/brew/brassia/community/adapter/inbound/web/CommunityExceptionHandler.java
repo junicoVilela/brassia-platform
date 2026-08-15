@@ -3,6 +3,7 @@ package br.com.brew.brassia.community.adapter.inbound.web;
 import br.com.brew.brassia.community.domain.AlreadyPublishedException;
 import br.com.brew.brassia.community.domain.RecipeUnpublishedException;
 import br.com.brew.brassia.community.domain.UnknownPublicationException;
+import br.com.brew.brassia.community.domain.UnknownShareLinkException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,18 @@ class CommunityExceptionHandler {
     @ExceptionHandler(UnknownPublicationException.class)
     ProblemDetail handleUnknown(UnknownPublicationException ex) {
         return ProblemDetails.of(HttpStatus.NOT_FOUND, "publication_not_found", ex.getMessage());
+    }
+
+    /**
+     * 404 para link inexistente, expirado, revogado ou de publicação fechada — sem distinguir.
+     *
+     * <p>Dizer "expirado" a quem tem um token inventado confirma que aquele token um dia existiu; dizer
+     * "revogado" conta que houve um compartilhamento e que alguém se arrependeu. O autor, que é quem
+     * precisa do motivo, vê o estado de cada link na própria lista.
+     */
+    @ExceptionHandler(UnknownShareLinkException.class)
+    ProblemDetail handleLink(UnknownShareLinkException ex) {
+        return ProblemDetails.of(HttpStatus.NOT_FOUND, "share_link_invalid", ex.getMessage());
     }
 
     @ExceptionHandler(AlreadyPublishedException.class)

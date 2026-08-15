@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { LibraryPublication, OwnedPublication } from '../domain/library.model';
+import { LibraryPublication, OwnedPublication, ShareLink } from '../domain/library.model';
 import { LibraryApi } from './library.api';
 import { LibraryStore } from './library.store';
 
@@ -51,10 +51,24 @@ function published(): LibraryPublication {
   };
 }
 
+function link(over: Partial<ShareLink> = {}): ShareLink {
+  return {
+    id: 'l1',
+    label: 'pro Bruno avaliar',
+    permission: 'READ',
+    createdAt: '2026-08-15T10:00:00Z',
+    expiresAt: null,
+    revokedAt: null,
+    usable: true,
+    ...over,
+  };
+}
+
 function setup(api: Partial<LibraryApi>) {
   const toast = { success: vi.fn(), error: vi.fn() };
   api.feed ??= () => of([published()]);
   api.mine ??= () => of([owned()]);
+  api.links ??= () => of([link()]);
   TestBed.configureTestingModule({
     providers: [
       LibraryStore,
@@ -113,6 +127,61 @@ describe('LibraryStore', () => {
     store.unpublish(owned());
 
     expect(toast.success).toHaveBeenCalledWith('Publicação fora de circulação.');
+  });
+
+  it('o token recém-criado fica só em memória, e some ao fechar', () => {
+    // Guardá-lo em storage, na URL ou no histórico o transformaria num segredo persistido — que é
+    // justamente o que o servidor evitou ao guardar só o hash.
+    const { store } = setup({
+      createLink: () => of({ id: 'l9', token: 'tok-secreto' }),
+    } as Partial<LibraryApi>);
+    store.openLinks(owned());
+
+    store.createLink('READ', 'pro Bruno', null);
+    expect(store.freshToken()).toBe('tok-secreto');
+
+    store.closeLinks();
+    expect(store.freshToken()).toBeNull();
+    expect(store.links()).toEqual([]);
+  });
+
+  it('abrir os links de outra publicação limpa o token anterior', () => {
+    // Sem isso, o token de um link ficaria visível na tela de outra publicação — e alguém o copiaria
+    // achando que pertence a esta.
+    const { store } = setup({
+      createLink: () => of({ id: 'l9', token: 'tok-secreto' }),
+    } as Partial<LibraryApi>);
+    store.openLinks(owned());
+    store.createLink('READ', null, null);
+    expect(store.freshToken()).toBe('tok-secreto');
+
+    store.openLinks(owned({ id: 'p2' }));
+
+    expect(store.freshToken()).toBeNull();
+  });
+
+  it('recarrega os links depois de revogar', () => {
+    // O estado de cada link é o que torna a revogação uma decisão informada.
+    const links = vi.fn().mockReturnValue(of([link({ revokedAt: '2026-08-15T12:00:00Z' })]));
+    const revokeLink = vi.fn().mockReturnValue(of(void 0));
+    const { store, toast } = setup({ links, revokeLink } as Partial<LibraryApi>);
+    store.openLinks(owned());
+    links.mockClear();
+
+    store.revokeLink(link());
+
+    expect(revokeLink).toHaveBeenCalledWith('l1');
+    expect(links).toHaveBeenCalledWith('p1');
+    expect(toast.success).toHaveBeenCalledWith('Link revogado.');
+  });
+
+  it('não cria link sem publicação aberta', () => {
+    const createLink = vi.fn();
+    const { store } = setup({ createLink } as Partial<LibraryApi>);
+
+    store.createLink('READ', null, null);
+
+    expect(createLink).not.toHaveBeenCalled();
   });
 
   it('mostra a mensagem do servidor quando a versão já está publicada', () => {

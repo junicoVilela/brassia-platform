@@ -8087,8 +8087,12 @@ paths:
       tags: [Comunidade]
       summary: Ler uma publicação
       description: >-
-        A matriz de visibilidade decide: `PRIVATE` e `BREWERY` não alcançam quem está de fora; `LINK`,
-        `UNLISTED` e `PUBLIC` alcançam.
+        A matriz de visibilidade decide: `PRIVATE`, `BREWERY` e **`LINK`** não alcançam quem está de
+        fora por este endereço; `UNLISTED` e `PUBLIC` alcançam.
+
+
+        **`LINK` exige o token** e entra por `/community/shared` (COM-002) — antes dela, `LINK` abria
+        aqui para qualquer autenticado que soubesse o identificador, que é semântica de `UNLISTED`.
 
 
         **Publicação inacessível responde 404, e nunca 403.** Numa biblioteca, distinguir "não existe" de
@@ -8180,8 +8184,168 @@ paths:
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /community/library/{publicationId}/links:
+    get:
+      tags: [Comunidade]
+      summary: Os links desta publicação (COM-002)
+      description: >-
+        A lista do autor mostra o **estado de cada link** — rótulo, prazo, se foi revogado e se ainda
+        vale. É o que torna a revogação uma decisão informada, em vez de um chute entre seis linhas
+        iguais.
+
+
+        **O token nunca volta aqui.** Ele apareceu uma vez, na criação.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Links da publicação
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ShareLinkView'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Comunidade]
+      summary: Criar um link compartilhável
+      description: >-
+        **O token aparece uma vez, nesta resposta, e nunca mais.** O banco guarda só o hash — um link
+        vazado do banco seria acesso concedido sem que ninguém tivesse compartilhado nada. Quem perder o
+        valor cria outro e revoga o primeiro; poder recuperá-lo significaria que ele estava guardado em
+        algum lugar.
+
+
+        **O link não eleva visibilidade.** Ele torna alcançável o que já está em `LINK` — e se o autor
+        fechar a publicação, **todos os links param de funcionar no mesmo instante**, sem precisar revogar
+        um por um.
+
+
+        `expiresAt` nulo é "sem prazo", e é legítimo. O que não é opcional é poder cortar.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permission]
+              properties:
+                permission:
+                  type: string
+                  enum: [READ, COMMENT]
+                  description: >-
+                    **Nenhum nível permite editar a receita.** Comentar é escrever *sobre* a receita, e
+                    não *na* receita — a diferença é o que mantém a autoria intacta.
+                label:
+                  type: string
+                  maxLength: 120
+                  nullable: true
+                  description: Para o autor lembrar a quem deu — "pro Bruno avaliar".
+                expiresAt: {type: string, format: date-time, nullable: true}
+      responses:
+        '201':
+          description: Link criado — **guarde o token, ele não é recuperável**
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+                  token: {type: string}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /community/links/{id}/revoke:
+    post:
+      tags: [Comunidade]
+      summary: Revogar um link
+      description: >-
+        **Revogar é o arrependimento; expirar é o prazo combinado** — as duas coisas existem porque são
+        diferentes.
+
+
+        Revogar duas vezes não é erro e **não muda a data**: quem clica de novo quer o mesmo resultado, e
+        a data é o registro de quando o acesso foi cortado. Não há "desrevogar" — o motivo de revogar
+        costuma ser que o link chegou a quem não devia.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Link revogado}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /community/shared:
+    get:
+      tags: [Comunidade]
+      summary: Abrir uma publicação por link (COM-002)
+      description: >-
+        **Exige autenticação como todo o resto:** o link decide *o que* se vê, e não substitui *quem* é.
+
+
+        **404 para link inexistente, expirado, revogado ou de publicação fechada — sem distinguir.** Dizer
+        "expirado" a quem tem um token inventado confirma que aquele token um dia existiu; dizer
+        "revogado" conta que houve um compartilhamento e que alguém se arrependeu. O autor, que é quem
+        precisa do motivo, vê o estado de cada link na própria lista.
+
+
+        **Nota de fronteira (correção da COM-001):** a visibilidade `LINK` **não** é mais legível pelo
+        endereço da publicação. Ela era, e isso era semântica de `UNLISTED`. A partir da COM-002, `LINK`
+        exige o token; `UNLISTED` continua abrindo por endereço direto, sem segredo.
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: A publicação, e se este link autoriza comentar
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SharedPublication'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: '`share_link_invalid` — inexistente, expirado, revogado ou publicação fechada'
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
+    ShareLinkView:
+      type: object
+      description: O estado de um link, na lista do autor. Sem o token — ele apareceu uma vez, na criação.
+      properties:
+        id: {type: string, format: uuid}
+        label: {type: string, nullable: true}
+        permission: {type: string, enum: [READ, COMMENT]}
+        createdAt: {type: string, format: date-time}
+        expiresAt: {type: string, format: date-time, nullable: true}
+        revokedAt: {type: string, format: date-time, nullable: true}
+        usable:
+          type: boolean
+          description: >-
+            Se o link, por si, ainda vale. Ele ainda pode não abrir nada, se o autor fechou a
+            publicação — a visibilidade manda.
+    SharedPublication:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string}
+        summary: {type: string, nullable: true}
+        author: {type: string}
+        license: {$ref: '#/components/schemas/RecipeLicense'}
+        licenseLabel: {type: string}
+        recipeVersion: {type: integer, format: int64}
+        publishedAt: {type: string, format: date-time}
+        mayComment: {type: boolean, description: Depende da permissão do link (COM-004).}
+        recipe: {$ref: '#/components/schemas/PublicRecipeSnapshot'}
     RecipeLicense:
       type: string
       enum: [CC0, CC_BY, CC_BY_SA, CC_BY_NC, ALL_RIGHTS_RESERVED]

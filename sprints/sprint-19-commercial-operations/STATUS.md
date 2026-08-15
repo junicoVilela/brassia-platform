@@ -1,15 +1,27 @@
 # Status — Sprint 19
 
-Estado: **ATIVA desde 2026-08-15** — escolhida como próxima sprint. Nenhuma história iniciada.
+Estado: **CONCLUÍDA em 2026-08-15** — 6/6 histórias entregues e mergeadas, mais a SAL-001-B que nasceu de
+uma dúvida respondida no meio do caminho. Aguardando aceite (validação manual).
 
-| História | Estado | Evidência |
+**A sprint inteira foi construída sob uma premissa declarada, e ela continua valendo:** o núcleo não está
+em produção (REL-001 e o ciclo da REL-005 seguem abertos), e o que se assumiu foi que *desenvolver não
+exige produção; publicar exige*. Nenhuma história desta sprint deve ir para produção antes de o release
+ser validado. Ver DEC-SPR-019.
+
+| História | Estado | Evidência/PR |
 |---|---|---|
-| CRM-001 | Em execução — domínio e testes prontos | `crm/domain/*`, 26 testes unitários |
-| SAL-001 | Em execução — domínio, fatia de fora e tela | `sales/*`, `V120`, 21 unitários + 10 IT |
-| SAL-002 | Em execução — domínio, fatia de fora e tela | `sales/*`, `V122`, 15 unitários + 8 IT |
-| SAL-003 | Em execução — domínio, fatia de fora e tela | `sales/adapter/inbound/portal`, `V123`, 6 unitários + 8 IT |
-| FCST-001 | Em execução — domínio, fatia de fora e tela | `forecast/*`, `V124`, 11 unitários + 6 IT |
-| INT-008 | Em execução — eventos comerciais no outbox | `integration/*`, `sales/SalesOrder*`, 4 IT |
+| CRM-001 | Concluída | PRs #228/#229 · `crm/*`, `V119` · 26 unitários + 13 IT |
+| SAL-001 | Concluída | PR #230 · `sales/*`, `V120` · 21 unitários + 10 IT |
+| SAL-001-B | Concluída | PR #231 · `packaging/SellableLotLookup`, `V121` · 4 IT |
+| SAL-002 | Concluída | PR #232 · `sales/*`, `V122` · 15 unitários + 8 IT |
+| SAL-003 | Concluída | PR #233 · `sales/adapter/inbound/portal`, `V123` · 6 unitários + 8 IT |
+| FCST-001 | **Parcial** — demanda entregue, capacidade não | PR #234 · `forecast/*`, `V124` · 11 unitários + 6 IT. Ver DUV-FCST-001 |
+| INT-008 | Concluída | PR #235 · `integration/*`, `sales/SalesOrder*` · 4 IT |
+
+**A SAL-001-B não estava no backlog.** Ela nasceu da `DUV-SAL-001` — "o que torna um lote vendável" —, que
+era metade da SAL-001 e dependia de decisão do mantenedor. Registrá-la como história própria em vez de
+enfiá-la na SAL-001 é o que mantém o histórico legível: quem ler daqui a seis meses vê que houve uma
+pergunta, uma resposta e um trabalho, e não um escopo que inchou sozinho.
 
 Ordem prevista: **CRM-001 → SAL-001 → SAL-002 → SAL-003 → FCST-001 → INT-008**. Não é arbitrária — pedido
 precisa de cliente e de produto com preço, e portal B2B precisa de pedido. A previsão de demanda vem
@@ -431,9 +443,49 @@ corpo não leva dado pessoal*. Sem migration: o outbox e as assinaturas já exis
 
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- **Build/commit:** sete PRs, um por história, mergeados em série na `main` — #228/#229 (CRM-001), #230
+  (SAL-001), #231 (SAL-001-B), #232 (SAL-002), #233 (SAL-003), #234 (FCST-001), #235 (INT-008).
+- **Testes executados:** `mvnw clean verify` verde na árvore final — **1.342 unitários e 855 de
+  integração** contra PostgreSQL real via Testcontainers, zero falhas. Frontend: **532 testes em 87
+  arquivos**, build e lint limpos. `ModularityTest` verde nas quatro arestas novas (`sales → packaging`,
+  `forecast → sales`, `integration → sales`, `integration → packaging`) e `TenantIsolationTest` verde.
+  A sprint começou com 829 testes de integração e terminou com 855.
+- **Migration aplicada:** `V119` a `V124`. Nenhuma destrutiva. As duas de maior consequência não criam
+  tabela: a restrição de exclusão `ex_sales_price_no_overlap` (preço) e o contador
+  `sales_lot_availability` (reserva) são **as garantias que o código não consegue dar**.
+- **Contratos atualizados:** `contracts/openapi.yaml` — **284 caminhos**, 28 a mais que no encerramento da
+  Sprint 17, sem `$ref` órfã nem chave duplicada.
+- **Riscos remanescentes:**
+  - **A premissa de produção.** Toda a sprint pressupõe que alguém vai validar o release. Enquanto
+    REL-001 e o ciclo da REL-005 seguirem abertos, isto é software que funciona e não opera.
+  - **`DEB-SAL-002`** — o limite de crédito mede **compromisso, não recebível**: sem baixa de pagamento,
+    um pedido entregue e não pago sai da conta. Escolhido com o problema à vista.
+  - **`DEB-SAL-001`** — o custeio guarda `BigDecimal` sem moeda. Não quebra enquanto a cervejaria opera
+    numa moeda só.
+  - **`DEB-SAL-003`** — o `PackagingRunIT` chegou a ~1.200 linhas por ser a casa do cenário de lote
+    acabado, que quatro histórias precisaram.
+  - **`DUV-CRM-001`** e **`DUV-FCST-001`** — duas perguntas do mantenedor que travam trabalho concreto: a
+    varredura de retenção e a metade "capacidade" da previsão.
+- **Aceite:** pendente de validação manual. Junto com os aceites das Sprints 09, 16 e 17.
+
+### O que esta sprint ensinou, e que vale carregar
+
+**A invariante que atravessa linhas mora no banco.** Aconteceu três vezes, sempre com o mesmo formato:
+sobreposição de preço (`EXCLUDE USING gist`), liberação única do lote (chave primária) e reserva de
+estoque (`UPDATE` condicional numa linha por lote). Em todos, o código continua checando — mas **para dar
+mensagem boa, não para garantir**. Checagem prévia não sobrevive a duas requisições simultâneas, que é
+exatamente o que duas telas abertas produzem.
+
+**Recusar é um resultado, e às vezes o único honesto.** A previsão sem histórico devolve a ausência de
+número; o lote sem validade apurada não é vendável; o produto sem preço não aparece no portal. Nos três,
+a alternativa barata seria devolver zero — e zero teria virado plano de produção, venda de cerveja vencida
+e pedido recusado depois de aceito.
+
+**Decidir a direção da dependência antes do teste reclamar.** Nas sprints anteriores, dois ciclos entre
+módulos foram descobertos pelo `ModularityTest`. Aqui, a liberação do lote foi colocada em `packaging` —
+e não em `quality`, onde a alçada está — justamente porque a expedição precisaria consultá-la e fecharia
+ciclo. É o ADR-0016 fazendo o trabalho para o qual foi escrito.
+
+**Dado pessoal é uma fronteira, e ela atravessa módulos.** A CRM-001 separou pessoa de organização; a
+INT-008 manteve a separação ao escolher o que sai no webhook. Uma decisão de modelagem só vale se a
+próxima história a respeitar.

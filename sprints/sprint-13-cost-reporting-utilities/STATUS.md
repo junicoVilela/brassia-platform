@@ -83,10 +83,9 @@ estoque, porque custo não lê tabela alheia.
   A cerveja perdida não tem custo próprio: ela é o mesmo insumo já somado, e lançá-la de novo como
   "perda" contaria duas vezes. A perda aparece no indicador — custo por litro sobe quando o lote
   rende menos —, não em linha nova.
-- **`CST-001-A` — mão de obra não tem fonte.** Não há hora trabalhada registrada em lugar nenhum da
-  plataforma. Inventar um cadastro de horas aqui seria criar regra de negócio sem fonte; somar zero
-  seria mentir por omissão. A parcela é declarada como lacuna. *Critério de remoção:* existir
-  apontamento de hora por lote ou por etapa, e um contribuinte implementar a porta.
+- ~~**`CST-001-A`**~~ — **FECHADO EM 2026-08-14**, com as duas metades do critério: apontamento de hora
+  por lote (`production_labor_entry`) e um contribuinte implementando a porta (`LaborCostContributor`).
+  A hora mora na produção e o dinheiro no custeio. Ver DEC-CST-001 na Sprint 17.
 - **A tela distingue o custo que ainda muda do que não muda mais.** Um aberto e um fechado com a
   mesma cara fariam alguém decidir preço em cima de um total que ainda vai crescer. E as lacunas
   ficam ao lado do total, não no rodapé: sem mão de obra e sem utilidade, o número é menor que a
@@ -384,7 +383,7 @@ Todos com critério de remoção registrado nas seções acima.
 
 | Débito | O que falta |
 |---|---|
-| `CST-001-A` | Mão de obra não tem fonte: não há hora trabalhada na plataforma |
+| ~~`CST-001-A`~~ | **Fechado em 2026-08-14**: apontamento de hora no lote + taxa da casa (V117) |
 | `CST-001-B` | Utilidade não tem fonte por lote: água e energia são medidas por equipamento |
 | `CST-002-A` | Não há perda esperada cadastrada, nem na transferência nem no envase |
 | `UTL-001-A` | O CO₂ não declara cobertura: não existe consumo esperado contra o qual comparar |

@@ -124,8 +124,10 @@ class BatchCostIT {
 
         mockMvc.perform(get(COSTING + "/batches/" + scene.batchId).session(session))
                 .andExpect(jsonPath("$.incomplete", is(true)))
+                // A lacuna de mão de obra agora vem do contribuinte, e distingue "sem taxa cadastrada"
+                // de "ninguém apontou" — duas ausências com ações diferentes (CST-001-A).
                 .andExpect(jsonPath("$.gaps[?(@.category=='LABOR')].reason",
-                        hasItem(containsString("hora trabalhada"))))
+                        hasItem(containsString("custo cadastrado"))))
                 .andExpect(jsonPath("$.gaps[?(@.category=='UTILITY')].reason",
                         hasItem(containsString("CO₂"))));
     }
@@ -218,6 +220,55 @@ class BatchCostIT {
     }
 
     // --- cenário ---
+
+    @Test
+    @DisplayName("HORA APONTADA + TAXA DA CASA VIRAM PARCELA DE MÃO DE OBRA")
+    void maoDeObraEntraNoCusto() throws Exception {
+        // CST-001-A. A hora é da produção, o dinheiro é do custeio: a parcela só existe quando as duas
+        // metades existem, e a ausência de cada uma diz coisa diferente.
+        var session = login();
+        var scene = startedBatch(session);
+        registerConsumption(session, scene.batchId()).andExpect(status().isOk());
+
+        // Sem taxa, a lacuna diz o que fazer.
+        mockMvc.perform(get(COSTING + "/batches/" + scene.batchId()).session(session))
+                .andExpect(jsonPath("$.gaps[?(@.category=='LABOR')].reason",
+                        hasItem(containsString("custo cadastrado"))));
+
+        definirTaxa(session, "50.00");
+
+        // Com taxa e sem apontamento, a lacuna é OUTRA: ninguém trabalhou registrado neste lote.
+        mockMvc.perform(get(COSTING + "/batches/" + scene.batchId()).session(session))
+                .andExpect(jsonPath("$.gaps[?(@.category=='LABOR')].reason",
+                        hasItem(containsString("Nenhuma hora foi apontada"))));
+
+        // Duas pessoas por três horas: seis horas-homem a 50 = 300.
+        apontarHoras(session, scene.batchId(), "Brassa", 3, 2);
+
+        mockMvc.perform(get(COSTING + "/batches/" + scene.batchId()).session(session))
+                .andExpect(jsonPath("$.lines[?(@.category=='LABOR')].quantity", hasItem(6.0)))
+                .andExpect(jsonPath("$.lines[?(@.category=='LABOR')].total", hasItem(300.0)))
+                .andExpect(jsonPath("$.gaps[?(@.category=='LABOR')]").isEmpty());
+    }
+
+    private void definirTaxa(MockHttpSession session, String valor) throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .put(COSTING + "/labor-rate").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"costPerHour\":" + valor + "}"))
+                .andExpect(status().isOk());
+    }
+
+    private void apontarHoras(MockHttpSession session, String batchId, String atividade, int horas,
+            int pessoas) throws Exception {
+        var inicio = java.time.Instant.now().minusSeconds(horas * 3600L);
+        mockMvc.perform(post("/api/v1/production/batches/" + batchId + "/labor").session(session)
+                        .with(csrf()).contentType("application/json")
+                        .content("""
+                                {"activity":"%s","startedAt":"%s","endedAt":"%s","people":%d}
+                                """.formatted(atividade, inicio, java.time.Instant.now(), pessoas)))
+                .andExpect(status().isCreated());
+    }
 
     private record Scene(String batchId, String containerId) {}
 

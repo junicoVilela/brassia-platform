@@ -7,7 +7,11 @@ import br.com.brew.brassia.equipment.EquipmentCleanlinessLookup;
 import br.com.brew.brassia.equipment.EquipmentUsageCommands;
 import br.com.brew.brassia.production.BatchAlertPublisher;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.production.LaborLookup;
 import br.com.brew.brassia.production.OpenBatchLookup;
+import br.com.brew.brassia.production.application.port.inbound.RecordLaborUseCase;
+import br.com.brew.brassia.production.application.port.outbound.LaborRepository;
+import br.com.brew.brassia.production.application.service.RecordLaborHandler;
 import br.com.brew.brassia.production.VesselOccupancyLookup;
 import br.com.brew.brassia.production.application.port.inbound.ApplyCorrectionUseCase;
 import br.com.brew.brassia.production.ProductionStockGateway;
@@ -175,6 +179,23 @@ class ProductionConfiguration {
                                 .add(adjustments.totalFor(breweryId, batchId)),
                         batch.status().name(), batch.recipeId(), batch.recipeVersion(),
                         batch.recipeName()));
+    }
+
+    /** Apontar horas trabalhadas no lote (CST-001-A). */
+    @Bean
+    RecordLaborUseCase recordLaborUseCase(BatchRepository batches, LaborRepository labor, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new RecordLaborHandler(batches, labor, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    /** Horas publicadas para o custeio — hora, nunca dinheiro (CST-001-A). */
+    @Bean
+    LaborLookup laborLookup(LaborRepository labor) {
+        return (breweryId, batchId) -> labor.findByBatch(breweryId, batchId).stream()
+                .map(e -> new LaborLookup.LaborTime(e.activity(), e.manHours()))
+                .toList();
     }
 
     /** Lotes abertos publicados, para quem precisa varrer e não tem os identificadores (QLT-001-A). */

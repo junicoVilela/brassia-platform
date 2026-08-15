@@ -18,6 +18,8 @@ import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Set;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,6 +44,17 @@ class CarbonationIT {
     @Container
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18");
+
+    /**
+     * Janela do envase ancorada em AGORA, e não numa data fixa.
+     *
+     * <p>A linha limpa exige liberação <strong>anterior</strong> ao início planejado
+     * ({@code LineCleanliness}). Com data fixa, o dia em que ela passa inverte a ordem e todo envase
+     * destes testes passa a ser recusado com {@code line_not_clean} — uma falha datada, que aparece sem
+     * ninguém ter mexido em nada.
+     */
+    private static final String PLANNED_START = Instant.now().plus(Duration.ofHours(1)).toString();
+    private static final String PLANNED_END = Instant.now().plus(Duration.ofHours(7)).toString();
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String PLANS = "/api/v1/packaging/plans";
@@ -359,8 +372,8 @@ class CarbonationIT {
         var lineId = createEquipment(session);
         var content = """
                 {"code":"ENV-%s","batchId":"%s","containerId":"%s","plannedUnits":800,"lineEquipmentId":"%s",
-                 "plannedStart":"2026-08-20T09:00:00Z","plannedEnd":"2026-08-20T15:00:00Z"}
-                """.formatted(UUID.randomUUID().toString().substring(0, 8), batchId, containerId, lineId);
+                 "plannedStart":"%s","plannedEnd":"%s"}
+                """.formatted(UUID.randomUUID().toString().substring(0, 8), batchId, containerId, lineId, PLANNED_START, PLANNED_END);
         var body = mockMvc.perform(post(PLANS).session(session).with(csrf()).contentType("application/json")
                         .content(content))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();

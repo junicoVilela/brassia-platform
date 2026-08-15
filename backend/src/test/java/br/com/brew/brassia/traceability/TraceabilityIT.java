@@ -17,6 +17,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Locale;
 import java.util.Set;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,17 @@ class TraceabilityIT {
     @Container
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18");
+
+    /**
+     * Janela do envase ancorada em AGORA, e não numa data fixa.
+     *
+     * <p>A linha limpa exige liberação <strong>anterior</strong> ao início planejado
+     * ({@code LineCleanliness}). Com data fixa, o dia em que ela passa inverte a ordem e todo envase
+     * destes testes passa a ser recusado com {@code line_not_clean} — uma falha datada, que aparece sem
+     * ninguém ter mexido em nada.
+     */
+    private static final String PLANNED_START = Instant.now().plus(Duration.ofHours(1)).toString();
+    private static final String PLANNED_END = Instant.now().plus(Duration.ofHours(7)).toString();
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String GENEALOGY = "/api/v1/traceability/genealogy";
@@ -252,9 +265,9 @@ class TraceabilityIT {
                         .contentType("application/json")
                         .content("""
                                 {"code":"ENV-%s","batchId":"%s","containerId":"%s","plannedUnits":800,
-                                 "lineEquipmentId":"%s","plannedStart":"2026-08-20T09:00:00Z",
-                                 "plannedEnd":"2026-08-20T15:00:00Z"}
-                                """.formatted(sfx, batchId, containerId, lineId)))
+                                 "lineEquipmentId":"%s","plannedStart":"%s",
+                                 "plannedEnd":"%s"}
+                                """.formatted(sfx, batchId, containerId, lineId, PLANNED_START, PLANNED_END)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
         for (var item : new String[] {"CONTAINER_INSPECTED", "SEAL_TEST", "GAS_SUPPLY"}) {
             mockMvc.perform(post("/api/v1/packaging/plans/" + planId + "/checklist").session(session).with(csrf())

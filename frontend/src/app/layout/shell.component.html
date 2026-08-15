@@ -137,6 +137,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('sales.order.read')) {
+            <li class="menu-item">
+              <a routerLink="/sales/orders" routerLinkActive="active" class="menu-link">
+                <i class="ri-file-list-3-line menu-icon"></i>
+                <span class="title">Pedidos</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('crm.customer.read')) {
             <li class="menu-item">
               <a routerLink="/crm/customers" routerLinkActive="active" class="menu-link">

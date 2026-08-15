@@ -1,6 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { SalesOrder } from '../domain/order.model';
 import { PriceSchedule, Product, SalesChannel, SellableLot } from '../domain/product.model';
 
 @Injectable({ providedIn: 'root' })
@@ -60,5 +61,35 @@ export class SalesApi {
     },
   ): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/products/${productId}/prices`, body);
+  }
+
+  orders(): Observable<SalesOrder[]> {
+    return this.http.get<SalesOrder[]>(`${this.baseUrl}/orders`);
+  }
+
+  /**
+   * Registra o pedido.
+   *
+   * A chave de idempotência vai no cabeçalho e é gerada por **tentativa de envio**, não por pedido: é
+   * o que faz um duplo clique ou um retry de rede devolver o mesmo pedido em vez de reservar o estoque
+   * duas vezes.
+   */
+  placeOrder(
+    body: {
+      code: string;
+      customerId: string;
+      channelId: string;
+      promisedFor: string | null;
+      items: { productId: string; quantity: number }[];
+    },
+    idempotencyKey: string,
+  ): Observable<{ id: string }> {
+    return this.http.post<{ id: string }>(`${this.baseUrl}/orders`, body, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    });
+  }
+
+  cancelOrder(id: string): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/orders/${id}/cancel`, {});
   }
 }

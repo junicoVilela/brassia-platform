@@ -1,0 +1,175 @@
+<app-page-header
+  title="Pedidos"
+  subtitle="O que foi vendido, de quais lotes, e para quando foi prometido."
+/>
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando pedidos…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else {
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-start">
+      <div>
+        <h2 class="h6 mb-0">Pedidos</h2>
+        <p class="text-muted small mb-0 mt-1">
+          O pedido nasce confirmado e já segura o estoque — não existe rascunho.
+        </p>
+      </div>
+      @if (canManage) {
+        <button type="button" class="btn btn-sm btn-primary" (click)="showForm.set(!showForm())">
+          {{ showForm() ? 'Cancelar' : 'Novo pedido' }}
+        </button>
+      }
+    </div>
+
+    @if (showForm()) {
+      <div class="card-body border-bottom">
+        <form [formGroup]="form" (ngSubmit)="submit()" class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label small mb-1" for="code">Código</label>
+            <input id="code" class="form-control form-control-sm" formControlName="code" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1" for="customerId">Cliente</label>
+            <input id="customerId" class="form-control form-control-sm" formControlName="customerId" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1" for="channelId">Canal</label>
+            <select id="channelId" class="form-select form-select-sm" formControlName="channelId">
+              <option value="">—</option>
+              @for (channel of catalog.channels(); track channel.id) {
+                <option [value]="channel.id">{{ channel.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-md-5">
+            <label class="form-label small mb-1" for="productId">Produto</label>
+            <select id="productId" class="form-select form-select-sm" formControlName="productId">
+              <option value="">—</option>
+              @for (product of catalog.products(); track product.id) {
+                <option [value]="product.id">{{ product.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1" for="quantity">Unidades</label>
+            <input id="quantity" type="number" min="1" class="form-control form-control-sm"
+                   formControlName="quantity" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1" for="promisedFor">Entrega prometida</label>
+            <input id="promisedFor" type="date" class="form-control form-control-sm"
+                   formControlName="promisedFor" />
+            <!--
+              A data mais distante que dá para prometer é a validade do lote que vence primeiro, e o
+              servidor recusa o resto — dizendo qual lote limita e até quando.
+            -->
+            <div class="form-text">
+              Em branco é "a combinar". Não pode passar da validade do lote reservado.
+            </div>
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+              Registrar pedido
+            </button>
+          </div>
+        </form>
+      </div>
+    }
+
+    @if (store.orders().length === 0) {
+      <div class="card-body">
+        <app-empty-state
+          icon="ri-file-list-3-line"
+          title="Nenhum pedido"
+          message="Um pedido reserva lote na hora em que é registrado."
+        />
+      </div>
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Código</th>
+              <th scope="col">Situação</th>
+              <th scope="col">Pedido</th>
+              <th scope="col">Entrega</th>
+              <th scope="col" class="text-end">Total</th>
+              <th scope="col"></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (order of store.orders(); track order.id) {
+              <tr>
+                <td>
+                  <button type="button" class="btn btn-link p-0" (click)="toggle(order)">
+                    {{ order.code }}
+                  </button>
+                </td>
+                <td><span class="badge" [class]="badgeClass(order)">
+                  {{ statusLabels[order.status] }}
+                </span></td>
+                <td>{{ order.placedOn | date: 'dd/MM/yyyy' }}</td>
+                <td>
+                  @if (order.promisedFor) {
+                    {{ order.promisedFor | date: 'dd/MM/yyyy' }}
+                  } @else {
+                    <span class="text-muted small">a combinar</span>
+                  }
+                </td>
+                <td class="text-end">
+                  {{ order.total | number: '1.2-2' }} {{ order.currency }}
+                </td>
+                <td class="text-end">
+                  @if (canManage && order.status === 'PLACED') {
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            (click)="store.cancel(order)">
+                      Cancelar
+                    </button>
+                  }
+                </td>
+              </tr>
+              @if (expanded() === order.id) {
+                <tr>
+                  <td colspan="6" class="bg-body-tertiary">
+                    <!--
+                      Os lotes ficam visíveis porque um pedido é promessa sobre cerveja específica —
+                      quando um recall alcança um lote, é aqui que se descobre quem avisar.
+                    -->
+                    @for (line of order.lines; track line.sku) {
+                      <div class="mb-2">
+                        <div class="small">
+                          <strong>{{ line.sku }}</strong> · {{ line.quantity }} unidade(s) a
+                          {{ line.unitAmount | number: '1.2-4' }} {{ line.currency }}
+                          <span class="text-muted">
+                            ({{ line.taxIncluded ? 'com imposto' : 'sem imposto' }})
+                          </span>
+                        </div>
+                        <ul class="list-unstyled small mb-0 ms-3">
+                          @for (r of line.reservations; track r.finishedLotId) {
+                            <li>
+                              Lote <strong>{{ r.lotCode }}</strong> — {{ r.units }} unidade(s), validade
+                              {{ r.bestBefore | date: 'dd/MM/yyyy' }}
+                            </li>
+                          }
+                        </ul>
+                      </div>
+                    }
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+}

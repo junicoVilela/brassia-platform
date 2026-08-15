@@ -2,6 +2,11 @@ package br.com.brew.brassia.sales.adapter.inbound.web;
 
 import br.com.brew.brassia.sales.domain.CurrencyMismatchException;
 import br.com.brew.brassia.sales.domain.DuplicateSkuException;
+import br.com.brew.brassia.sales.domain.InsufficientLotStockException;
+import br.com.brew.brassia.sales.domain.NoPriceForProductException;
+import br.com.brew.brassia.sales.domain.OrderNotChangeableException;
+import br.com.brew.brassia.sales.domain.PromiseAfterShelfLifeException;
+import br.com.brew.brassia.sales.domain.UnreservedQuantityException;
 import br.com.brew.brassia.sales.domain.OverlappingPriceException;
 import br.com.brew.brassia.sales.domain.UnknownProductException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
@@ -46,6 +51,54 @@ class SalesExceptionHandler {
         var problem = ProblemDetails.of(HttpStatus.CONFLICT, "sales_price_overlap", ex.getMessage());
         problem.setProperty("from", ex.from().toString());
         return problem;
+    }
+
+    /**
+     * A promessa incompatível com a validade (SAL-002).
+     *
+     * <p>As duas datas e o lote vão na resposta porque é o que resolve: quem prometeu precisa saber
+     * até quando pode prometer, e qual lote limita — sem isso, sobra tentativa e erro.
+     */
+    @ExceptionHandler(PromiseAfterShelfLifeException.class)
+    ProblemDetail handlePromise(PromiseAfterShelfLifeException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "promise_after_shelf_life", ex.getMessage());
+        problem.setProperty("promisedFor", ex.promisedFor().toString());
+        problem.setProperty("earliestBestBefore", ex.earliestBestBefore().toString());
+        problem.setProperty("lotCode", ex.lotCode());
+        return problem;
+    }
+
+    /**
+     * Estoque insuficiente — inclusive quando a causa foi perder a corrida por ele (SAL-002).
+     *
+     * <p>Do ponto de vista de quem chamou os dois casos são o mesmo: o estoque acabou entre olhar e
+     * pedir. Por isso a resposta fala de unidades, e não de concorrência.
+     */
+    @ExceptionHandler(InsufficientLotStockException.class)
+    ProblemDetail handleStock(InsufficientLotStockException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "insufficient_lot_stock", ex.getMessage());
+        problem.setProperty("requested", ex.requested());
+        problem.setProperty("available", ex.available());
+        return problem;
+    }
+
+    @ExceptionHandler(UnreservedQuantityException.class)
+    ProblemDetail handleUnreserved(UnreservedQuantityException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "unreserved_quantity", ex.getMessage());
+        problem.setProperty("requested", ex.requested());
+        problem.setProperty("reserved", ex.reserved());
+        return problem;
+    }
+
+    /** 409: o produto existe e o canal existe; o que falta é alguém ter precificado. */
+    @ExceptionHandler(NoPriceForProductException.class)
+    ProblemDetail handleNoPrice(NoPriceForProductException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, "no_price_for_product", ex.getMessage());
+    }
+
+    @ExceptionHandler(OrderNotChangeableException.class)
+    ProblemDetail handleNotChangeable(OrderNotChangeableException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, "order_not_changeable", ex.getMessage());
     }
 
     /** 409 e não 400: a requisição está bem formada; é a linha do tempo que já tem outra moeda. */

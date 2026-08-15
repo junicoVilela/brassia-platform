@@ -7502,8 +7502,218 @@ paths:
               schema: {type: array, items: {$ref: '#/components/schemas/SellableLot'}}
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
+  /sales/orders:
+    get:
+      tags: [Vendas]
+      summary: Pedidos (SAL-002)
+      responses:
+        '200':
+          description: Pedidos
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/SalesOrder'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Vendas]
+      summary: Registrar pedido, reservando lote (SAL-002)
+      description: >-
+        **O pedido nasce confirmado, com estoque reservado.** Não há rascunho: um pedido que não reservou
+        nada não segura lote, e chamar isso de pedido faria a cervejaria contar como vendido o que outro
+        cliente ainda pode levar.
+
+
+        **A reserva é FEFO — sai antes o que vence antes**, e não o que foi produzido antes. São a mesma
+        coisa quase sempre, e diferentes justamente quando importa: um lote novo com validade curta
+        precisa sair na frente de um velho com validade longa, ou vence na prateleira.
+
+
+        **O preço é congelado no pedido.** A lista de preço muda — é para isso que ela tem vigência —, e
+        se a fatura relesse a lista, um aumento aplicado depois mudaria o valor de um pedido que o
+        cliente já aceitou.
+
+
+        **A reserva aponta para o lote, e não só para o produto.** É o que faz o pedido manter rastreio:
+        quando um recall alcança um lote, "quem comprou disto?" precisa ter resposta.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: {type: string, maxLength: 80}
+          description: >-
+            Repetir a chamada com a mesma chave devolve **o mesmo pedido**, em vez de criar outro. Sem
+            ela, um duplo clique ou um retry de rede reserva o mesmo estoque duas vezes — e o segundo
+            pedido tira do próximo comprador uma cerveja que ninguém vai levar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, customerId, channelId, items]
+              properties:
+                code: {type: string, maxLength: 40}
+                customerId: {type: string, format: uuid}
+                channelId: {type: string, format: uuid}
+                placedOn:
+                  type: string
+                  format: date
+                  nullable: true
+                  description: Nulo é hoje. Existe explícito para regularizar pedido tomado por telefone ontem.
+                promisedFor:
+                  type: string
+                  format: date
+                  nullable: true
+                  description: >-
+                    Nulo é "a combinar", e é estado legítimo — inventar uma data para o campo não ficar
+                    vazio seria prometer no lugar de quem vende.
+                items:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [productId, quantity]
+                    properties:
+                      productId: {type: string, format: uuid}
+                      quantity: {type: integer, exclusiveMinimum: 0}
+      responses:
+        '201':
+          description: Pedido registrado — ou o pedido que já existia, quando a chave se repete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `insufficient_lot_stock` (extensões `requested` e `available`) — inclusive quando a causa foi
+            **perder a corrida** por ele: do ponto de vista de quem chamou, o estoque acabou entre olhar e
+            pedir. · `promise_after_shelf_life` (extensões `promisedFor`, `earliestBestBefore`, `lotCode`)
+            · `no_price_for_product` — "ainda não precificado" e "de graça" são opostos.
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /sales/orders/{id}:
+    get:
+      tags: [Vendas]
+      summary: Um pedido, com os lotes que ele reservou
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Pedido
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SalesOrder'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /sales/orders/{id}/cancel:
+    post:
+      tags: [Vendas]
+      summary: Cancelar pedido e devolver as reservas
+      description: >-
+        **Não há DELETE.** Apagar a linha faria sumir o fato de que houve uma venda e que ela foi
+        desfeita. O cancelamento devolve as reservas **na mesma transação**: separados, existiria um
+        instante em que o pedido está cancelado e o estoque continua preso — e uma falha no meio o
+        deixaria preso para sempre.
+
+
+        Pedido já atendido não cancela: devolveria ao estoque unidades que saíram pela porta.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Pedido cancelado e estoque devolvido}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`order_not_changeable` — já cancelado ou já atendido'
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /sales/orders/{id}/promise:
+    put:
+      tags: [Vendas]
+      summary: Prometer (ou desmarcar) a data de entrega
+      description: >-
+        **A data é validada contra a validade do lote reservado**, e manda o lote que vence primeiro:
+        quem entrega tudo junto entrega o mais velho junto. A validade é o **último dia bom**, então
+        prometer exatamente para ela vale.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                promisedFor:
+                  type: string
+                  format: date
+                  nullable: true
+                  description: Nulo desmarca a promessa e volta para "a combinar".
+      responses:
+        '204': {description: Promessa registrada}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`promise_after_shelf_life` ou `order_not_changeable`'
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
+    SalesOrder:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        customerId: {type: string, format: uuid}
+        channelId: {type: string, format: uuid}
+        status: {type: string, enum: [PLACED, CANCELLED, FULFILLED]}
+        placedOn: {type: string, format: date}
+        promisedFor: {type: string, format: date, nullable: true}
+        total:
+          type: number
+          description: Arredondado a duas casas no TOTAL, e não por linha — arredondar linha a linha produz um centavo de diferença, que é o que o cliente encontra ao conferir a nota.
+        currency: {type: string}
+        lines:
+          type: array
+          items: {$ref: '#/components/schemas/SalesOrderLine'}
+    SalesOrderLine:
+      type: object
+      properties:
+        productId: {type: string, format: uuid}
+        sku: {type: string, description: Congelado, para o pedido antigo continuar legível se o produto for renomeado.}
+        quantity: {type: integer}
+        unitAmount: {type: number, description: Preço congelado no pedido.}
+        currency: {type: string}
+        taxIncluded: {type: boolean}
+        reservations:
+          type: array
+          items: {$ref: '#/components/schemas/SalesLotReservation'}
+    SalesLotReservation:
+      type: object
+      description: O lote que o pedido segura — é o que um recall percorre para saber a quem avisar.
+      properties:
+        finishedLotId: {type: string, format: uuid}
+        lotCode: {type: string}
+        units: {type: integer}
+        bestBefore:
+          type: string
+          format: date
+          description: Congelada na reserva — é ela que sustentou a promessa de entrega.
     SellableLot:
       type: object
       properties:
@@ -7514,6 +7724,12 @@ components:
         containerVolumeMl: {type: number}
         packagedOn: {type: string, format: date}
         bestBefore: {type: string, format: date}
+        freeUnits:
+          type: integer
+          description: >-
+            O que sobrou depois das reservas. Viaja junto de `units` porque respondem perguntas
+            diferentes — um lote de 780 com 780 vendidas continua existindo, e mostrar só o total faria
+            a tela oferecer cerveja que já tem dono. Lote com zero livre não aparece na lista.
     LotSaleStatus:
       type: object
       properties:

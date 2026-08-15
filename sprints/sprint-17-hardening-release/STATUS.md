@@ -163,6 +163,40 @@ senão o painel fica cego exatamente durante o deploy.
 **O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
 honesto — significa que nenhum ensaio foi feito. **Preenchida em 2026-08-10 — ver DEC-REL-009.**
 
+### DEC-RPT-001 (RPT-001-A) — Marca é acabamento, e esperá-la custava o documento inteiro
+
+Decisão do mantenedor em 2026-08-15: PDF com layout simples, **sem identidade visual**. O critério de
+remoção pedia "a casa decidir o layout do documento impresso e existir decisão sobre marca e assinatura"
+— e foi exatamente essa espera que manteve o débito aberto por três sprints, com a cervejaria sem nada
+para mandar a um auditor. Quando houver marca, ela entra sobre um documento que já funciona.
+
+**O JSON continua sendo o padrão, e o formato é negociado pelo `Accept`.** Quem já integra com a
+exportação recebe o mesmo corpo de antes: trocar o padrão quebraria integração por causa de acabamento. A
+auditoria passou a registrar qual formato saiu — "exportou o relatório" e "levou o PDF para uma auditoria"
+são a mesma permissão e histórias diferentes.
+
+**As lacunas vão no topo do papel**, logo abaixo do cabeçalho. É a mesma regra da tela, e num documento
+impresso ela pesa mais: o rodapé é onde a informação morre, e quem imprime precisa ver o que o relatório
+*não* prova antes de mandá-lo a um cliente que vai lê-lo como se provasse tudo.
+
+**PDFBox, e a licença foi critério.** Apache 2.0, sem dependência de servidor gráfico. A licença importa
+aqui mais que o de costume porque o artefato gerado sai da plataforma para as mãos de terceiros.
+
+**Fontes padrão do PDF.** Helvetica é uma das 14 que todo leitor tem: embutir fonte própria pesaria o
+arquivo e exigiria licença de distribuição, para um documento que a cervejaria manda por e-mail.
+
+**Dois detalhes que só aparecem gerando:**
+
+- O escritor **vira a página sozinho**. Sem isso, um lote com muitas lacunas escreveria fora do papel — o
+  PDFBox não recusa, ele desenha o texto onde ninguém vai ler.
+- Caractere fora do WinAnsi **derruba a geração inteira** com exceção. Perder o relatório por causa de um
+  símbolo num texto de lacuna seria perder o documento por causa do acabamento; ele vira interrogação e o
+  resto se preserva.
+
+**O teste abre o PDF.** Responder 200 com bytes não prova nada: um arquivo corrompido passa por qualquer
+asserção de tamanho e falha na mão de quem for lê-lo. O `BatchReportIT` carrega o documento, extrai o
+texto e confere que as seções e as lacunas estão lá.
+
 ### DEC-CST-002 (CST-002-A) — A perda esperada é da receita, e o esperado incide sobre o planejado
 
 Decisão do mantenedor em 2026-08-14: perda esperada por etapa na receita — e **não** no equipamento ou na

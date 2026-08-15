@@ -132,6 +132,44 @@ class BatchReportIT {
     }
 
     @Test
+    @DisplayName("PEDINDO PDF, SAI UM PDF VÁLIDO E LEGÍVEL — e a auditoria registra o formato")
+    void exportarEmPdf() throws Exception {
+        // RPT-001-A. O JSON continua sendo o padrão; o PDF sai quando alguém pede, porque trocar o
+        // padrão quebraria integração por causa de acabamento.
+        var session = login();
+        var batchId = startedBatch(session);
+
+        var bytes = mockMvc.perform(post(REPORTING + "/batches/" + batchId + "/export").session(session)
+                        .with(csrf()).accept(org.springframework.http.MediaType.APPLICATION_PDF))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString(".pdf")))
+                .andReturn().getResponse().getContentAsByteArray();
+
+        // Não basta responder 200 com bytes: o arquivo precisa abrir. Um PDF corrompido passaria por
+        // qualquer asserção de tamanho e falharia na mão de quem for lê-lo.
+        try (var pdf = org.apache.pdfbox.Loader.loadPDF(bytes)) {
+            var texto = new org.apache.pdfbox.text.PDFTextStripper().getText(pdf);
+            Assertions.assertThat(pdf.getNumberOfPages()).isGreaterThanOrEqualTo(1);
+            Assertions.assertThat(texto)
+                    .contains("Relatório do lote")
+                    // As lacunas vão no documento: quem imprime precisa ver o que ele NÃO prova antes de
+                    // mandá-lo a um cliente que vai lê-lo como se provasse tudo.
+                    .contains("NÃO prova")
+                    .contains("Plano")
+                    .contains("Execução")
+                    .contains("Custo");
+        }
+
+        var formatos = jdbc.sql("""
+                        SELECT change_summary::text FROM audit_event
+                        WHERE action = 'reporting.batch.export' AND target_id = :id
+                        ORDER BY occurred_at DESC LIMIT 1
+                        """)
+                .param("id", batchId).query(String.class).single();
+        Assertions.assertThat(formatos).contains("PDF");
+    }
+
+    @Test
     @DisplayName("exportar é alçada própria: ler na tela não dá direito de levar embora")
     void exportarExigeAlcadaPropria() throws Exception {
         var session = login();

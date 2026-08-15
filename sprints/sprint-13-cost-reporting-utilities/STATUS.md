@@ -229,11 +229,11 @@ estoque, porque custo não lê tabela alheia.
   como se provasse tudo. A data de geração fica no topo pelo mesmo motivo.
 - **Exportar na tela passa pelo servidor, e não salva o que já está em memória.** O arquivo sairia
   idêntico, e sem registro nenhum de que saiu — a chamada existe pelo rastro, não pelo conteúdo.
-- **`RPT-001-A` — a exportação é JSON, não PDF.** O critério da história é o documento sair com
-  rastro, e isso o JSON entrega. PDF exigiria biblioteca de renderização, decisão de layout e
-  identidade visual da cervejaria — escopo de apresentação, não de consolidação, e ampliar por
-  iniciativa própria seria contrariar a regra da sprint. *Critério de remoção:* a casa decidir o
-  layout do documento impresso e existir decisão sobre marca e assinatura.
+- ~~**`RPT-001-A`**~~ — **FECHADO EM 2026-08-15**, e sem esperar a decisão de marca. O critério pedia
+  "layout do documento impresso e decisão sobre marca e assinatura"; o mantenedor decidiu que **marca é
+  acabamento**: cabeçalho, dados e rodapé, sem identidade visual. Esperar a marca mantinha a cervejaria
+  sem nada para levar ao auditor. O JSON continua sendo o padrão; o PDF sai por `Accept`. Ver DEC-RPT-001
+  na Sprint 17.
 
 ### CST-002 — planejado versus real
 
@@ -387,7 +387,7 @@ Todos com critério de remoção registrado nas seções acima.
 | `CST-001-B` | Utilidade não tem fonte por lote: água e energia são medidas por equipamento |
 | ~~`CST-002-A`~~ | **Fechado em 2026-08-14**: perda esperada por etapa na receita (V118) |
 | `UTL-001-A` | O CO₂ não declara cobertura: não existe consumo esperado contra o qual comparar |
-| `RPT-001-A` | A exportação é JSON, não PDF: layout e identidade visual não foram decididos |
+| ~~`RPT-001-A`~~ | **Fechado em 2026-08-15**: PDF por `Accept`, layout simples e sem identidade visual |
 | ~~`RPT-003-A`~~ | **Fechado em 2026-08-11 por decisão**: a plataforma registra e não envia; enviar exige SMTP, bounce e LGPD. Ver DEC-DEBT-001 na Sprint 17 |
 | `RPT-003-B` | O agendador é de instância única: não duplica, mas não distribui carga |
 | `GAS-001-A` | Custo e estoque do gás. **Adiado de novo em 2026-08-11, agora por decisão registrada**: entra quando alguém reclamar da ausência dele no custo do lote. Ver DEC-DEBT-001 na Sprint 17 |

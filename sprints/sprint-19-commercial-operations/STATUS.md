@@ -7,7 +7,7 @@ Estado: **ATIVA desde 2026-08-15** — escolhida como próxima sprint. Nenhuma h
 | CRM-001 | Em execução — domínio e testes prontos | `crm/domain/*`, 26 testes unitários |
 | SAL-001 | Em execução — domínio, fatia de fora e tela | `sales/*`, `V120`, 21 unitários + 10 IT |
 | SAL-002 | Em execução — domínio, fatia de fora e tela | `sales/*`, `V122`, 15 unitários + 8 IT |
-| SAL-003 | A fazer | — |
+| SAL-003 | Em execução — domínio, fatia de fora e tela | `sales/adapter/inbound/portal`, `V123`, 6 unitários + 8 IT |
 | FCST-001 | A fazer | — |
 | INT-008 | A fazer | — |
 
@@ -259,6 +259,78 @@ que conhecesse reservas criaria `packaging → sales` sobre o `sales → packagi
 **Entregue:** `V122` com quatro tabelas, `SalesOrder`, `OrderLine`, `LotReservation`, `OrderHandlers`,
 dois repositórios, controller com Problem Details para os cinco modos de recusa; 4 caminhos e 3 schemas
 no OpenAPI; tela de pedidos com os lotes reservados visíveis. **15 testes de domínio e 8 de integração.**
+
+### DEC-SAL-004 (SAL-003) — O portal isola por endereço, e não por condicional
+
+**O problema.** `SecurityPrincipal` carrega cervejaria e permissões, e todo endpoint de vendas filtra só
+por cervejaria. Um usuário externo com `sales.order.read` veria os pedidos de **todos os clientes da
+casa** — e o `TenantIsolationTest`, que varre o SQL exigindo `brewery_id`, não cobre esse segundo eixo
+porque ele nem sabe que existe.
+
+**Decisão do mantenedor (2026-08-15): endpoints próprios em `/api/v1/portal/**`**, que sempre filtram
+pelo cliente do principal e nunca reaproveitam os handlers internos. A alternativa considerada era
+acrescentar `customerId` ao principal e filtrar em cada consulta; foi recusada porque a proteção passaria
+a depender de **cada endpoint novo lembrar do filtro** — exatamente o padrão que a OBS-REL-001 encontrou
+em dez escritas.
+
+O isolamento vira **estrutural**: o cliente vem do vínculo lido pelo identificador do usuário
+autenticado, e **nunca do caminho nem do corpo**. Se viesse de fora, bastaria trocá-lo. E um endpoint
+interno novo não pode vazar por aqui, porque o portal não passa por ele.
+
+**Usuário de portal é `security_user` comum**, não identidade paralela. Duplicar autenticação
+significaria duplicar MFA, bloqueio por tentativa, expiração e recuperação de senha — e a segunda cópia é
+a que fica para trás quando algo é corrigido. `portal.access` é a **única** permissão que ele recebe, e
+ela não abre nada interno; ela também **não entra no grupo de administração**, porque concedê-la a todos
+faria o portal deixar de ser do cliente.
+
+**Permissão sem vínculo não abre o portal.** A permissão diz que ele pode entrar; o vínculo diz de quem
+ele é. Sem o segundo não há a quem mostrar nada.
+
+**Pedido de outro cliente responde 404, e não 403** — distinguir contaria que o identificador existe em
+algum lugar, que é um oráculo entre clientes.
+
+**O portal não mostra os lotes reservados.** Eles são rastro interno da cervejaria: o cliente precisa
+saber o que comprou e para quando, não de qual brassa saiu.
+
+**Item sem preço ou sem disponibilidade não aparece no catálogo.** Mostrá-lo faria o cliente pedir e ser
+recusado depois — e no portal não há um vendedor por perto para explicar.
+
+**A recompra repete a intenção, e não o valor.** Reaproveitar o preço antigo faria o cliente comprar por
+um valor que não vale mais, e a cervejaria vender abaixo da lista sem ninguém ter decidido isso. Preço,
+disponibilidade e teto são os de hoje.
+
+**O teto é conferido antes de reservar.** Recusar depois deixaria o estoque preso até alguém perceber, e
+o cliente veria "sem crédito" num lote que ele mesmo travou.
+
+**Entregue:** `V123` com duas tabelas, `CreditLimit`, `PortalController` (catálogo, pedidos, recompra,
+crédito), `PortalAdminController` (conceder acesso, definir teto); 7 caminhos e 3 schemas no OpenAPI;
+tela do portal. **6 testes de domínio e 8 de integração.**
+
+### DEB-SAL-002 — O limite mede compromisso, e não recebível
+
+**Limitação declarada, e não descuido.** O mantenedor escolheu limite de crédito em dinheiro sabendo do
+problema, que estava escrito na própria opção: um limite de crédito de verdade compara o teto com o que o
+cliente **deve**, e isso exige baixa de pagamento — que a plataforma não tem (fora do escopo da sprint).
+
+O que dá para medir é a soma dos pedidos **confirmados e ainda não entregues**. A consequência, que
+ninguém deve descobrir sozinho: **um pedido entregue e não pago sai da conta**. O controle funciona para
+impedir que um cliente acumule promessas além do que a cervejaria aceita carregar — o caso real do bar
+pequeno pedindo mil caixas — e **não substitui análise de crédito**.
+
+Está escrito no domínio, na migration, no contrato e num teste que existe só para documentar isso.
+
+**Critério de remoção:** existir baixa de pagamento por pedido, e o comprometido passar a considerar o
+que foi entregue e não pago. É história própria — provavelmente da INT-008, que traz as portas fiscais.
+
+### DEB-SAL-003 — O `PackagingRunIT` virou a casa de todos os cenários
+
+Ele tem **1.100 linhas** porque é onde mora a máquina que constrói um lote acabado de verdade — plano,
+checklist, limpeza, reserva, execução —, e as histórias de venda precisam dela: liberação, lote vendável,
+pedido, portal. Duplicar isso em cada IT novo custaria mais que o tamanho do arquivo.
+
+**Critério de remoção:** extrair o cenário para um *fixture* compartilhado de teste, e repartir o arquivo
+por assunto. Não foi feito no meio da história de propósito — refatorar a base de teste enquanto se
+escreve teste novo é a hora errada.
 
 ## Evidências de encerramento
 

@@ -1,0 +1,171 @@
+<app-page-header
+  title="Meus pedidos"
+  subtitle="O que dá para pedir agora, e o que já foi pedido."
+/>
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else {
+  <!--
+    O teto aparece ANTES da compra. Descobrir que não há crédito depois de montar o pedido é o tipo de
+    coisa que faz o cliente ligar para reclamar; mostrar quanto ainda cabe deixa a decisão com ele.
+  -->
+  @if (store.credit(); as credit) {
+    @if (credit.ceiling !== null) {
+      <div class="alert alert-light border d-flex justify-content-between align-items-center"
+           role="status">
+        <span class="small">
+          Limite de <strong>{{ credit.ceiling | number: '1.2-2' }} {{ credit.currency }}</strong>,
+          com {{ credit.committed | number: '1.2-2' }} já comprometido.
+        </span>
+        @if (store.remaining(); as sobra) {
+          <span class="badge text-bg-secondary">
+            Ainda cabe {{ sobra | number: '1.2-2' }} {{ credit.currency }}
+          </span>
+        }
+      </div>
+    }
+  }
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="h6 mb-0">Disponível</h2>
+          <p class="text-muted small mb-0 mt-1">
+            Só o que está pronto para sair, com o preço do seu canal.
+          </p>
+        </div>
+        @if (store.catalog().length === 0) {
+          <div class="card-body">
+            <app-empty-state
+              icon="ri-shopping-basket-line"
+              title="Nada disponível no momento"
+              message="Assim que houver lote liberado, ele aparece aqui."
+            />
+          </div>
+        } @else {
+          <ul class="list-group list-group-flush">
+            @for (item of store.catalog(); track item.productId) {
+              <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+                <div>
+                  <span class="d-block">{{ item.name }}</span>
+                  <small class="text-muted">
+                    {{ item.unitAmount | number: '1.2-4' }} {{ item.currency }}
+                    · {{ item.availableUnits }} disponível(is)
+                    · {{ item.taxIncluded ? 'com imposto' : 'sem imposto' }}
+                  </small>
+                </div>
+                <button type="button" class="btn btn-sm btn-primary" (click)="open(item)">
+                  Pedir
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="h6 mb-0">Meus pedidos</h2>
+        </div>
+        @if (store.orders().length === 0) {
+          <div class="card-body">
+            <app-empty-state
+              icon="ri-file-list-3-line"
+              title="Nenhum pedido ainda"
+              message="Seus pedidos aparecem aqui assim que forem enviados."
+            />
+          </div>
+        } @else {
+          <ul class="list-group list-group-flush">
+            @for (order of store.orders(); track order.id) {
+              <li class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                  <div>
+                    <span class="d-block">{{ order.code }}</span>
+                    <small class="text-muted">
+                      {{ order.placedOn | date: 'dd/MM/yyyy' }} ·
+                      {{ order.total | number: '1.2-2' }} {{ order.currency }} ·
+                      @if (order.promisedFor) {
+                        entrega {{ order.promisedFor | date: 'dd/MM/yyyy' }}
+                      } @else {
+                        entrega a combinar
+                      }
+                    </small>
+                    <ul class="list-unstyled small text-muted mb-0 mt-1">
+                      @for (line of order.lines; track line.sku) {
+                        <li>{{ line.quantity }} × {{ line.sku }}</li>
+                      }
+                    </ul>
+                  </div>
+                  @if (order.status === 'PLACED') {
+                    <!--
+                      Recompra repete a intenção, e não o valor: o preço é o de hoje. O rótulo diz isso
+                      para o cliente não esperar o total antigo.
+                    -->
+                    <button type="button" class="btn btn-sm btn-outline-primary"
+                            [disabled]="store.saving()" (click)="reorder(order)">
+                      Repetir
+                    </button>
+                  }
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </div>
+  </div>
+}
+
+@if (buying(); as item) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="h6 modal-title">{{ item.name }}</h3>
+          <button type="button" class="btn-close" (click)="buying.set(null)"></button>
+        </div>
+        <form [formGroup]="form" (ngSubmit)="submit()">
+          <div class="modal-body">
+            <p class="small text-muted">
+              {{ item.unitAmount | number: '1.2-4' }} {{ item.currency }} por unidade ·
+              {{ item.availableUnits }} disponível(is)
+            </p>
+            <label class="form-label small mb-1" for="code">Sua referência</label>
+            <input id="code" class="form-control form-control-sm mb-2" formControlName="code" />
+            <label class="form-label small mb-1" for="quantity">Unidades</label>
+            <input id="quantity" type="number" min="1" [max]="item.availableUnits"
+                   class="form-control form-control-sm mb-2" formControlName="quantity" />
+            <label class="form-label small mb-1" for="promisedFor">Quando precisa</label>
+            <input id="promisedFor" type="date" class="form-control form-control-sm"
+                   formControlName="promisedFor" />
+            <div class="form-text">
+              Em branco é "a combinar". A data não pode passar da validade do lote reservado.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="buying.set(null)">
+              Cancelar
+            </button>
+            <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+              Enviar pedido
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+}

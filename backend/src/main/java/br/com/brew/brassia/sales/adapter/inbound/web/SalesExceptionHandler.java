@@ -1,5 +1,6 @@
 package br.com.brew.brassia.sales.adapter.inbound.web;
 
+import br.com.brew.brassia.sales.domain.CreditLimitExceededException;
 import br.com.brew.brassia.sales.domain.CurrencyMismatchException;
 import br.com.brew.brassia.sales.domain.DuplicateSkuException;
 import br.com.brew.brassia.sales.domain.InsufficientLotStockException;
@@ -20,6 +21,23 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(0)
 @RestControllerAdvice
 class SalesExceptionHandler {
+
+    /**
+     * O teto de compromisso em aberto foi ultrapassado (SAL-003).
+     *
+     * <p>Os três números vão na resposta porque um sozinho não resolve: saber que "passou do limite"
+     * sem saber de quanto é o teto, quanto já está comprometido e quanto este pedido pede deixa quem
+     * comprou sem ação — e no portal não há um vendedor por perto para explicar.
+     */
+    @ExceptionHandler(CreditLimitExceededException.class)
+    ProblemDetail handleCredit(CreditLimitExceededException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "credit_limit_exceeded", ex.getMessage());
+        problem.setProperty("ceiling", ex.ceiling());
+        problem.setProperty("committed", ex.committed());
+        problem.setProperty("requested", ex.requested());
+        problem.setProperty("currency", ex.currency());
+        return problem;
+    }
 
     @ExceptionHandler(UnknownProductException.class)
     ProblemDetail handleUnknown(UnknownProductException ex) {

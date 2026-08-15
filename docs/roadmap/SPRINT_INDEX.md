@@ -32,7 +32,7 @@ As capacidades de segurança da Sprint 01 foram entregues como "fatia 1" (só ba
 - Sprint 14 — [Copiloto de IA e RAG](../../sprints/sprint-14-ai-rag/README.md): Responder e recomendar com fontes e guardrails.
 - Sprint 15 — [Integrações, sensores e PWA offline](../../sprints/sprint-15-integrations-pwa/README.md): Operar em campo e receber dados externos com segurança. Os conectores de terceiro (INT-004, INT-005, INT-007) saíram para a Sprint 21.
 - Sprint 16 — [Inteligência, experimentos e blend](../../sprints/sprint-16-advanced-intelligence/README.md): Aprender com histórico e testar melhorias controladas.
-- Sprint 17 — [Hardening e primeira produção](../../sprints/sprint-17-hardening-release/README.md): Preparar operação real, restauração e suporte.
+- Sprint 17 — [Hardening e primeira produção](../../sprints/sprint-17-hardening-release/README.md): Preparar operação real, restauração e suporte. **Encerrada em 2026-08-15 sem declarar o release pronto**: REL-001 (restauração medida) ficou fora de escopo e o ciclo em homologação da REL-005 segue aberto — os dois dependem de ambiente e de quem opera. Fechou também catorze débitos herdados das sprints 08 a 16.
 
 ## Edições pós-release
 

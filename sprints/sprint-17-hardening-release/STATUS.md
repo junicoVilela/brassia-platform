@@ -1,7 +1,14 @@
 # Status — Sprint 17
 
-Estado: EM EXECUÇÃO — REL-002, REL-003 e REL-004 concluídas; REL-001 fora de escopo por decisão do
-mantenedor; REL-005 com o manual mínimo entregue e o ciclo em homologação pendente.
+Estado: **ENCERRADA em 2026-08-15** — 3 de 5 histórias concluídas, 1 parcial, 1 fora de escopo. A sprint
+fecha **sem declarar o release pronto**, porque as duas coisas que provariam isso — restauração medida
+(REL-001) e um ciclo em homologação (REL-005) — dependem de ambiente e de quem opera, não de código.
+O que dependia de código está entregue.
+
+Encerra também **catorze débitos herdados das sprints 08 a 16** — dez com código, quatro por decisão sem
+código —, mais a `DEC-BLD-003` que a Sprint 16 deixou em aberto. Não estavam no escopo original; entraram
+porque o escopo original travou nas duas histórias acima, e débito parado é o que envelhece pior. Ver
+DEC-DEBT-001 e as decisões por módulo.
 
 ## Controle das histórias
 
@@ -11,7 +18,8 @@ mantenedor; REL-005 com o manual mínimo entregue e o ciclo em homologação pen
 | REL-002 | Concluída | Claude | `infra/perf/*`, `ListBatchesUseCase`, `JdbcBatchRepository`, `PageResponse` | Gargalo medido **e corrigido**: com 3.000 lotes, p95 caiu de 319 ms para 9,8 ms. Ver DEC-REL-007. |
 | REL-003 | Concluída | Claude | `InternalAddressGuard`, `SecurityConfiguration`, `.github/workflows/ci.yml`, `frontend/package-lock.json` | Um achado ALTO (SSRF no webhook) e dois médios resolvidos; varredura de CVE passou a barrar merge. Ver DEC-REL-001/002/003. |
 | REL-004 | Concluída | Claude | `infra/runbooks/deploy-rollback.md` | Ensaio executado em 2026-08-10: bloqueio de escrita medido migration a migration (`V100` = 143 ms) e retorno do artefato anterior contra o schema novo exercitado de verdade. Ambiente local, não cópia de produção — limitação registrada. Ver DEC-REL-006/009. |
-| REL-005 | Parcial — manual entregue, ciclo pendente | Claude | `docs/44_MINIMUM_OPERATING_MANUAL.md` | O entregável que não depende de ambiente está pronto, com o roteiro de homologação e a evidência exigida por etapa. O ciclo em homologação continua aberto: depende do ambiente e de quem opera. Ver DEC-REL-010. |
+| REL-005 | **Parcial** — manual entregue, ciclo pendente | Claude | PR #202, `docs/44_MINIMUM_OPERATING_MANUAL.md` | O entregável que não depende de ambiente está pronto, com o roteiro de homologação e a evidência exigida por etapa. O ciclo em homologação continua aberto: depende do ambiente e de quem opera. **Segue aberto no encerramento.** Ver DEC-REL-010. |
+| Débitos 08–16 | Concluída (14 débitos) | Claude | PRs #212 a #224, ADR-0016 | Fora do escopo original, por decisão do mantenedor. Dez fechados com código, quatro por decisão sem código. Ver DEC-DEBT-001, DEC-CLN-001, DEC-AIA-001, DEC-FDS-001/002, DEC-PKG-001/002, DEC-QLT-001, DEC-CST-001/002, DEC-RPT-001. |
 
 ## Decisões e bloqueios
 
@@ -647,9 +655,47 @@ custo baixo — o que não é reversível é descobrir que o backup não restaur
 
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- **Build/commit:** as histórias de release em #188 (REL-002), #189, #193, #194 (REL-001, remoção),
+  #201 (REL-004) e #202 (REL-005); os débitos herdados em #212 a #222, um PR por débito; o ADR-0016 em
+  #223; a varredura de âncoras de data em #224. Um PR por assunto, mergeados em série na `main`.
+- **Testes executados:** `mvnw verify` verde na `main` em 2026-08-15 — **1.263 unitários e 802 de
+  integração** contra PostgreSQL real via Testcontainers, zero falhas. Frontend: **503 testes em 82
+  arquivos**, verdes. `ModularityTest` verde, inclusive nos dois pontos em que ele recusou um ciclo
+  (ver DEC-CLN-001 e DEC-FDS-002). A sprint começou com 786 testes de integração e terminou com 802.
+- **Migration aplicada:** `V110` a `V118` — 118 migrations no total. Nenhuma destrutiva; a de maior
+  risco (`V117`, mão de obra) cria tabela nova e não toca em coluna existente.
+- **Contratos atualizados:** `contracts/openapi.yaml` — **256 caminhos**, três a mais que no encerramento
+  da Sprint 16.
+- **Riscos remanescentes:**
+  - **REL-001 não fecha.** Não há RPO nem RTO medidos, e o ensaio de restauração saiu do repositório a
+    pedido do mantenedor. O risco não é técnico: é que ninguém sabe se o backup restaura. Ver DEC-REL-008.
+  - **REL-005 não fecha.** O manual existe e o roteiro existe; o ciclo em homologação, não. Um manual
+    que nunca foi seguido de ponta a ponta é hipótese escrita com capricho. Ver DEC-REL-010.
+  - **O ensaio da REL-004 rodou em ambiente local**, não em cópia de produção. As medidas de bloqueio de
+    escrita são reais, mas o volume de dados não é o de produção. Ver DEC-REL-009.
+  - **Oito atualizações do Dependabot** (#204 a #211) ficaram armadas com auto-merge no encerramento, não
+    mergeadas. As duas de maior alcance foram verificadas localmente antes: `anthropic-java` 2.34→2.53
+    (96 testes do módulo `ai`, sem dependência nova na árvore) e `testcontainers-keycloak` 3.7→4.3
+    (8 testes de SSO; a imagem embutida vai de Keycloak 26.2 a 26.7, mesmo major).
+  - **O portão de CVE passou a ser verificado, e não só configurado.** O PR #225 é um canário
+    descartável com `commons-text:1.9` (CVE-2022-42889) que existe para provar que o job **falha** —
+    porque um PR limpo passando não distingue um portão que funciona de um portão aberto.
+- **Aceite:** pendente de validação manual. Junto com o aceite das Sprints 09 e 16, também pendentes.
+
+### O que esta sprint ensinou, e que vale carregar
+
+**Débito antigo descreve o mundo do dia em que foi escrito.** Foi o padrão que mais apareceu, e três
+vezes o critério de remoção prescrevia a solução errada:
+
+- `CLN-004-A` pedia um *listener*; implementado assim, ele criava um ciclo entre módulos que não existia
+  quando o débito foi redigido.
+- `DEB-AIA-003` já estava um terço resolvido pela PRM-001, feita depois dele.
+- `QLT-001-A` esperava um agendador que existia desde a Sprint 13.
+
+A consequência prática: **ler o débito é o primeiro passo, conferir se o mundo dele ainda existe é o
+segundo** — e o segundo não é opcional. Nos dois casos de ciclo, quem corrigiu o rumo foi o
+`ModularityTest`, não o julgamento de quem escrevia o código. Está registrado no ADR-0016.
+
+**Teste com data fixa não é determinístico, é datado.** Dois apareceram: um quebrou o build em
+2026-08-14, e a varredura que ele motivou encontrou outros onze com prazo para 2026-08-20. A regra está
+em `docs/12_TESTING_STRATEGY.md`.

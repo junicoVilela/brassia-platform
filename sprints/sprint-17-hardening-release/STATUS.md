@@ -163,6 +163,36 @@ senão o painel fica cego exatamente durante o deploy.
 **O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
 honesto — significa que nenhum ensaio foi feito. **Preenchida em 2026-08-10 — ver DEC-REL-009.**
 
+### DEC-CST-002 (CST-002-A) — A perda esperada é da receita, e o esperado incide sobre o planejado
+
+Decisão do mantenedor em 2026-08-14: perda esperada por etapa na receita — e **não** no equipamento ou na
+política de envase, como o critério de remoção sugeria.
+
+**A razão é física.** A perda característica é da cerveja tanto quanto do tanque: uma IPA muito lupulada
+deixa mais líquido preso no trub que uma lager no mesmo fermentador. O dead space do equipamento já é
+conhecido em outro lugar; o que faltava era o que *esta* cerveja perde. E a receita já carrega eficiência
+de mostura e volumes — perda esperada é o mesmo tipo de dado.
+
+**Versiona de graça.** Cada versão de receita é uma linha (V28), então a perda esperada acompanha a versão
+publicada, e um lote é comparado contra o número que valia quando ele foi feito — não contra o que alguém
+ajustou depois.
+
+**Percentual, e não litros.** Perda de trub e absorção de lúpulo escalam com o tamanho da brassa. Um valor
+absoluto ficaria errado no dia em que a cervejaria dobrasse o lote, e ficaria errado **em silêncio**.
+
+**O esperado incide sobre o volume PLANEJADO da etapa**, e essa é a decisão que evita um erro sutil:
+calculá-lo sobre o realizado faria o esperado seguir o desvio. Um lote que rendeu menos "esperaria" perder
+menos, e o desvio sumiria por construção — a comparação passaria a se auto-justificar.
+
+**O raciocínio original continua valendo para quem não cadastrou.** Sem percentual, a perda segue entrando
+como fato, sem desvio: assumir esperado zero faria toda perda parecer desvio, e acusaria a fábrica com um
+critério que ela nunca definiu. O que mudou na lacuna é o texto — ela deixou de citar o identificador do
+débito e passou a dizer o que fazer.
+
+**Zero não é nulo, e a tela respeita isso.** Uma cervejaria que não perde nada numa etapa tem esperado
+zero, que é diferente de não ter medido. No formulário, `?? null` em vez de `|| null` — com `||`, um
+esperado de 0% viraria "não mediu".
+
 ### DEC-CST-001 (CST-001-A) — A hora é da produção, o dinheiro é do custeio
 
 Decisão do mantenedor em 2026-08-14: apontamento de hora no dia de brassa, com custo/hora vindo de

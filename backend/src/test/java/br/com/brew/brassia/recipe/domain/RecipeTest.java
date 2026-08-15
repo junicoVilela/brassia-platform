@@ -24,7 +24,8 @@ class RecipeTest {
     }
 
     private Recipe draft(BigDecimal batch, List<RecipeItem> items) {
-        return Recipe.draft(BREWERY, "Hoppy Lager", EQUIPMENT, batch, CAPACITY, RecipeTargets.none(), 60, items);
+        return Recipe.draft(BREWERY, "Hoppy Lager", EQUIPMENT, batch, CAPACITY, RecipeTargets.none(), 60,
+                ExpectedLosses.none(), items);
     }
 
     @Test

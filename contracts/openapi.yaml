@@ -8292,6 +8292,27 @@ components:
         targetColorEbc: {type: number}
         targetAbv: {type: number}
         boilTimeMinutes: {type: integer}
+        transferLossPercent:
+          type: number
+          minimum: 0
+          exclusiveMaximum: 100
+          nullable: true
+          description: >-
+            Quanto esta cerveja admite perder na transferência ao fermentador, em % do volume planejado
+            (CST-002-A). **Percentual e não litros**: perda de trub e absorção de lúpulo escalam com o
+            tamanho da brassa, e um valor absoluto ficaria errado — em silêncio — no dia em que a
+            cervejaria dobrasse o lote.
+
+
+            Nulo é legítimo: quem ainda não mediu a própria perda não tem esperado, e a variação
+            (CST-002) volta a mostrar a perda como fato, sem desvio. Assumir zero faria toda perda parecer
+            desvio.
+        packagingLossPercent:
+          type: number
+          minimum: 0
+          exclusiveMaximum: 100
+          nullable: true
+          description: Mesma ideia, para a perda de linha no envase.
         items:
           type: array
           minItems: 1

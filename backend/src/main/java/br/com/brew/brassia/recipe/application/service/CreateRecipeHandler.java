@@ -5,6 +5,7 @@ import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
 import br.com.brew.brassia.recipe.application.port.inbound.CreateRecipeUseCase;
 import br.com.brew.brassia.recipe.application.port.outbound.RecipeRepository;
+import br.com.brew.brassia.recipe.domain.ExpectedLosses;
 import br.com.brew.brassia.recipe.domain.Recipe;
 import br.com.brew.brassia.recipe.domain.RecipeItem;
 import br.com.brew.brassia.recipe.domain.RecipeStage;
@@ -38,7 +39,8 @@ public final class CreateRecipeHandler implements CreateRecipeUseCase {
                 command.targetAbv());
 
         var recipe = Recipe.draft(command.breweryId(), command.name(), command.equipmentId(),
-                command.batchVolumeLiters(), capacity, targets, command.boilTimeMinutes(), items);
+                command.batchVolumeLiters(), capacity, targets, command.boilTimeMinutes(),
+                new ExpectedLosses(command.transferLossPercent(), command.packagingLossPercent()), items);
 
         var normalizedName = recipe.name().value().toLowerCase(Locale.ROOT);
         if (repository.existsByName(command.breweryId(), normalizedName)) {

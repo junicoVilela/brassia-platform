@@ -356,6 +356,11 @@ class CommandProposalHandlerTest {
                 (breweryId, batchId) -> scene.cost,
                 new RecipeLookup() {
                     @Override
+                    public Optional<ExpectedLoss> expectedLoss(UUID breweryId, UUID recipeId) {
+                        return Optional.empty();
+                    }
+
+                    @Override
                     public Optional<PublishedRecipe> findPublished(UUID breweryId, UUID recipeId) {
                         return Optional.empty();
                     }

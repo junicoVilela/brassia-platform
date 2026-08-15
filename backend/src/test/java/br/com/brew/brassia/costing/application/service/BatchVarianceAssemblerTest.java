@@ -14,6 +14,7 @@ import br.com.brew.brassia.planning.OrderPlanLookup;
 import br.com.brew.brassia.planning.OrderPlanLookup.OrderPlan;
 import br.com.brew.brassia.planning.OrderPlanLookup.PlannedMaterial;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.recipe.RecipeLookup;
 import br.com.brew.brassia.production.BatchOutcomeLookup;
 import br.com.brew.brassia.production.BatchOutcomeLookup.BatchOutcome;
 import java.math.BigDecimal;
@@ -133,7 +134,38 @@ class BatchVarianceAssemblerTest {
                 .findFirst().orElseThrow();
         assertThat(perda.actual()).isEqualByComparingTo("8");
         assertThat(perda.comparable()).isFalse();
-        assertThat(reasons(variance)).anyMatch(reason -> reason.contains("CST-002-A"));
+        assertThat(reasons(variance)).anyMatch(reason -> reason.contains("não define perda esperada"));
+    }
+
+    @Test
+    @DisplayName("COM PERDA ESPERADA NA RECEITA, A PERDA VIRA DESVIO — e o esperado sai do planejado")
+    void perdaComparaContraOEsperado() {
+        // CST-002-A. 2% de 400 L planejados são 8 L esperados; a perda real foi 8 L, então não há desvio.
+        // O esperado incide sobre o PLANEJADO: calculá-lo sobre o realizado faria o esperado seguir o
+        // desvio, e um lote que rendeu menos "esperaria" perder menos — o desvio sumiria por construção.
+        var variance = assembleWithExpectedLoss(new BigDecimal("2"), null);
+
+        var perda = variance.volumes().stream()
+                .filter(volume -> volume.kind() == BatchVariance.VolumeKind.LOSS)
+                .findFirst().orElseThrow();
+        assertThat(perda.comparable()).isTrue();
+        assertThat(perda.planned()).isEqualByComparingTo("8");
+        assertThat(perda.actual()).isEqualByComparingTo("8");
+        assertThat(reasons(variance)).noneMatch(reason -> reason.contains("não define perda esperada"));
+    }
+
+    @Test
+    @DisplayName("perder MENOS que o esperado é favorável, e o relatório diz isso por si")
+    void perderMenosEhFavoravel() {
+        // Em volume o sinal sozinho não basta: render 10 L a menos é ruim, perder 2 L a menos é bom.
+        var variance = assembleWithExpectedLoss(new BigDecimal("5"), null);
+
+        var perda = variance.volumes().stream()
+                .filter(volume -> volume.kind() == BatchVariance.VolumeKind.LOSS)
+                .findFirst().orElseThrow();
+        assertThat(perda.planned()).isEqualByComparingTo("20");
+        assertThat(perda.actual()).isEqualByComparingTo("8");
+        assertThat(perda.unfavorable()).isFalse();
     }
 
     @Test
@@ -148,6 +180,16 @@ class BatchVarianceAssemblerTest {
 
     // --- cenário ---
 
+    /** O mesmo cenário, com a receita declarando quanto se admite perder (CST-002-A). */
+    private static BatchVariance assembleWithExpectedLoss(BigDecimal transferPercent,
+            BigDecimal packagingPercent) {
+        return assembler(batchId -> Optional.of(snapshot()), plan(2, planned(MALTE, "20")),
+                actuals(List.of(fact(MALTE, "20", "100")), List.of(fact(MALTE, "20", "100"))),
+                transferred(), List.of(),
+                new RecipeLookup.ExpectedLoss(transferPercent, packagingPercent))
+                .assemble(BREWERY, BATCH);
+    }
+
     private static BatchVariance assemble(OrderPlan plan, Actuals actuals, BatchOutcome outcome) {
         return assembler(batchId -> Optional.of(snapshot()), plan, actuals, outcome, List.of())
                 .assemble(BREWERY, BATCH);
@@ -156,13 +198,45 @@ class BatchVarianceAssemblerTest {
     private static BatchVarianceAssembler assembler(java.util.function.Function<UUID,
             Optional<BatchLookup.Snapshot>> batches, OrderPlan plan, Actuals actuals,
             BatchOutcome outcome, List<PackagingOutcomeLookup.PackagingOutcome> runs) {
+        return assembler(batches, plan, actuals, outcome, runs, null);
+    }
+
+    private static BatchVarianceAssembler assembler(java.util.function.Function<UUID,
+            Optional<BatchLookup.Snapshot>> batches, OrderPlan plan, Actuals actuals,
+            BatchOutcome outcome, List<PackagingOutcomeLookup.PackagingOutcome> runs,
+            RecipeLookup.ExpectedLoss expectedLoss) {
         BatchLookup lookup = (breweryId, batchId) -> batches.apply(batchId);
         BatchOutcomeLookup outcomes = (breweryId, batchId) -> Optional.of(outcome);
         OrderPlanLookup plans = (breweryId, orderId) -> Optional.ofNullable(plan);
         MaterialActualSource source = (breweryId, orderId) -> actuals;
         PackagingOutcomeLookup packaging = (breweryId, batchId) -> runs;
         IngredientPurchaseLookup ingredients = breweryId -> List.of();
-        return new BatchVarianceAssembler(lookup, outcomes, plans, source, packaging, ingredients);
+        // Perda esperada nula é o estado de quem ainda não mediu a própria — a perda como fato, sem desvio.
+        RecipeLookup recipes = new RecipeLookup() {
+            @Override
+            public java.util.Optional<ExpectedLoss> expectedLoss(UUID breweryId, UUID recipeId) {
+                return java.util.Optional.ofNullable(expectedLoss);
+            }
+
+            @Override
+            public java.util.Optional<PublishedRecipe> findPublished(UUID breweryId, UUID recipeId) {
+                return java.util.Optional.empty();
+            }
+
+            @Override
+            public java.util.Optional<PublishedComposition> findPublishedComposition(UUID breweryId,
+                    UUID recipeId) {
+                return java.util.Optional.empty();
+            }
+
+            @Override
+            public java.util.Optional<PublishedForOrder> findPublishedForOrder(UUID breweryId,
+                    UUID recipeId) {
+                return java.util.Optional.empty();
+            }
+        };
+        return new BatchVarianceAssembler(lookup, outcomes, plans, source, packaging, ingredients,
+                recipes);
     }
 
     private static BatchLookup.Snapshot snapshot() {

@@ -13,7 +13,8 @@ public interface CreateRecipeUseCase {
 
     record Command(UUID actorId, UUID breweryId, String name, UUID equipmentId, BigDecimal batchVolumeLiters,
             BigDecimal targetOgPoints, BigDecimal targetIbu, BigDecimal targetColorEbc, BigDecimal targetAbv,
-            Integer boilTimeMinutes, List<ItemInput> items) {}
+            Integer boilTimeMinutes, BigDecimal transferLossPercent, BigDecimal packagingLossPercent,
+            List<ItemInput> items) {}
 
     record Result(UUID id, String name, String status) {}
 }

@@ -234,6 +234,12 @@ export const routes: Routes = [
           import('./features/traceability/traceability.routes').then(m => m.RECALL_ROUTES),
       },
       {
+        path: 'crm/customers',
+        canActivate: [permissionGuard],
+        data: { permission: 'crm.customer.read' },
+        loadChildren: () => import('./features/crm/crm.routes').then(m => m.CRM_ROUTES),
+      },
+      {
         path: 'costing/batches',
         canActivate: [permissionGuard],
         data: { permission: 'costing.cost.read' },

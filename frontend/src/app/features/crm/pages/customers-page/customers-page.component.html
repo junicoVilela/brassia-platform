@@ -1,0 +1,389 @@
+<app-page-header
+  title="Clientes"
+  subtitle="Quem compra, com quem se fala — e sob qual base legal."
+/>
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando clientes…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else {
+  <div class="row g-3">
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-start">
+          <div>
+            <h2 class="h6 mb-0">Clientes</h2>
+            <p class="text-muted small mb-0 mt-1">
+              Cliente não se apaga: desativa. O histórico de expedição é o que um recall percorre.
+            </p>
+          </div>
+          @if (canManage) {
+            <button type="button" class="btn btn-sm btn-primary"
+                    (click)="showCustomerForm.set(!showCustomerForm())">
+              {{ showCustomerForm() ? 'Cancelar' : 'Novo' }}
+            </button>
+          }
+        </div>
+
+        @if (showCustomerForm()) {
+          <div class="card-body border-bottom">
+            <form [formGroup]="customerForm" (ngSubmit)="submitCustomer()" class="row g-2">
+              <div class="col-12">
+                <label class="form-label small mb-1" for="legalName">Razão social</label>
+                <input id="legalName" class="form-control form-control-sm" formControlName="legalName" />
+              </div>
+              <div class="col-12">
+                <label class="form-label small mb-1" for="tradeName">Nome fantasia</label>
+                <input id="tradeName" class="form-control form-control-sm" formControlName="tradeName" />
+              </div>
+              <div class="col-12">
+                <label class="form-label small mb-1" for="taxId">Documento</label>
+                <input id="taxId" class="form-control form-control-sm" formControlName="taxId" />
+                <!--
+                  DEC-CRM-002: sem validação de formato. Cliente estrangeiro não tem CNPJ, e travar
+                  aqui empurraria o vendedor a inventar um número — pior que campo vazio, porque
+                  parece preenchido.
+                -->
+                <div class="form-text">
+                  Opcional, e sem validação de formato — cliente de fora não tem CNPJ.
+                </div>
+              </div>
+              <div class="col-12">
+                <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+                  Cadastrar
+                </button>
+              </div>
+            </form>
+          </div>
+        }
+
+        <div class="card-body border-bottom py-2">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="onlyActive"
+                   [ngModel]="store.onlyActive()" [ngModelOptions]="{ standalone: true }"
+                   (ngModelChange)="store.toggleOnlyActive($event)" />
+            <label class="form-check-label small" for="onlyActive">Só clientes ativos</label>
+          </div>
+        </div>
+
+        @if (!store.hasCustomers()) {
+          <div class="card-body">
+            <app-empty-state
+              icon="ri-store-2-line"
+              title="Nenhum cliente"
+              message="Cadastre o primeiro cliente para começar a registrar contatos."
+            />
+          </div>
+        } @else {
+          <ul class="list-group list-group-flush">
+            @for (customer of store.customers(); track customer.id) {
+              <li class="list-group-item d-flex justify-content-between align-items-center gap-2"
+                  [class.active]="store.selected()?.id === customer.id">
+                <button type="button" class="btn btn-link p-0 text-start flex-grow-1"
+                        (click)="select(customer)">
+                  <span class="d-block">{{ customer.displayName }}</span>
+                  <small class="text-muted">{{ customer.taxId ?? 'sem documento' }}</small>
+                </button>
+                @if (!customer.active) {
+                  <span class="badge text-bg-secondary">inativo</span>
+                }
+                @if (canManage) {
+                  <button type="button" class="btn btn-sm btn-outline-secondary"
+                          (click)="store.setActive(customer, !customer.active)">
+                    {{ customer.active ? 'Desativar' : 'Reativar' }}
+                  </button>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      @if (canSetRetention) {
+        <div class="card mt-3">
+          <div class="card-header">
+            <h2 class="h6 mb-0">Guarda de dado pessoal</h2>
+          </div>
+          <div class="card-body">
+            @if (store.retentionDays() === null) {
+              <!--
+                Lacuna declarada, e não zero: sem política nada expira, e essa é a escolha segura —
+                não anonimizar por falta de decisão é reversível; anonimizar cedo demais não é.
+              -->
+              <p class="text-muted small">
+                A casa ainda não definiu prazo. Enquanto não definir, <strong>nada expira</strong>.
+              </p>
+            } @else {
+              <p class="small mb-2">
+                Contato anonimizável <strong>{{ store.retentionDays() }} dias</strong> após o último
+                relacionamento.
+              </p>
+            }
+            <form [formGroup]="retentionForm" (ngSubmit)="submitRetention()" class="d-flex gap-2">
+              <input type="number" min="1" class="form-control form-control-sm" formControlName="days" />
+              <button type="submit" class="btn btn-sm btn-outline-primary">Definir</button>
+            </form>
+          </div>
+        </div>
+      }
+    </div>
+
+    <div class="col-lg-7">
+      @if (store.selected(); as customer) {
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-start">
+            <div>
+              <h2 class="h6 mb-0">Contatos de {{ customer.displayName }}</h2>
+              <p class="text-muted small mb-0 mt-1">
+                A pessoa é separada do cliente: ela tem prazo e direito de apagamento.
+              </p>
+            </div>
+            @if (canManage) {
+              <button type="button" class="btn btn-sm btn-primary"
+                      (click)="showContactForm.set(!showContactForm())">
+                {{ showContactForm() ? 'Cancelar' : 'Novo contato' }}
+              </button>
+            }
+          </div>
+
+          @if (showContactForm()) {
+            <div class="card-body border-bottom">
+              <form [formGroup]="contactForm" (ngSubmit)="submitContact()" class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label small mb-1" for="contactName">Nome</label>
+                  <input id="contactName" class="form-control form-control-sm" formControlName="name" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small mb-1" for="contactRole">Cargo</label>
+                  <input id="contactRole" class="form-control form-control-sm" formControlName="role" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small mb-1" for="contactEmail">E-mail</label>
+                  <input id="contactEmail" type="email" class="form-control form-control-sm"
+                         formControlName="email" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small mb-1" for="contactPhone">Telefone</label>
+                  <input id="contactPhone" class="form-control form-control-sm" formControlName="phone" />
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+                    Cadastrar contato
+                  </button>
+                </div>
+              </form>
+            </div>
+          }
+
+          @if (store.contactsLoading()) {
+            <div class="card-body"><app-loading-indicator text="Carregando contatos…" /></div>
+          } @else if (store.contacts().length === 0) {
+            <div class="card-body">
+              <app-empty-state
+                icon="ri-user-line"
+                title="Nenhum contato"
+                message="Sem contato, este cliente não recebe aviso de entrega nem oferta."
+              />
+            </div>
+          } @else {
+            <div class="card-body d-flex flex-column gap-3">
+              @for (contact of store.contacts(); track contact.id) {
+                <div class="border rounded p-3">
+                  @if (contact.anonymized) {
+                    <!--
+                      A casca. A linha continua porque expedição e pedido apontam para ela — a
+                      diferença entre "foi para alguém que pediu para ser esquecido" e um buraco.
+                    -->
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <span class="fst-italic text-muted">Contato anonimizado</span>
+                        <div class="small text-muted">
+                          a pedido do titular em {{ contact.anonymizedAt | date: 'dd/MM/yyyy' }}
+                        </div>
+                      </div>
+                      <span class="badge text-bg-secondary">não recebe nada</span>
+                    </div>
+                  } @else {
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div>
+                        <strong>{{ contact.name }}</strong>
+                        @if (contact.role) {
+                          <span class="text-muted small"> · {{ contact.role }}</span>
+                        }
+                        <div class="small text-muted">
+                          {{ contact.email ?? '—' }} · {{ contact.phone ?? '—' }}
+                        </div>
+                      </div>
+                      @if (canAnonymize) {
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                (click)="confirmAnonymize.set(contact)">
+                          Anonimizar
+                        </button>
+                      }
+                    </div>
+                  }
+
+                  <hr class="my-2" />
+
+                  <!--
+                    A base legal fica ao lado da finalidade porque "Avisos da venda" aparece permitido
+                    sem ninguém ter consentido. Um operador que não entenda por quê conclui que o
+                    sistema está errado — ou pior, acha que pode mandar oferta pelo mesmo motivo.
+                  -->
+                  @for (p of contractual(contact.purposes); track p.purpose) {
+                    <div class="d-flex justify-content-between align-items-center small py-1">
+                      <span>
+                        {{ purposeLabels[p.purpose] }}
+                        <span class="text-muted"> · {{ basisLabels[p.basis] }}</span>
+                      </span>
+                      <span class="badge" [class.text-bg-success]="p.allowedNow"
+                            [class.text-bg-secondary]="!p.allowedNow">
+                        {{ p.allowedNow ? 'permitido' : 'não recebe' }}
+                      </span>
+                    </div>
+                  }
+
+                  @for (p of consentable(contact.purposes); track p.purpose) {
+                    <div class="d-flex justify-content-between align-items-center small py-1">
+                      <span>
+                        {{ purposeLabels[p.purpose] }}
+                        <span class="text-muted"> · {{ basisLabels[p.basis] }}</span>
+                      </span>
+                      <span class="d-flex gap-2 align-items-center">
+                        <span class="badge" [class.text-bg-success]="p.allowedNow"
+                              [class.text-bg-secondary]="!p.allowedNow">
+                          {{ p.allowedNow ? 'consentido' : 'sem consentimento' }}
+                        </span>
+                        @if (canManage && !contact.anonymized) {
+                          <button type="button" class="btn btn-sm btn-outline-secondary"
+                                  (click)="openConsent(contact, p.purpose)">
+                            Registrar decisão
+                          </button>
+                        }
+                      </span>
+                    </div>
+                  }
+
+                  @if (contact.consentHistory.length > 0) {
+                    <details class="mt-2">
+                      <summary class="small text-muted">
+                        Histórico ({{ contact.consentHistory.length }})
+                      </summary>
+                      <ul class="list-unstyled small mt-2 mb-0">
+                        @for (e of contact.consentHistory; track $index) {
+                          <li>
+                            {{ e.decidedAt | date: 'dd/MM/yyyy HH:mm' }} ·
+                            {{ purposeLabels[e.purpose] }} ·
+                            <strong>{{ e.decision === 'GRANTED' ? 'aceitou' : 'revogou' }}</strong>
+                            · {{ e.source }}
+                          </li>
+                        }
+                      </ul>
+                    </details>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="card">
+          <div class="card-body">
+            <app-empty-state
+              icon="ri-contacts-line"
+              title="Selecione um cliente"
+              message="Os contatos e os consentimentos aparecem aqui."
+            />
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+@if (consentFor(); as target) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="h6 modal-title">{{ purposeLabels[target.purpose] }}</h3>
+          <button type="button" class="btn-close" (click)="consentFor.set(null)"></button>
+        </div>
+        <form [formGroup]="consentForm">
+          <div class="modal-body">
+            <label class="form-label small mb-1" for="decidedAt">Quando ela decidiu</label>
+            <input id="decidedAt" type="datetime-local" class="form-control form-control-sm"
+                   formControlName="decidedAt" />
+            <!--
+              Editável, e não carimbado pelo servidor: quem registra hoje uma decisão dada por
+              telefone na semana passada precisa poder dizer isso, senão o livro conta a história
+              da digitação em vez da do mundo.
+            -->
+            <div class="form-text mb-2">
+              O instante da decisão, e não o do registro.
+            </div>
+            <label class="form-label small mb-1" for="source">Como se sabe</label>
+            <input id="source" class="form-control form-control-sm" formControlName="source"
+                   placeholder="formulário do site, assinatura em contrato, pedido por telefone" />
+            <div class="form-text">
+              Obrigatório: consentimento que não se consegue demonstrar vale o mesmo que nenhum.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-sm btn-outline-danger" (click)="submitConsent(false)">
+              Revogou
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" (click)="submitConsent(true)">
+              Aceitou
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+}
+
+@if (confirmAnonymize(); as contact) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="h6 modal-title">Anonimizar {{ contact.name }}?</h3>
+          <button type="button" class="btn-close" (click)="confirmAnonymize.set(null)"></button>
+        </div>
+        <!--
+          A confirmação diz o que sobrevive. Um "tem certeza?" genérico não informa nada a quem está
+          prestes a apagar um dado que não volta.
+        -->
+        <div class="modal-body">
+          <p class="mb-2"><strong>Isto não tem volta.</strong></p>
+          <p class="small mb-2">
+            Nome, e-mail, telefone e cargo são apagados. O contato deixa de receber qualquer
+            comunicação, <strong>inclusive avisos de entrega</strong>.
+          </p>
+          <p class="small mb-0 text-muted">
+            Continuam existindo: a linha do contato, para que as expedições não fiquem apontando para o
+            nada, e o histórico de decisões, que é como a cervejaria demonstra ter atendido ao pedido.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary"
+                  (click)="confirmAnonymize.set(null)">
+            Cancelar
+          </button>
+          <button type="button" class="btn btn-sm btn-danger" (click)="doAnonymize()">
+            Anonimizar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

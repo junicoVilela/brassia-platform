@@ -145,6 +145,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('forecast.demand.read')) {
+            <li class="menu-item">
+              <a routerLink="/forecast" routerLinkActive="active" class="menu-link">
+                <i class="ri-line-chart-line menu-icon"></i>
+                <span class="title">Previsão</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('sales.order.read')) {
             <li class="menu-item">
               <a routerLink="/sales/orders" routerLinkActive="active" class="menu-link">

@@ -1,0 +1,128 @@
+<app-page-header
+  title="Previsão de demanda"
+  subtitle="Quanto se espera vender — e o quanto disso dá para acreditar."
+/>
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando produtos…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+} @else {
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="h6 mb-0">Produtos</h2>
+        </div>
+        @if (store.products().length === 0) {
+          <div class="card-body">
+            <app-empty-state
+              icon="ri-line-chart-line"
+              title="Nenhum produto"
+              message="A previsão se apoia no histórico de pedidos de cada produto."
+            />
+          </div>
+        } @else {
+          <ul class="list-group list-group-flush">
+            @for (product of store.products(); track product.id) {
+              <li class="list-group-item" [class.active]="store.selected()?.id === product.id">
+                <button type="button" class="btn btn-link p-0 text-start"
+                        (click)="store.select(product)">
+                  {{ product.name }}
+                  <small class="d-block text-muted">{{ product.sku }}</small>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      @if (store.forecast(); as f) {
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h2 class="h6 mb-0">{{ store.selected()?.name }} · {{ f.forMonth }}</h2>
+            <span class="badge" [class]="badgeClass(f.confidence)">
+              {{ confidenceLabels[f.confidence] }}
+            </span>
+          </div>
+          <div class="card-body">
+            @if (!f.hasNumbers) {
+              <!--
+                Sem histórico não se mostra zero: zero pareceria "ninguém quer este produto", que é uma
+                afirmação sobre o mercado que o dado não sustenta.
+              -->
+              <app-empty-state
+                icon="ri-question-line"
+                title="Ainda não dá para prever"
+                [message]="confidenceAdvice[f.confidence]"
+              />
+              <p class="text-muted small mb-0 text-center">
+                {{ f.sampleMonths }} mês(es) de histórico · método {{ f.method }}
+              </p>
+            } @else {
+              <div class="text-center mb-3">
+                <div class="display-6">{{ f.expectedUnits | number: '1.0-0' }}</div>
+                <div class="text-muted">unidades esperadas</div>
+                <!--
+                  A faixa fica junto do número, e não abaixo: ela é o que impede a média de ser lida
+                  como promessa.
+                -->
+                <div class="small mt-1">
+                  entre <strong>{{ f.lowerBound | number: '1.0-0' }}</strong> e
+                  <strong>{{ f.upperBound | number: '1.0-0' }}</strong>
+                  @if (store.spreadPercent(); as spread) {
+                    <span class="text-muted">
+                      (faixa de {{ spread | number: '1.0-0' }}% da média)
+                    </span>
+                  }
+                </div>
+              </div>
+
+              <div class="alert alert-light border small mb-3" role="note">
+                {{ confidenceAdvice[f.confidence] }}
+              </div>
+
+              <dl class="row small mb-0">
+                <dt class="col-sm-5">Histórico usado</dt>
+                <dd class="col-sm-7">{{ f.sampleMonths }} mês(es)</dd>
+
+                <dt class="col-sm-5">Método</dt>
+                <dd class="col-sm-7">{{ f.method }}</dd>
+
+                <dt class="col-sm-5">Erro no backtest</dt>
+                <dd class="col-sm-7">
+                  @if (f.meanAbsolutePercentageError !== null) {
+                    {{ f.meanAbsolutePercentageError | number: '1.0-1' }}% em média
+                  } @else {
+                    <!--
+                      Nulo é honesto: sem separar treino e teste não se sabe o quanto o método erra, e
+                      um zero diria que ele acerta sempre.
+                    -->
+                    <span class="text-muted">não medido — histórico curto para separar treino e teste</span>
+                  }
+                </dd>
+              </dl>
+            }
+          </div>
+          <div class="card-footer small text-muted">
+            Previsão é informação, não instrução: ela não cria ordem de produção nem compra.
+          </div>
+        </div>
+      } @else {
+        <div class="card">
+          <div class="card-body">
+            <app-empty-state
+              icon="ri-line-chart-line"
+              title="Selecione um produto"
+              message="A previsão do próximo mês aparece aqui, com a faixa e o erro medido."
+            />
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+}

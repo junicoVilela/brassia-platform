@@ -246,6 +246,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/portal/portal.routes').then(m => m.PORTAL_ROUTES),
       },
       {
+        path: 'forecast',
+        canActivate: [permissionGuard],
+        data: { permission: 'forecast.demand.read' },
+        loadChildren: () => import('./features/forecast/forecast.routes').then(m => m.FORECAST_ROUTES),
+      },
+      {
         path: 'sales/orders',
         canActivate: [permissionGuard],
         data: { permission: 'sales.order.read' },

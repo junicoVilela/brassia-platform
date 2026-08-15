@@ -7933,8 +7933,97 @@ paths:
         '204': {description: Teto definido}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /forecast/products/{productId}/demand:
+    get:
+      tags: [Previsão]
+      summary: Previsão de demanda do próximo mês (FCST-001)
+      description: >-
+        **As quatro coisas que o aceite pede viajam juntas — dados, versão, erro e confiança — porque o
+        número sozinho mente.** "Vamos vender 400 latas em março" parece um fato e é um resumo: pode vir
+        de doze meses estáveis ou de dois que por acaso deram parecido. As duas produzem a mesma média e
+        significam coisas opostas para quem vai decidir uma brassa.
+
+
+        **Abaixo de três meses não há previsão.** `confidence: INSUFFICIENT` com os números nulos não é
+        um número baixo, é a **ausência dele** — devolver um número aqui seria o pior resultado possível,
+        porque ele viraria plano de produção e a cerveja que não vender vai vencer na prateleira.
+
+
+        **O erro vem de backtest, e não de fórmula.** Os últimos três meses ficam de fora do treino, são
+        previstos e comparados com o que de fato aconteceu — é a única forma de dizer o quanto o método
+        erra *neste* produto. `meanAbsolutePercentageError` **nulo** quando não houve histórico para
+        separar treino e teste: sem backtest não se sabe o quanto se erra, e um zero diria o contrário.
+
+
+        **Média móvel, e não algo mais sofisticado.** Com o histórico de uma cervejaria pequena, um
+        modelo com sazonalidade ajusta ruído e apresenta o ajuste como conhecimento. A média móvel erra
+        de um jeito que se enxerga no backtest.
+
+
+        **A versão do método viaja com o resultado**, senão duas previsões do mesmo produto em meses
+        diferentes não são comparáveis — ninguém saberia se o número mudou porque a demanda mudou ou
+        porque o método mudou.
+
+
+        **Nada aqui cria ordem de produção ou compra**, por critério transversal da sprint: só existe
+        `GET`. Quem decide brassar usa o planejamento, olhando este número como informação e não como
+        instrução.
+
+
+        **Regras da janela.** Doze meses fechados; o mês corrente fica **de fora** porque está incompleto
+        — incluí-lo faria a previsão baixar todo dia 1º e subir até o dia 31 sem nada mudar na demanda.
+        Mês sem venda entra como **zero** e não é omitido: omitir encurtaria a série e faria a média
+        descrever só os meses bons. Meses iniciais sem venda nenhuma são cortados, porque são "o produto
+        ainda não existia", e não "ninguém quis". Pedido **cancelado não conta**: foi intenção que não
+        virou venda.
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Previsão, ou a declaração de que não há previsão
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DemandForecast'}
+        '403': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    DemandForecast:
+      type: object
+      properties:
+        productId: {type: string, format: uuid}
+        forMonth: {type: string, description: 'Mês previsto, no formato YYYY-MM.'}
+        hasNumbers:
+          type: boolean
+          description: Falso quando o histórico não bastou. A tela mostra a ausência, e não um zero.
+        expectedUnits: {type: number, nullable: true}
+        lowerBound:
+          type: number
+          nullable: true
+          description: >-
+            Intervalo em torno da média — o quanto ainda não se sabe sobre ela —, e não a variação
+            observada. Nunca desce abaixo de zero, porque demanda negativa não existe.
+        upperBound: {type: number, nullable: true}
+        sampleMonths:
+          type: integer
+          description: Quantos meses entraram. Vem mesmo quando não há previsão, porque é o que explica a recusa.
+        method:
+          type: string
+          description: 'Nome e versão, por exemplo "moving-average v1".'
+        meanAbsolutePercentageError:
+          type: number
+          nullable: true
+          description: >-
+            Erro medido em backtest, em pontos percentuais. Nulo quando não houve histórico para separar
+            treino e teste — e nulo é honesto, um zero diria que o método acerta sempre.
+        confidence:
+          type: string
+          enum: [INSUFFICIENT, LOW, MODERATE, HIGH]
+          description: >-
+            `INSUFFICIENT` é ausência de previsão. `HIGH` só a partir de doze meses, porque é a partir de
+            um ciclo anual que a sazonalidade aparece no dado em vez de ser adivinhada.
     PortalCatalogItem:
       type: object
       properties:

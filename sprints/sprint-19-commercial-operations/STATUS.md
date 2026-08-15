@@ -8,7 +8,7 @@ Estado: **ATIVA desde 2026-08-15** — escolhida como próxima sprint. Nenhuma h
 | SAL-001 | Em execução — domínio, fatia de fora e tela | `sales/*`, `V120`, 21 unitários + 10 IT |
 | SAL-002 | Em execução — domínio, fatia de fora e tela | `sales/*`, `V122`, 15 unitários + 8 IT |
 | SAL-003 | Em execução — domínio, fatia de fora e tela | `sales/adapter/inbound/portal`, `V123`, 6 unitários + 8 IT |
-| FCST-001 | A fazer | — |
+| FCST-001 | Em execução — domínio, fatia de fora e tela | `forecast/*`, `V124`, 11 unitários + 6 IT |
 | INT-008 | A fazer | — |
 
 Ordem prevista: **CRM-001 → SAL-001 → SAL-002 → SAL-003 → FCST-001 → INT-008**. Não é arbitrária — pedido
@@ -331,6 +331,66 @@ pedido, portal. Duplicar isso em cada IT novo custaria mais que o tamanho do arq
 **Critério de remoção:** extrair o cenário para um *fixture* compartilhado de teste, e repartir o arquivo
 por assunto. Não foi feito no meio da história de propósito — refatorar a base de teste enquanto se
 escreve teste novo é a hora errada.
+
+### DEC-FCST-001 (FCST-001) — A previsão diz o que não sabe, e às vezes se recusa a responder
+
+**O aceite pede quatro coisas juntas — dados, versão, erro e confiança — porque o número sozinho mente.**
+"Vamos vender 400 latas em março" parece um fato e é um resumo: pode vir de doze meses estáveis ou de
+dois que por acaso deram parecido. As duas produzem a mesma média e significam coisas opostas para quem
+vai decidir uma brassa.
+
+**Abaixo de três meses não há previsão.** `INSUFFICIENT` não é um número baixo, é a **ausência dele** — e
+devolver um número aqui seria o pior resultado possível, porque ele viraria plano de produção e a cerveja
+que não vender vence na prateleira. Mesmo espírito do `Confidence.INSUFFICIENT` do gêmeo digital, com um
+agravante que a estimativa de brassagem não tem: **demanda tem sazonalidade**, e três meses de verão não
+dizem nada sobre o inverno.
+
+**O erro vem de backtest, e não de fórmula.** Os últimos três meses ficam fora do treino, são previstos e
+comparados com o que aconteceu — é a única forma de dizer o quanto o método erra *neste* produto. Sem
+histórico para separar treino e teste, o erro vem **vazio**, e vazio é honesto: um zero diria que o método
+acerta sempre. Mês sem venda é pulado no cálculo do erro, porque percentual sobre zero é infinito e
+inventar um teto faria o erro parecer melhor ou pior conforme o teto escolhido.
+
+**Média móvel, e não algo mais sofisticado.** Com o histórico de uma cervejaria pequena, um modelo com
+sazonalidade ajusta ruído e apresenta o ajuste como conhecimento. A média móvel erra de um jeito que se
+enxerga no backtest; um modelo complexo erra de um jeito que parece previsão.
+
+**Quatro regras de janela que decidem mais que o algoritmo:**
+
+- **O mês corrente fica de fora** — está incompleto, e incluí-lo faria a previsão baixar todo dia 1º e
+  subir até o dia 31 sem nada mudar na demanda.
+- **Mês sem venda entra como zero**, e não é omitido — omitir encurtaria a série e faria a média descrever
+  só os meses bons. É o erro mais fácil de cometer aqui e o mais difícil de perceber depois.
+- **Meses iniciais sem venda nenhuma são cortados** — são "o produto ainda não existia", e não "ninguém
+  quis". Sem isso, um lançamento recente pareceria fracasso.
+- **Pedido cancelado não conta** — foi intenção que não virou venda. Contá-lo teria defesa (cancelamento
+  por falta de estoque *é* demanda reprimida), mas a plataforma não distingue quem cancelou nem por quê, e
+  tratar os dois casos como um só inventaria informação.
+
+**Nada é persistido.** A previsão é derivada no momento da pergunta, como o custo aberto do lote: guardá-la
+criaria uma segunda verdade que envelhece a cada pedido novo, e alguém decidiria em cima de um número do
+mês passado sem saber. A `V124` é só a permissão.
+
+**Previsão não cria OP nem compra**, por critério transversal da sprint — e a regra virou método no
+domínio (`mayDriveProductionAlone()`, sempre falso) com teste próprio, em vez de comentário. Só existe
+`GET` no controller.
+
+**Entregue:** `DemandForecast`, `ForecastConfidence`, `ForecastMethod`, `sales.OrderHistoryLookup`
+(consulta publicada, direção padrão do ADR-0016), serviço, endpoint e tela. **11 testes de domínio e 6 de
+integração.**
+
+### DUV-FCST-001 (FCST-001) — A metade "capacidade" não foi feita
+
+O título da história é "previsão de demanda **e capacidade**". A demanda está feita; a capacidade **não**,
+e de propósito.
+
+Capacidade de produção num período exige **tempo de ciclo por receita** e **política de ocupação dos
+fermentadores** — quantos dias uma IPA ocupa o tanque, quantos tanques a casa aceita deixar parados, qual
+o intervalo de limpeza entre lotes. A plataforma não modela nenhum dos dois. O `EquipmentCapacityLookup`
+que existe dá **litros de um tanque**, que é outra pergunta.
+
+Inventar esses números produziria uma "capacidade" que parece cálculo e é chute — exatamente o que esta
+história existe para não fazer com a demanda. Registrado em vez de inventado.
 
 ## Evidências de encerramento
 

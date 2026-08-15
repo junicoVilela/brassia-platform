@@ -7672,8 +7672,302 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /portal/catalog:
+    get:
+      tags: [Portal do cliente]
+      summary: Catálogo do cliente (SAL-003)
+      description: >-
+        **Árvore separada, e o isolamento é estrutural.** O cliente vem do **vínculo do usuário
+        autenticado**, nunca do caminho nem do corpo — se viesse de fora, bastaria trocá-lo para ver o de
+        outro. A alternativa considerada era acrescentar `customerId` ao principal e filtrar em cada
+        consulta interna; foi recusada porque a proteção passaria a depender de cada endpoint novo
+        lembrar do filtro, que é o padrão que a OBS-REL-001 encontrou em dez escritas.
+
+
+        Os preços são os do **canal do vínculo** — é isto que "preços próprios" significa, e não uma
+        lista paralela por cliente, que seria uma segunda verdade sobre o mesmo produto.
+
+
+        **Produto sem preço ou sem nada disponível não aparece.** Mostrá-lo faria o cliente pedir e ser
+        recusado depois, e no portal não há um vendedor por perto para explicar.
+
+
+        Exige `portal.access` **e** vínculo: a permissão diz que ele pode entrar, o vínculo diz de quem
+        ele é.
+      responses:
+        '200':
+          description: Produtos disponíveis para este cliente
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/PortalCatalogItem'}}
+        '403':
+          description: Sem `portal.access`, ou com a permissão e **sem vínculo**
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /portal/orders:
+    get:
+      tags: [Portal do cliente]
+      summary: Os pedidos do cliente — e só dele
+      responses:
+        '200':
+          description: Pedidos
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/PortalOrder'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Portal do cliente]
+      summary: O cliente faz o próprio pedido (SAL-003)
+      description: >-
+        **Cliente e canal vêm do vínculo, e não do corpo:** aceitar qualquer um dos dois de fora
+        permitiria comprar no preço de outro canal, ou em nome de outro cliente.
+
+
+        **O teto de compromisso é conferido ANTES de reservar.** Recusar depois deixaria o estoque preso
+        até alguém perceber, e o cliente veria "sem crédito" num lote que ele mesmo travou.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: {type: string, maxLength: 80}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, items]
+              properties:
+                code: {type: string, maxLength: 40}
+                promisedFor: {type: string, format: date, nullable: true}
+                items:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [productId, quantity]
+                    properties:
+                      productId: {type: string, format: uuid}
+                      quantity: {type: integer, exclusiveMinimum: 0}
+      responses:
+        '201':
+          description: Pedido registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `credit_limit_exceeded` — com `ceiling`, `committed`, `requested` e `currency`, porque um
+            número sozinho não resolve. Também `insufficient_lot_stock`, `promise_after_shelf_life` e
+            `no_price_for_product`.
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /portal/orders/{id}:
+    get:
+      tags: [Portal do cliente]
+      summary: Um pedido do cliente
+      description: >-
+        Pedido de outro cliente responde **404**, e não 403: distinguir contaria que o identificador
+        existe em algum lugar, que é um oráculo entre clientes.
+
+
+        A resposta **não traz os lotes reservados** — eles são o rastro interno da cervejaria. O cliente
+        precisa saber o que comprou e para quando, não de qual brassa saiu.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Pedido
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PortalOrder'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /portal/orders/{id}/reorder:
+    post:
+      tags: [Portal do cliente]
+      summary: Recompra
+      description: >-
+        **Repete o que foi pedido, e não o que foi cobrado.** Reaproveitar o preço antigo faria o cliente
+        comprar por um valor que não vale mais, e a cervejaria vender abaixo da lista sem ninguém ter
+        decidido isso. O que se repete é a intenção; o preço, a disponibilidade e o teto são os de hoje.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: {type: string, maxLength: 80}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: {type: string, maxLength: 40}
+                promisedFor: {type: string, format: date, nullable: true}
+      responses:
+        '201':
+          description: Pedido novo, com os itens do anterior
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /portal/credit:
+    get:
+      tags: [Portal do cliente]
+      summary: O teto e o que já está comprometido
+      description: >-
+        **Mede compromisso, e não recebível — limitação declarada, não descuido.** Um limite de crédito
+        de verdade compara o teto com o que o cliente *deve*, e isso exige baixa de pagamento, que a
+        plataforma não tem (fora do escopo da sprint). O que dá para medir é a soma dos pedidos
+        **confirmados e ainda não entregues**.
+
+
+        A consequência, que ninguém deve descobrir sozinho: **um pedido entregue e não pago sai da
+        conta**. Ver `DEB-SAL-002`.
+
+
+        `ceiling` nulo significa **sem teto**, e sem teto tudo cabe — não recusar por falta de decisão é
+        reversível; recusar um pedido bom porque alguém chutou um teto não é.
+      responses:
+        '200':
+          description: Situação de crédito
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ceiling: {type: number, nullable: true}
+                  currency: {type: string, nullable: true}
+                  committed: {type: number}
+        '403': {$ref: '#/components/responses/Problem'}
+  /sales/portal/access/{userId}:
+    put:
+      tags: [Vendas]
+      summary: Conceder acesso ao portal (SAL-003)
+      description: >-
+        Alçada `sales.portal.manage`, **crítica**: dar acesso ao portal é abrir a porta para alguém de
+        fora. O usuário é um `security_user` comum — mesma autenticação, mesmo MFA, mesmo bloqueio por
+        tentativa. Não há identidade separada de propósito: a segunda cópia é a que fica para trás
+        quando algo é corrigido.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerId, channelId]
+              properties:
+                customerId: {type: string, format: uuid}
+                channelId:
+                  type: string
+                  format: uuid
+                  description: O canal em que este cliente compra — é ele que decide os preços do portal.
+      responses:
+        '204': {description: Acesso concedido}
+        '403': {$ref: '#/components/responses/Problem'}
+    delete:
+      tags: [Vendas]
+      summary: Revogar acesso ao portal
+      description: >-
+        Apaga o **vínculo**, e não o usuário: ele continua existindo, com o histórico que a auditoria
+        guarda. O que some é o direito de ver o cliente.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Acesso revogado}
+        '403': {$ref: '#/components/responses/Problem'}
+  /sales/portal/credit/{customerId}:
+    put:
+      tags: [Vendas]
+      summary: Definir o teto de compromisso em aberto
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ceiling, currency]
+              properties:
+                ceiling:
+                  type: number
+                  exclusiveMinimum: 0
+                  description: >-
+                    Positivo. Teto zero bloquearia toda compra, o que não é limite de crédito e sim
+                    cliente suspenso — e suspender é outra decisão, que se toma desativando o cliente.
+                currency: {type: string, pattern: '^[A-Z]{3}$'}
+      responses:
+        '204': {description: Teto definido}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    PortalCatalogItem:
+      type: object
+      properties:
+        productId: {type: string, format: uuid}
+        sku: {type: string}
+        name: {type: string}
+        unitAmount: {type: number}
+        currency: {type: string}
+        taxIncluded: {type: boolean}
+        availableUnits:
+          type: integer
+          description: Soma do que está livre nos lotes vendáveis. Item com zero não aparece na lista.
+    PortalOrder:
+      type: object
+      description: O pedido como o cliente o vê — sem os lotes reservados, que são rastro interno.
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        status: {type: string, enum: [PLACED, CANCELLED, FULFILLED]}
+        placedOn: {type: string, format: date}
+        promisedFor: {type: string, format: date, nullable: true}
+        total: {type: number}
+        currency: {type: string}
+        lines:
+          type: array
+          items: {$ref: '#/components/schemas/PortalOrderLine'}
+    PortalOrderLine:
+      type: object
+      properties:
+        sku: {type: string}
+        quantity: {type: integer}
+        unitAmount: {type: number}
+        currency: {type: string}
     SalesOrder:
       type: object
       properties:

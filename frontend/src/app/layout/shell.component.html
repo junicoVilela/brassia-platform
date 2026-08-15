@@ -137,6 +137,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('portal.access')) {
+            <li class="menu-item">
+              <a routerLink="/portal" routerLinkActive="active" class="menu-link">
+                <i class="ri-shopping-basket-line menu-icon"></i>
+                <span class="title">Meus pedidos</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('sales.order.read')) {
             <li class="menu-item">
               <a routerLink="/sales/orders" routerLinkActive="active" class="menu-link">

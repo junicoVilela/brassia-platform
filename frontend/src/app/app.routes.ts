@@ -240,6 +240,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/sales/sales.routes').then(m => m.SALES_ROUTES),
       },
       {
+        path: 'portal',
+        canActivate: [permissionGuard],
+        data: { permission: 'portal.access' },
+        loadChildren: () => import('./features/portal/portal.routes').then(m => m.PORTAL_ROUTES),
+      },
+      {
         path: 'sales/orders',
         canActivate: [permissionGuard],
         data: { permission: 'sales.order.read' },

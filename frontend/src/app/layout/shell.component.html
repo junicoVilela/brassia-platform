@@ -145,6 +145,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('community.library.read')) {
+            <li class="menu-item">
+              <a routerLink="/community/library" routerLinkActive="active" class="menu-link">
+                <i class="ri-book-2-line menu-icon"></i>
+                <span class="title">Biblioteca</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('forecast.demand.read')) {
             <li class="menu-item">
               <a routerLink="/forecast" routerLinkActive="active" class="menu-link">

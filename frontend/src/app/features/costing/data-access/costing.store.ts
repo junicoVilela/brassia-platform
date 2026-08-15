@@ -25,6 +25,9 @@ export class CostingStore {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly closedCosts = signal<BatchCost[]>([]);
+  /** Taxa da hora (CST-001-A). Nula é estado legítimo: sem ela, a mão de obra é lacuna no custo. */
+  readonly laborRate = signal<number | null>(null);
+  readonly savingRate = signal(false);
   readonly batches = signal<BatchOption[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -62,6 +65,33 @@ export class CostingStore {
           this.batches.set(batches);
         },
         error: () => this.error.set('Não foi possível carregar os custos.'),
+      });
+    this.refreshLaborRate();
+  }
+
+  private refreshLaborRate(): void {
+    this.api.laborRate()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: r => this.laborRate.set(r.costPerHour), error: () => undefined });
+  }
+
+  /**
+   * Define quanto vale a hora.
+   *
+   * <p>Recarrega os custos depois: a parcela de mão de obra dos lotes abertos muda com a taxa, e uma tela
+   * que continuasse mostrando o total antigo faria alguém decidir preço sobre um número que já mudou.
+   */
+  saveLaborRate(costPerHour: number): void {
+    this.savingRate.set(true);
+    this.api.saveLaborRate(costPerHour)
+      .pipe(finalize(() => this.savingRate.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: r => {
+          this.laborRate.set(r.costPerHour);
+          this.toast.success('Custo da hora atualizado.');
+          this.load();
+        },
+        error: () => this.toast.error('Não foi possível salvar o custo da hora.'),
       });
   }
 

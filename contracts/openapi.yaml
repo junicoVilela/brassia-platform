@@ -4495,6 +4495,31 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
   /production/batches/{id}/labor:
+    get:
+      tags: [Produção]
+      summary: Apontamentos de hora do lote (CST-001-A)
+      description: >-
+        Quem lê o custo precisa ver de onde a parcela de mão de obra saiu. `manHours` é duração ×
+        pessoas — é essa coluna que vira dinheiro no custeio.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Apontamentos, do mais antigo para o mais novo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: {type: string, format: uuid}
+                    activity: {type: string}
+                    startedAt: {type: string, format: date-time}
+                    endedAt: {type: string, format: date-time}
+                    people: {type: integer}
+                    manHours: {type: number}
+        '403': {$ref: '#/components/responses/Problem'}
     post:
       tags: [Produção]
       summary: Apontar horas trabalhadas no lote (CST-001-A)

@@ -1,6 +1,6 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state.component';
 import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator.component';
@@ -25,6 +25,7 @@ import { CATEGORY_LABELS, CostCategory } from '../../domain/batch-cost.model';
   imports: [
     DatePipe,
     DecimalPipe,
+    FormsModule,
     ReactiveFormsModule,
     PageHeaderComponent,
     LoadingIndicatorComponent,
@@ -39,6 +40,17 @@ export class BatchCostsPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
 
   protected readonly canClose = this.auth.hasPermission('costing.cost.close');
+  protected readonly canManageRate = this.auth.hasPermission('costing.labor-rate.manage');
+
+  /** Campo da taxa da hora (CST-001-A); vazio enquanto a casa não a definiu. */
+  protected readonly rateInput = signal<number | null>(null);
+
+  protected saveRate(): void {
+    const value = this.rateInput();
+    if (value && value > 0) {
+      this.store.saveLaborRate(value);
+    }
+  }
   protected readonly categoryLabels = CATEGORY_LABELS;
 
   protected readonly closing = signal(false);

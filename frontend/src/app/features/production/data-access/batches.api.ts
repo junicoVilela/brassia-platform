@@ -11,7 +11,7 @@ import {
   CorrectionResult,
   PreviewCorrectionRequest,
 } from '../domain/correction.model';
-import { Measurement, RecordMeasurementRequest } from '../domain/measurement.model';
+import { Measurement, RecordMeasurementRequest, LaborEntry, RecordLaborRequest } from '../domain/measurement.model';
 import { Transfer, TransferRequest } from '../domain/transfer.model';
 
 @Injectable({ providedIn: 'root' })
@@ -59,6 +59,14 @@ export class BatchesApi {
 
   measurements(batchId: string) {
     return this.http.get<Measurement[]>(`${this.baseUrl}/${batchId}/measurements`);
+  }
+
+  labor(batchId: string) {
+    return this.http.get<LaborEntry[]>(`${this.baseUrl}/${batchId}/labor`);
+  }
+
+  recordLabor(batchId: string, request: RecordLaborRequest) {
+    return this.http.post<LaborEntry>(`${this.baseUrl}/${batchId}/labor`, request);
   }
 
   recordMeasurement(batchId: string, request: RecordMeasurementRequest) {

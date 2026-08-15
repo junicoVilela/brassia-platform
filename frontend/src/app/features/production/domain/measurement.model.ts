@@ -38,3 +38,25 @@ export interface RecordMeasurementRequest {
   method?: string | null;
   source: string;
 }
+
+/**
+ * Apontamento de horas trabalhadas no lote (CST-001-A).
+ *
+ * `manHours` é duração × pessoas: duas pessoas por três horas são seis horas-homem, e é isso que a
+ * cervejaria paga.
+ */
+export interface LaborEntry {
+  id: string;
+  activity: string;
+  startedAt: string;
+  endedAt: string;
+  people: number;
+  manHours: number;
+}
+
+export interface RecordLaborRequest {
+  activity: string;
+  startedAt: string;
+  endedAt: string;
+  people: number;
+}

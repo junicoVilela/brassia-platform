@@ -12,6 +12,7 @@ import br.com.brew.brassia.production.application.port.inbound.GetBatchTransferU
 import br.com.brew.brassia.production.application.port.inbound.GetBatchUseCase;
 import br.com.brew.brassia.production.application.port.inbound.ListBatchesUseCase;
 import br.com.brew.brassia.production.application.port.inbound.ListMeasurementsUseCase;
+import br.com.brew.brassia.production.application.port.inbound.ListLaborUseCase;
 import br.com.brew.brassia.production.application.port.inbound.RecordLaborUseCase;
 import br.com.brew.brassia.production.application.port.inbound.RecordMeasurementUseCase;
 import br.com.brew.brassia.production.application.port.inbound.TransferBatchUseCase;
@@ -47,13 +48,16 @@ final class BatchController {
     private final BrewConsumptionUseCases.Proposal consumptionProposal;
     private final BrewConsumptionUseCases.Register registerConsumption;
     private final RecordLaborUseCase recordLabor;
+    private final ListLaborUseCase listLabor;
 
     BatchController(ListBatchesUseCase listBatches, GetBatchUseCase getBatch,
             CompleteBatchStepUseCase completeStep, RecordMeasurementUseCase recordMeasurement,
             ListMeasurementsUseCase listMeasurements, TransferBatchUseCase transferBatch,
             GetBatchTransferUseCase getTransfer, BrewConsumptionUseCases.Proposal consumptionProposal,
-            BrewConsumptionUseCases.Register registerConsumption, RecordLaborUseCase recordLabor) {
+            BrewConsumptionUseCases.Register registerConsumption, RecordLaborUseCase recordLabor,
+            ListLaborUseCase listLabor) {
         this.recordLabor = recordLabor;
+        this.listLabor = listLabor;
         this.listBatches = listBatches;
         this.getBatch = getBatch;
         this.completeStep = completeStep;
@@ -180,6 +184,16 @@ final class BatchController {
         return getTransfer.handle(principal.requireBrewery(), id)
                 .map(t -> ResponseEntity.ok(TransferView.from(t)))
                 .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    /** Os apontamentos do lote: quem lê o custo precisa ver de onde a parcela de mão de obra saiu. */
+    @GetMapping("/{id}/labor")
+    java.util.List<LaborEntryView> labor(@AuthenticationPrincipal SecurityPrincipal principal,
+            @PathVariable UUID id) {
+        principal.requirePermission("production.batch.read");
+        return listLabor.handle(principal.requireBrewery(), id).stream()
+                .map(LaborEntryView::from)
+                .toList();
     }
 
     /**

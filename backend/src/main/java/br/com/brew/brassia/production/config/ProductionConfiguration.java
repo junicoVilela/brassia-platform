@@ -9,6 +9,7 @@ import br.com.brew.brassia.production.BatchAlertPublisher;
 import br.com.brew.brassia.production.BatchLookup;
 import br.com.brew.brassia.production.LaborLookup;
 import br.com.brew.brassia.production.OpenBatchLookup;
+import br.com.brew.brassia.production.application.port.inbound.ListLaborUseCase;
 import br.com.brew.brassia.production.application.port.inbound.RecordLaborUseCase;
 import br.com.brew.brassia.production.application.port.outbound.LaborRepository;
 import br.com.brew.brassia.production.application.service.RecordLaborHandler;
@@ -188,6 +189,12 @@ class ProductionConfiguration {
         var handler = new RecordLaborHandler(batches, labor, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
+    /** Consulta pura: apontamento é fato registrado, não há estado a compor. */
+    @Bean
+    ListLaborUseCase listLaborUseCase(LaborRepository labor) {
+        return labor::findByBatch;
     }
 
     /** Horas publicadas para o custeio — hora, nunca dinheiro (CST-001-A). */

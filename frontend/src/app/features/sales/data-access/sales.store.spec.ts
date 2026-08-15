@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { PriceEntry, Product, SalesChannel } from '../domain/product.model';
+import { PriceEntry, Product, SalesChannel, SellableLot } from '../domain/product.model';
 import { SalesApi } from './sales.api';
 import { SalesStore } from './sales.store';
 
@@ -28,8 +28,23 @@ const VIGENCIAS: PriceEntry[] = [
   { amount: 14, currency: 'BRL', taxIncluded: false, validFrom: '2026-03-01', validTo: null },
 ];
 
+const LOTES: SellableLot[] = [
+  {
+    finishedLotId: 'l1',
+    code: 'LOTE-100/1',
+    batchCode: 'LOTE-100',
+    units: 780,
+    containerVolumeMl: 355,
+    packagedOn: '2026-01-10',
+    bestBefore: '2026-07-10',
+  },
+];
+
 function setup(api: Partial<SalesApi>) {
   const toast = { success: vi.fn(), error: vi.fn() };
+  // Toda sele\u00e7\u00e3o de produto busca os lotes vend\u00e1veis; sem o stub, os testes de pre\u00e7o quebrariam por
+  // um motivo que nada tem a ver com pre\u00e7o.
+  api.sellableLots ??= () => of(LOTES);
   TestBed.configureTestingModule({
     providers: [
       SalesStore,
@@ -130,6 +145,36 @@ describe('SalesStore', () => {
     expect(toast.error).toHaveBeenCalledWith(
       'já existe preço vigente para este produto e canal em 2026-02-01',
     );
+  });
+
+  it('carrega os lotes vendáveis ao selecionar o produto', () => {
+    // Vendável é liberado, dentro da validade e sem quarentena — o backend compõe, o cliente confia.
+    const sellableLots = vi.fn().mockReturnValue(of(LOTES));
+    const { store } = setup({
+      products: () => of([product()]),
+      channels: () => of(CANAIS),
+      priceSchedule: () => of({ productId: 'p1', channelId: 'ch1', entries: VIGENCIAS }),
+      sellableLots,
+    } as Partial<SalesApi>);
+    store.load();
+    store.selectProduct(product());
+
+    expect(sellableLots).toHaveBeenCalledWith('p1');
+    expect(store.sellableLots()).toHaveLength(1);
+  });
+
+  it('lista vazia de lotes é informação, e não erro', () => {
+    // Há produto e preço, mas nada liberado — e é aí que alguém precisa ir atrás da qualidade.
+    const { store } = setup({
+      products: () => of([product()]),
+      channels: () => of(CANAIS),
+      priceSchedule: () => of({ productId: 'p1', channelId: 'ch1', entries: VIGENCIAS }),
+      sellableLots: () => of([]),
+    } as Partial<SalesApi>);
+    store.load();
+    store.selectProduct(product());
+
+    expect(store.sellableLots()).toEqual([]);
   });
 
   it('não tenta precificar sem produto ou canal selecionado', () => {

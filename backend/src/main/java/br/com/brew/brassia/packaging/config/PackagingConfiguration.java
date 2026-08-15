@@ -52,6 +52,28 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Configuration(proxyBeanMethods = false)
 class PackagingConfiguration {
 
+    /**
+     * As três condições de "vendável" compostas aqui (SAL-001-B), e não em quem pergunta: lote acabado,
+     * validade e quarentena já estão todos ao alcance deste módulo.
+     */
+    @Bean
+    br.com.brew.brassia.packaging.SellableLotLookup sellableLotLookup(
+            br.com.brew.brassia.packaging.application.port.outbound.FinishedLotRepository lots,
+            br.com.brew.brassia.packaging.application.port.outbound.LotReleaseRepository releases,
+            br.com.brew.brassia.packaging.application.port.outbound.FreshnessRepository freshness,
+            br.com.brew.brassia.traceability.QuarantineCheck quarantine,
+            BatchLookup batches) {
+        return new br.com.brew.brassia.packaging.application.service.SellableLotService(
+                lots, releases, freshness, quarantine, batches);
+    }
+
+    @Bean
+    br.com.brew.brassia.packaging.application.service.LotReleaseHandler lotReleaseHandler(
+            br.com.brew.brassia.packaging.application.port.outbound.FinishedLotRepository lots,
+            br.com.brew.brassia.packaging.application.port.outbound.LotReleaseRepository releases) {
+        return new br.com.brew.brassia.packaging.application.service.LotReleaseHandler(lots, releases);
+    }
+
     @Bean
     PlanPackagingUseCase planPackagingUseCase(PackagingPlanRepository plans, BatchLookup batches,
             IngredientSpecLookup ingredients, EquipmentAvailabilityLookup lines, AuditTrail audit,

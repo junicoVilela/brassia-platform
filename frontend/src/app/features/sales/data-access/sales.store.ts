@@ -2,7 +2,7 @@ import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, forkJoin } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { PriceEntry, Product, SalesChannel } from '../domain/product.model';
+import { PriceEntry, Product, SalesChannel, SellableLot } from '../domain/product.model';
 import { SalesApi } from './sales.api';
 
 interface ApiError {
@@ -34,6 +34,7 @@ export class SalesStore {
   readonly selectedChannel = signal<string | null>(null);
   readonly priceEntries = signal<PriceEntry[]>([]);
   readonly pricesLoading = signal(false);
+  readonly sellableLots = signal<SellableLot[]>([]);
 
   /** O preço vigente é o único sem fim — a linha do tempo garante que só existe um. */
   readonly currentPrice = computed(() => this.priceEntries().find(e => e.validTo === null) ?? null);
@@ -71,6 +72,23 @@ export class SalesStore {
   selectProduct(product: Product): void {
     this.selectedProduct.set(product);
     this.loadPrices();
+    this.loadSellableLots(product.id);
+  }
+
+  /**
+   * Os lotes que dá para prometer.
+   *
+   * <p>Lista vazia é informação, não erro: significa que existe produto e preço, mas nada liberado —
+   * e é exatamente aí que alguém precisa ir atrás da qualidade.
+   */
+  loadSellableLots(productId: string): void {
+    this.api
+      .sellableLots(productId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: lots => this.sellableLots.set(lots),
+        error: () => this.sellableLots.set([]),
+      });
   }
 
   selectChannel(channelId: string): void {

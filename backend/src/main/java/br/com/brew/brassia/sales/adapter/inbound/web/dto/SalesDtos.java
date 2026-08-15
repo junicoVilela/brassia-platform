@@ -48,4 +48,14 @@ public final class SalesDtos {
 
     public record PriceEntryView(BigDecimal amount, String currency, boolean taxIncluded,
             LocalDate validFrom, LocalDate validTo) {}
+
+    /**
+     * Um lote que pode ser vendido deste produto (SAL-001-B).
+     *
+     * <p>Vendável é <strong>liberado pela qualidade</strong>, <strong>dentro da validade</strong> e
+     * <strong>sem quarentena</strong> — decisão do mantenedor em 2026-08-15. Quem compõe as três
+     * condições é o módulo de envase, que já tem as três ao alcance.
+     */
+    public record SellableLotView(UUID finishedLotId, String code, String batchCode, int units,
+            BigDecimal containerVolumeMl, LocalDate packagedOn, LocalDate bestBefore) {}
 }

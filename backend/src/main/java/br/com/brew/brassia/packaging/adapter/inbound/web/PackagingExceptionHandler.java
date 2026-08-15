@@ -1,6 +1,8 @@
 package br.com.brew.brassia.packaging.adapter.inbound.web;
 
 import br.com.brew.brassia.packaging.domain.BatchVolumeExceededException;
+import br.com.brew.brassia.packaging.domain.LotAlreadyReleasedException;
+import br.com.brew.brassia.packaging.domain.UnknownFinishedLotException;
 import br.com.brew.brassia.packaging.domain.LabelNotPrintableException;
 import br.com.brew.brassia.packaging.domain.ContainerPressureExceededException;
 import br.com.brew.brassia.packaging.domain.OverCarbonationException;
@@ -25,6 +27,26 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(0)
 @RestControllerAdvice
 class PackagingExceptionHandler {
+
+    @ExceptionHandler(UnknownFinishedLotException.class)
+    ProblemDetail handleUnknownLot(UnknownFinishedLotException ex) {
+        return ProblemDetails.of(HttpStatus.NOT_FOUND, "finished_lot_not_found", ex.getMessage());
+    }
+
+    /**
+     * 409 com quem liberou e quando (SAL-001-B).
+     *
+     * <p>Sobrescrever a liberação trocaria o responsável e a data, e a auditoria deixaria de saber quem
+     * respondeu pelo lote. Quem recebeu a recusa precisa saber que já está liberado — e por quem —, não
+     * só que a operação falhou.
+     */
+    @ExceptionHandler(LotAlreadyReleasedException.class)
+    ProblemDetail handleAlreadyReleased(LotAlreadyReleasedException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "lot_already_released", ex.getMessage());
+        problem.setProperty("releasedBy", ex.releasedBy().toString());
+        problem.setProperty("releasedAt", ex.releasedAt().toString());
+        return problem;
+    }
 
     @ExceptionHandler(PackagingBlockedException.class)
     ProblemDetail handleBlocked(PackagingBlockedException ex) {

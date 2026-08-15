@@ -90,12 +90,37 @@ export class ReportingStore {
       });
   }
 
+  /**
+   * Exporta o documento impresso.
+   *
+   * <p>Não recarrega o relatório em tela: o PDF é o mesmo dossiê que já está aberto, e substituir o
+   * estado por causa de um download faria a tela piscar sem motivo.
+   */
+  exportPdf(batchId: string, batchCode: string): void {
+    this.exporting.set(true);
+    this.error.set(null);
+    this.api
+      .exportPdf(batchId)
+      .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.exporting.set(false)))
+      .subscribe({
+        next: blob => {
+          this.saveAs(blob, `relatorio-${batchCode}.pdf`);
+          this.toast.success('PDF exportado. A exportação ficou registrada na auditoria.');
+        },
+        error: (e: ReportError) => this.error.set(this.messageFor(e)),
+      });
+  }
+
   private download(report: BatchReport): void {
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    this.saveAs(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }),
+      `relatorio-${report.batchCode}.json`);
+  }
+
+  private saveAs(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `relatorio-${report.batchCode}.json`;
+    anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(url);
   }

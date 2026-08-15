@@ -4969,14 +4969,34 @@ paths:
 
         O registro sai depois de o relatório existir; exportação recusada não deixa rastro de
         exportação, porque auditar uma que falhou seria afirmar que o documento saiu.
+
+
+        **O formato é negociado pelo `Accept` (RPT-001-A).** JSON continua sendo o padrão — quem já
+        integra recebe o mesmo corpo de antes, porque trocar o padrão quebraria integração por causa de
+        acabamento. `Accept: application/pdf` devolve o documento impresso, com layout simples e **sem
+        identidade visual**: marca é acabamento, e esperar por ela mantinha a cervejaria sem nada para
+        mandar ao auditor. A auditoria registra qual formato saiu.
       parameters:
         - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+        - name: Accept
+          in: header
+          required: false
+          schema: {type: string, enum: [application/json, application/pdf]}
+          description: "`application/pdf` para o documento impresso; ausente ou JSON devolve o dossiê."
       responses:
         '200':
           description: Documento para download
           content:
             application/json:
               schema: {$ref: '#/components/schemas/BatchReport'}
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                description: >-
+                  Cabeçalho, dados e rodapé. As lacunas vêm no topo, logo abaixo do cabeçalho: quem
+                  imprime precisa ver o que o relatório NÃO prova antes de mandá-lo a um cliente que vai
+                  lê-lo como se provasse tudo — num papel, o rodapé é onde a informação morre.
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
   /utilities/indicators:

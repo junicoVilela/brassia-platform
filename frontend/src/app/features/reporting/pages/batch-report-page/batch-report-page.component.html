@@ -63,15 +63,31 @@
               </p>
             </div>
             @if (canExport) {
-              <button
-                type="button"
-                class="btn btn-sm btn-outline-primary"
-                [disabled]="store.exporting()"
-                (click)="store.exportReport(report.batchId)"
-              >
-                <i class="ri-download-2-line me-1"></i>
-                {{ store.exporting() ? 'Exportando…' : 'Exportar' }}
-              </button>
+              <!--
+                Dois botões e não um menu: são dois destinos diferentes — o JSON vai para outro sistema,
+                o PDF vai para a mão de alguém. Esconder um atrás de menu faria o do auditor ser o mais
+                difícil de achar.
+              -->
+              <div class="d-flex gap-2">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-primary"
+                  [disabled]="store.exporting()"
+                  (click)="store.exportReport(report.batchId)"
+                >
+                  <i class="ri-download-2-line me-1"></i>
+                  {{ store.exporting() ? 'Exportando…' : 'Exportar JSON' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-primary"
+                  [disabled]="store.exporting()"
+                  (click)="store.exportPdf(report.batchId, report.batchCode)"
+                >
+                  <i class="ri-file-pdf-2-line me-1"></i>
+                  PDF
+                </button>
+              </div>
             }
           </div>
           <div class="card-body">

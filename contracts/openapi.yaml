@@ -7135,8 +7135,305 @@ paths:
         '200': {description: Prazo definido}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /sales/products:
+    get:
+      tags: [Vendas]
+      summary: Produtos da cervejaria (SAL-001)
+      parameters:
+        - name: onlyActive
+          in: query
+          schema: {type: boolean, default: true}
+      responses:
+        '200':
+          description: Produtos
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/SalesProduct'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Vendas]
+      summary: Cadastrar produto
+      description: >-
+        **Produto não é lote.** "IPA lata 473 ml" é identidade comercial: existe antes da primeira brassa,
+        sobrevive a todos os lotes e é o que aparece numa lista de preço. Se fossem a mesma coisa, cada
+        envase criaria um item de catálogo novo e a lista de preço precisaria ser refeita a cada brassa.
+
+
+        O `sku` é normalizado para maiúsculas — `ipa-473` e `IPA-473` são o mesmo código no mundo real — e
+        é único por cervejaria.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sku, name, recipeId, containerId]
+              properties:
+                sku: {type: string, maxLength: 40}
+                name: {type: string, maxLength: 160}
+                recipeId: {type: string, format: uuid}
+                containerId: {type: string, format: uuid}
+      responses:
+        '201':
+          description: Produto criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`sales_duplicate_code` — o SKU já existe nesta cervejaria (extensão `conflictingCode`)'
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /sales/products/{id}:
+    put:
+      tags: [Vendas]
+      summary: Renomear produto
+      description: O SKU não muda — é a identidade que o pedido antigo carrega. O nome é apresentação.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string, maxLength: 160}
+      responses:
+        '200': {description: Produto renomeado}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /sales/products/{id}/active:
+    put:
+      tags: [Vendas]
+      summary: Descontinuar ou restaurar produto
+      description: >-
+        **Não existe DELETE.** Pedido antigo aponta para o produto, e um pedido cujo item não existe mais
+        é um histórico que ninguém consegue explicar.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active: {type: boolean}
+      responses:
+        '200': {description: Situação alterada}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /sales/channels:
+    get:
+      tags: [Vendas]
+      summary: Canais de venda (SAL-001)
+      parameters:
+        - name: onlyActive
+          in: query
+          schema: {type: boolean, default: true}
+      responses:
+        '200':
+          description: Canais
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/SalesChannel'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Vendas]
+      summary: Cadastrar canal
+      description: >-
+        **Canal é cadastro, e não lista fixa.** A segmentação de uma cervejaria que vende no próprio
+        taproom e para dois distribuidores não é a de uma que exporta e atende rede de supermercado. Uma
+        lista fixa no código exigiria migration para a cervejaria poder vender por um canal a mais.
+
+
+        É o canal que faz a mesma cerveja ter preços diferentes sem que isso seja inconsistência.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name]
+              properties:
+                code: {type: string, maxLength: 30}
+                name: {type: string, maxLength: 120}
+      responses:
+        '201':
+          description: Canal criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /sales/channels/{id}/active:
+    put:
+      tags: [Vendas]
+      summary: Ativar ou desativar canal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active: {type: boolean}
+      responses:
+        '200': {description: Situação alterada}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /sales/products/{id}/prices:
+    get:
+      tags: [Vendas]
+      summary: Linha do tempo de preço do produto num canal (SAL-001)
+      description: >-
+        Devolve **todas as vigências**, e não só o preço atual. Um pedido feito em março tem que continuar
+        explicável em dezembro, e isso exige saber quanto o produto custava em março — guardar só o preço
+        vigente transformaria todo pedido antigo num número sem origem.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: channelId
+          in: query
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Vigências, em ordem cronológica
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SalesPriceSchedule'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Vendas]
+      summary: '"A partir deste dia, passa a custar isto"'
+      description: >-
+        **Fecha sozinho o preço em aberto, na véspera.** Exigir que o operador encerre o antigo à mão
+        antes de abrir o novo criaria uma janela em que o produto não tem preço, e o erro apareceria como
+        "produto sem preço" num dia de venda.
+
+
+        **`validFrom` vem de fora e não é carimbado pelo servidor:** um preço combinado para valer no
+        primeiro dia do mês que vem precisa poder ser cadastrado hoje, e um que já valia desde a semana
+        passada precisa poder ser regularizado.
+
+
+        **A invariante é uma só: em qualquer dia, no máximo um preço por produto e canal.** Duas vigências
+        sobrepostas fariam "quanto custa hoje?" ter duas respostas, e o sistema escolheria uma pela ordem
+        em que leu as linhas — o pedido sairia com um valor e a fatura com outro. A garantia é a restrição
+        de exclusão `ex_sales_price_no_overlap` no banco, e não só a checagem do domínio.
+
+
+        **A moeda não muda no meio da linha do tempo**, senão "aumentou ou baixou?" deixa de ter resposta.
+
+
+        A plataforma **não calcula imposto** — motor fiscal está fora do escopo. `taxIncluded` registra se
+        o número já o contém, para que ninguém compare preço com imposto contra preço sem.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channelId, amount, currency, taxIncluded, validFrom]
+              properties:
+                channelId: {type: string, format: uuid}
+                amount:
+                  type: number
+                  exclusiveMinimum: 0
+                  description: >-
+                    Positivo. Preço zero é brinde ou é engano, e os dois pedem tratamento oposto — brinde
+                    é desconto no pedido, onde fica registrado que alguém decidiu dar.
+                currency: {type: string, pattern: '^[A-Z]{3}$'}
+                taxIncluded: {type: boolean}
+                validFrom: {type: string, format: date}
+      responses:
+        '204': {description: Preço vigente a partir da data}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `sales_price_overlap` — já existe vigência no período (extensão `from` com a data, que é a
+            informação que resolve o problema) — ou `sales_currency_mismatch`, quando a linha do tempo já
+            está em outra moeda.
+          content:
+            application/problem+json:
+              schema: {type: object}
 components:
   schemas:
+    SalesProduct:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        sku: {type: string, description: Sempre em maiúsculas.}
+        name: {type: string}
+        recipeId: {type: string, format: uuid}
+        containerId: {type: string, format: uuid}
+        active: {type: boolean}
+    SalesChannel:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+        active: {type: boolean}
+    SalesPriceSchedule:
+      type: object
+      properties:
+        productId: {type: string, format: uuid}
+        channelId: {type: string, format: uuid}
+        entries:
+          type: array
+          items: {$ref: '#/components/schemas/SalesPriceEntry'}
+    SalesPriceEntry:
+      type: object
+      properties:
+        amount: {type: number}
+        currency: {type: string}
+        taxIncluded:
+          type: boolean
+          description: A plataforma não calcula imposto; só registra se o número já o contém.
+        validFrom: {type: string, format: date}
+        validTo:
+          type: string
+          format: date
+          nullable: true
+          description: >-
+            Nulo é "até segunda ordem". As duas pontas são inclusivas — quem compra no último dia paga o
+            preço daquele dia.
     CrmCustomer:
       type: object
       properties:

@@ -70,8 +70,11 @@ class PackagingConfiguration {
     @Bean
     br.com.brew.brassia.packaging.application.service.LotReleaseHandler lotReleaseHandler(
             br.com.brew.brassia.packaging.application.port.outbound.FinishedLotRepository lots,
-            br.com.brew.brassia.packaging.application.port.outbound.LotReleaseRepository releases) {
-        return new br.com.brew.brassia.packaging.application.service.LotReleaseHandler(lots, releases);
+            br.com.brew.brassia.packaging.application.port.outbound.LotReleaseRepository releases,
+            br.com.brew.brassia.packaging.application.port.outbound.FreshnessRepository freshness,
+            br.com.brew.brassia.packaging.application.port.outbound.FinishedLotEventPublisher events) {
+        return new br.com.brew.brassia.packaging.application.service.LotReleaseHandler(lots, releases,
+                freshness, events);
     }
 
     @Bean

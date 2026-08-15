@@ -22,7 +22,21 @@ public enum WebhookEventType {
     BREW_ORDER_CANCELLED("brew_order.cancelled"),
     RECIPE_PUBLISHED("recipe.published"),
     CLEANING_CYCLE_RELEASED("cleaning_cycle.released"),
-    SENSOR_READING_FLAGGED("sensor_reading.flagged");
+    SENSOR_READING_FLAGGED("sensor_reading.flagged"),
+
+    // INT-008 — os eventos comerciais. Eles não trazem integração nova: entram na mesma allowlist e
+    // saem pelo mesmo outbox com retry, porque o critério "integração externa falha sem corromper
+    // pedido" já era o motivo de o outbox existir (ver WebhookDelivery).
+    //
+    // Quem consome: fiscal emite a nota a partir do pedido confirmado, POS e e-commerce acertam o
+    // estoque deles, contábil reconhece a receita no atendimento. A plataforma não calcula imposto —
+    // motor fiscal está fora do escopo da sprint —, ela avisa que houve o fato.
+    SALES_ORDER_PLACED("sales_order.placed"),
+    SALES_ORDER_CANCELLED("sales_order.cancelled"),
+    SALES_ORDER_FULFILLED("sales_order.fulfilled"),
+
+    /** O lote virou vendável: é o gatilho para o e-commerce publicar o produto. */
+    FINISHED_LOT_RELEASED("finished_lot.released");
 
     private final String externalName;
 

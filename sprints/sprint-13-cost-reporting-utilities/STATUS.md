@@ -83,10 +83,9 @@ estoque, porque custo não lê tabela alheia.
   A cerveja perdida não tem custo próprio: ela é o mesmo insumo já somado, e lançá-la de novo como
   "perda" contaria duas vezes. A perda aparece no indicador — custo por litro sobe quando o lote
   rende menos —, não em linha nova.
-- **`CST-001-A` — mão de obra não tem fonte.** Não há hora trabalhada registrada em lugar nenhum da
-  plataforma. Inventar um cadastro de horas aqui seria criar regra de negócio sem fonte; somar zero
-  seria mentir por omissão. A parcela é declarada como lacuna. *Critério de remoção:* existir
-  apontamento de hora por lote ou por etapa, e um contribuinte implementar a porta.
+- ~~**`CST-001-A`**~~ — **FECHADO EM 2026-08-14**, com as duas metades do critério: apontamento de hora
+  por lote (`production_labor_entry`) e um contribuinte implementando a porta (`LaborCostContributor`).
+  A hora mora na produção e o dinheiro no custeio. Ver DEC-CST-001 na Sprint 17.
 - **A tela distingue o custo que ainda muda do que não muda mais.** Um aberto e um fechado com a
   mesma cara fariam alguém decidir preço em cima de um total que ainda vai crescer. E as lacunas
   ficam ao lado do total, não no rodapé: sem mão de obra e sem utilidade, o número é menor que a
@@ -230,11 +229,11 @@ estoque, porque custo não lê tabela alheia.
   como se provasse tudo. A data de geração fica no topo pelo mesmo motivo.
 - **Exportar na tela passa pelo servidor, e não salva o que já está em memória.** O arquivo sairia
   idêntico, e sem registro nenhum de que saiu — a chamada existe pelo rastro, não pelo conteúdo.
-- **`RPT-001-A` — a exportação é JSON, não PDF.** O critério da história é o documento sair com
-  rastro, e isso o JSON entrega. PDF exigiria biblioteca de renderização, decisão de layout e
-  identidade visual da cervejaria — escopo de apresentação, não de consolidação, e ampliar por
-  iniciativa própria seria contrariar a regra da sprint. *Critério de remoção:* a casa decidir o
-  layout do documento impresso e existir decisão sobre marca e assinatura.
+- ~~**`RPT-001-A`**~~ — **FECHADO EM 2026-08-15**, e sem esperar a decisão de marca. O critério pedia
+  "layout do documento impresso e decisão sobre marca e assinatura"; o mantenedor decidiu que **marca é
+  acabamento**: cabeçalho, dados e rodapé, sem identidade visual. Esperar a marca mantinha a cervejaria
+  sem nada para levar ao auditor. O JSON continua sendo o padrão; o PDF sai por `Accept`. Ver DEC-RPT-001
+  na Sprint 17.
 
 ### CST-002 — planejado versus real
 
@@ -272,11 +271,11 @@ estoque, porque custo não lê tabela alheia.
 - **Em volume, o sinal sozinho não basta.** Render 10 L a menos é ruim; perder 2 L a menos é bom. Por
   isso cada comparação de volume diz por si se é desfavorável, em vez de deixar a interface adivinhar
   pelo sinal.
-- **`CST-002-A` — não há perda esperada cadastrada.** Nem para a transferência nem para a linha de
-  envase existe um "quanto se admite perder". A perda entra como **fato**, sem desvio: chamá-la de
-  desfavorável seria acusar a fábrica com um critério que ela nunca definiu, e assumir esperado zero
-  faria toda perda parecer desvio. *Critério de remoção:* a casa definir perda admissível por etapa
-  (no equipamento ou na política de envase).
+- ~~**`CST-002-A`**~~ — **FECHADO EM 2026-08-14**, com a perda esperada **na receita** e não no
+  equipamento como o critério sugeria: a perda característica é da cerveja tanto quanto do tanque, e a
+  receita já carrega eficiência e volumes. Percentual, porque perda de trub e absorção de lúpulo escalam
+  com o tamanho da brassa. Sem cadastro, a perda continua entrando como fato — o raciocínio original
+  segue valendo para quem ainda não mediu. Ver DEC-CST-002 na Sprint 17.
 - **Alçada separada da leitura do custo.** A variação expõe preço de compra por ingrediente, que é
   informação comercial: quem pode ver o total do lote não necessariamente pode ver por quanto a casa
   comprou o malte. Daí `costing.variance.read`, e não `costing.cost.read`.
@@ -384,14 +383,14 @@ Todos com critério de remoção registrado nas seções acima.
 
 | Débito | O que falta |
 |---|---|
-| `CST-001-A` | Mão de obra não tem fonte: não há hora trabalhada na plataforma |
+| ~~`CST-001-A`~~ | **Fechado em 2026-08-14**: apontamento de hora no lote + taxa da casa (V117) |
 | `CST-001-B` | Utilidade não tem fonte por lote: água e energia são medidas por equipamento |
-| `CST-002-A` | Não há perda esperada cadastrada, nem na transferência nem no envase |
+| ~~`CST-002-A`~~ | **Fechado em 2026-08-14**: perda esperada por etapa na receita (V118) |
 | `UTL-001-A` | O CO₂ não declara cobertura: não existe consumo esperado contra o qual comparar |
-| `RPT-001-A` | A exportação é JSON, não PDF: layout e identidade visual não foram decididos |
-| `RPT-003-A` | Não há transporte de entrega — a plataforma registra, não envia |
+| ~~`RPT-001-A`~~ | **Fechado em 2026-08-15**: PDF por `Accept`, layout simples e sem identidade visual |
+| ~~`RPT-003-A`~~ | **Fechado em 2026-08-11 por decisão**: a plataforma registra e não envia; enviar exige SMTP, bounce e LGPD. Ver DEC-DEBT-001 na Sprint 17 |
 | `RPT-003-B` | O agendador é de instância única: não duplica, mas não distribui carga |
-| `GAS-001-A` | Custo e estoque do gás — previsto para esta sprint e adiado por decisão |
+| `GAS-001-A` | Custo e estoque do gás. **Adiado de novo em 2026-08-11, agora por decisão registrada**: entra quando alguém reclamar da ausência dele no custo do lote. Ver DEC-DEBT-001 na Sprint 17 |
 
 Fechado nesta sprint: **`TRC-001-C`** — o dia de brassa passou a registrar consumo por lote, o que
 era pré-requisito do custo realizado.

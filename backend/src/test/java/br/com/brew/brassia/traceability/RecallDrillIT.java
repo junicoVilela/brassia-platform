@@ -2,6 +2,7 @@ package br.com.brew.brassia.traceability;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -18,6 +19,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Locale;
 import java.util.Set;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +53,17 @@ class RecallDrillIT {
     @Container
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18");
+
+    /**
+     * Janela do envase ancorada em AGORA, e não numa data fixa.
+     *
+     * <p>A linha limpa exige liberação <strong>anterior</strong> ao início planejado
+     * ({@code LineCleanliness}). Com data fixa, o dia em que ela passa inverte a ordem e todo envase
+     * destes testes passa a ser recusado com {@code line_not_clean} — uma falha datada, que aparece sem
+     * ninguém ter mexido em nada.
+     */
+    private static final String PLANNED_START = Instant.now().plus(Duration.ofHours(1)).toString();
+    private static final String PLANNED_END = Instant.now().plus(Duration.ofHours(7)).toString();
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String DRILLS = "/api/v1/traceability/recall-drills";
@@ -201,6 +215,128 @@ class RecallDrillIT {
 
     // --- cenário ---
 
+    @Test
+    @DisplayName("EXPEDIÇÃO ESTORNADA SAI DO ESCOPO DO RECALL, e a linha continua no histórico")
+    void estornoTiraDoEscopo() throws Exception {
+        // FDS-003-A: uma expedição digitada errada fazia o simulado medir cobertura sobre um destino que
+        // nunca recebeu nada — e escondia, no saldo sem destino, cerveja que ninguém sabia onde estava.
+        var session = login();
+        var scene = shippedLot(session);
+        var errada = idOf(ship(session, scene.finishedLotId(), "Distribuidora Errada", null, 40)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        // Com as duas valendo, o escopo soma 160 e alcança dois destinos.
+        var comErro = idOf(start(session, scene.batchId(), "antes do estorno")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        mockMvc.perform(get(DRILLS + "/" + comErro).session(session))
+                .andExpect(jsonPath("$.unitsInScope", is(160)))
+                .andExpect(jsonPath("$.destinationsReached", is(2)));
+
+        mockMvc.perform(post(SHIPMENTS + "/" + errada + "/reversal").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"reason\":\"Destino digitado errado: a carga foi para o Bar do Zé\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reversedAt").exists());
+
+        // Estornada, some do escopo — sem que nada precise ser recalculado: as consultas do recall
+        // passaram a olhar só expedições vivas.
+        var depois = idOf(start(session, scene.batchId(), "depois do estorno")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        mockMvc.perform(get(DRILLS + "/" + depois).session(session))
+                .andExpect(jsonPath("$.unitsInScope", is(120)))
+                .andExpect(jsonPath("$.destinationsReached", is(1)));
+
+        // E a linha continua na listagem, marcada: sumir seria indistinguível de nunca ter existido.
+        var lista = mockMvc.perform(get(SHIPMENTS).session(session).param("finishedLotId",
+                        scene.finishedLotId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(lista).contains("Distribuidora Errada").contains("digitado errado");
+    }
+
+    @Test
+    @DisplayName("A AÇÃO CORRETIVA VIRA ITEM DE CAPA, com dono e prazo — não texto no relatório")
+    void acaoViraItemDeCapa() throws Exception {
+        // FDS-004-A. Texto livre no relatório de um simulado não tem dono, não tem prazo e não aparece em
+        // lista nenhuma: seis meses depois o próximo simulado encontra a mesma lacuna com o relatório
+        // anterior dizendo o que fazer.
+        var session = login();
+        var scene = shippedLot(session);
+        var nc = abrirNaoConformidade(session, scene.batchId());
+        var drillId = idOf(start(session, scene.batchId(), "exercício com lacuna")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        mockMvc.perform(post(DRILLS + "/" + drillId + "/finish").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("""
+                                {"unitsLocated":90,"summary":"duas ligações; 30 latas não localizadas",
+                                 "nonConformityId":"%s",
+                                 "capaActions":[
+                                   {"kind":"CORRECTIVE","description":"Contatar os 30 pontos restantes",
+                                    "owner":"Qualidade","dueOn":"2026-09-30"},
+                                   {"kind":"PREVENTIVE","description":"Exigir contato no cadastro de destino",
+                                    "owner":"Comercial","dueOn":"2026-10-31"}]}
+                                """.formatted(nc)))
+                .andExpect(status().isOk());
+
+        // As ações existem no CAPA, com tipo, dono e prazo — e é lá que elas serão cobradas.
+        mockMvc.perform(get("/api/v1/quality/non-conformities/" + nc).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actions.length()", is(2)))
+                .andExpect(jsonPath("$.actions[0].owner", is("Qualidade")))
+                .andExpect(jsonPath("$.actions[1].kind", is("PREVENTIVE")));
+
+        // E o simulado aponta para elas, em vez de guardar o texto.
+        mockMvc.perform(get(DRILLS + "/" + drillId).session(session))
+                .andExpect(jsonPath("$.drill.nonConformityId", is(nc)))
+                .andExpect(jsonPath("$.drill.correctiveActions").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("texto livre e CAPA juntos são recusados: qual seria a ação de verdade?")
+    void textoEcapaJuntosRecusados() throws Exception {
+        var session = login();
+        var scene = shippedLot(session);
+        var nc = abrirNaoConformidade(session, scene.batchId());
+        var drillId = idOf(start(session, scene.batchId(), "exercício")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        mockMvc.perform(post(DRILLS + "/" + drillId + "/finish").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"unitsLocated\":90,\"summary\":\"resumo\","
+                                + "\"correctiveActions\":\"revisar contatos\","
+                                + "\"nonConformityId\":\"" + nc + "\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** Uma NC aberta para o lote, onde as ações do simulado vão pendurar. */
+    private String abrirNaoConformidade(MockHttpSession session, String batchId) throws Exception {
+        var body = mockMvc.perform(post("/api/v1/quality/non-conformities").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("""
+                                {"title":"Cobertura do simulado abaixo do esperado",
+                                 "description":"Simulado localizou 75%% das unidades expedidas",
+                                 "source":"OTHER","batchId":"%s","severity":"MAJOR",
+                                 "containmentDueOn":"2026-08-20","investigationDueOn":"2026-08-30",
+                                 "verificationDueOn":"2026-09-30"}
+                                """.formatted(batchId)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        var id = JSON.readTree(body).get("id").asText();
+
+        // O CAPA não aceita ação antes da investigação, e está certo: planejar solução antes de saber a
+        // causa é exatamente o que ele existe para impedir. O simulado não fura a ordem das fases — ele
+        // pendura as ações numa NC que já chegou lá.
+        mockMvc.perform(post("/api/v1/quality/non-conformities/" + id + "/containment").session(session)
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"description\":\"Distribuidores notificados por telefone\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/quality/non-conformities/" + id + "/investigation").session(session)
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"rootCause\":\"Cadastro de destino sem contato obrigatório\","
+                                + "\"method\":\"5 porquês\"}"))
+                .andExpect(status().isOk());
+        return id;
+    }
+
     private record Scene(String batchId, String finishedLotId) {}
 
     private Scene shippedLot(MockHttpSession session) throws Exception {
@@ -262,9 +398,9 @@ class RecallDrillIT {
                         .contentType("application/json")
                         .content("""
                                 {"code":"ENV-%s","batchId":"%s","containerId":"%s","plannedUnits":400,
-                                 "lineEquipmentId":"%s","plannedStart":"2026-08-20T09:00:00Z",
-                                 "plannedEnd":"2026-08-20T15:00:00Z"}
-                                """.formatted(planSfx, batchId, containerId, lineId)))
+                                 "lineEquipmentId":"%s","plannedStart":"%s",
+                                 "plannedEnd":"%s"}
+                                """.formatted(planSfx, batchId, containerId, lineId, PLANNED_START, PLANNED_END)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
         for (var item : new String[] {"CONTAINER_INSPECTED", "SEAL_TEST", "GAS_SUPPLY"}) {
             mockMvc.perform(post(PLANS + "/" + planId + "/checklist").session(session).with(csrf())

@@ -78,7 +78,10 @@ final class RecipeExchangeController {
         // CreateRecipe valida e persiste atomicamente; importação inválida não persiste (400).
         var result = createRecipe.handle(new CreateRecipeUseCase.Command(
                 principal.userId(), principal.requireBrewery(), d.name(), d.equipmentId(), d.batchVolumeLiters(),
-                d.targetOgPoints(), d.targetIbu(), d.targetColorEbc(), d.targetAbv(), d.boilTimeMinutes(), items));
+                d.targetOgPoints(), d.targetIbu(), d.targetColorEbc(), d.targetAbv(), d.boilTimeMinutes(),
+                // A importação não traz perda esperada: nenhum formato de intercâmbio a define, e
+                // inventá-la a partir da eficiência criaria um número que ninguém mediu.
+                null, null, items));
         return new ImportReportResponse(result.id(), result.name(), result.status(), parsed.unknownFields());
     }
 

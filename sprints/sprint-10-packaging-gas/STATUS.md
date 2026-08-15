@@ -87,10 +87,11 @@ Estado: ACEITA
   junto do resultado, em vez de um número com precisão que ele não tem.
 - Recalcular substitui a decisão inteira (1:1 com o plano): trocar de método não deixa resíduo do
   anterior, então entrada e resultado nunca divergem.
-- **PKG-002-A — não existe limite de pressão por embalagem.** O sistema bloqueia o caso claro
-  (priming sem espaço para o alvo), mas não sabe quanta pressão cada embalagem suporta: lata, long
-  neck e garrafa de champanhe têm limites diferentes, e esse dado não está no catálogo. Critério de
-  remoção: cadastrar pressão máxima por embalagem no catálogo e validar o alvo contra ela.
+- ~~**PKG-002-A**~~ — **FECHADO EM 2026-08-11.** O critério era "cadastrar pressão máxima por embalagem
+  no catálogo e validar o alvo contra ela", e é o que foi feito: `maxPressureBar` entrou nos atributos do
+  tipo `PACKAGING`, e a carbonatação recusa alvo acima do limite (409 `container_pressure_exceeded`).
+  A validação usa a **pressão de equilíbrio**, calculada nos dois métodos — a física não pergunta se o CO₂
+  veio de açúcar ou de cilindro, e o caso perigoso é justamente o priming. Ver DEC-PKG-001 na Sprint 17.
 
 ### PKG-003
 
@@ -184,10 +185,12 @@ Estado: ACEITA
   regulatória. O campo existe no rótulo e sai como ausente: se a regra da casa o exigir, a prévia
   barra a impressão — que é o comportamento correto até o dado existir. Critério de remoção:
   cadastrar alergênicos declarados no catálogo e ligar a fonte.
-- **PKG-004-B — o ABV é calculado, não medido.** Vem das métricas da receita publicada (fonte
-  rastreável, com versão), não de OG/FG reais do lote. A origem diz isso em voz alta no rótulo
-  ("calculado, não medido"). Critério de remoção: expor OG medido (transferência) e FG estável
-  (FER-003) como fonte e recalcular o ABV do lote.
+- ~~**PKG-004-B**~~ — **FECHADO EM 2026-08-14, por um caminho diferente do critério.** O critério
+  propunha recalcular o ABV a partir de OG medido e FG estável. O mantenedor decidiu outra coisa, e
+  melhor: **o ABV medido em laboratório entra como medição do lote e vence o calculado**, que continua
+  valendo — e continua dizendo em voz alta que é conta — quando ninguém mediu. Recalcular de OG/FG
+  produziria uma terceira estimativa; o que a legislação cobra no rótulo é o medido. Ver DEC-PKG-002 na
+  Sprint 17.
 
 ## Evidências de encerramento
 
@@ -220,4 +223,4 @@ bloqueando o uso das histórias entregues: **PKG-001-A** (validade do CIP por te
 (pressão máxima por embalagem), **GAS-001-A** (custo e estoque do gás, previsto para a sprint 13),
 **GAS-001-B** (periodicidade da requalificação), **PKG-004-A** (alergênicos sem fonte no catálogo)
 e **PKG-004-B** (ABV calculado, não medido). Nenhum débito de sprint anterior foi removido nesta;
-o CLN-004-A da sprint 08, citado em PKG-001, continua aberto e sem dono.
+o CLN-004-A da sprint 08, citado em PKG-001, continua aberto e sem dono. **Fechado em 2026-08-11 — ver DEC-CLN-001 na Sprint 17.**

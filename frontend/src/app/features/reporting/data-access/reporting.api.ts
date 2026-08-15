@@ -27,6 +27,19 @@ export class ReportingApi {
     return this.http.post<BatchReport>(`${this.baseUrl}/batches/${batchId}/export`, {});
   }
 
+  /**
+   * O mesmo documento impresso (RPT-001-A).
+   *
+   * <p>Mesma rota e mesma alçada — o que muda é o `Accept`. O PDF vem como blob porque é binário:
+   * deixá-lo passar pelo parser de JSON o corromperia silenciosamente.
+   */
+  exportPdf(batchId: string): Observable<Blob> {
+    return this.http.post(`${this.baseUrl}/batches/${batchId}/export`, {}, {
+      headers: { Accept: 'application/pdf' },
+      responseType: 'blob',
+    });
+  }
+
   dashboard(from: string, to: string): Observable<Dashboard> {
     const params = new HttpParams().set('from', from).set('to', to);
     return this.http.get<Dashboard>(`${this.baseUrl}/dashboard`, { params });

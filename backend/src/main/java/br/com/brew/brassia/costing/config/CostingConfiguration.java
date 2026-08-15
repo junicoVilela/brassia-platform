@@ -17,6 +17,7 @@ import br.com.brew.brassia.costing.application.service.CostHandlers;
 import br.com.brew.brassia.packaging.PackagingOutcomeLookup;
 import br.com.brew.brassia.planning.OrderPlanLookup;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.recipe.RecipeLookup;
 import br.com.brew.brassia.production.BatchOutcomeLookup;
 import java.util.List;
 import java.util.Objects;
@@ -52,8 +53,9 @@ class CostingConfiguration {
     @Bean
     BatchVarianceAssembler batchVarianceAssembler(BatchLookup batches, BatchOutcomeLookup outcomes,
             OrderPlanLookup plans, MaterialActualSource actuals, PackagingOutcomeLookup packaging,
-            IngredientPurchaseLookup ingredients) {
-        return new BatchVarianceAssembler(batches, outcomes, plans, actuals, packaging, ingredients);
+            IngredientPurchaseLookup ingredients, RecipeLookup recipes) {
+        return new BatchVarianceAssembler(batches, outcomes, plans, actuals, packaging, ingredients,
+                recipes);
     }
 
     @Bean

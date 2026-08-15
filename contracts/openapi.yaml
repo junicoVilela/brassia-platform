@@ -239,6 +239,10 @@ paths:
   /equipment:
     get:
       operationId: listEquipment
+      summary: >-
+        Página de equipamentos. Cada item traz `cleanliness` (CLEAN/DIRTY) e `soiledSince` (CLN-004-A):
+        o estado vem na mesma consulta da página, e não item a item — o N+1 do estado ficaria invisível
+        em quem lê o código, porque moraria no mapeador
       parameters:
         - {name: page, in: query, schema: {type: integer, default: 0}}
         - {name: size, in: query, schema: {type: integer, default: 20}}
@@ -702,7 +706,7 @@ paths:
         '403': {$ref: '#/components/responses/Problem'}
     post:
       operationId: transferBatch
-      summary: "Transfere o lote ao fermentador (valida capacidade e balanço de massa; move para FERMENTING)"
+      summary: "Transfere o lote ao fermentador (valida capacidade, balanço de massa e limpeza; move para FERMENTING)"
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       requestBody:
@@ -714,7 +718,13 @@ paths:
         '201': {description: Lote transferido}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
-        '409': {description: "Capacidade do fermentador ou balanço de massa excedido; ou já transferido"}
+        '409':
+          description: >-
+            Capacidade do fermentador ou balanço de massa excedido; já transferido; ou o tanque de destino
+            não tem limpeza liberada (`equipment_not_clean`, CLN-004-A). Neste último caso a resposta traz
+            `soiledSince` — a ação muda com ele: um tanque que esvaziou hoje precisa de um CIP; um parado
+            sujo há três semanas precisa de uma conversa antes do CIP
+          $ref: '#/components/responses/Problem'
   /production/batches/{id}/steps/{stepId}/complete:
     post:
       operationId: completeBatchStep
@@ -1633,6 +1643,11 @@ paths:
         O volume planejado é derivado de unidades × volume da embalagem e nunca informado;
         planejar mais do que o lote comporta responde 400. Só lote em fermentação aceita plano
         (409); a embalagem precisa ser ingrediente do tipo PACKAGING com `volumeMl` declarado.
+
+
+        `maxPressureBar` é opcional no cadastro da embalagem e é o que permite recusar um alvo de
+        carbonatação acima do que ela suporta (PKG-002-A): lata, long neck e garrafa de champanhe têm
+        limites diferentes, e sem o dado o sistema não tem como barrar o caso perigoso.
       requestBody:
         required: true
         content:
@@ -4001,6 +4016,48 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /packaging/shipments/{shipmentId}/reversal:
+    post:
+      tags: [Envase]
+      summary: Estornar expedição registrada errada (FDS-003-A)
+      description: >-
+        O caminho de volta de um registro errado — não é devolução nem transferência entre destinos, que
+        são movimentação comercial e dependem de cliente e pedido (sprints 19 e 20).
+
+
+        **A linha permanece.** Apagar tornaria indistinguível "nunca houve expedição" de "houve e foi
+        estornada", e a segunda precisa ser demonstrável, inclusive para quem recebeu a comunicação de um
+        recall baseado nela. Estornada, ela sai do escopo do recall e o saldo sem destino do lote volta a
+        mostrar a cerveja que a expedição errada escondia.
+
+
+        O motivo é obrigatório e o domínio recusa evasiva curta: o histórico precisa distinguir erro de
+        digitação, destino trocado e carga que não saiu — as três exigem reações diferentes. Alçada
+        própria (`packaging.shipment.reverse`), separada de registrar.
+      parameters:
+        - {name: shipmentId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, maxLength: 500}
+      responses:
+        '200':
+          description: Expedição estornada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Shipment'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: "`shipment_already_reversed`"
+          content:
+            application/problem+json:
+              schema: {type: object}
   /traceability/recalls:
     get:
       tags: [Rastreabilidade]
@@ -4239,8 +4296,35 @@ paths:
                   type: string
                   maxLength: 2000
                   description: >-
-                    Texto livre. Transformar ação em item com dono e prazo é trabalho do CAPA
-                    (QLT-002); duplicá-lo aqui criaria um segundo lugar para acompanhar a mesma coisa.
+                    Texto livre, mantido para o simulado que não gerou ação. **Não pode vir junto com
+                    `nonConformityId`** (400): ação escrita como texto E como item de CAPA deixaria quem
+                    lê sem saber qual é a de verdade.
+                nonConformityId:
+                  type: string
+                  format: uuid
+                  description: >-
+                    A não conformidade onde as ações viram itens de CAPA (FDS-004-A). **O simulado não
+                    abre NC sozinho** — isso exigiria o sistema decidir a severidade, e o quanto uma
+                    cobertura de 75% é grave depende do produto e de quem audita.
+
+
+                    A NC precisa já estar **investigada**: o CAPA recusa planejar ação antes de conhecer
+                    a causa (409), e o simulado não fura a ordem das fases — planejar solução antes de
+                    saber o porquê é o que o CAPA existe para impedir.
+                capaActions:
+                  type: array
+                  description: >-
+                    Ações a planejar na NC, com tipo, dono e prazo — é o dono que distingue uma ação de
+                    uma intenção. Texto livre no relatório não aparece em lista nenhuma, e seis meses
+                    depois o próximo simulado encontra a mesma lacuna.
+                  items:
+                    type: object
+                    required: [kind, description, owner, dueOn]
+                    properties:
+                      kind: {type: string, enum: [CORRECTIVE, PREVENTIVE]}
+                      description: {type: string, maxLength: 1000}
+                      owner: {type: string, maxLength: 120}
+                      dueOn: {type: string, format: date}
       responses:
         '200': {description: Simulado encerrado}
         '400':
@@ -4367,6 +4451,113 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /costing/labor-rate:
+    get:
+      tags: [Custos]
+      summary: Custo da hora de trabalho da casa (CST-001-A)
+      description: >-
+        `costPerHour` nulo é resposta legítima: a cervejaria que nunca definiu a taxa não tem mão de obra
+        no custo, e o custeio declara isso como **lacuna** em vez de somar zero — um total que soma zero
+        mente por omissão.
+      responses:
+        '200':
+          description: Taxa vigente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  costPerHour: {type: number, nullable: true}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Custos]
+      summary: Definir o custo da hora
+      description: >-
+        **Uma taxa por cervejaria, não uma por pessoa.** Custo de mão de obra por lote é custo médio da
+        hora produtiva — salário, encargos e ociosidade diluídos. Uma taxa por pessoa faria o mesmo lote
+        sair mais caro na semana em que o cervejeiro sênior trabalhou, o que descreve a escala e não o
+        produto.
+
+
+        Alçada `costing.labor-rate.manage`, separada de apontar hora: apontar é trabalho do dia, definir
+        quanto a hora vale é decisão de gestão.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [costPerHour]
+              properties:
+                costPerHour: {type: number, exclusiveMinimum: 0}
+      responses:
+        '200': {description: Taxa definida}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /production/batches/{id}/labor:
+    get:
+      tags: [Produção]
+      summary: Apontamentos de hora do lote (CST-001-A)
+      description: >-
+        Quem lê o custo precisa ver de onde a parcela de mão de obra saiu. `manHours` é duração ×
+        pessoas — é essa coluna que vira dinheiro no custeio.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Apontamentos, do mais antigo para o mais novo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: {type: string, format: uuid}
+                    activity: {type: string}
+                    startedAt: {type: string, format: date-time}
+                    endedAt: {type: string, format: date-time}
+                    people: {type: integer}
+                    manHours: {type: number}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Produção]
+      summary: Apontar horas trabalhadas no lote (CST-001-A)
+      description: >-
+        A hora é da produção; o dinheiro é do custeio. Separar permite ajustar a taxa sem reescrever
+        apontamento, e evita que quem registra seis horas de brassa precise conhecer moeda para fazê-lo.
+
+
+        `people` importa: duas pessoas por três horas custam **seis horas-homem**, e omitir a contagem
+        perderia justamente a metade que a cervejaria paga.
+
+
+        Lote cancelado não recebe apontamento — ninguém trabalhou nele. Lote encerrado recebe: limpeza e
+        fechamento acontecem depois de o lote acabar.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [activity, startedAt, endedAt, people]
+              properties:
+                activity:
+                  type: string
+                  maxLength: 120
+                  description: >-
+                    Texto e não enum: a divisão de trabalho de uma cervejaria de três pessoas não é a de
+                    uma de trinta, e um enum imporia a de quem escreveu o código
+                startedAt: {type: string, format: date-time}
+                endedAt: {type: string, format: date-time}
+                people: {type: integer, minimum: 1}
+      responses:
+        '201': {description: Apontamento registrado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /costing/batches/{batchId}/variance:
     get:
       tags: [Custos]
@@ -4778,14 +4969,34 @@ paths:
 
         O registro sai depois de o relatório existir; exportação recusada não deixa rastro de
         exportação, porque auditar uma que falhou seria afirmar que o documento saiu.
+
+
+        **O formato é negociado pelo `Accept` (RPT-001-A).** JSON continua sendo o padrão — quem já
+        integra recebe o mesmo corpo de antes, porque trocar o padrão quebraria integração por causa de
+        acabamento. `Accept: application/pdf` devolve o documento impresso, com layout simples e **sem
+        identidade visual**: marca é acabamento, e esperar por ela mantinha a cervejaria sem nada para
+        mandar ao auditor. A auditoria registra qual formato saiu.
       parameters:
         - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
+        - name: Accept
+          in: header
+          required: false
+          schema: {type: string, enum: [application/json, application/pdf]}
+          description: "`application/pdf` para o documento impresso; ausente ou JSON devolve o dossiê."
       responses:
         '200':
           description: Documento para download
           content:
             application/json:
               schema: {$ref: '#/components/schemas/BatchReport'}
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                description: >-
+                  Cabeçalho, dados e rodapé. As lacunas vêm no topo, logo abaixo do cabeçalho: quem
+                  imprime precisa ver o que o relatório NÃO prova antes de mandá-lo a um cliente que vai
+                  lê-lo como se provasse tudo — num papel, o rodapé é onde a informação morre.
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
   /utilities/indicators:
@@ -7045,7 +7256,7 @@ components:
       required: [recipeId, kind, batchIds]
       properties:
         recipeId: {type: string, format: uuid}
-        kind: {type: string, enum: [DENSITY, TEMPERATURE, VOLUME, PH, COLOR, IBU]}
+        kind: {type: string, enum: [DENSITY, TEMPERATURE, VOLUME, PH, COLOR, IBU, ABV]}
         batchIds:
           type: array
           minItems: 1
@@ -7500,10 +7711,15 @@ components:
       enum: [CORRECTIVE, PREVENTIVE]
     OpenNonConformity:
       type: object
-      required: [code, title, description, source, severity, containmentDueOn, investigationDueOn,
-                 verificationDueOn]
+      required: [title, description, source, severity]
       properties:
-        code: {type: string, maxLength: 40}
+        code:
+          type: string
+          maxLength: 40
+          description: >-
+            Opcional desde a DEB-AIA-003. Em branco, o sistema numera como NC-AAAA-NNNN — por ano, porque
+            é assim que se referencia não conformidade numa auditoria. Deixou de ser obrigatório porque um
+            comando executado a partir de uma proposta do copiloto não tem quem digite
         title: {type: string, maxLength: 200}
         description: {type: string, maxLength: 2000}
         source: {$ref: '#/components/schemas/NonConformitySource'}
@@ -7512,10 +7728,25 @@ components:
           format: uuid
           nullable: true
           description: Obrigatório quando a origem é DEVIATION
+        batchId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >-
+            O lote de que a NC fala (DEB-AIA-003). Nulo é legítimo e permanece: NC de auditoria, de
+            fornecedor ou de processo não tem lote — exigir o vínculo forçaria a inventar um lote para a
+            não conformidade de um treinamento vencido
         severity: {$ref: '#/components/schemas/QualitySeverity'}
-        containmentDueOn: {type: string, format: date}
-        investigationDueOn: {type: string, format: date}
-        verificationDueOn: {type: string, format: date}
+        containmentDueOn:
+          type: string
+          format: date
+          nullable: true
+          description: >-
+            Os três prazos são opcionais: omitidos os três, saem da política de severidade da casa
+            (PRM-001). Sem política configurada a abertura é RECUSADA, e isso é regra e não lacuna — prazo
+            de contenção é decisão da cervejaria com quem a audita, não padrão técnico
+        investigationDueOn: {type: string, format: date, nullable: true}
+        verificationDueOn: {type: string, format: date, nullable: true}
     PlanCapaAction:
       type: object
       required: [kind, description, owner, dueOn]
@@ -7600,6 +7831,22 @@ components:
     FrequencyKind:
       type: string
       enum: [PER_BATCH, PER_HOURS, PER_SHIFT, PER_PACKAGING_RUN]
+      description: >-
+        **Só `PER_HOURS` é fiscalizada** (QLT-001-A): uma varredura de hora em hora abre alerta na central
+        do lote quando a medição passa da janela. É alerta e não bloqueio — parar a produção por um
+        controle atrasado pararia a fábrica por causa de uma medição, e quem opera passaria a burlar a
+        regra.
+
+
+        As outras três continuam declaradas e não fiscalizadas, com motivo: `PER_BATCH` só está atrasada
+        quando o lote acaba sem a medição, e não há instante durante o lote em que ela esteja; `PER_SHIFT`
+        exigiria um calendário de turnos que a plataforma não tem, e inventá-lo produziria atraso onde a
+        cervejaria não vê nenhum; `PER_PACKAGING_RUN` se refere à corrida de envase, não ao lote em
+        produção.
+
+
+        O aviso não se repete enquanto ninguém mede — a janela perdida é a mesma, e repetir esvaziaria a
+        central. Depois de medir, atrasar outra vez é fato novo e avisa de novo.
     CreateControlPlan:
       type: object
       required: [code, name, stage]
@@ -8065,6 +8312,27 @@ components:
         targetColorEbc: {type: number}
         targetAbv: {type: number}
         boilTimeMinutes: {type: integer}
+        transferLossPercent:
+          type: number
+          minimum: 0
+          exclusiveMaximum: 100
+          nullable: true
+          description: >-
+            Quanto esta cerveja admite perder na transferência ao fermentador, em % do volume planejado
+            (CST-002-A). **Percentual e não litros**: perda de trub e absorção de lúpulo escalam com o
+            tamanho da brassa, e um valor absoluto ficaria errado — em silêncio — no dia em que a
+            cervejaria dobrasse o lote.
+
+
+            Nulo é legítimo: quem ainda não mediu a própria perda não tem esperado, e a variação
+            (CST-002) volta a mostrar a perda como fato, sem desvio. Assumir zero faria toda perda parecer
+            desvio.
+        packagingLossPercent:
+          type: number
+          minimum: 0
+          exclusiveMaximum: 100
+          nullable: true
+          description: Mesma ideia, para a perda de linha no envase.
         items:
           type: array
           minItems: 1
@@ -8678,9 +8946,15 @@ components:
       required: [kind, value, unit, source]
       properties:
         stepId: {type: string, format: uuid, description: "Etapa do roteiro (opcional; se informada, deve ser do lote)"}
-        kind: {type: string, enum: [DENSITY, TEMPERATURE, VOLUME, PH, COLOR, IBU]}
+        kind:
+          type: string
+          enum: [DENSITY, TEMPERATURE, VOLUME, PH, COLOR, IBU, ABV]
+          description: >-
+            `ABV` é a exceção da regra "medição exige lote em andamento" (PKG-004-B): mede-se álcool na
+            cerveja **pronta**, depois de fermentar. As demais são medições de brassa, e acrescentá-las a
+            um lote encerrado descreveria um dia que já acabou
         value: {type: number}
-        unit: {type: string, description: "Unidade compatível com a grandeza (ex.: SG/PLATO, C/F, L/ML, PH, EBC/SRM, IBU)"}
+        unit: {type: string, description: "Unidade compatível com a grandeza (ex.: SG/PLATO, C/F, L/ML, PH, EBC/SRM, IBU, %ABV)"}
         temperatureC: {type: number}
         method: {type: string, maxLength: 120}
         source: {type: string, enum: [MANUAL, DEVICE, IMPORTED]}
@@ -8949,7 +9223,20 @@ components:
         beerVolumeLiters: {type: number, description: "Volume planejado do envase, vindo do plano"}
         primingSugar: {type: string, nullable: true}
         primingSugarGrams: {type: number, nullable: true}
-        pressureBar: {type: number, nullable: true}
+        pressureBar: {type: number, nullable: true, description: "Pressão aplicada; nula no priming"}
+        equilibriumPressureBar:
+          type: number
+          description: >-
+            A pressão que a embalagem vai ver quando o CO₂ equilibrar, na temperatura de referência.
+            Vale para os DOIS métodos — a física não pergunta se o gás veio de açúcar ou de cilindro
+            (PKG-002-A)
+        containerMaxPressureBar:
+          type: number
+          nullable: true
+          description: >-
+            Limite da embalagem, do catálogo. Nulo quando não cadastrado, e nesse caso um alerta diz que
+            o alvo **não foi conferido contra limite nenhum** — melhor do que deixar quem opera supor
+            que foi
         calculationMethod: {type: string, description: "Fórmula aplicada, legível"}
         calculatorVersion: {type: string}
         assumptions: {type: array, items: {type: string}}
@@ -9450,6 +9737,15 @@ components:
         units: {type: integer}
         shippedOn: {type: string, format: date}
         note: {type: string, nullable: true}
+        reversedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Preenchido quando a expedição foi estornada (FDS-003-A). Ela continua na listagem, marcada:
+            sumir da tela seria indistinguível de nunca ter existido, e o histórico precisa mostrar que
+            alguém registrou errado e corrigiu. Estornada não conta no escopo de um recall
+        reversalReason: {type: string, nullable: true}
     Recall:
       type: object
       properties:

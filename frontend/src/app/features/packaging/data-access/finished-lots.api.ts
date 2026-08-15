@@ -18,4 +18,9 @@ export class FinishedLotsApi {
   ship(request: RecordShipmentRequest): Observable<Shipment> {
     return this.http.post<Shipment>('/api/v1/packaging/shipments', request);
   }
+
+  /** Estorna a expedição registrada errada (FDS-003-A). A linha permanece, marcada. */
+  reverseShipment(shipmentId: string, reason: string): Observable<Shipment> {
+    return this.http.post<Shipment>(`/api/v1/packaging/shipments/${shipmentId}/reversal`, { reason });
+  }
 }

@@ -18,8 +18,11 @@ import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Set;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -41,6 +44,17 @@ class LabelIT {
     @Container
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18");
+
+    /**
+     * Janela do envase ancorada em AGORA, e não numa data fixa.
+     *
+     * <p>A linha limpa exige liberação <strong>anterior</strong> ao início planejado
+     * ({@code LineCleanliness}). Com data fixa, o dia em que ela passa inverte a ordem e todo envase
+     * destes testes passa a ser recusado com {@code line_not_clean} — uma falha datada, que aparece sem
+     * ninguém ter mexido em nada.
+     */
+    private static final String PLANNED_START = Instant.now().plus(Duration.ofHours(1)).toString();
+    private static final String PLANNED_END = Instant.now().plus(Duration.ofHours(7)).toString();
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String PLANS = "/api/v1/packaging/plans";
@@ -365,9 +379,54 @@ class LabelIT {
                         + "\"purgeVerified\":true,\"sealCheckMethod\":\"recravação\",\"sealCheckPassed\":true}"));
     }
 
+    @Test
+    @DisplayName("O ABV MEDIDO VENCE O CALCULADO, e a origem diz qual foi usado")
+    void abvMedidoVenceOCalculado() throws Exception {
+        // PKG-004-B. O calculado vem das métricas da receita e é honesto ao dizer que é conta; o medido
+        // em laboratório é outro tipo de afirmação, e é ele que a legislação cobra no rótulo.
+        var session = login();
+        // Os campos da regra entram no template: outro teste desta classe grava uma regra obrigando
+        // BEER_NAME, BATCH_CODE e VOLUME_ML, e o preview recusa template que não a atende.
+        var template = saveTemplate(session, "BEER_NAME", "BATCH_CODE", "VOLUME_ML", "ABV");
+        var planId = executedPlan(session);
+
+        // Sem medição, o rótulo diz de onde tirou a conta.
+        mockMvc.perform(get(PLANS + "/" + planId + "/label/preview").session(session)
+                        .param("templateId", template))
+                .andExpect(jsonPath("$.lines[?(@.field=='ABV')].source",
+                        hasItem(containsString("calculado, não medido"))));
+
+        medirAbv(session, lastBatchId, "5.4");
+
+        mockMvc.perform(get(PLANS + "/" + planId + "/label/preview").session(session)
+                        .param("templateId", template))
+                .andExpect(jsonPath("$.lines[?(@.field=='ABV')].value", hasItem("5.4")))
+                .andExpect(jsonPath("$.lines[?(@.field=='ABV')].source", hasItem(containsString("medido"))));
+
+        // Uma remedição corrige a anterior, e é a correção que vai para a lata impressa: ABV se mede uma
+        // vez, e quando se mede de novo é porque a primeira estava errada.
+        medirAbv(session, lastBatchId, "5.1");
+
+        mockMvc.perform(get(PLANS + "/" + planId + "/label/preview").session(session)
+                        .param("templateId", template))
+                .andExpect(jsonPath("$.lines[?(@.field=='ABV')].value", hasItem("5.1")));
+    }
+
+    private void medirAbv(MockHttpSession session, String batchId, String valor) throws Exception {
+        mockMvc.perform(post("/api/v1/production/batches/" + batchId + "/measurements").session(session)
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"kind\":\"ABV\",\"value\":" + valor + ",\"unit\":\"%ABV\","
+                                + "\"source\":\"MANUAL\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    /** O lote do último plano montado — para medir ABV nele (PKG-004-B). */
+    private String lastBatchId;
+
     /** Plano com envase executado: é dele que o rótulo tira lote, volume e validade. */
     private String executedPlan(MockHttpSession session) throws Exception {
         var batchId = fermentingBatch(session);
+        this.lastBatchId = batchId;
         var containerId = createIngredient(session, "PACKAGING", "UNIT",
                 "{\"volumeMl\":\"355\",\"material\":\"lata\"}");
         receiveContainers(session, containerId, 1000);
@@ -377,8 +436,8 @@ class LabelIT {
         var sfx = UUID.randomUUID().toString().substring(0, 8);
         var content = """
                 {"code":"ENV-%s","batchId":"%s","containerId":"%s","plannedUnits":800,"lineEquipmentId":"%s",
-                 "plannedStart":"2026-08-20T09:00:00Z","plannedEnd":"2026-08-20T15:00:00Z"}
-                """.formatted(sfx, batchId, containerId, lineId);
+                 "plannedStart":"%s","plannedEnd":"%s"}
+                """.formatted(sfx, batchId, containerId, lineId, PLANNED_START, PLANNED_END);
         var body = mockMvc.perform(post(PLANS).session(session).with(csrf()).contentType("application/json")
                         .content(content))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();

@@ -24,13 +24,15 @@ public final class Recipe {
     private BigDecimal batchVolumeLiters;
     private RecipeTargets targets;
     private Integer boilTimeMinutes;
+    private ExpectedLosses expectedLosses;
     private final List<RecipeItem> items;
     private final long version;
     private final UUID previousRecipeId;
 
     private Recipe(RecipeId id, UUID breweryId, RecipeName name, RecipeStatus status, UUID equipmentId,
             BigDecimal batchVolumeLiters, RecipeTargets targets, Integer boilTimeMinutes,
-            List<RecipeItem> items, long version, UUID previousRecipeId) {
+            ExpectedLosses expectedLosses, List<RecipeItem> items, long version, UUID previousRecipeId) {
+        this.expectedLosses = expectedLosses == null ? ExpectedLosses.none() : expectedLosses;
         this.id = Objects.requireNonNull(id);
         this.breweryId = Objects.requireNonNull(breweryId);
         this.name = Objects.requireNonNull(name);
@@ -48,7 +50,8 @@ public final class Recipe {
      * @param capacityLiters capacidade do equipamento referenciado (consulta publicada)
      */
     public static Recipe draft(UUID breweryId, String name, UUID equipmentId, BigDecimal batchVolumeLiters,
-            BigDecimal capacityLiters, RecipeTargets targets, Integer boilTimeMinutes, List<RecipeItem> items) {
+            BigDecimal capacityLiters, RecipeTargets targets, Integer boilTimeMinutes,
+            ExpectedLosses expectedLosses, List<RecipeItem> items) {
         if (items == null || items.isEmpty()) {
             throw new IllegalArgumentException("receita precisa de ao menos um item");
         }
@@ -58,14 +61,20 @@ public final class Recipe {
         }
         validateMashPercentages(items);
         return new Recipe(RecipeId.newId(), breweryId, new RecipeName(name), RecipeStatus.DRAFT, equipmentId,
-                batchVolumeLiters, targets == null ? RecipeTargets.none() : targets, boilTimeMinutes, items, 1, null);
+                batchVolumeLiters, targets == null ? RecipeTargets.none() : targets, boilTimeMinutes,
+                expectedLosses, items, 1, null);
     }
 
     public static Recipe reconstitute(RecipeId id, UUID breweryId, RecipeName name, RecipeStatus status,
             UUID equipmentId, BigDecimal batchVolumeLiters, RecipeTargets targets, Integer boilTimeMinutes,
-            List<RecipeItem> items, long version, UUID previousRecipeId) {
+            ExpectedLosses expectedLosses, List<RecipeItem> items, long version, UUID previousRecipeId) {
         return new Recipe(id, breweryId, name, status, equipmentId, batchVolumeLiters, targets, boilTimeMinutes,
-                items, version, previousRecipeId);
+                expectedLosses, items, version, previousRecipeId);
+    }
+
+    /** Quanto esta cerveja admite perder por etapa (CST-002-A); vazio quando ninguém mediu ainda. */
+    public ExpectedLosses expectedLosses() {
+        return expectedLosses;
     }
 
     /** Congela a fórmula: rascunho → publicada. Publicada é imutável. */
@@ -79,7 +88,7 @@ public final class Recipe {
     /** Cria uma cópia independente (novo rascunho, versão 1, sem vínculo) com outro nome. */
     public Recipe cloneAs(RecipeName newName) {
         return new Recipe(RecipeId.newId(), breweryId, newName, RecipeStatus.DRAFT, equipmentId,
-                batchVolumeLiters, targets, boilTimeMinutes, items, 1, null);
+                batchVolumeLiters, targets, boilTimeMinutes, expectedLosses, items, 1, null);
     }
 
     /**
@@ -100,8 +109,9 @@ public final class Recipe {
                         i.quantity().multiply(factor).setScale(4, RoundingMode.HALF_UP), i.unit(),
                         i.timingMinutes(), i.percentage()))
                 .toList();
+        // A perda esperada acompanha a receita escalada: ela é percentual, então vale igual no volume novo.
         return new Recipe(RecipeId.newId(), breweryId, newName, RecipeStatus.DRAFT, equipmentId, newVolumeLiters,
-                targets, boilTimeMinutes, scaledItems, 1, null);
+                targets, boilTimeMinutes, expectedLosses, scaledItems, 1, null);
     }
 
     /** Gera uma nova versão editável (rascunho) a partir de uma publicada, preservando o snapshot. */
@@ -110,7 +120,7 @@ public final class Recipe {
             throw new IllegalStateException("apenas versão publicada gera nova versão");
         }
         return new Recipe(RecipeId.newId(), breweryId, name, RecipeStatus.DRAFT, equipmentId, batchVolumeLiters,
-                targets, boilTimeMinutes, items, version + 1, id.value());
+                targets, boilTimeMinutes, expectedLosses, items, version + 1, id.value());
     }
 
     private static void validateMashPercentages(List<RecipeItem> items) {

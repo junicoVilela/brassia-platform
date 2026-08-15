@@ -30,6 +30,19 @@ class JdbcRecipeLookupAdapter implements RecipeLookup {
     }
 
     @Override
+    public Optional<ExpectedLoss> expectedLoss(UUID breweryId, UUID recipeId) {
+        // Sem filtro de status: o lote guarda a versão publicada que usou, e é contra ela que a perda é
+        // comparada. Exigir PUBLISHED aqui perderia a comparação de um lote cuja receita já gerou versão
+        // nova — que é o caso normal de uma cervejaria que ajusta a fórmula.
+        return jdbc.sql("SELECT transfer_loss_percent, packaging_loss_percent FROM recipe "
+                        + "WHERE brewery_id = :brewery AND id = :id")
+                .param("brewery", breweryId).param("id", recipeId)
+                .query((rs, n) -> new ExpectedLoss(rs.getBigDecimal("transfer_loss_percent"),
+                        rs.getBigDecimal("packaging_loss_percent")))
+                .optional();
+    }
+
+    @Override
     public Optional<PublishedComposition> findPublishedComposition(UUID breweryId, UUID recipeId) {
         var header = jdbc.sql("""
                 SELECT id, version, batch_volume_liters FROM recipe

@@ -24,6 +24,17 @@ public interface RecipeLookup {
 
     record PublishedRecipe(UUID id, int version, String name) {}
 
+    /**
+     * Quanto a receita admite perder por etapa (CST-002-A), em percentual.
+     *
+     * <p>Publicada para o custeio comparar a perda real com a esperada. Vazio quando a cervejaria ainda
+     * não mediu a própria perda — e aí a variação volta a mostrar a perda como fato, sem desvio.
+     */
+    java.util.Optional<ExpectedLoss> expectedLoss(UUID breweryId, UUID recipeId);
+
+    /** Percentuais; cada um pode ser nulo por si — quem mediu a transferência pode não ter medido o envase. */
+    record ExpectedLoss(BigDecimal transferPercent, BigDecimal packagingPercent) {}
+
     record PublishedComposition(UUID id, int version, BigDecimal batchVolumeLiters, List<CompositionItem> items) {}
 
     record CompositionItem(UUID ingredientId, String stage, BigDecimal quantity, String unit) {}

@@ -18,6 +18,15 @@ export class CostingApi {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = '/api/v1/costing';
 
+  /** A taxa da hora; `costPerHour` nulo quando a casa nunca a definiu (CST-001-A). */
+  laborRate(): Observable<{ costPerHour: number | null }> {
+    return this.http.get<{ costPerHour: number | null }>(`${this.baseUrl}/labor-rate`);
+  }
+
+  saveLaborRate(costPerHour: number): Observable<{ costPerHour: number | null }> {
+    return this.http.put<{ costPerHour: number | null }>(`${this.baseUrl}/labor-rate`, { costPerHour });
+  }
+
   closed(): Observable<BatchCost[]> {
     return this.http.get<BatchCost[]>(`${this.baseUrl}/batch-costs`);
   }

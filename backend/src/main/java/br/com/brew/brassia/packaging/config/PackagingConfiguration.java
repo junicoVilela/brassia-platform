@@ -33,12 +33,14 @@ import br.com.brew.brassia.packaging.application.service.PackagingPlanHandlers;
 import br.com.brew.brassia.packaging.application.service.PlanPackagingHandler;
 import br.com.brew.brassia.packaging.application.service.ReservePackagingPlanHandler;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.production.BatchMeasurementLookup;
 import br.com.brew.brassia.recipe.RecipeLookup;
 import br.com.brew.brassia.sanitation.CleaningPolicyLookup;
 import br.com.brew.brassia.sanitation.CleaningReleaseLookup;
 import br.com.brew.brassia.packaging.application.port.inbound.ShipmentUseCases;
 import br.com.brew.brassia.packaging.application.port.outbound.ShipmentRepository;
 import br.com.brew.brassia.packaging.application.service.RecordShipmentHandler;
+import br.com.brew.brassia.packaging.application.service.ReverseShipmentHandler;
 import br.com.brew.brassia.packaging.application.service.ShipmentQueriesHandler;
 import br.com.brew.brassia.traceability.QuarantineCheck;
 import java.util.Objects;
@@ -126,6 +128,15 @@ class PackagingConfiguration {
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }
 
+    /** Estorno da expedição registrada errada (FDS-003-A). */
+    @Bean
+    ShipmentUseCases.Reverse reverseShipmentUseCase(ShipmentRepository shipments, AuditTrail audit,
+            PlatformTransactionManager transactionManager) {
+        var handler = new ReverseShipmentHandler(shipments, audit);
+        var transaction = new TransactionTemplate(transactionManager);
+        return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
+    }
+
     /** Consulta pura: expedição é fato registrado, não há estado a compor. */
     @Bean
     ShipmentUseCases.Queries shipmentQueries(ShipmentRepository shipments) {
@@ -145,15 +156,16 @@ class PackagingConfiguration {
     /** Prévia de carbonatação: calcula e explica, sem gravar nada. */
     @Bean
     CarbonationCommands.Preview previewCarbonationUseCase(PackagingPlanRepository plans,
-            CalculatorEngine calculator) {
-        return new CarbonationHandlers.Preview(plans, calculator);
+            CalculatorEngine calculator, IngredientSpecLookup ingredients) {
+        return new CarbonationHandlers.Preview(plans, calculator, ingredients);
     }
 
     @Bean
     CarbonationCommands.Record recordCarbonationUseCase(PackagingPlanRepository plans,
-            CarbonationRepository carbonations, CalculatorEngine calculator, AuditTrail audit,
+            CarbonationRepository carbonations, CalculatorEngine calculator,
+            IngredientSpecLookup ingredients, AuditTrail audit,
             PlatformTransactionManager transactionManager) {
-        var handler = new CarbonationHandlers.Record(plans, carbonations, calculator, audit);
+        var handler = new CarbonationHandlers.Record(plans, carbonations, calculator, ingredients, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> transaction.executeWithoutResult(status -> handler.handle(command));
     }
@@ -210,17 +222,18 @@ class PackagingConfiguration {
     @Bean
     LabelCommands.Preview previewLabelUseCase(LabelRepository labels, PackagingPlanRepository plans,
             FreshnessRepository freshness, BatchLookup batches, RecipeLookup recipes,
-            AllergenProfileLookup allergenProfiles) {
-        return new LabelHandlers.Preview(labels, plans, freshness, batches, recipes, allergenProfiles);
+            AllergenProfileLookup allergenProfiles, BatchMeasurementLookup measurements) {
+        return new LabelHandlers.Preview(labels, plans, freshness, batches, recipes, allergenProfiles,
+                measurements);
     }
 
     @Bean
     LabelCommands.Print printLabelUseCase(LabelRepository labels, PackagingPlanRepository plans,
             FreshnessRepository freshness, BatchLookup batches, RecipeLookup recipes,
-            AllergenProfileLookup allergenProfiles, AuditTrail audit,
+            AllergenProfileLookup allergenProfiles, BatchMeasurementLookup measurements, AuditTrail audit,
             PlatformTransactionManager transactionManager) {
         var handler = new LabelHandlers.Print(labels, plans, freshness, batches, recipes, allergenProfiles,
-                audit);
+                measurements, audit);
         var transaction = new TransactionTemplate(transactionManager);
         return command -> Objects.requireNonNull(transaction.execute(status -> handler.handle(command)));
     }

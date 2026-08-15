@@ -163,6 +163,353 @@ senão o painel fica cego exatamente durante o deploy.
 **O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
 honesto — significa que nenhum ensaio foi feito. **Preenchida em 2026-08-10 — ver DEC-REL-009.**
 
+### DEC-RPT-001 (RPT-001-A) — Marca é acabamento, e esperá-la custava o documento inteiro
+
+Decisão do mantenedor em 2026-08-15: PDF com layout simples, **sem identidade visual**. O critério de
+remoção pedia "a casa decidir o layout do documento impresso e existir decisão sobre marca e assinatura"
+— e foi exatamente essa espera que manteve o débito aberto por três sprints, com a cervejaria sem nada
+para mandar a um auditor. Quando houver marca, ela entra sobre um documento que já funciona.
+
+**O JSON continua sendo o padrão, e o formato é negociado pelo `Accept`.** Quem já integra com a
+exportação recebe o mesmo corpo de antes: trocar o padrão quebraria integração por causa de acabamento. A
+auditoria passou a registrar qual formato saiu — "exportou o relatório" e "levou o PDF para uma auditoria"
+são a mesma permissão e histórias diferentes.
+
+**As lacunas vão no topo do papel**, logo abaixo do cabeçalho. É a mesma regra da tela, e num documento
+impresso ela pesa mais: o rodapé é onde a informação morre, e quem imprime precisa ver o que o relatório
+*não* prova antes de mandá-lo a um cliente que vai lê-lo como se provasse tudo.
+
+**PDFBox, e a licença foi critério.** Apache 2.0, sem dependência de servidor gráfico. A licença importa
+aqui mais que o de costume porque o artefato gerado sai da plataforma para as mãos de terceiros.
+
+**Fontes padrão do PDF.** Helvetica é uma das 14 que todo leitor tem: embutir fonte própria pesaria o
+arquivo e exigiria licença de distribuição, para um documento que a cervejaria manda por e-mail.
+
+**Dois detalhes que só aparecem gerando:**
+
+- O escritor **vira a página sozinho**. Sem isso, um lote com muitas lacunas escreveria fora do papel — o
+  PDFBox não recusa, ele desenha o texto onde ninguém vai ler.
+- Caractere fora do WinAnsi **derruba a geração inteira** com exceção. Perder o relatório por causa de um
+  símbolo num texto de lacuna seria perder o documento por causa do acabamento; ele vira interrogação e o
+  resto se preserva.
+
+**O teste abre o PDF.** Responder 200 com bytes não prova nada: um arquivo corrompido passa por qualquer
+asserção de tamanho e falha na mão de quem for lê-lo. O `BatchReportIT` carrega o documento, extrai o
+texto e confere que as seções e as lacunas estão lá.
+
+### DEC-CST-002 (CST-002-A) — A perda esperada é da receita, e o esperado incide sobre o planejado
+
+Decisão do mantenedor em 2026-08-14: perda esperada por etapa na receita — e **não** no equipamento ou na
+política de envase, como o critério de remoção sugeria.
+
+**A razão é física.** A perda característica é da cerveja tanto quanto do tanque: uma IPA muito lupulada
+deixa mais líquido preso no trub que uma lager no mesmo fermentador. O dead space do equipamento já é
+conhecido em outro lugar; o que faltava era o que *esta* cerveja perde. E a receita já carrega eficiência
+de mostura e volumes — perda esperada é o mesmo tipo de dado.
+
+**Versiona de graça.** Cada versão de receita é uma linha (V28), então a perda esperada acompanha a versão
+publicada, e um lote é comparado contra o número que valia quando ele foi feito — não contra o que alguém
+ajustou depois.
+
+**Percentual, e não litros.** Perda de trub e absorção de lúpulo escalam com o tamanho da brassa. Um valor
+absoluto ficaria errado no dia em que a cervejaria dobrasse o lote, e ficaria errado **em silêncio**.
+
+**O esperado incide sobre o volume PLANEJADO da etapa**, e essa é a decisão que evita um erro sutil:
+calculá-lo sobre o realizado faria o esperado seguir o desvio. Um lote que rendeu menos "esperaria" perder
+menos, e o desvio sumiria por construção — a comparação passaria a se auto-justificar.
+
+**O raciocínio original continua valendo para quem não cadastrou.** Sem percentual, a perda segue entrando
+como fato, sem desvio: assumir esperado zero faria toda perda parecer desvio, e acusaria a fábrica com um
+critério que ela nunca definiu. O que mudou na lacuna é o texto — ela deixou de citar o identificador do
+débito e passou a dizer o que fazer.
+
+**Zero não é nulo, e a tela respeita isso.** Uma cervejaria que não perde nada numa etapa tem esperado
+zero, que é diferente de não ter medido. No formulário, `?? null` em vez de `|| null` — com `||`, um
+esperado de 0% viraria "não mediu".
+
+### DEC-CST-001 (CST-001-A) — A hora é da produção, o dinheiro é do custeio
+
+Decisão do mantenedor em 2026-08-14: apontamento de hora no dia de brassa, com custo/hora vindo de
+parâmetro. As duas metades do critério de remoção estão implementadas — o apontamento e o contribuinte.
+
+**A separação é a decisão central.** `production_labor_entry` guarda quem trabalhou, quando e por quanto
+tempo; `costing_labor_rate` guarda quanto a hora vale. Não é preciosismo de camada: é o que permite
+ajustar a taxa sem reescrever apontamento, e o que evita que quem registra seis horas de brassa precise
+conhecer moeda para fazê-lo. Por isso o contribuinte mora no **custeio**, e não na produção: a parcela é
+`hora × taxa`, e a taxa é dele.
+
+**Horas-homem, não horas.** Duas pessoas por três horas custam seis. Guardar "3 h" perderia exatamente a
+metade que a cervejaria paga.
+
+**Uma taxa por cervejaria, não uma por pessoa.** Custo de mão de obra por lote é custo médio da hora
+produtiva — salário, encargos e ociosidade diluídos. Uma taxa por pessoa faria o mesmo lote sair mais caro
+na semana em que o cervejeiro sênior trabalhou, o que descreve a escala e não o produto. Se um dia for
+necessário, entra como taxa por atividade, que é a divisão que a cervejaria enxerga.
+
+**Duas ausências diferentes, e a lacuna agora distingue.** Antes havia uma frase genérica no montador:
+"não há hora trabalhada registrada na plataforma". Ela saiu de lá — a mão de obra passou a ter dono, e
+quem declara a lacuna é o contribuinte, que sabe separar "sem taxa cadastrada" (defina a taxa) de
+"ninguém apontou hora neste lote" (aponte as horas). São ações diferentes, e uma frase só as achatava.
+
+**A atividade é texto, não enum.** A divisão de trabalho de uma cervejaria de três pessoas não é a de uma
+de trinta, e um enum imporia a de quem escreveu o código.
+
+**Lote cancelado não recebe apontamento; encerrado recebe.** Limpeza e fechamento acontecem depois de o
+lote acabar, e recusar apontamento aí obrigaria a apontar antes de trabalhar.
+
+**Continua faltando o `CST-001-B`** (utilidade por lote), e a lacuna estrutural do montador agora existe
+só para ela.
+
+### DEC-QLT-001 (QLT-001-A) — O bloqueio estava desatualizado, e só uma das quatro cadências é julgável
+
+Decisão do mantenedor em 2026-08-14: **alerta, não bloqueio**. Parar a produção por um controle atrasado
+pararia a fábrica por causa de uma medição, e quem opera passaria a burlar a regra em vez de cumpri-la. O
+aviso entra na central do lote, onde o desvio grave (QLT-001) e a etapa atrasada (FER-004) já aparecem —
+uma segunda central seria um segundo lugar para ninguém olhar.
+
+**O débito estava aberto por leitura antiga.** O critério pedia "existir agendador na plataforma", e ele
+existe desde a Sprint 13. Vale como lembrete: débito descreve o mundo do dia em que foi escrito, e é a
+terceira vez nesta leva que reler o código encurtou o trabalho.
+
+**Só uma das quatro cadências é julgável por relógio, e isso ficou no tipo.** `PER_HOURS` é cobrada;
+`PER_BATCH` só está atrasada quando o lote acaba sem a medição — não há instante *durante* o lote em que
+ela esteja; `PER_SHIFT` exigiria um calendário de turnos que a plataforma não tem, e inventá-lo (8 h a
+partir da meia-noite?) produziria atraso onde a cervejaria não vê atraso nenhum; `PER_PACKAGING_RUN` se
+refere à corrida de envase, não ao lote em produção. As três continuam declaradas e não fiscalizadas — a
+diferença é que agora isso está dito, com o porquê, e há teste afirmando que elas não alertam.
+
+**Uma consulta publicada nova.** As consultas de produção respondiam por *um* lote de cada vez, o que
+serve a quem já tem o identificador e não a quem procura o que está atrasado. `OpenBatchLookup` lista os
+lotes abertos — e só os abertos: cadência não se cobra de lote encerrado, porque a medição que faltou já
+não pode ser feita e o aviso viraria ruído permanente.
+
+**O aviso não se repete, e a chave é a janela perdida.** Sem memória, a varredura de hora em hora
+avisaria de novo a cada hora sobre o mesmo atraso — central que repete 24 vezes por dia é central que
+ninguém lê. Enquanto ninguém mede, a janela perdida continua sendo a mesma, então o aviso é **um só**.
+Depois que alguém mede, a janela passa a contar dali: atrasar outra vez é fato novo e avisa de novo. Os
+dois casos têm teste, e o segundo só existe porque o primeiro teste que escrevi estava errado sobre a
+semântica — o código estava certo.
+
+**O ator é o sistema**, com identificador fixo: não há pessoa por trás de uma varredura, e emprestar o
+nome de alguém faria a trilha dizer que um humano avisou.
+
+### DEC-PKG-002 (PKG-004-B) — O medido vence o calculado, e ABV coube num tipo que já existia
+
+Decisão do mantenedor em 2026-08-14: manter o "calculado, não medido" e acrescentar ABV medido, que
+prevalece quando existe.
+
+**Diferente do critério de remoção, e de propósito.** Ele propunha recalcular o ABV de OG medido e FG
+estável. Isso produziria uma **terceira** estimativa — melhor que a da receita, ainda assim uma conta. O
+que a legislação cobra no rótulo é o valor medido, e uma cervejaria que mede em laboratório não tinha onde
+guardá-lo.
+
+**Coube num tipo que já existia.** ABV é grandeza medida do lote, como cor e amargor, que são
+`MeasurementKind` desde a V52. Entrando ali, herda quem pode registrar, o rastro de quem registrou, a
+carta de controle e a série histórica. Um campo próprio criaria um segundo caminho para registrar medição,
+com outra permissão, outra auditoria e outra tela, para a mesma coisa.
+
+**O que a implementação revelou:** a medição de lote exigia status `IN_PROGRESS` — e ABV se mede na cerveja
+**pronta**, depois de fermentar. A regra existe por bom motivo (acrescentar temperatura de mostura a um
+lote encerrado descreveria um dia que já acabou), então virou regra por grandeza em vez de cair: brassa
+exige lote em andamento, ABV não. Sem isso, a medição seria inexprimível justamente no momento em que ela
+existe.
+
+**Dois detalhes que só aparecem imprimindo:**
+
+- A unidade é `%ABV`, não `%`. Porcentagem de quê separa álcool por volume de álcool por massa, e as duas
+  circulam em rótulo pelo mundo. (A coluna `unit` é `VARCHAR(8)`, o que descartou `ABV_PERCENT` — e a
+  notação curta, que é a impressa no rótulo, acabou sendo a melhor das duas.)
+- O valor sai com `stripTrailingZeros`: a coluna guarda `5.4000` e a lata precisa dizer `5.4`.
+
+**A remedição vale.** Mede-se ABV uma vez, e quando se mede de novo é porque a primeira estava errada — o
+rótulo leva a última.
+
+### DEC-PKG-001 (PKG-002-A) — A pressão que importa é a de equilíbrio, e ela existia calculada do lado errado
+
+Decisão do mantenedor em 2026-08-11: cadastrar pressão máxima por embalagem e bloquear alvo acima dela.
+
+**O que a plataforma já sabia, e onde não usava.** A pressão de equilíbrio só era calculada para a
+carbonatação **forçada**, onde ela é o valor a aplicar no cilindro. Mas é a mesma conta para o priming: a
+física não pergunta se o CO₂ veio de açúcar ou de gás — dada uma quantidade de volumes numa temperatura, a
+pressão é aquela. Passou a ser calculada nos dois métodos, e é ela que se compara ao limite.
+
+**E o caso perigoso é justamente o priming.** Garrafa com açúcar demais é a bomba clássica; carbonatação
+forçada é limitada pelo regulador. O débito descrevia o sistema como bloqueando "o caso claro e deixando
+passar o perigoso", e era literal.
+
+**Recusa, não alerta.** Alerta é lido no dia em que a linha está atrasada, e a consequência de ignorá-lo é
+alguém se machucando. É o único caso desta leva de decisões em que a consequência é física, e por isso é o
+único que bloqueia em vez de avisar.
+
+**A temperatura viaja com a recusa.** A conta vale na temperatura informada, e estocagem mais quente sobe a
+pressão. Sem esse número na resposta, quem opera baixa o alvo até passar e guarda a caixa num galpão a
+40 °C. Quando o alvo passa, o alerta diz a pressão contra o limite pelo mesmo motivo.
+
+**Ausência declarada.** Sem `maxPressureBar` cadastrado, um alerta diz que **nada foi conferido** — é
+melhor que quem opera saiba que a checagem não aconteceu do que suponha que aconteceu. O débito volta a
+existir, na prática, para toda embalagem sem o dado; a diferença é que agora ele fala.
+
+### DEC-FDS-002 (FDS-004-A) — A porta ficou na direção contrária à do critério, e o teste mandou
+
+Decisão do mantenedor em 2026-08-11: a ação corretiva do simulado vira item de CAPA. O critério de
+remoção dizia "o CAPA publicar porta de abertura de ação" — e foi exatamente isso que **não** deu certo.
+
+**O ciclo que a primeira tentativa criou.** Publiquei `quality.CapaActionOpening` e chamei do
+encerramento do simulado. O `ModularityTest` recusou: `quality` depende de `production` desde a QLT-001
+(alerta de lote), `production` depende de `traceability` (implementa `LineageSource`), e a aresta nova
+fechou o ciclo. A solução foi inverter — `traceability.CorrectiveActionSink` declarada na rastreabilidade
+e implementada pela qualidade, exatamente como o `LineageSource` já fazia. Quem depende é quem implementa,
+e a rastreabilidade continua sem saber que CAPA existe.
+
+**Um efeito colateral necessário:** a checagem de existência do lote na abertura de NC (DEB-AIA-003, de
+horas antes) saiu do handler e virou **chave estrangeira**. Ela era a outra ponta da dependência
+`quality → production`. A troca melhora o que já estava lá: checagem prévia não é garantia — duas
+requisições simultâneas passariam as duas, e um lote cancelado entre a checagem e o INSERT deixaria a NC
+apontando para o nada.
+
+**O simulado não abre a NC sozinho.** Isso exigiria o sistema decidir a severidade, e o quanto uma
+cobertura de 75% é grave depende do produto e de quem audita. Quem encerra escolhe uma NC entre as que
+estão prontas para receber ação.
+
+**E não fura a ordem das fases do CAPA.** Descobri implementando: `planAction` recusa NC que ainda não foi
+investigada. Está certo — planejar solução antes de conhecer a causa é o que o CAPA existe para impedir —
+e o simulado se submete à regra em vez de contorná-la. A tela diz isso quando não há NC investigada, em
+vez de mostrar uma lista vazia sem explicação.
+
+**Texto e CAPA são excludentes**, garantido por `CHECK` e por teste: os dois juntos deixariam quem lê o
+relatório sem saber qual é a ação de verdade — a escrita no texto, sem dono nem prazo, ou a que tem os
+dois.
+
+**Por que o texto não bastava**, que é a razão do débito existir: "revisar contatos dos distribuidores"
+escrito no relatório de um simulado não tem dono, não tem prazo e não aparece em lista nenhuma. Seis meses
+depois, o próximo simulado encontra a mesma lacuna e o relatório anterior está lá dizendo o que fazer —
+que é a definição de um exercício que não melhora nada.
+
+### DEC-FDS-001 (FDS-003-A) — Estorno, e só estorno: o resto continua sendo comercial
+
+Decisão do mantenedor em 2026-08-11. O critério de remoção do débito apontava para as sprints 19/20
+definirem movimentação comercial — **e fechá-lo não precisou disso**. Das três lacunas registradas
+(devolução, cancelamento e transferência entre destinos), só uma é urgente e nenhuma parte dela é
+comercial: a expedição digitada errada.
+
+**Por que não podia esperar.** Um erro de digitação contamina o recall, que é onde o dado precisa estar
+certo. 200 unidades registradas para o distribuidor errado fazem o simulado medir cobertura sobre um
+destino que nunca recebeu nada, e fazem o saldo sem destino do lote mentir **para menos** — escondendo
+cerveja que ninguém sabe onde está. Devolução e transferência continuam fora: dependem de cliente e
+pedido, que é o que a Sprint 12 se recusou a inventar.
+
+**Estorno não apaga, e é o `AGENTS.md` que manda.** A linha permanece marcada. Apagar tornaria
+indistinguível "nunca houve expedição" de "houve e foi estornada" — e a segunda precisa ser demonstrável,
+inclusive para quem recebeu a comunicação de um recall baseado nela. Na tela ela aparece riscada, com o
+motivo ao lado.
+
+**O efeito no recall é consequência, não passo.** As consultas que o alimentam passaram a olhar só
+expedições vivas; nada é recalculado. Há teste de integração que monta o caso inteiro: com a expedição
+errada valendo, o escopo soma 160 unidades e dois destinos; estornada, volta a 120 e um destino — e a
+linha continua na listagem.
+
+**O motivo é obrigatório e o domínio recusa evasiva curta.** Sem conteúdo, o histórico mostraria uma
+expedição que deixou de valer sem dizer se foi digitação, destino trocado ou carga que não saiu — e as
+três exigem reações diferentes de quem investiga.
+
+**Alçada própria (`packaging.shipment.reverse`), não crítica.** Registrar é o trabalho do dia e muita
+gente faz; estornar desfaz um destino que pode já ter sido comunicado. Não é crítica de propósito:
+dificultar demais o estorno empurraria quem opera a conviver com o dado errado, que é o problema original.
+
+**Erro meu no caminho:** a migration reusou um id de permissão já existente (`...131`) e derrubou o
+contexto inteiro dos testes com violação de chave primária. O `ON CONFLICT (code)` não cobre isso — a
+chave primária é o id. Corrigido para o próximo livre da sequência.
+
+### DEC-AIA-001 (DEB-AIA-003) — O copiloto abre NC, e um terço do débito já tinha caído sozinho
+
+Decisão do mantenedor em 2026-08-11: **a NC passa a referenciar lote, e os prazos vêm da severidade** pela
+política da casa. Registro completo em `sprints/sprint-14-ai-rag/STATUS.md`.
+
+**O achado que encurtou o trabalho.** O débito listava duas barreiras; a segunda — "os três prazos são
+`NOT NULL` e não vêm na proposta" — **já não existia**. A PRM-001 criou `quality_capa_policy` depois do
+débito ser escrito, e desde então a abertura já derivava os prazos da severidade. Débito antigo descreve o
+mundo do dia em que foi escrito, e vale reler o código antes de aceitar o diagnóstico.
+
+**O que não entrou na porta publicada é o registro que importa.** `NonConformityOpening` não recebe prazo,
+nem código, nem status: prazo sai da política, código é numerado pelo sistema (`NC-AAAA-NNNN`, por ano,
+porque é assim que se cita NC em auditoria), e NC nasce aberta. Qualquer um dos três entrando por ali
+deixaria um chamador — inclusive a IA — decidir o que a cervejaria decidiu uma vez, na tela de parâmetros.
+
+**Sem política, o aceite falha, e há teste afirmando isso.** A proposta continua `PENDING` e nenhuma NC é
+criada. Um default de prazos embutido pareceria conveniência e viraria o prazo que ninguém escolheu.
+
+### DEC-CLN-001 (CLN-004-A) — O evento tinha oito sprints sem consumidor, e o consumidor virou porta
+
+Débito aberto na Sprint 08: `CleaningCycleReleased` era publicado e ninguém escutava. **A metade que
+faltava não era o listener — era o estado que ele atualizaria.** Sem estado, a plataforma afirmava
+condicionar o uso à sanitização e só cumpria isso no envase, que consultava a última liberação por conta
+própria. Um fermentador recebia cerveja logo depois de esvaziar o lote anterior sem ninguém perguntar nada.
+
+**A regra, em três movimentos:** usar suja o tanque; tanque sujo recusa a próxima cerveja (409
+`equipment_not_clean`); ciclo verificado e liberado limpa. Vale tanto para a transferência do dia de
+brassa quanto para o enchimento vindo de um blend — encher um tanque com cerveja é a mesma coisa, venha
+ela de onde vier.
+
+**Não existe "marcar limpo".** Existe "foi limpo por este ciclo", e o ciclo é obrigatório no contrato e no
+tipo. A diferença não é de nome: um método sem ciclo seria o caminho usado no dia de correria, e "limpo"
+passaria a significar "alguém clicou" em vez de "há evidência de sanitização, com concentração,
+temperatura e ATP medidos". Um teste afirma que concluir o ciclo não limpa — só liberar limpa, porque
+concluir é ter feito, e liberar é ter conferido que funcionou.
+
+**O listener virou porta, e o `ModularityTest` foi quem mandou.** A primeira implementação foi um
+`@TransactionalEventListener` em `equipment`, exatamente como o débito previa em 2026 — e criou **ciclo
+entre módulos**: `sanitation` já dependia de `equipment` desde a CLN-003. Invertida a direção
+(`EquipmentCleanlinessCommands`, chamada pela liberação), a dependência ficou numa direção só. O ganho não
+foi só arquitetural: dentro da transação da liberação, deixou de existir a janela em que um ciclo aparece
+liberado com o tanque ainda sujo — e o estado deixou de depender de alguém ter registrado um listener.
+
+**Equipamento novo nasce limpo.** Exigir ciclo antes do primeiro uso obrigaria a registrar a limpeza de um
+tanque recém-chegado, e é assim que se ensina alguém a burlar a regra.
+
+**Sujar de novo não renova a data.** É a data antiga que denuncia o tanque parado sujo há três semanas —
+que é um problema pior que o tanque esvaziado hoje de manhã, e ficaria escondido atrás de um uso recente.
+Por isso a resposta do 409 traz `soiledSince`: sem ele, "tanque sujo" manda todo mundo fazer a mesma coisa
+em dois casos que pedem reações diferentes.
+
+**Limpeza não é perfil.** O estado mora na tabela de equipamento e tem repositório próprio: passar pelo
+`EquipmentRepository.update` geraria uma revisão de perfil a cada tanque esvaziado, enchendo o histórico
+de mudanças que não mudaram medida nenhuma. E a versão otimista do perfil não é tocada — limpar um tanque
+não pode fazer a edição de capacidade de outra pessoa falhar por conflito.
+
+**A listagem carrega o estado em bloco**, não item a item: é a lição da REL-002, onde o N+1 estava
+invisível porque morava no mapeador.
+
+### DEC-DEBT-001 — Quatro débitos fechados por decisão, sem código
+
+Em 2026-08-11 o mantenedor decidiu catorze débitos de uma vez. **Dez viram trabalho**; estes quatro
+fecham aqui, porque a resposta certa era decidir, não implementar. Débito sem decisão fica aberto para
+sempre e vai apodrecendo na lista até ninguém mais lembrar do que se tratava.
+
+**`FER-002` — as faixas de plausibilidade ficam como estão.** SG 0,980–1,180; −10 a 45 °C; 0–60 psi;
+pH 2,5–7,5, fixas no domínio. Cobrem qualquer cerveja com folga larga, e a pergunta que a sprint 09
+deixou em aberto ("estão certas para a operação real?") foi respondida: estão. Torná-las configuráveis
+seria dar a alguém a chance de afrouxar a checagem até ela não recusar nada — que é o mesmo que não ter
+checagem. Se um dia uma cervejaria precisar de faixa fora disso, vira história própria, com o caso
+concreto na mão.
+
+**`GAS-001-A` — custo e estoque do CO₂ ficam adiados, agora de propósito e por escrito.** Já tinham sido
+adiados na sprint 13 por falta de tempo; a diferença é que agora é decisão. O CO₂ é fração pequena do
+custo do litro e o modelo é caro de acertar — cilindro, comodato, retorno de vasilhame, perda por
+vazamento. Entra quando alguém olhar o custo do lote e reclamar da ausência dele; até lá, o `UTL-001`
+mede consumo, que é a metade que importa para quem opera.
+
+**`MTR-001-B` — não vai ser feito, e o débito fecha.** "Aprovado com restrição" não vai estreitar a faixa
+do instrumento automaticamente, porque a restrição é texto livre num certificado, e interpretá-la exigiria
+inventar semântica em cima do que um metrologista escreveu em português. Um sistema que adivinha a
+restrição errada é pior que um que não adivinha: ele produz uma faixa que parece conferida. O caminho
+correto continua sendo humano — quem lê o certificado bloqueia o instrumento ou registra a faixa nova à
+mão, e as duas ações já existem.
+
+**`RPT-003-A` — a plataforma registra a entrega e não envia, e continua assim.** Enviar exige SMTP
+configurado por cervejaria, tratamento de bounce, lista de destinatários e a conversa de LGPD que vem
+junto com mandar dado de produção para fora por e-mail. O relatório agendado que fica disponível na
+plataforma é honesto sobre o que faz. O débito fecha como decisão, não como pendência.
+
 ### DEC-REL-009 (REL-004) — O ensaio foi feito, e mediu o bloqueio em vez do tempo
 
 Ensaio executado contra PostgreSQL 18.4 local isolado, baseline em `V97`, dataset de 1,5 milhão de medições

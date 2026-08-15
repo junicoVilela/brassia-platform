@@ -15,7 +15,7 @@ public enum IngredientType {
     YEAST(Set.of("attenuation", "tempMinC", "tempMaxC")),
     SALT(Set.of("ion")),
     ADJUNCT(Set.of()),
-    PACKAGING(Set.of("volumeMl", "material"));
+    PACKAGING(Set.of("volumeMl", "material", "maxPressureBar"));
 
     private final Set<String> allowedAttributes;
 

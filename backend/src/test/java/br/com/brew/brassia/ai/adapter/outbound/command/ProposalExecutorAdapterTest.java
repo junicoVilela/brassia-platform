@@ -31,7 +31,9 @@ class ProposalExecutorAdapterTest {
 
     private final SpyCosts costs = new SpyCosts();
     private final SpyCycles cycles = new SpyCycles();
-    private final ProposalExecutorAdapter adapter = new ProposalExecutorAdapter(costs, cycles);
+    private final SpyNonConformities nonConformities = new SpyNonConformities();
+    private final ProposalExecutorAdapter adapter =
+            new ProposalExecutorAdapter(costs, cycles, nonConformities);
 
     @Test
     @DisplayName("fechar custo chama o custeio, com quem CONFIRMOU como ator")
@@ -73,16 +75,33 @@ class ProposalExecutorAdapterTest {
     }
 
     @Test
-    @DisplayName("abrir NÃO CONFORMIDADE não executa nada — e é decisão, não esquecimento")
-    void naoConformidadeNaoExecuta() {
-        // Executá-la exigiria inventar prazos de contenção, investigação e verificação, que são NOT NULL e
-        // não vêm na proposta. Inventar prazo de contenção de uma NC é inventar regra de negócio.
+    @DisplayName("ABRIR NÃO CONFORMIDADE PASSOU A EXECUTAR, com o lote e quem confirmou")
+    void naoConformidadeExecuta() {
+        // Continuava manual por duas barreiras, nenhuma de código: a NC não sabia dizer de que lote falava,
+        // e os prazos não tinham de onde vir. A primeira caiu com o vínculo (V112); a segunda tinha caído
+        // sozinha quando a PRM-001 criou a política de prazos por severidade.
         adapter.execute(proposta(ProposedAction.OPEN_NON_CONFORMITY,
                 Map.of("batchId", LOTE.toString(), "title", "FG fora da faixa", "severity", "MAJOR")),
                 QUEM_CONFIRMA);
 
+        assertThat(nonConformities.batchId).isEqualTo(LOTE);
+        assertThat(nonConformities.actorId).isEqualTo(QUEM_CONFIRMA);
+        assertThat(nonConformities.title).isEqualTo("FG fora da faixa");
+        assertThat(nonConformities.severity).isEqualTo("MAJOR");
         assertThat(costs.chamadas).isEmpty();
         assertThat(cycles.chamadas).isEmpty();
+    }
+
+    @Test
+    @DisplayName("A DESCRIÇÃO DIZ QUE VEIO DO COPILOTO, e carrega o porquê que ele deu")
+    void descricaoRegistraOrigem() {
+        // Meses depois, "quem abriu esta NC?" tem como resposta um copiloto. Se isso não estiver escrito
+        // na própria NC, o histórico mostra só o nome de quem confirmou — e some a metade da história.
+        adapter.execute(proposta(ProposedAction.OPEN_NON_CONFORMITY,
+                Map.of("batchId", LOTE.toString(), "title", "FG fora da faixa", "severity", "MAJOR")),
+                QUEM_CONFIRMA);
+
+        assertThat(nonConformities.origin).contains("copiloto");
     }
 
     @Test
@@ -90,7 +109,7 @@ class ProposalExecutorAdapterTest {
     void acaoDizSeExecuta() {
         assertThat(ProposedAction.CLOSE_BATCH_COST.executedOnConfirm()).isTrue();
         assertThat(ProposedAction.SCHEDULE_CLEANING_CYCLE.executedOnConfirm()).isTrue();
-        assertThat(ProposedAction.OPEN_NON_CONFORMITY.executedOnConfirm()).isFalse();
+        assertThat(ProposedAction.OPEN_NON_CONFORMITY.executedOnConfirm()).isTrue();
     }
 
     @Test
@@ -129,5 +148,28 @@ class ProposalExecutorAdapterTest {
         }
 
         record Inicio(UUID actorId, UUID breweryId, UUID equipmentId, String procedureCode) {}
+    }
+
+    /** Espião da abertura de NC (DEB-AIA-003). */
+    private static final class SpyNonConformities implements br.com.brew.brassia.quality.NonConformityOpening {
+
+        UUID breweryId;
+        UUID actorId;
+        UUID batchId;
+        String title;
+        String severity;
+        String origin;
+
+        @Override
+        public UUID openForBatch(UUID breweryId, UUID actorId, UUID batchId, String title, String severity,
+                String origin) {
+            this.breweryId = breweryId;
+            this.actorId = actorId;
+            this.batchId = batchId;
+            this.title = title;
+            this.severity = severity;
+            this.origin = origin;
+            return UUID.randomUUID();
+        }
     }
 }

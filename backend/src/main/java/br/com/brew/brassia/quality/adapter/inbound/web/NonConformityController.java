@@ -84,7 +84,7 @@ final class NonConformityController {
         var brewery = principal.requireBrewery();
         var id = open.handle(new NonConformityCommands.Open.Command(principal.userId(), brewery,
                 body.code(), body.title(), body.description(), body.source(), body.deviationId(),
-                body.severity(), body.containmentDueOn(), body.investigationDueOn(),
+                body.batchId(), body.severity(), body.containmentDueOn(), body.investigationDueOn(),
                 body.verificationDueOn()));
         return ResponseEntity.created(URI.create("/api/v1/quality/non-conformities/" + id))
                 .body(view(brewery, id));

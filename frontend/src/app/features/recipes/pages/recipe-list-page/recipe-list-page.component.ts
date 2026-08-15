@@ -56,6 +56,8 @@ export class RecipeListPageComponent implements OnInit {
     equipmentId: ['', Validators.required],
     batchVolumeLiters: [0, [Validators.required, Validators.min(0.001)]],
     boilTimeMinutes: this.fb.control<number | null>(60),
+    transferLossPercent: this.fb.control<number | null>(null),
+    packagingLossPercent: this.fb.control<number | null>(null),
     targetOgPoints: this.fb.control<number | null>(null),
     targetIbu: this.fb.control<number | null>(null),
     targetColorEbc: this.fb.control<number | null>(null),
@@ -209,6 +211,10 @@ export class RecipeListPageComponent implements OnInit {
       equipmentId: raw.equipmentId,
       batchVolumeLiters: raw.batchVolumeLiters,
       boilTimeMinutes: raw.boilTimeMinutes || null,
+      // `|| null` não serve aqui: 0% é perda esperada válida (uma cervejaria que não perde nada na
+      // transferência), e coagi-lo para nulo transformaria "esperado zero" em "não mediu".
+      transferLossPercent: raw.transferLossPercent ?? null,
+      packagingLossPercent: raw.packagingLossPercent ?? null,
       targetOgPoints: raw.targetOgPoints,
       targetIbu: raw.targetIbu,
       targetColorEbc: raw.targetColorEbc,
@@ -221,6 +227,8 @@ export class RecipeListPageComponent implements OnInit {
         equipmentId: '',
         batchVolumeLiters: 0,
         boilTimeMinutes: 60,
+        transferLossPercent: null,
+        packagingLossPercent: null,
         targetOgPoints: null,
         targetIbu: null,
         targetColorEbc: null,

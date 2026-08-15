@@ -32,6 +32,8 @@ function shipment(over: Partial<Shipment> = {}): Shipment {
     units: 120,
     shippedOn: '2026-08-21',
     note: null,
+    reversedAt: null,
+    reversalReason: null,
     ...over,
   };
 }

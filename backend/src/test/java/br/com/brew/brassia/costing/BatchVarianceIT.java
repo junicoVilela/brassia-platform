@@ -148,7 +148,10 @@ class BatchVarianceIT {
                 .andExpect(jsonPath("$.volumes[?(@.kind=='YIELD')].variance", hasItem(-10.0)))
                 .andExpect(jsonPath("$.volumes[?(@.kind=='YIELD')].unfavorable", hasItem(true)))
                 .andExpect(jsonPath("$.volumes[?(@.kind=='LOSS')].comparable", hasItem(false)))
-                .andExpect(jsonPath("$.gaps[*].reason", hasItem(containsString("CST-002-A"))));
+                // A lacuna agora diz o que fazer em vez do identificador do débito: a receita deste lote
+                // não define perda esperada, e o texto manda cadastrá-la (CST-002-A fechado).
+                .andExpect(jsonPath("$.gaps[*].reason",
+                        hasItem(containsString("não define perda esperada"))));
     }
 
     @Test

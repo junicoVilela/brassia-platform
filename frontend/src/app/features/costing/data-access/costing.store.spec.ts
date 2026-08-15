@@ -50,6 +50,9 @@ function setup(api: Partial<CostingApi> = {}): CostingStore {
           batches: () => of(BATCHES),
           ofBatch: () => of(cost()),
           close: () => of(cost({ closed: true, closedAt: '2026-08-06T10:00:00Z' })),
+          // A taxa da hora é lida junto com os custos (CST-001-A); nula é o estado de quem nunca a definiu.
+          laborRate: () => of({ costPerHour: null }),
+          saveLaborRate: () => of({ costPerHour: 50 }),
           ...api,
         },
       },

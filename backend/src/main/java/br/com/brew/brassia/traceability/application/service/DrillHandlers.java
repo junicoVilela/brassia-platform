@@ -5,6 +5,7 @@ import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.traceability.DestinationSource;
 import br.com.brew.brassia.traceability.LineageSource;
 import br.com.brew.brassia.traceability.LineageSource.NodeType;
+import br.com.brew.brassia.traceability.CorrectiveActionSink;
 import br.com.brew.brassia.traceability.application.port.inbound.DrillCommands;
 import br.com.brew.brassia.traceability.application.port.outbound.DrillRepository;
 import br.com.brew.brassia.traceability.domain.Direction;
@@ -73,17 +74,20 @@ public final class DrillHandlers {
         private final List<DestinationSource> destinations;
         private final AuditTrail audit;
 
+        private final CorrectiveActionSink capa;
+
         public Finish(DrillRepository drills, List<LineageSource> sources,
-                List<DestinationSource> destinations, AuditTrail audit) {
+                List<DestinationSource> destinations, CorrectiveActionSink capa, AuditTrail audit) {
             this.drills = Objects.requireNonNull(drills);
             this.sources = List.copyOf(Objects.requireNonNull(sources));
             this.destinations = List.copyOf(Objects.requireNonNull(destinations));
+            this.capa = Objects.requireNonNull(capa);
             this.audit = Objects.requireNonNull(audit);
         }
 
         @Override
         public void handle(UUID actorId, UUID breweryId, UUID drillId, int unitsLocated, String summary,
-                String correctiveActions) {
+                String correctiveActions, UUID nonConformityId, List<Action> actions) {
             var drill = drills.findForUpdate(breweryId, drillId)
                     .orElseThrow(() -> new UnknownDrillException(drillId));
 
@@ -92,8 +96,21 @@ public final class DrillHandlers {
                     destinations);
             var at = Instant.now();
             drill.finish(actorId, measurement.unitsInScope(), unitsLocated, measurement.destinations().size(),
-                    measurement.gaps().size(), summary, correctiveActions, at);
+                    measurement.gaps().size(), summary, correctiveActions, nonConformityId, at);
             drills.finish(drill);
+
+            // As ações viram itens de CAPA, com dono e prazo. Texto livre no relatório de um simulado não
+            // aparece em lista nenhuma: seis meses depois, o próximo simulado encontra a mesma lacuna com
+            // o relatório anterior dizendo o que fazer — um exercício que não melhora nada.
+            //
+            // Na mesma transação do encerramento: um simulado encerrado apontando para uma NC cujas ações
+            // falharam ao gravar afirmaria um plano que não existe.
+            if (nonConformityId != null && actions != null && !actions.isEmpty()) {
+                capa.plan(breweryId, actorId, nonConformityId, actions.stream()
+                        .map(a -> new CorrectiveActionSink.CorrectiveAction(a.kind(), a.description(),
+                                a.owner(), a.dueOn()))
+                        .toList());
+            }
 
             audit.record(AuditEvent.success(breweryId, actorId, "traceability.drill.finish",
                     "traceability.drill", drill.id().toString(),

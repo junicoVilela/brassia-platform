@@ -80,7 +80,8 @@ public final class QualityViews {
      * @param closable      só depois de verificação eficaz; é o critério da história
      */
     public record NonConformityView(UUID id, String code, String title, String description, String source,
-            String sourceLabel, UUID deviationId, String severity, String severityLabel, String status,
+            String sourceLabel, UUID deviationId, UUID batchId, String severity, String severityLabel,
+            String status,
             String statusLabel, LocalDate containmentDueOn, LocalDate investigationDueOn,
             LocalDate verificationDueOn, List<String> overduePhases, boolean overdue, boolean closable,
             ContainmentView containment, InvestigationView investigation, List<ActionView> actions,
@@ -89,6 +90,7 @@ public final class QualityViews {
         public static NonConformityView from(NonConformity nc, LocalDate on) {
             return new NonConformityView(nc.id(), nc.code(), nc.title(), nc.description(),
                     nc.source().name(), nc.source().label(), nc.deviationId().orElse(null),
+                    nc.batchId().orElse(null),
                     nc.severity().name(), nc.severity().label(), nc.status().name(), nc.status().label(),
                     nc.containmentDueOn(), nc.investigationDueOn(), nc.verificationDueOn(),
                     nc.overduePhases(on), nc.overdue(on),

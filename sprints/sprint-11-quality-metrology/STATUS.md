@@ -43,7 +43,9 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
   crítico (designar exige estar apto; a designação cai sozinha quando vence) e a porta publicada
   `InstrumentStatusLookup` responde `fitForCritical`. Critério de remoção: ao modelar QLT-001,
   ligar instrumento ↔ ponto de controle e mover a verificação para o momento da medição.
-- **MTR-001-B — "aprovado com restrição" não estreita a faixa automaticamente.** A restrição é
+- **MTR-001-B — FECHADO EM 2026-08-11 COMO "NÃO VAI SER FEITO"** (ver DEC-DEBT-001 na Sprint 17):
+  interpretar a restrição exigiria inventar semântica sobre texto livre, e uma faixa adivinhada errada é
+  pior que nenhuma — ela parece conferida. O caminho continua humano. Registro original: a restrição é
   texto obrigatório e viaja junto da aptidão para quem consulta, mas o sistema não a interpreta:
   interpretar "faixa útil de 0 a 60 °C" exigiria parsear texto livre e inventar semântica.
   Critério de remoção: dar estrutura à restrição (faixa reduzida tipada) e validar a medição
@@ -105,9 +107,11 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
   medição passa com instrumento vencido, mas grava a aptidão e sinaliza.
 - **Desvio grave avisa na central do lote** (`BatchAlertPublisher`, PRD-006), como FER-004 faz com
   etapa atrasada, em vez de manter uma segunda central. Alerta é aviso: não muda estado do lote.
-- **QLT-001-A — a frequência é declarada, não fiscalizada.** O plano registra a cadência, mas
-  ninguém é avisado de medição atrasada: isso pede varredura agendada, o mesmo débito aberto desde
-  FER-004. Critério de remoção: existir agendador na plataforma e ligá-lo à cadência do ponto.
+- ~~**QLT-001-A**~~ — **FECHADO EM 2026-08-14, e o bloqueio registrado estava desatualizado.** O
+  critério era "existir agendador na plataforma e ligá-lo à cadência do ponto": o agendador existe desde
+  a Sprint 13 (`@Scheduled` em webhooks e relatórios), e o débito ficou aberto por leitura antiga, não
+  por falta de ferramenta. A varredura passa de hora em hora e **avisa na central do lote** — alerta, não
+  bloqueio, por decisão do mantenedor. Ver DEC-QLT-001 na Sprint 17.
 - **Colisões de nome no Spring.** O scan é global por nome simples: `JdbcMeasurementRepository` e o
   bean `recordMeasurementUseCase` já existiam em `production`. Renomeados aqui para
   `JdbcQualityMeasurementRepository` e `recordQualityMeasurementUseCase`.

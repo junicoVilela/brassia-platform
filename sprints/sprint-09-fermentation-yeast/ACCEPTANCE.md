@@ -59,9 +59,11 @@ UI, nenhum TODO/segredo/código morto, e decisões registradas.
    Se alguma faixa estiver errada para a operação real, é ajuste de uma linha por grandeza.
 2. **Agendador da varredura de atrasos (FER-004)** — hoje é disparada por endpoint. Definir se
    vira cron, e onde roda, é decisão de infraestrutura.
-3. **Candidato a ADR**: `BatchAlertPublisher` é a primeira porta de *escrita* publicada entre
-   módulos (as anteriores eram consulta). Está dentro de `AGENTS.md:17`, mas o precedente pode
-   merecer registro.
+3. ~~**Candidato a ADR**: `BatchAlertPublisher` é a primeira porta de *escrita* publicada entre
+   módulos (as anteriores eram consulta).~~ **Virou a `ADR-0016` em 2026-08-15.** O precedente merecia
+   registro mesmo: até a sprint 16 ele era o único, e ao fechar os débitos das sprints 08 a 16
+   apareceram mais cinco portas de escrita em duas semanas — uma delas na direção oposta às outras,
+   porque a direção natural fechava ciclo. O ADR registra as duas formas e quando cada uma vale.
 4. **Acabamento de UI pendente**: responsável, cepa e afins ainda são ids digitados à mão em
    três telas. Vale uma história própria.
 

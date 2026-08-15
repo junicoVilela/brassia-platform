@@ -44,7 +44,7 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 - **Fora de escopo aqui**: recomendação de reúso, limite de gerações e vínculo do pitch a um lote são YST-002. Esta fatia só registra e libera/reprova.
 
 ### FER-002 — decisões (pendentes de confirmação do mantenedor)
-- **"Leitura inválida é sinalizada, não rejeitada"** foi lido como plausibilidade física por grandeza+unidade (SG 0,980–1,180; °C −10–45; psi 0–60; pH 2,5–7,5). Faixa fixa no domínio nesta fatia; se a cervejaria precisar de faixa configurável, vira história própria.
+- **"Leitura inválida é sinalizada, não rejeitada"** foi lido como plausibilidade física por grandeza+unidade (SG 0,980–1,180; °C −10–45; psi 0–60; pH 2,5–7,5). Faixa fixa no domínio nesta fatia; se a cervejaria precisar de faixa configurável, vira história própria. **CONFIRMADO EM 2026-08-11**: as faixas ficam como estão, e configurá-las daria a alguém a chance de afrouxar a checagem até ela não recusar nada. Ver DEC-DEBT-001 na Sprint 17.
 - **Erro de contrato continua sendo 400**: unidade incompatível com a grandeza (ex.: densidade em °C) e lote inexistente são recusados; só o valor fora da faixa é aceito e sinalizado.
 - **Idempotência pela chave natural** (lote, grandeza, origem, instante), first-wins: reenvio de sensor não duplica a curva e devolve 200 com o mesmo id. Não há atualização de leitura — medição não é reescrita nem apagada.
 - **Vínculo com o lote via `production.BatchLookup`** (consulta publicada nova no módulo production), não por acesso à tabela de produção.

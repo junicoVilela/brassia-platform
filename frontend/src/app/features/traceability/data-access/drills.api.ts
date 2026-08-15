@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { NodeType } from '../domain/genealogy.model';
-import { DrillReport, RecallDrill } from '../domain/drill.model';
+import { DrillCapaAction, DrillReport, RecallDrill } from '../domain/drill.model';
 
 @Injectable({ providedIn: 'root' })
 export class DrillsApi {
@@ -21,16 +21,26 @@ export class DrillsApi {
     return this.http.post<RecallDrill>(this.baseUrl, { nodeType, nodeId, note });
   }
 
+  /**
+   * Encerra o simulado.
+   *
+   * <p>Ou texto livre, ou ações de CAPA numa NC — nunca os dois: o servidor recusa, porque quem lê o
+   * relatório não saberia qual é a ação de verdade.
+   */
   finish(
     id: string,
     unitsLocated: number,
     summary: string,
     correctiveActions: string | null,
+    nonConformityId: string | null = null,
+    capaActions: DrillCapaAction[] = [],
   ): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/${id}/finish`, {
       unitsLocated,
       summary,
-      correctiveActions,
+      correctiveActions: nonConformityId ? null : correctiveActions,
+      nonConformityId,
+      capaActions,
     });
   }
 }

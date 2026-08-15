@@ -278,6 +278,74 @@
           </table>
         </div>
       }
+
+      <!--
+        CST-001-A: as horas ficam no mesmo painel das medições porque são a mesma pergunta — "o que
+        aconteceu neste lote". Uma tela própria obrigaria quem aponta a sair da que já está aberta.
+      -->
+      <h3 class="h6 fw-semibold mt-4 mb-2">Horas trabalhadas</h3>
+      @if (store.canRecordLabor) {
+        <form [formGroup]="laborForm" (ngSubmit)="recordLabor(batchId)" class="row g-3 align-items-end">
+          <div class="col-sm-3">
+            <label class="form-label" for="lactivity">Atividade</label>
+            <input id="lactivity" type="text" class="form-control" formControlName="activity"
+                   placeholder="Brassa, limpeza, envase…">
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label" for="lstart">Início</label>
+            <input id="lstart" type="datetime-local" class="form-control" formControlName="startedAt">
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label" for="lend">Fim</label>
+            <input id="lend" type="datetime-local" class="form-control" formControlName="endedAt">
+          </div>
+          <div class="col-sm-1">
+            <label class="form-label" for="lpeople">Pessoas</label>
+            <input id="lpeople" type="number" min="1" class="form-control" formControlName="people">
+          </div>
+          <div class="col-sm-2 d-grid">
+            <button type="submit" class="btn btn-primary"
+                    [disabled]="laborForm.invalid || store.recordingLabor()">
+              <i class="ri-time-line me-1"></i> Apontar
+            </button>
+          </div>
+        </form>
+        @if (store.laborError(); as laborError) {
+          <div class="alert alert-danger mt-3 mb-0" role="alert">{{ laborError }}</div>
+        }
+      }
+
+      @if (store.labor().length === 0) {
+        <p class="text-muted small mt-3 mb-0">
+          Nenhuma hora apontada. Sem apontamento, a mão de obra fica de fora do custo do lote.
+        </p>
+      } @else {
+        <div class="table-responsive mt-3">
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Atividade</th>
+                <th scope="col">Período</th>
+                <th scope="col" class="text-end">Pessoas</th>
+                <!-- Duas pessoas por três horas são seis horas-homem: é a coluna que vira custo. -->
+                <th scope="col" class="text-end">Horas-homem</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (l of store.labor(); track l.id) {
+                <tr>
+                  <td class="fw-medium">{{ l.activity }}</td>
+                  <td class="text-muted small">
+                    {{ l.startedAt | date: 'dd/MM HH:mm' }} → {{ l.endedAt | date: 'HH:mm' }}
+                  </td>
+                  <td class="text-end">{{ l.people }}</td>
+                  <td class="text-end">{{ l.manHours | number: '1.0-2' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
     </div>
   </div>
 }

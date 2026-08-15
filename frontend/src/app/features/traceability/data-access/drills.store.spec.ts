@@ -27,6 +27,7 @@ function drill(over: Partial<RecallDrill> = {}): RecallDrill {
     gapsFound: null,
     summary: null,
     correctiveActions: null,
+    nonConformityId: null,
     elapsedSeconds: 600,
     ...over,
   };

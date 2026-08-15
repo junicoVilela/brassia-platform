@@ -8,7 +8,9 @@ import br.com.brew.brassia.packaging.application.port.inbound.CarbonationCommand
 import br.com.brew.brassia.packaging.application.port.outbound.CarbonationRepository;
 import br.com.brew.brassia.packaging.application.port.outbound.PackagingPlanRepository;
 import br.com.brew.brassia.packaging.domain.Carbonation;
+import br.com.brew.brassia.catalog.IngredientSpecLookup;
 import br.com.brew.brassia.packaging.domain.CarbonationMethod;
+import br.com.brew.brassia.packaging.domain.ContainerPressureExceededException;
 import br.com.brew.brassia.packaging.domain.PackagingPlan;
 import br.com.brew.brassia.packaging.domain.PrimingSugar;
 import java.math.BigDecimal;
@@ -41,8 +43,11 @@ public final class CarbonationHandlers {
 
         private final PackagingPlanRepository plans;
         private final CalculatorEngine calculator;
+        private final IngredientSpecLookup ingredients;
 
-        public Preview(PackagingPlanRepository plans, CalculatorEngine calculator) {
+        public Preview(PackagingPlanRepository plans, CalculatorEngine calculator,
+                IngredientSpecLookup ingredients) {
+            this.ingredients = Objects.requireNonNull(ingredients);
             this.plans = Objects.requireNonNull(plans);
             this.calculator = Objects.requireNonNull(calculator);
         }
@@ -50,7 +55,8 @@ public final class CarbonationHandlers {
         @Override
         public Recommendation handle(Query query) {
             var plan = plan(plans, query.breweryId(), query.planId());
-            return recommend(calculator, plan, CarbonationMethod.of(query.method()), query.targetVolumes(),
+            return recommend(calculator, ingredients, plan, CarbonationMethod.of(query.method()),
+                    query.targetVolumes(),
                     query.referenceTempC(), query.primingSugar());
         }
     }
@@ -60,13 +66,15 @@ public final class CarbonationHandlers {
         private final PackagingPlanRepository plans;
         private final CarbonationRepository carbonations;
         private final CalculatorEngine calculator;
+        private final IngredientSpecLookup ingredients;
         private final AuditTrail audit;
 
         public Record(PackagingPlanRepository plans, CarbonationRepository carbonations,
-                CalculatorEngine calculator, AuditTrail audit) {
+                CalculatorEngine calculator, IngredientSpecLookup ingredients, AuditTrail audit) {
             this.plans = Objects.requireNonNull(plans);
             this.carbonations = Objects.requireNonNull(carbonations);
             this.calculator = Objects.requireNonNull(calculator);
+            this.ingredients = Objects.requireNonNull(ingredients);
             this.audit = Objects.requireNonNull(audit);
         }
 
@@ -82,7 +90,7 @@ public final class CarbonationHandlers {
             }
 
             var method = CarbonationMethod.of(command.method());
-            var recommendation = recommend(calculator, plan, method, command.targetVolumes(),
+            var recommendation = recommend(calculator, ingredients, plan, method, command.targetVolumes(),
                     command.referenceTempC(), command.primingSugar());
             var at = Instant.now();
             var carbonation = method == CarbonationMethod.PRIMING
@@ -136,8 +144,9 @@ public final class CarbonationHandlers {
      * Compõe a recomendação: o CO₂ residual sai da temperatura de referência e alimenta o cálculo
      * do método escolhido. O volume de cerveja vem do próprio plano — não é digitado de novo.
      */
-    private static Recommendation recommend(CalculatorEngine calculator, PackagingPlan plan,
-            CarbonationMethod method, BigDecimal targetVolumes, BigDecimal referenceTempC, String sugarName) {
+    private static Recommendation recommend(CalculatorEngine calculator, IngredientSpecLookup ingredients,
+            PackagingPlan plan, CarbonationMethod method, BigDecimal targetVolumes,
+            BigDecimal referenceTempC, String sugarName) {
         Objects.requireNonNull(targetVolumes, "volumes alvo é obrigatório");
         Objects.requireNonNull(referenceTempC, "temperatura de referência é obrigatória");
 
@@ -145,6 +154,31 @@ public final class CarbonationHandlers {
         var assumptions = new ArrayList<>(residual.assumptions());
         var alerts = new ArrayList<>(residual.alerts());
         var missing = targetVolumes.subtract(residual.value()).max(BigDecimal.ZERO);
+
+        // PKG-002-A: a pressão de equilíbrio é a mesma conta nos dois métodos — a física não pergunta se
+        // o CO₂ veio de açúcar ou de cilindro. É ela que a embalagem vê, e é contra ela que o limite vale.
+        var equilibrium = calculator.compute(FORCED,
+                Map.of("targetVolumes", targetVolumes, "tempC", referenceTempC));
+        var max = ingredients.find(plan.breweryId(), plan.containerId())
+                .map(IngredientSpecLookup.Spec::maxPressureBar)
+                .orElse(null);
+        if (max != null) {
+            if (equilibrium.value().compareTo(max) > 0) {
+                // Recusa, e não alerta: alerta é lido no dia em que a linha está atrasada, e a
+                // consequência de ignorá-lo é garrafa estourando na mão de alguém.
+                throw new ContainerPressureExceededException(equilibrium.value(), max, referenceTempC);
+            }
+            // A conta vale na temperatura informada. Estocagem mais quente sobe a pressão, e quem guarda
+            // caixa em galpão sem climatização precisa ler isso antes, não depois.
+            alerts.add("Pressão de equilíbrio de " + equilibrium.value() + " bar a " + referenceTempC
+                    + " °C, contra o limite de " + max + " bar da embalagem. Estocagem mais quente "
+                    + "aumenta a pressão.");
+        } else {
+            // Ausência declarada: sem o limite cadastrado, o sistema não tem como recusar um alvo alto em
+            // embalagem frágil — e é melhor dizer isso do que deixar quem opera supor que foi conferido.
+            alerts.add("A embalagem não tem pressão máxima cadastrada: o alvo não foi conferido contra "
+                    + "limite nenhum. Cadastre `maxPressureBar` no catálogo.");
+        }
 
         if (method == CarbonationMethod.PRIMING) {
             var sugar = PrimingSugar.of(sugarName);
@@ -160,15 +194,14 @@ public final class CarbonationHandlers {
                         + "confira a carbonatação antes de liberar o lote.");
             }
             return new Recommendation(method.name(), targetVolumes, referenceTempC, residual.value(), missing,
-                    plan.plannedVolumeLiters(), sugar.name(), priming.value(), null, priming.method(),
-                    priming.version(), List.copyOf(assumptions), List.copyOf(alerts));
+                    plan.plannedVolumeLiters(), sugar.name(), priming.value(), null, equilibrium.value(),
+                    max, priming.method(), priming.version(), List.copyOf(assumptions), List.copyOf(alerts));
         }
 
-        var forced = calculator.compute(FORCED, Map.of("targetVolumes", targetVolumes, "tempC", referenceTempC));
-        assumptions.addAll(forced.assumptions());
-        alerts.addAll(forced.alerts());
+        assumptions.addAll(equilibrium.assumptions());
+        alerts.addAll(equilibrium.alerts());
         return new Recommendation(method.name(), targetVolumes, referenceTempC, residual.value(), missing,
-                plan.plannedVolumeLiters(), null, null, forced.value(), forced.method(), forced.version(),
-                List.copyOf(assumptions), List.copyOf(alerts));
+                plan.plannedVolumeLiters(), null, null, equilibrium.value(), equilibrium.value(), max,
+                equilibrium.method(), equilibrium.version(), List.copyOf(assumptions), List.copyOf(alerts));
     }
 }

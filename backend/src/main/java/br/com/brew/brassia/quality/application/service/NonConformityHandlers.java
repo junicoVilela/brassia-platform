@@ -44,6 +44,17 @@ public final class NonConformityHandlers {
                 .orElseThrow(() -> new IllegalArgumentException("não conformidade inexistente"));
     }
 
+    /**
+     * NC-AAAA-NNNN, numerada por cervejaria e ano.
+     *
+     * <p>Por ano porque é assim que se referencia não conformidade numa auditoria: "a NC-2026-0007" diz
+     * quando aconteceu. Um identificador aleatório seria ilegível em voz alta, que é onde ele mais é usado.
+     */
+    private static String nextCode(NonConformityRepository repository, UUID breweryId) {
+        var year = LocalDate.now(ZoneOffset.UTC).getYear();
+        return "NC-%d-%04d".formatted(year, repository.nextSequence(breweryId, year));
+    }
+
     public static final class Open implements NonConformityCommands.Open {
 
         private final NonConformityRepository nonConformities;
@@ -61,9 +72,16 @@ public final class NonConformityHandlers {
 
         @Override
         public UUID handle(Command command) {
-            if (nonConformities.existsByCode(command.breweryId(), command.code())) {
-                throw new IllegalStateException("já existe não conformidade com o código " + command.code());
+            var code = command.code() == null || command.code().isBlank()
+                    ? nextCode(nonConformities, command.breweryId())
+                    : command.code();
+            if (nonConformities.existsByCode(command.breweryId(), code)) {
+                throw new IllegalStateException("já existe não conformidade com o código " + code);
             }
+            // Lote inexistente viraria uma NC afirmando falar de um lote que não existe. Quem garante é
+            // a CHAVE ESTRANGEIRA, e não uma consulta a `production`: a checagem prévia daria a este
+            // módulo uma dependência de produção que fecharia o ciclo
+            // production → traceability → quality → production. O banco recusa, e o handler traduz.
             // Desvio inexistente viraria uma NC apontando para o nada, e o encerramento não teria o
             // que fechar.
             if (command.deviationId() != null
@@ -85,16 +103,17 @@ public final class NonConformityHandlers {
             var verification = command.verificationDueOn() != null ? command.verificationDueOn()
                     : requireDerived(derived, CapaPolicy.Dates::verificationDueOn);
 
-            var nc = NonConformity.open(command.breweryId(), command.code(), command.title(),
+            var nc = NonConformity.open(command.breweryId(), code, command.title(),
                     command.description(), NonConformitySource.valueOf(command.source()),
-                    command.deviationId(), severity, containment, investigation, verification,
-                    Instant.now(), command.actorId());
+                    command.deviationId(), command.batchId(), severity, containment, investigation,
+                    verification, Instant.now(), command.actorId());
             nonConformities.insert(nc);
 
             audit.record(AuditEvent.success(command.breweryId(), command.actorId(), "quality.nc.open",
                     "quality.non_conformity", nc.id().toString(),
                     Map.of("code", nc.code(), "source", nc.source().name(),
-                            "severity", nc.severity().name())));
+                            "severity", nc.severity().name(),
+                            "batchId", nc.batchId().map(UUID::toString).orElse(""))));
             return nc.id();
         }
     }

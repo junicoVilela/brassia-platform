@@ -19,7 +19,7 @@ class JdbcDrillRepository implements DrillRepository {
     private static final String COLUMNS = """
             id, brewery_id, code, node_type, node_id, origin_label, note, status, started_by, started_at,
             finished_by, finished_at, units_in_scope, units_located, destinations_reached, gaps_found,
-            summary, corrective_actions
+            summary, corrective_actions, non_conformity_id
             """;
 
     private final JdbcClient jdbc;
@@ -78,7 +78,7 @@ class JdbcDrillRepository implements DrillRepository {
                 UPDATE traceability_recall_drill
                 SET status = :status, finished_by = :by, finished_at = :at, units_in_scope = :scope,
                     units_located = :located, destinations_reached = :reached, gaps_found = :gaps,
-                    summary = :summary, corrective_actions = :actions
+                    summary = :summary, corrective_actions = :actions, non_conformity_id = :nc
                 WHERE brewery_id = :brewery AND id = :id AND status = 'RUNNING'
                 """)
                 .param("status", drill.status().name())
@@ -90,6 +90,7 @@ class JdbcDrillRepository implements DrillRepository {
                 .param("gaps", drill.gapsFound())
                 .param("summary", drill.summary())
                 .param("actions", drill.correctiveActions())
+                .param("nc", drill.nonConformityId().orElse(null))
                 .param("brewery", drill.breweryId())
                 .param("id", drill.id())
                 .update();
@@ -124,7 +125,8 @@ class JdbcDrillRepository implements DrillRepository {
                 intOrNull(rs, "destinations_reached"),
                 intOrNull(rs, "gaps_found"),
                 rs.getString("summary"),
-                rs.getString("corrective_actions"));
+                rs.getString("corrective_actions"),
+                rs.getObject("non_conformity_id", java.util.UUID.class));
     }
 
     private static Integer intOrNull(ResultSet rs, String column) throws SQLException {

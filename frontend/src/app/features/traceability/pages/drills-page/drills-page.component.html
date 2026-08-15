@@ -131,6 +131,12 @@
                   @if (drill.correctiveActions) {
                     <p class="mb-0"><strong>Ações registradas:</strong> {{ drill.correctiveActions }}</p>
                   }
+                  @if (drill.nonConformityId) {
+                    <p class="mb-0">
+                      <strong>Ações no CAPA:</strong>
+                      <a [routerLink]="['/quality/control-plans']">acompanhar na não conformidade</a>
+                    </p>
+                  }
                 }
 
                 @if (canManage && drill.status === 'RUNNING') {
@@ -162,8 +168,78 @@
                             </label>
                             <input [id]="'ac-' + drill.id" class="form-control form-control-sm"
                                    formControlName="correctiveActions"
+                                   [attr.disabled]="finishForm.value.nonConformityId ? '' : null"
                                    placeholder="cadastrar contato da distribuidora" />
                           </div>
+
+                          <!--
+                            FDS-004-A: a ação corretiva vira item de CAPA, com dono e prazo. Texto livre
+                            no relatório não aparece em lista nenhuma — seis meses depois o próximo
+                            simulado encontra a mesma lacuna com o relatório anterior dizendo o que fazer.
+                          -->
+                          <div class="col-12">
+                            <label class="form-label small" [for]="'nc-' + drill.id">
+                              Ou acompanhar no CAPA de uma não conformidade
+                            </label>
+                            <select [id]="'nc-' + drill.id" class="form-select form-select-sm"
+                                    formControlName="nonConformityId">
+                              <option value="">Registrar só como texto</option>
+                              @for (nc of nonConformitiesReady(); track nc.id) {
+                                <option [value]="nc.id">{{ nc.code }} — {{ nc.title }}</option>
+                              }
+                            </select>
+                            @if (nonConformitiesReady().length === 0) {
+                              <p class="form-text mb-0">
+                                Nenhuma NC investigada. O CAPA recusa planejar ação antes de conhecer a
+                                causa — contenha e investigue a NC antes de pendurar ações nela.
+                              </p>
+                            }
+                          </div>
+
+                          @if (finishForm.value.nonConformityId) {
+                            <div class="col-12">
+                              @for (action of capaActions(); track $index) {
+                                <div class="row g-2 mb-2">
+                                  <div class="col-3">
+                                    <select class="form-select form-select-sm" [ngModel]="action.kind"
+                                            [ngModelOptions]="{ standalone: true }"
+                                            (ngModelChange)="updateCapaAction($index, 'kind', $event)">
+                                      <option value="CORRECTIVE">Corretiva</option>
+                                      <option value="PREVENTIVE">Preventiva</option>
+                                    </select>
+                                  </div>
+                                  <div class="col-4">
+                                    <input class="form-control form-control-sm" placeholder="O que fazer"
+                                           [ngModel]="action.description"
+                                           [ngModelOptions]="{ standalone: true }"
+                                           (ngModelChange)="updateCapaAction($index, 'description', $event)" />
+                                  </div>
+                                  <div class="col-2">
+                                    <input class="form-control form-control-sm" placeholder="Dono"
+                                           [ngModel]="action.owner"
+                                           [ngModelOptions]="{ standalone: true }"
+                                           (ngModelChange)="updateCapaAction($index, 'owner', $event)" />
+                                  </div>
+                                  <div class="col-2">
+                                    <input type="date" class="form-control form-control-sm"
+                                           [ngModel]="action.dueOn"
+                                           [ngModelOptions]="{ standalone: true }"
+                                           (ngModelChange)="updateCapaAction($index, 'dueOn', $event)" />
+                                  </div>
+                                  <div class="col-1">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            (click)="removeCapaAction($index)" aria-label="Remover ação">
+                                      ×
+                                    </button>
+                                  </div>
+                                </div>
+                              }
+                              <button type="button" class="btn btn-link btn-sm p-0"
+                                      (click)="addCapaAction()">
+                                + Adicionar ação
+                              </button>
+                            </div>
+                          }
                           <div class="col-12 d-flex gap-2">
                             <button type="submit" class="btn btn-sm btn-primary"
                                     [disabled]="finishForm.invalid || busy('finish:' + drill.id)">

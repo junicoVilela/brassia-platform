@@ -112,6 +112,14 @@
       <artifactId>flyway-database-postgresql</artifactId>
     </dependency>
     <dependency>
+      <!-- RPT-001-A: renderização do relatório do lote em PDF. Apache 2.0, sem dependência
+           transitiva de servidor gráfico, e mantida pela ASF — a licença importa aqui porque o
+           documento sai da plataforma para as mãos de um cliente. -->
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>3.0.5</version>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-security</artifactId>
     </dependency>

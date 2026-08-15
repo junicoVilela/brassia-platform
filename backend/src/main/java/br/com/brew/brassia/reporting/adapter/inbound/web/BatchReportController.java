@@ -3,6 +3,7 @@ package br.com.brew.brassia.reporting.adapter.inbound.web;
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.reporting.adapter.inbound.web.dto.BatchReportDtos;
+import br.com.brew.brassia.reporting.adapter.outbound.pdf.BatchReportPdfRenderer;
 import br.com.brew.brassia.reporting.application.port.inbound.BatchReportQueries;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import java.util.Map;
@@ -31,8 +32,11 @@ final class BatchReportController {
 
     private final BatchReportQueries reports;
     private final AuditTrail audit;
+    private final BatchReportPdfRenderer pdfRenderer;
 
-    BatchReportController(BatchReportQueries reports, AuditTrail audit) {
+    BatchReportController(BatchReportQueries reports, AuditTrail audit,
+            BatchReportPdfRenderer pdfRenderer) {
+        this.pdfRenderer = pdfRenderer;
         this.reports = reports;
         this.audit = audit;
     }
@@ -44,25 +48,45 @@ final class BatchReportController {
         return BatchReportDtos.BatchReportView.from(reports.ofBatch(principal.requireBrewery(), batchId));
     }
 
-    @PostMapping("/batches/{batchId}/export")
-    ResponseEntity<BatchReportDtos.BatchReportView> export(
-            @AuthenticationPrincipal SecurityPrincipal principal, @PathVariable UUID batchId) {
+    /**
+     * Exporta o dossiê.
+     *
+     * <p><strong>O formato é negociado, e o JSON continua sendo o padrão.</strong> Quem já integra com a
+     * exportação recebe o mesmo corpo de antes; quem quer o documento impresso pede
+     * `Accept: application/pdf`. Trocar o padrão quebraria integração por causa de acabamento.
+     *
+     * <p>A auditoria registra o formato: "exportou o relatório" e "levou o PDF para uma auditoria" são a
+     * mesma permissão e histórias diferentes.
+     */
+    @PostMapping(value = "/batches/{batchId}/export",
+            produces = {MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_PDF_VALUE})
+    ResponseEntity<?> export(@AuthenticationPrincipal SecurityPrincipal principal,
+            @PathVariable UUID batchId,
+            @org.springframework.web.bind.annotation.RequestHeader(
+                    value = HttpHeaders.ACCEPT, required = false) String accept) {
         principal.requirePermission("reporting.batch.export");
         var breweryId = principal.requireBrewery();
         var report = reports.ofBatch(breweryId, batchId);
+        var pdf = accept != null && accept.contains(MediaType.APPLICATION_PDF_VALUE);
 
         // O registro sai depois de o relatório existir: auditar uma exportação que falhou seria
         // afirmar que o documento saiu quando ele nem chegou a ser montado.
         audit.record(AuditEvent.success(breweryId, principal.userId(), "reporting.batch.export",
                 "production.batch", batchId.toString(),
                 Map.of("batchCode", report.batchCode(), "incomplete",
-                        String.valueOf(report.incomplete()))));
+                        String.valueOf(report.incomplete()), "format", pdf ? "PDF" : "JSON")));
 
-        var view = BatchReportDtos.BatchReportView.from(report);
+        if (pdf) {
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"relatorio-" + report.batchCode() + ".pdf\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdfRenderer.render(report));
+        }
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"relatorio-" + report.batchCode() + ".json\"")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(view);
+                .body(BatchReportDtos.BatchReportView.from(report));
     }
 }

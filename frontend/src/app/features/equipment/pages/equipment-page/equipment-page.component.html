@@ -63,6 +63,7 @@
                   <th>Código</th><th>Nome</th><th class="text-end">Capacidade (L)</th>
                   <th class="text-end">Perda (L)</th><th class="text-end">Eficiência (%)</th>
                   <th class="text-end">Evaporação (L/h)</th>
+                  <th>Limpeza</th>
                 </tr>
               </thead>
               <tbody>
@@ -74,6 +75,19 @@
                     <td class="text-end">{{ item.deadSpaceLiters }}</td>
                     <td class="text-end">{{ item.mashEfficiencyPercent }}</td>
                     <td class="text-end">{{ item.boilOffLitersPerHour }}</td>
+                    <td>
+                      @if (item.cleanliness === 'DIRTY') {
+                        <!-- Sujo desde quando, e não só "sujo": a ação muda com a resposta. -->
+                        <span class="badge bg-warning-subtle text-warning-emphasis">Sujo</span>
+                        @if (item.soiledSince) {
+                          <span class="text-body-secondary small ms-1">
+                            desde {{ item.soiledSince | date: 'dd/MM HH:mm' }}
+                          </span>
+                        }
+                      } @else if (item.cleanliness === 'CLEAN') {
+                        <span class="badge bg-success-subtle text-success-emphasis">Limpo</span>
+                      }
+                    </td>
                   </tr>
                 }
               </tbody>

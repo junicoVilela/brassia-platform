@@ -14,7 +14,9 @@
 - CRUDs de apoio podem usar `api`, `application` e `infrastructure` sem portas artificiais.
 - Domínio não depende de Spring, JPA, HTTP, banco, provedor de IA ou frontend.
 - Um módulo não acessa repositório nem tabela pertencente a outro módulo.
-- Comunicação entre módulos usa porta de aplicação, consulta publicada ou evento.
+- Comunicação entre módulos usa porta de aplicação, consulta publicada ou evento. Escrita entre módulos
+  segue a `ADR-0016`: porta publicada no pacote raiz, declarada por quem tem o dado — salvo quando essa
+  direção fecha ciclo, e aí ela inverte. Quem decide não é o julgamento: é o `ModularityTest`.
 - Antes de criar uma abstração, justificar qual risco, variação, fronteira ou teste ela isola.
 - Controllers apenas validam o contrato e chamam casos de uso.
 - Mapeamento result/view → DTO de resposta fica no próprio DTO, como static factory `from(...)`, não no controller. Vale quando há transformação, reuso (≥2 chamadas) ou mapeamento de coleção; wrapper trivial de campo único e sítio único permanece inline (YAGNI). O `from(...)` pode importar tipos de result/view da aplicação e snapshots de domínio (dependência para dentro, validada pelo `ModularityTest`); orquestração e efeitos colaterais nunca entram no DTO.

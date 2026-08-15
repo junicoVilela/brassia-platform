@@ -52,6 +52,7 @@ function nc(over: Partial<NonConformity> = {}): NonConformity {
     source: 'DEVIATION',
     sourceLabel: 'Desvio de medição',
     deviationId: 'd1',
+    batchId: null,
     severity: 'MAJOR',
     severityLabel: 'Grave',
     status: 'ACTION_PLANNED',

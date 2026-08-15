@@ -78,6 +78,7 @@ function recommendation(): CarbonationRecommendation {
   return {
     method: 'PRIMING', targetVolumes: 2.4, referenceTempC: 20, residualVolumes: 0.86, missingVolumes: 1.54,
     beerVolumeLiters: 284, primingSugar: 'SUCROSE', primingSugarGrams: 1667, pressureBar: null,
+    equilibriumPressureBar: 2.7, containerMaxPressureBar: 5,
     calculationMethod: 'g = (vol_alvo − vol_residual) × V × 1,96 / rendimento', calculatorVersion: '1.0',
     assumptions: ['1 volume = 1,96 g de CO₂ por litro'], alerts: [],
   };

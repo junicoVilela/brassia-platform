@@ -15,6 +15,7 @@ class JdbcShipmentRepository implements ShipmentRepository {
 
     private static final String COLUMNS = """
             id, brewery_id, finished_lot_id, destination, contact, units, shipped_on, note,
+            reversed_at, reversed_by, reversal_reason,
             recorded_by, recorded_at
             """;
 
@@ -62,12 +63,36 @@ class JdbcShipmentRepository implements ShipmentRepository {
     }
 
     @Override
+    public java.util.Optional<Shipment> findForUpdate(UUID breweryId, UUID shipmentId) {
+        return jdbc.sql("SELECT " + COLUMNS + " FROM packaging_shipment "
+                        + "WHERE brewery_id = :brewery AND id = :id FOR UPDATE")
+                .param("brewery", breweryId).param("id", shipmentId)
+                .query(JdbcShipmentRepository::map).optional();
+    }
+
+    @Override
+    public void updateReversal(Shipment shipment) {
+        var reversal = shipment.reversal().orElseThrow();
+        jdbc.sql("""
+                UPDATE packaging_shipment
+                SET reversed_at = :at, reversed_by = :by, reversal_reason = :reason
+                WHERE id = :id AND brewery_id = :brewery AND reversed_at IS NULL
+                """)
+                .param("at", Timestamp.from(reversal.at())).param("by", reversal.by())
+                .param("reason", reversal.reason())
+                .param("id", shipment.id()).param("brewery", shipment.breweryId())
+                .update();
+    }
+
+    @Override
     public List<Shipment> findByLots(UUID breweryId, List<UUID> finishedLotIds) {
         if (finishedLotIds.isEmpty()) {
             return List.of();
         }
+        // Estornadas ficam de fora: o recall que comunica um destino estornado avisa quem nunca recebeu.
         return jdbc.sql("SELECT " + COLUMNS + " FROM packaging_shipment "
                         + "WHERE brewery_id = :brewery AND finished_lot_id IN (:lots) "
+                        + "AND reversed_at IS NULL "
                         + "ORDER BY shipped_on DESC, destination")
                 .param("brewery", breweryId).param("lots", finishedLotIds)
                 .query(JdbcShipmentRepository::map).list();
@@ -75,8 +100,10 @@ class JdbcShipmentRepository implements ShipmentRepository {
 
     @Override
     public int shippedUnits(UUID breweryId, UUID finishedLotId) {
+        // Estornada não conta: a saída líquida é o que o recall persegue, e o saldo sem destino do lote
+        // precisa voltar a mostrar a cerveja que a expedição errada tinha escondido.
         return jdbc.sql("SELECT COALESCE(SUM(units), 0) FROM packaging_shipment "
-                        + "WHERE brewery_id = :brewery AND finished_lot_id = :lot")
+                        + "WHERE brewery_id = :brewery AND finished_lot_id = :lot AND reversed_at IS NULL")
                 .param("brewery", breweryId).param("lot", finishedLotId)
                 .query(Integer.class).single();
     }
@@ -92,6 +119,10 @@ class JdbcShipmentRepository implements ShipmentRepository {
                 rs.getDate("shipped_on").toLocalDate(),
                 rs.getString("note"),
                 rs.getObject("recorded_by", UUID.class),
-                rs.getTimestamp("recorded_at").toInstant());
+                rs.getTimestamp("recorded_at").toInstant(),
+                rs.getTimestamp("reversed_at") == null ? null
+                        : new Shipment.Reversal(rs.getObject("reversed_by", UUID.class),
+                                rs.getString("reversal_reason"),
+                                rs.getTimestamp("reversed_at").toInstant()));
     }
 }

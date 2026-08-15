@@ -6834,8 +6834,363 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /crm/customers:
+    get:
+      tags: [CRM]
+      summary: Clientes da cervejaria (CRM-001)
+      parameters:
+        - name: onlyActive
+          in: query
+          schema: {type: boolean, default: true}
+          description: Cliente desativado continua existindo; ele só sai da lista padrão.
+      responses:
+        '200':
+          description: Lista de clientes
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/CrmCustomer'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [CRM]
+      summary: Cadastrar cliente
+      description: >-
+        **`taxId` não é validado** (DEC-CRM-002). Cliente estrangeiro não tem CNPJ, e recusar cadastro por
+        formato seria a plataforma decidindo com quem a cervejaria pode vender. O cadastro também costuma
+        nascer antes de o documento chegar, e travar aqui empurraria o vendedor a inventar um número — o
+        que é pior que campo vazio, porque parece preenchido.
+
+
+        Único **por cervejaria** quando existe, garantido por índice parcial: dois clientes sem documento
+        não são duplicata.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [legalName]
+              properties:
+                legalName: {type: string, maxLength: 200}
+                tradeName: {type: string, maxLength: 200, nullable: true}
+                taxId: {type: string, maxLength: 40, nullable: true}
+      responses:
+        '201':
+          description: Cliente criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`crm_duplicate_tax_id` — o documento já está cadastrado nesta cervejaria'
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /crm/customers/{id}:
+    get:
+      tags: [CRM]
+      summary: Um cliente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Cliente
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CrmCustomer'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: >-
+            `crm_not_found` — **e também quando o cliente é de outra cervejaria**. Distinguir os dois
+            casos confirmaria que o identificador existe em algum lugar, o que é um oráculo de existência
+            atravessando a fronteira entre cervejarias.
+          content:
+            application/problem+json:
+              schema: {type: object}
+    put:
+      tags: [CRM]
+      summary: Renomear cliente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [legalName]
+              properties:
+                legalName: {type: string, maxLength: 200}
+                tradeName: {type: string, maxLength: 200, nullable: true}
+      responses:
+        '200': {description: Cliente renomeado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /crm/customers/{id}/active:
+    put:
+      tags: [CRM]
+      summary: Ativar ou desativar cliente
+      description: >-
+        **Não existe DELETE de cliente.** Remover deixaria pedido e expedição apontando para o nada, e é o
+        histórico de expedição que um recall percorre para saber a quem avisar. Desativar tira das listas
+        de venda e mantém o passado legível.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active: {type: boolean}
+      responses:
+        '200': {description: Situação alterada}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /crm/customers/{id}/contacts:
+    get:
+      tags: [CRM]
+      summary: Contatos do cliente
+      description: >-
+        A permissão vem **por finalidade**, e não como um indicador único. Um só booleano obrigaria a tela
+        a escolher qual finalidade representar, e ela escolheria errado metade das vezes.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Contatos
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/CrmContact'}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [CRM]
+      summary: Cadastrar contato
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string, maxLength: 160}
+                email: {type: string, format: email, maxLength: 254, nullable: true}
+                phone: {type: string, maxLength: 40, nullable: true}
+                role: {type: string, maxLength: 80, nullable: true}
+      responses:
+        '201':
+          description: Contato criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /crm/customers/contacts/{contactId}/consents:
+    post:
+      tags: [CRM]
+      summary: Registrar decisão de consentimento (CRM-001)
+      description: >-
+        **`decidedAt` é obrigatório e vem de fora.** Deixar o servidor carimbar o instante transformaria
+        "ela aceitou na segunda, registramos na quarta" em "ela aceitou na quarta", e o livro passaria a
+        contar a história da digitação em vez da do mundo.
+
+
+        **`purpose` só aceita finalidade que se apoia em consentimento.** `TRANSACTIONAL` se apoia em
+        contrato e é recusada com 400: registrá-la daria a entender que o aviso de entrega depende de
+        consentimento, e abriria a porta para alguém revogá-lo — a cervejaria ficaria proibida de cumprir
+        o que vendeu.
+
+
+        **Revogar não apaga.** O livro só cresce, e é isso que responde à pergunta da auditoria: *ela
+        aceitava quando mandamos aquilo?*
+      parameters:
+        - name: contactId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purpose, granted, decidedAt, source]
+              properties:
+                purpose: {type: string, enum: [MARKETING, SURVEY]}
+                granted: {type: boolean}
+                decidedAt: {type: string, format: date-time}
+                source:
+                  type: string
+                  maxLength: 200
+                  description: >-
+                    Como se sabe que ela decidiu. Obrigatório: consentimento que não se consegue
+                    demonstrar vale o mesmo que nenhum.
+      responses:
+        '204': {description: Decisão registrada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`crm_contact_anonymized` — não há a quem pedir consentimento'
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /crm/customers/contacts/{contactId}/anonymize:
+    post:
+      tags: [CRM]
+      summary: Anonimizar contato a pedido do titular
+      description: >-
+        **Irreversível, e com alçada própria** (`crm.contact.anonymize`, crítica): apagar uma pessoa não é
+        o mesmo ato de cadastrar um contato.
+
+
+        **Apaga a pessoa e mantém a casca.** O identificador continua existindo, e com ele continuam as
+        expedições e os pedidos que apontam para cá — a diferença entre "esta entrega foi para alguém que
+        pediu para ser esquecido" e um buraco no histórico que ninguém sabe explicar.
+
+
+        **O histórico de consentimento fica.** Parece contraditório apagar a pessoa e manter o que ela
+        decidiu, mas é o contrário: é o registro de que ela pediu para sair, e sem ele a cervejaria não
+        demonstra que atendeu ao pedido.
+
+
+        Depois disso o contato não recebe nada, **nem transacional**: a base contratual autoriza mandar o
+        aviso de entrega, ela não cria um endereço para onde mandar.
+      parameters:
+        - name: contactId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Contato anonimizado}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`crm_contact_anonymized` — já foi anonimizado'
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /crm/retention-policy:
+    get:
+      tags: [CRM]
+      summary: Prazo de guarda de dado pessoal (CRM-001)
+      description: >-
+        `daysAfterLastInteraction` nulo significa que **a casa não decidiu** — e, enquanto não decidir,
+        nada expira. Não anonimizar por falta de decisão é reversível; anonimizar cedo demais não é.
+      responses:
+        '200':
+          description: Política vigente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  daysAfterLastInteraction: {type: integer, nullable: true}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [CRM]
+      summary: Definir o prazo de retenção
+      description: >-
+        Alçada `crm.retention.manage`, **crítica e separada do cadastro**: quem atende o balcão não
+        deveria conseguir encurtar o prazo de guarda da base inteira.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [daysAfterLastInteraction]
+              properties:
+                daysAfterLastInteraction: {type: integer, exclusiveMinimum: 0}
+      responses:
+        '200': {description: Prazo definido}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    CrmCustomer:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        legalName: {type: string}
+        tradeName: {type: string, nullable: true}
+        displayName:
+          type: string
+          description: Fantasia quando existe, razão social quando não — quem atende o balcão conhece o bar pela fachada.
+        taxId: {type: string, nullable: true}
+        active: {type: boolean}
+    CrmContact:
+      type: object
+      description: >-
+        A pessoa. Separada do cliente porque cliente é dado de negócio e contato é dado pessoal: numa
+        entidade só, o primeiro pedido de exclusão obrigaria a escolher entre apagar a pessoa e destruir
+        o histórico comercial.
+      properties:
+        id: {type: string, format: uuid}
+        customerId: {type: string, format: uuid}
+        name: {type: string, nullable: true, description: Ausente depois da anonimização.}
+        email: {type: string, nullable: true}
+        phone: {type: string, nullable: true}
+        role: {type: string, nullable: true}
+        anonymized: {type: boolean}
+        anonymizedAt: {type: string, format: date-time, nullable: true}
+        purposes:
+          type: array
+          items: {$ref: '#/components/schemas/CrmPurpose'}
+        consentHistory:
+          type: array
+          description: O livro só cresce — é ele que responde "ela aceitava quando mandamos aquilo?".
+          items: {$ref: '#/components/schemas/CrmConsentEntry'}
+    CrmPurpose:
+      type: object
+      properties:
+        purpose: {type: string, enum: [TRANSACTIONAL, MARKETING, SURVEY]}
+        basis:
+          type: string
+          enum: [CONTRACT, CONSENT]
+          description: >-
+            `CONTRACT` não é revogável: se revogar oferta comercial derrubasse o aviso de entrega, a
+            cervejaria ficaria proibida de cumprir o que vendeu.
+        allowedNow: {type: boolean}
+    CrmConsentEntry:
+      type: object
+      properties:
+        purpose: {type: string, enum: [MARKETING, SURVEY]}
+        decision: {type: string, enum: [GRANTED, REVOKED]}
+        decidedAt:
+          type: string
+          format: date-time
+          description: O instante do mundo, e não o da digitação.
+        source: {type: string}
     OptimizeRequest:
       type: object
       required: [recipeId, objective]

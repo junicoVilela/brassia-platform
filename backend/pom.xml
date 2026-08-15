@@ -51,7 +51,15 @@
            datatype-jsr310, module-kotlin) em vez de fixar cada um e esquecer o próximo que entrar
            transitivo. Vem ANTES do spring-modulith-bom porque, em dependencyManagement, o primeiro import
            que declara a versão vence — e aqui é intencional que a nossa vença a do Boot. -->
-      <dependency>
+      <!-- CANÁRIO: dependência com CVE conhecido (CVE-2022-42889, Text4Shell, CRÍTICO).
+         Existe só para provar que o portão de CVE barra. NÃO deve ser mesclada. -->
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-text</artifactId>
+      <version>1.9</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
         <groupId>com.fasterxml.jackson</groupId>
         <artifactId>jackson-bom</artifactId>
         <version>${jackson2.version}</version>

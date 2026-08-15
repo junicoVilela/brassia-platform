@@ -1,0 +1,304 @@
+<app-page-header
+  title="Produtos e preços"
+  subtitle="O que a cervejaria vende, por onde vende — e por quanto vendia em cada data."
+/>
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando catálogo…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else {
+  <div class="row g-3">
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-start">
+          <div>
+            <h2 class="h6 mb-0">Produtos</h2>
+            <p class="text-muted small mb-0 mt-1">
+              Produto não é lote: ele existe antes da primeira brassa e sobrevive a todos.
+            </p>
+          </div>
+          @if (canManage) {
+            <button type="button" class="btn btn-sm btn-primary"
+                    (click)="showProductForm.set(!showProductForm())">
+              {{ showProductForm() ? 'Cancelar' : 'Novo' }}
+            </button>
+          }
+        </div>
+
+        @if (showProductForm()) {
+          <div class="card-body border-bottom">
+            <form [formGroup]="productForm" (ngSubmit)="submitProduct()" class="row g-2">
+              <div class="col-md-5">
+                <label class="form-label small mb-1" for="sku">SKU</label>
+                <input id="sku" class="form-control form-control-sm" formControlName="sku" />
+                <div class="form-text">Vira maiúsculas.</div>
+              </div>
+              <div class="col-md-7">
+                <label class="form-label small mb-1" for="prodName">Nome</label>
+                <input id="prodName" class="form-control form-control-sm" formControlName="name" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small mb-1" for="recipeId">Receita</label>
+                <input id="recipeId" class="form-control form-control-sm" formControlName="recipeId" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small mb-1" for="containerId">Embalagem</label>
+                <input id="containerId" class="form-control form-control-sm"
+                       formControlName="containerId" />
+              </div>
+              <div class="col-12">
+                <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+                  Cadastrar
+                </button>
+              </div>
+            </form>
+          </div>
+        }
+
+        <div class="card-body border-bottom py-2">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="onlyActiveProducts"
+                   [ngModel]="store.onlyActive()" [ngModelOptions]="{ standalone: true }"
+                   (ngModelChange)="store.toggleOnlyActive($event)" />
+            <label class="form-check-label small" for="onlyActiveProducts">Só produtos ativos</label>
+          </div>
+        </div>
+
+        @if (store.products().length === 0) {
+          <div class="card-body">
+            <app-empty-state
+              icon="ri-price-tag-3-line"
+              title="Nenhum produto"
+              message="Cadastre o primeiro SKU para começar a precificar."
+            />
+          </div>
+        } @else {
+          <ul class="list-group list-group-flush">
+            @for (product of store.products(); track product.id) {
+              <li class="list-group-item d-flex justify-content-between align-items-center gap-2"
+                  [class.active]="store.selectedProduct()?.id === product.id">
+                <button type="button" class="btn btn-link p-0 text-start flex-grow-1"
+                        (click)="select(product)">
+                  <span class="d-block">{{ product.name }}</span>
+                  <small class="text-muted">{{ product.sku }}</small>
+                </button>
+                @if (!product.active) {
+                  <span class="badge text-bg-secondary">descontinuado</span>
+                }
+                @if (canManage) {
+                  <button type="button" class="btn btn-sm btn-outline-secondary"
+                          (click)="store.setProductActive(product, !product.active)">
+                    {{ product.active ? 'Descontinuar' : 'Restaurar' }}
+                  </button>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <div class="card mt-3">
+        <div class="card-header d-flex justify-content-between align-items-start">
+          <div>
+            <h2 class="h6 mb-0">Canais</h2>
+            <p class="text-muted small mb-0 mt-1">
+              É o canal que faz a mesma cerveja ter preços diferentes sem ser inconsistência.
+            </p>
+          </div>
+          @if (canManage) {
+            <button type="button" class="btn btn-sm btn-outline-primary"
+                    (click)="showChannelForm.set(!showChannelForm())">
+              {{ showChannelForm() ? 'Cancelar' : 'Novo' }}
+            </button>
+          }
+        </div>
+        @if (showChannelForm()) {
+          <div class="card-body border-bottom">
+            <form [formGroup]="channelForm" (ngSubmit)="submitChannel()" class="row g-2">
+              <div class="col-md-5">
+                <label class="form-label small mb-1" for="chCode">Código</label>
+                <input id="chCode" class="form-control form-control-sm" formControlName="code" />
+              </div>
+              <div class="col-md-7">
+                <label class="form-label small mb-1" for="chName">Nome</label>
+                <input id="chName" class="form-control form-control-sm" formControlName="name" />
+              </div>
+              <div class="col-12">
+                <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+                  Cadastrar
+                </button>
+              </div>
+            </form>
+          </div>
+        }
+        @if (!store.hasChannels()) {
+          <div class="card-body">
+            <app-empty-state
+              icon="ri-store-3-line"
+              title="Nenhum canal"
+              message="Sem canal não há onde precificar: preço é sempre por produto e canal."
+            />
+          </div>
+        } @else {
+          <ul class="list-group list-group-flush">
+            @for (channel of store.channels(); track channel.id) {
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>{{ channel.name }} <small class="text-muted">{{ channel.code }}</small></span>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      @if (store.selectedProduct(); as product) {
+        <div class="card">
+          <div class="card-header">
+            <h2 class="h6 mb-0">Preço de {{ product.name }}</h2>
+            <p class="text-muted small mb-0 mt-1">
+              Preço não se sobrescreve: o novo fecha o anterior na véspera.
+            </p>
+          </div>
+
+          <div class="card-body border-bottom py-3">
+            <label class="form-label small mb-1" for="channelPick">Canal</label>
+            <select id="channelPick" class="form-select form-select-sm"
+                    [ngModel]="store.selectedChannel()" [ngModelOptions]="{ standalone: true }"
+                    (ngModelChange)="store.selectChannel($event)">
+              @for (channel of store.channels(); track channel.id) {
+                <option [value]="channel.id">{{ channel.name }}</option>
+              }
+            </select>
+          </div>
+
+          @if (store.pricesLoading()) {
+            <div class="card-body"><app-loading-indicator text="Carregando preços…" /></div>
+          } @else {
+            <div class="card-body">
+              @if (store.currentPrice(); as atual) {
+                <div class="border rounded p-3 mb-3">
+                  <div class="text-muted small">Vigente desde
+                    {{ atual.validFrom | date: 'dd/MM/yyyy' }}</div>
+                  <div class="fs-4">
+                    {{ atual.amount | number: '1.2-4' }} <small>{{ atual.currency }}</small>
+                  </div>
+                  <!--
+                    A plataforma não calcula imposto. Mostrar a marca evita que alguém compare um preço
+                    com imposto contra um sem e conclua errado.
+                  -->
+                  <div class="small text-muted">
+                    {{ atual.taxIncluded ? 'com imposto incluído' : 'sem imposto incluído' }}
+                  </div>
+                </div>
+              } @else {
+                <!--
+                  Lacuna declarada, e não zero: zero faria uma venda sair de graça.
+                -->
+                <div class="alert alert-warning py-2 small" role="alert">
+                  Este produto ainda <strong>não tem preço</strong> neste canal.
+                </div>
+              }
+
+              @if (canPrice) {
+                <button type="button" class="btn btn-sm btn-primary mb-3"
+                        (click)="showPriceForm.set(!showPriceForm())">
+                  {{ showPriceForm() ? 'Cancelar' : 'A partir de…' }}
+                </button>
+              }
+
+              @if (showPriceForm()) {
+                <form [formGroup]="priceForm" (ngSubmit)="submitPrice()" class="row g-2 mb-3">
+                  <div class="col-md-4">
+                    <label class="form-label small mb-1" for="amount">Valor</label>
+                    <input id="amount" type="number" step="0.0001" min="0.0001"
+                           class="form-control form-control-sm" formControlName="amount" />
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label small mb-1" for="currency">Moeda</label>
+                    <input id="currency" class="form-control form-control-sm" formControlName="currency"
+                           maxlength="3" />
+                  </div>
+                  <div class="col-md-5">
+                    <label class="form-label small mb-1" for="validFrom">A partir de</label>
+                    <input id="validFrom" type="date" class="form-control form-control-sm"
+                           formControlName="validFrom" />
+                  </div>
+                  <div class="col-12">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="taxIncluded"
+                             formControlName="taxIncluded" />
+                      <label class="form-check-label small" for="taxIncluded">
+                        O valor já inclui imposto
+                      </label>
+                    </div>
+                    <div class="form-text mb-2">
+                      A plataforma não calcula imposto — só registra o que você informar aqui.
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+                      Aplicar
+                    </button>
+                  </div>
+                </form>
+              }
+
+              @if (store.priceEntries().length > 0) {
+                <!--
+                  A história fica visível. Quando alguém pergunta "por que este pedido de março saiu a
+                  12?", a resposta não pode depender de uma consulta que ninguém sabe fazer.
+                -->
+                <h3 class="h6">Histórico</h3>
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th scope="col">De</th>
+                        <th scope="col">Até</th>
+                        <th scope="col" class="text-end">Valor</th>
+                        <th scope="col">Imposto</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (entry of store.priceEntries(); track entry.validFrom) {
+                        <tr>
+                          <td>{{ entry.validFrom | date: 'dd/MM/yyyy' }}</td>
+                          <td>
+                            {{ entry.validTo ? (entry.validTo | date: 'dd/MM/yyyy') : 'em vigor' }}
+                          </td>
+                          <td class="text-end">
+                            {{ entry.amount | number: '1.2-4' }} {{ entry.currency }}
+                          </td>
+                          <td class="small text-muted">
+                            {{ entry.taxIncluded ? 'incluído' : 'não incluído' }}
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="card">
+          <div class="card-body">
+            <app-empty-state
+              icon="ri-money-dollar-box-line"
+              title="Selecione um produto"
+              message="A linha do tempo de preço aparece aqui."
+            />
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+}

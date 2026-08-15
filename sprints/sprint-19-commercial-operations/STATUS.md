@@ -5,7 +5,7 @@ Estado: **ATIVA desde 2026-08-15** — escolhida como próxima sprint. Nenhuma h
 | História | Estado | Evidência |
 |---|---|---|
 | CRM-001 | Em execução — domínio e testes prontos | `crm/domain/*`, 26 testes unitários |
-| SAL-001 | A fazer | — |
+| SAL-001 | Em execução — domínio, fatia de fora e tela | `sales/*`, `V120`, 21 unitários + 10 IT |
 | SAL-002 | A fazer | — |
 | SAL-003 | A fazer | — |
 | FCST-001 | A fazer | — |
@@ -110,6 +110,69 @@ Conforme o rito do projeto, ambiguidade que altera regra de negócio vira pergun
 3. **Anonimização é ato humano ou varredura automática?** O domínio suporta os dois — `dueFor` responde
    quem venceu, sem executar nada. Automatizar sem revisão apaga contato de cliente ativo que só ficou
    um ano sem comprar; exigir revisão manual faz a fila crescer até ninguém olhar. É decisão de operação.
+
+### DEC-SAL-001 (SAL-001) — Produto não é lote, e preço tem linha do tempo
+
+**Produto é identidade comercial; lote é a coisa física.** "IPA lata 473 ml" existe antes da primeira
+brassa e sobrevive a todos os lotes. Se `sales_product` e `packaging_finished_lot` fossem a mesma coisa,
+cada envase criaria um item de catálogo novo e a lista de preço precisaria ser refeita a cada brassa.
+
+**A invariante do preço é uma só: em qualquer dia, no máximo um preço por produto e canal.** Duas
+vigências sobrepostas fariam "quanto custa hoje?" ter duas respostas, e o sistema escolheria pela ordem
+em que leu as linhas — o pedido sairia com um valor e a fatura com outro, sem ninguém conseguir dizer
+qual estava certo.
+
+Disso saiu a decisão de desenho mais importante: **o ato comum não é "inserir vigência", é "a partir de
+tal dia passa a custar tanto"**. `priceFrom` fecha sozinho o preço aberto anterior, na véspera. Exigir
+que o operador encerre o antigo à mão criaria uma janela sem preço, e o erro apareceria como "produto sem
+preço" num dia de venda. Já sobrepor um período **já fechado** é recusado: encurtar o antigo, dividir em
+dois, substituir? Adivinhar seria reescrever preço histórico por conta própria.
+
+**A garantia é do banco, não da checagem.** `ex_sales_price_no_overlap` (`EXCLUDE USING gist` com
+`daterange [ ]`) é o que impede de verdade — checagem prévia não sobrevive a duas requisições simultâneas,
+e sobreposição de preço é exatamente o que duas telas abertas produzem. Há um teste que insere direto no
+banco, contornando o domínio, só para provar que a barreira existe lá.
+
+**`Money` nasceu aqui**, com moeda ISO obrigatória, porque o critério transversal da sprint exige decimal
+e moeda explícita. Quatro casas: preço unitário de item barato some inteiro num arredondamento para
+centavo, e o arredondamento para dinheiro de verdade é no total do pedido (SAL-002). **Não converte** —
+conversão exige taxa, data e fonte, e inventar qualquer uma seria inventar dinheiro.
+
+**Canal é tabela, e não enum** — mesma decisão da atividade de mão de obra na CST-001-A. A segmentação de
+quem vende no taproom não é a de quem exporta, e um enum exigiria migration para a cervejaria poder
+vender por um canal a mais.
+
+**Preço zero é recusado.** Brinde é desconto no pedido, onde fica registrado que alguém decidiu dar; aqui,
+zero é engano — e tratar os dois igual esconde o engano.
+
+**Imposto não é calculado** (motor fiscal está fora do escopo da sprint), mas `taxIncluded` viaja junto,
+senão alguém compara preço com imposto contra preço sem e conclui errado.
+
+**Entregue:** `Money`, `Product`, `SalesChannel`, `PriceEntry`, `PriceSchedule` e exceções; `V120` com
+três tabelas; portas, casos de uso, dois controllers com Problem Details; 6 caminhos e 4 schemas no
+OpenAPI; tela de catálogo, canais e linha do tempo de preço. **21 testes de domínio e 10 de integração.**
+
+### DEB-SAL-001 — O custeio usa dinheiro sem moeda
+
+Descoberto ao escrever `Money`: `costing` guarda `BigDecimal` puro em custo total, custo por litro e taxa
+da hora. Enquanto a cervejaria opera numa moeda só, nada quebra — mas a primeira exportação faz somar
+real com dólar sem que nada reclame, e o erro aparece no fechamento do mês, longe da causa.
+
+**Critério de remoção:** `costing` passar a persistir e expor moeda junto do valor, reaproveitando o
+`Money` da SAL-001 (ou uma versão dele promovida a `shared`). **Não ampliei o escopo aqui** porque mexer
+no custeio significa migration em tabela com dado, e isso é história própria.
+
+### DUV-SAL-001 (SAL-001) — O que torna um lote "vendável"
+
+O backlog pede "relacionar SKU/embalagem com **lote vendável**". A parte de SKU e embalagem está feita; a
+de lote **não**, e de propósito: decidir o que torna um lote vendável atravessa três módulos — liberado
+pela qualidade? dentro da validade? não bloqueado por recall ou quarentena? — e cada resposta muda quem
+pode vender o quê.
+
+Registrado em vez de inventado. É provavelmente a primeira coisa a decidir antes da SAL-002, porque
+pedido reserva lote.
+
+## Evidências de encerramento
 
 - Build/commit:
 - Testes executados:

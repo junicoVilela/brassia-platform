@@ -129,6 +129,14 @@
               </a>
             </li>
           }
+          @if (auth.hasPermission('crm.customer.read')) {
+            <li class="menu-item">
+              <a routerLink="/crm/customers" routerLinkActive="active" class="menu-link">
+                <i class="ri-store-2-line menu-icon"></i>
+                <span class="title">Clientes</span>
+              </a>
+            </li>
+          }
           @if (auth.hasPermission('costing.cost.read')) {
             <li class="menu-item">
               <a routerLink="/costing/batches" routerLinkActive="active" class="menu-link">

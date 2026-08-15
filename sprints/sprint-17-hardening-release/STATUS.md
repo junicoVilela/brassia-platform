@@ -163,6 +163,39 @@ senão o painel fica cego exatamente durante o deploy.
 **O que falta para REL-004 fechar:** uma linha na tabela de registro de ensaios. Tabela vazia é estado
 honesto — significa que nenhum ensaio foi feito. **Preenchida em 2026-08-10 — ver DEC-REL-009.**
 
+### DEC-CST-001 (CST-001-A) — A hora é da produção, o dinheiro é do custeio
+
+Decisão do mantenedor em 2026-08-14: apontamento de hora no dia de brassa, com custo/hora vindo de
+parâmetro. As duas metades do critério de remoção estão implementadas — o apontamento e o contribuinte.
+
+**A separação é a decisão central.** `production_labor_entry` guarda quem trabalhou, quando e por quanto
+tempo; `costing_labor_rate` guarda quanto a hora vale. Não é preciosismo de camada: é o que permite
+ajustar a taxa sem reescrever apontamento, e o que evita que quem registra seis horas de brassa precise
+conhecer moeda para fazê-lo. Por isso o contribuinte mora no **custeio**, e não na produção: a parcela é
+`hora × taxa`, e a taxa é dele.
+
+**Horas-homem, não horas.** Duas pessoas por três horas custam seis. Guardar "3 h" perderia exatamente a
+metade que a cervejaria paga.
+
+**Uma taxa por cervejaria, não uma por pessoa.** Custo de mão de obra por lote é custo médio da hora
+produtiva — salário, encargos e ociosidade diluídos. Uma taxa por pessoa faria o mesmo lote sair mais caro
+na semana em que o cervejeiro sênior trabalhou, o que descreve a escala e não o produto. Se um dia for
+necessário, entra como taxa por atividade, que é a divisão que a cervejaria enxerga.
+
+**Duas ausências diferentes, e a lacuna agora distingue.** Antes havia uma frase genérica no montador:
+"não há hora trabalhada registrada na plataforma". Ela saiu de lá — a mão de obra passou a ter dono, e
+quem declara a lacuna é o contribuinte, que sabe separar "sem taxa cadastrada" (defina a taxa) de
+"ninguém apontou hora neste lote" (aponte as horas). São ações diferentes, e uma frase só as achatava.
+
+**A atividade é texto, não enum.** A divisão de trabalho de uma cervejaria de três pessoas não é a de uma
+de trinta, e um enum imporia a de quem escreveu o código.
+
+**Lote cancelado não recebe apontamento; encerrado recebe.** Limpeza e fechamento acontecem depois de o
+lote acabar, e recusar apontamento aí obrigaria a apontar antes de trabalhar.
+
+**Continua faltando o `CST-001-B`** (utilidade por lote), e a lacuna estrutural do montador agora existe
+só para ela.
+
 ### DEC-QLT-001 (QLT-001-A) — O bloqueio estava desatualizado, e só uma das quatro cadências é julgável
 
 Decisão do mantenedor em 2026-08-14: **alerta, não bloqueio**. Parar a produção por um controle atrasado

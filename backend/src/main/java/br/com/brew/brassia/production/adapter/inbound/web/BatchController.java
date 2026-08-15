@@ -12,6 +12,7 @@ import br.com.brew.brassia.production.application.port.inbound.GetBatchTransferU
 import br.com.brew.brassia.production.application.port.inbound.GetBatchUseCase;
 import br.com.brew.brassia.production.application.port.inbound.ListBatchesUseCase;
 import br.com.brew.brassia.production.application.port.inbound.ListMeasurementsUseCase;
+import br.com.brew.brassia.production.application.port.inbound.RecordLaborUseCase;
 import br.com.brew.brassia.production.application.port.inbound.RecordMeasurementUseCase;
 import br.com.brew.brassia.production.application.port.inbound.TransferBatchUseCase;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
@@ -45,12 +46,14 @@ final class BatchController {
     private final GetBatchTransferUseCase getTransfer;
     private final BrewConsumptionUseCases.Proposal consumptionProposal;
     private final BrewConsumptionUseCases.Register registerConsumption;
+    private final RecordLaborUseCase recordLabor;
 
     BatchController(ListBatchesUseCase listBatches, GetBatchUseCase getBatch,
             CompleteBatchStepUseCase completeStep, RecordMeasurementUseCase recordMeasurement,
             ListMeasurementsUseCase listMeasurements, TransferBatchUseCase transferBatch,
             GetBatchTransferUseCase getTransfer, BrewConsumptionUseCases.Proposal consumptionProposal,
-            BrewConsumptionUseCases.Register registerConsumption) {
+            BrewConsumptionUseCases.Register registerConsumption, RecordLaborUseCase recordLabor) {
+        this.recordLabor = recordLabor;
         this.listBatches = listBatches;
         this.getBatch = getBatch;
         this.completeStep = completeStep;
@@ -177,5 +180,41 @@ final class BatchController {
         return getTransfer.handle(principal.requireBrewery(), id)
                 .map(t -> ResponseEntity.ok(TransferView.from(t)))
                 .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    /**
+     * Aponta horas trabalhadas no lote (CST-001-A).
+     *
+     * <p>Alçada própria: apontar hora é trabalho do dia e muita gente faz; definir quanto a hora vale é
+     * decisão de gestão, e mora no custeio.
+     */
+    @PostMapping("/{id}/labor")
+    @ResponseStatus(HttpStatus.CREATED)
+    LaborEntryView recordLabor(@AuthenticationPrincipal SecurityPrincipal principal,
+            @PathVariable UUID id, @Valid @RequestBody RecordLaborRequest request) {
+        principal.requirePermission("production.labor.record");
+        return LaborEntryView.from(recordLabor.handle(new RecordLaborUseCase.Command(
+                principal.requireBrewery(), principal.userId(), id, request.activity(),
+                request.startedAt(), request.endedAt(), request.people())));
+    }
+
+    /**
+     * @param people quantas pessoas trabalharam. Duas por três horas custam seis horas-homem, e omitir a
+     *               contagem perderia metade do custo — justamente a metade que a cervejaria paga
+     */
+    record RecordLaborRequest(
+            @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 120)
+            String activity,
+            @jakarta.validation.constraints.NotNull java.time.Instant startedAt,
+            @jakarta.validation.constraints.NotNull java.time.Instant endedAt,
+            @jakarta.validation.constraints.Min(1) int people) {}
+
+    record LaborEntryView(UUID id, String activity, java.time.Instant startedAt,
+            java.time.Instant endedAt, int people, java.math.BigDecimal manHours) {
+
+        static LaborEntryView from(br.com.brew.brassia.production.domain.LaborEntry entry) {
+            return new LaborEntryView(entry.id(), entry.activity(), entry.startedAt(), entry.endedAt(),
+                    entry.people(), entry.manHours());
+        }
     }
 }

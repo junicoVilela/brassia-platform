@@ -54,17 +54,16 @@ public final class BatchCostAssembler {
     /**
      * As lacunas que nenhum módulo declara porque nenhum módulo existe para declará-las.
      *
-     * <p>Mão de obra e utilidade não têm dono: não há hora trabalhada registrada em lugar nenhum, e
-     * a água e a energia que a sanitização mede são por equipamento, não por lote. Declarar aqui é
-     * o que evita que o total pareça completo — somar zero seria mentir por omissão.
+     * <p>Restou a utilidade: a água e a energia que a sanitização mede são por equipamento, não por lote.
+     * Declarar aqui é o que evita que o total pareça completo — somar zero seria mentir por omissão.
+     *
+     * <p><strong>A mão de obra saiu daqui (CST-001-A).</strong> Ela passou a ter dono — o apontamento de
+     * hora na produção e a taxa no custeio —, e quem declara a lacuna agora é o próprio contribuinte, que
+     * sabe distinguir "sem taxa cadastrada" de "ninguém apontou hora neste lote". Duas ausências
+     * diferentes, com ações diferentes, que uma frase genérica aqui achataria numa só.
      */
     private static List<CostGap> structuralGaps(List<CostLine> lines) {
         var gaps = new ArrayList<CostGap>();
-        if (lines.stream().noneMatch(line -> line.category() == CostCategory.LABOR)) {
-            gaps.add(new CostGap(CostCategory.LABOR,
-                    "não há hora trabalhada registrada na plataforma: a mão de obra não entra no total "
-                            + "(CST-001-A)"));
-        }
         if (lines.stream().noneMatch(line -> line.category() == CostCategory.UTILITY)) {
             gaps.add(new CostGap(CostCategory.UTILITY,
                     "água e energia são medidas por ciclo de limpeza, por equipamento, e o CO₂ não tem "

@@ -28,6 +28,37 @@
             Custo aberto é a soma de agora e ainda muda; fechado é apuração assinada.
           </p>
         </div>
+
+        <!--
+          CST-001-A: a taxa fica aqui, ao lado dos custos, porque é ela que decide se a mão de obra
+          entra no total. Sem taxa cadastrada, o custo declara a lacuna em vez de somar zero.
+        -->
+        <div class="card-body border-bottom py-3">
+          <label class="form-label small mb-1" for="laborRate">Custo da hora de trabalho</label>
+          <div class="d-flex gap-2 align-items-center">
+            <input id="laborRate" type="number" step="0.01" min="0.01"
+                   class="form-control form-control-sm"
+                   [ngModel]="rateInput()" (ngModelChange)="rateInput.set($event)"
+                   [ngModelOptions]="{ standalone: true }"
+                   [placeholder]="store.laborRate() === null ? 'não definido' : ''">
+            @if (canManageRate) {
+              <button type="button" class="btn btn-sm btn-outline-primary text-nowrap"
+                      [disabled]="!rateInput() || store.savingRate()" (click)="saveRate()">
+                Salvar
+              </button>
+            }
+          </div>
+          @if (store.laborRate() === null) {
+            <p class="form-text mb-0">
+              Sem a taxa, a mão de obra não entra no custo — e o total sai menor que a verdade.
+            </p>
+          } @else {
+            <p class="form-text mb-0">
+              Média da hora produtiva da casa, com encargos. Uma taxa por pessoa faria o mesmo lote
+              custar mais na semana do cervejeiro sênior.
+            </p>
+          }
+        </div>
         <div class="list-group list-group-flush">
           @for (cost of store.closedCosts(); track cost.batchId) {
             <button

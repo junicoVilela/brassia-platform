@@ -56,6 +56,13 @@ export class BatchesPageComponent implements OnInit {
     lossesLiters: [0, [Validators.min(0)]],
   });
 
+  protected readonly laborForm = this.fb.nonNullable.group({
+    activity: ['', [Validators.required, Validators.maxLength(120)]],
+    startedAt: ['', [Validators.required]],
+    endedAt: ['', [Validators.required]],
+    people: [1, [Validators.required, Validators.min(1)]],
+  });
+
   protected readonly measurementForm = this.fb.nonNullable.group({
     kind: ['DENSITY', Validators.required],
     unit: ['SG', Validators.required],
@@ -189,6 +196,28 @@ export class BatchesPageComponent implements OnInit {
     this.measurementForm.reset({ kind: 'DENSITY', unit: 'SG', value: 0, temperatureC: null, method: '', source: 'MANUAL' });
     this.kindSignal.set('DENSITY');
     this.store.showMeasurements(batchId);
+  }
+
+  /**
+   * Aponta horas (CST-001-A).
+   *
+   * <p>`datetime-local` devolve hora local sem fuso; `new Date(...)` a interpreta no fuso do navegador e
+   * `toISOString` a converte para UTC — que é o que o backend guarda. Enviar o texto cru gravaria a hora
+   * de São Paulo como se fosse UTC, e três horas de brassa virariam seis.
+   */
+  protected recordLabor(batchId: string): void {
+    if (this.laborForm.invalid) {
+      return;
+    }
+    const v = this.laborForm.getRawValue();
+    this.store.recordLabor(batchId,
+      {
+        activity: v.activity,
+        startedAt: new Date(v.startedAt).toISOString(),
+        endedAt: new Date(v.endedAt).toISOString(),
+        people: v.people,
+      },
+      () => this.laborForm.reset({ activity: '', startedAt: '', endedAt: '', people: 1 }));
   }
 
   protected record(batchId: string): void {

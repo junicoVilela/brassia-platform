@@ -14,7 +14,7 @@ import {
   CorrectionResult,
   PreviewCorrectionRequest,
 } from '../domain/correction.model';
-import { Measurement, RecordMeasurementRequest } from '../domain/measurement.model';
+import { Measurement, RecordMeasurementRequest, LaborEntry, RecordLaborRequest } from '../domain/measurement.model';
 import { TransferRequest } from '../domain/transfer.model';
 import { BatchesApi } from './batches.api';
 
@@ -34,6 +34,7 @@ export class BatchesStore {
   readonly empty = computed(() => !this.loading() && !this.error() && this.items().length === 0);
   readonly canManage = this.auth.hasPermission('production.batch.manage');
   readonly canRecordMeasurement = this.auth.hasPermission('production.measurement.record');
+  readonly canRecordLabor = this.auth.hasPermission('production.labor.record');
   readonly completing = signal(false);
 
   /** Lote expandido para ver o roteiro. */
@@ -45,6 +46,10 @@ export class BatchesStore {
   readonly measurementsLoading = signal(false);
   readonly measurementError = signal<string | null>(null);
   readonly recording = signal(false);
+  /** Apontamentos de hora do lote aberto no painel (CST-001-A). */
+  readonly labor = signal<LaborEntry[]>([]);
+  readonly recordingLabor = signal(false);
+  readonly laborError = signal<string | null>(null);
 
   /** Lote com o painel de correções aberto (PRD-004). */
   readonly correctionsBatchId = signal<string | null>(null);
@@ -131,6 +136,40 @@ export class BatchesStore {
     this.measurementsBatchId.set(batchId);
     this.measurementError.set(null);
     this.refreshMeasurements(batchId);
+    this.refreshLabor(batchId);
+  }
+
+  /**
+   * Aponta horas e recarrega a lista.
+   *
+   * <p>Recarrega em vez de acrescentar localmente: o total de horas-homem é calculado no servidor, e
+   * repeti-lo aqui criaria uma segunda conta que diverge da primeira no primeiro arredondamento.
+   */
+  recordLabor(batchId: string, request: RecordLaborRequest, onSuccess?: () => void): void {
+    this.recordingLabor.set(true);
+    this.laborError.set(null);
+    this.api.recordLabor(batchId, request)
+      .pipe(finalize(() => this.recordingLabor.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          onSuccess?.();
+          this.toast.success('Horas apontadas.');
+          this.refreshLabor(batchId);
+        },
+        error: (err: { status?: number }) =>
+          this.laborError.set(err?.status === 409
+            ? 'Lote cancelado não recebe apontamento de hora.'
+            : 'Não foi possível apontar as horas. Confira o período e a quantidade de pessoas.'),
+      });
+  }
+
+  private refreshLabor(batchId: string): void {
+    this.api.labor(batchId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: entries => this.labor.set(entries),
+        error: () => this.laborError.set('Não foi possível carregar os apontamentos.'),
+      });
   }
 
   recordMeasurement(batchId: string, request: RecordMeasurementRequest, onSuccess?: () => void): void {

@@ -1,0 +1,230 @@
+<app-page-header
+  title="Biblioteca"
+  subtitle="Receitas publicadas — as suas e as da comunidade."
+/>
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando biblioteca…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else {
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-start">
+          <div>
+            <h2 class="h6 mb-0">Minhas publicações</h2>
+            <p class="text-muted small mb-0 mt-1">
+              Publica-se uma <strong>versão</strong>: a receita continua evoluindo em casa.
+            </p>
+          </div>
+          @if (canPublish) {
+            <button type="button" class="btn btn-sm btn-primary" (click)="showForm.set(!showForm())">
+              {{ showForm() ? 'Cancelar' : 'Publicar' }}
+            </button>
+          }
+        </div>
+
+        @if (showForm()) {
+          <div class="card-body border-bottom">
+            <form [formGroup]="form" (ngSubmit)="submit()" class="row g-2">
+              <div class="col-12">
+                <label class="form-label small mb-1" for="recipeId">Receita</label>
+                <input id="recipeId" class="form-control form-control-sm" formControlName="recipeId" />
+                <div class="form-text">Só receita já publicada internamente pode ir para a biblioteca.</div>
+              </div>
+              <div class="col-12">
+                <label class="form-label small mb-1" for="title">Título</label>
+                <input id="title" class="form-control form-control-sm" formControlName="title" />
+              </div>
+              <div class="col-12">
+                <label class="form-label small mb-1" for="summary">Resumo</label>
+                <textarea id="summary" rows="2" class="form-control form-control-sm"
+                          formControlName="summary"></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small mb-1" for="license">Licença</label>
+                <select id="license" class="form-select form-select-sm" formControlName="license">
+                  <option value="ALL_RIGHTS_RESERVED">Todos os direitos reservados</option>
+                  <option value="CC0">CC0 1.0 — domínio público</option>
+                  <option value="CC_BY">CC BY 4.0 — com atribuição</option>
+                  <option value="CC_BY_SA">CC BY-SA 4.0 — atribuição e mesma licença</option>
+                  <option value="CC_BY_NC">CC BY-NC 4.0 — sem uso comercial</option>
+                </select>
+                <!--
+                  O padrão é o mais fechado: assumir permissão por omissão daria ao público um direito
+                  que o autor nunca concedeu.
+                -->
+                <div class="form-text">O padrão não autoriza cópia.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small mb-1" for="visibility">Quem enxerga</label>
+                <select id="visibility" class="form-select form-select-sm" formControlName="visibility">
+                  @for (v of visibilities; track v) {
+                    <option [value]="v">{{ visibilityLabels[v] }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-12">
+                <!--
+                  O efeito da escolha fica visível ANTES de publicar. O erro possível aqui não é um
+                  número errado: é um vazamento que não se desfaz.
+                -->
+                <div class="alert alert-light border py-2 small mb-2" role="note">
+                  {{ selectedHelp }}
+                </div>
+                <div class="alert alert-light border py-2 small mb-2" role="note">
+                  <strong>O que sai:</strong> nome, volume, tempo de fervura, alvos e os ingredientes
+                  <em>pelo nome</em>.<br />
+                  <strong>O que fica:</strong> sua cervejaria, custo, fornecedor, estoque e os códigos do
+                  seu catálogo.
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+                  Publicar
+                </button>
+              </div>
+            </form>
+          </div>
+        }
+
+        @if (store.mine().length === 0) {
+          <div class="card-body">
+            <app-empty-state
+              icon="ri-book-2-line"
+              title="Nada publicado"
+              message="Publique uma versão de receita para compartilhá-la."
+            />
+          </div>
+        } @else {
+          <ul class="list-group list-group-flush">
+            @for (p of store.live(); track p.id) {
+              <li class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                  <div>
+                    <span class="d-block">{{ p.title }}</span>
+                    <small class="text-muted">
+                      versão {{ p.recipeVersion }} · {{ p.publishedAt | date: 'dd/MM/yyyy' }}
+                    </small>
+                  </div>
+                  <div class="d-flex gap-2 align-items-center">
+                    <select class="form-select form-select-sm" style="width: auto"
+                            [value]="p.visibility"
+                            (change)="changeVisibility(p, $any($event.target).value)">
+                      @for (v of visibilities; track v) {
+                        <option [value]="v">{{ visibilityLabels[v] }}</option>
+                      }
+                    </select>
+                    <button type="button" class="btn btn-sm btn-outline-danger" (click)="retire(p)">
+                      Retirar
+                    </button>
+                  </div>
+                </div>
+              </li>
+            }
+            @for (p of store.retired(); track p.id) {
+              <li class="list-group-item bg-body-tertiary">
+                <span class="text-muted">{{ p.title }}</span>
+                <!--
+                  Fora de circulação, e não excluída: o que já foi lido não se desfaz, e um fork feito
+                  enquanto estava pública continua legítimo.
+                -->
+                <small class="d-block text-muted">
+                  fora de circulação · versão {{ p.recipeVersion }}
+                </small>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="h6 mb-0">Da comunidade</h2>
+          <p class="text-muted small mb-0 mt-1">
+            Só o que está público. Receita com link ou não listada não aparece aqui.
+          </p>
+        </div>
+        @if (store.feed().length === 0) {
+          <div class="card-body">
+            <app-empty-state
+              icon="ri-community-line"
+              title="Vitrine vazia"
+              message="Nada foi publicado como público ainda."
+            />
+          </div>
+        } @else {
+          <ul class="list-group list-group-flush">
+            @for (p of store.feed(); track p.id) {
+              <li class="list-group-item">
+                <button type="button" class="btn btn-link p-0 text-start" (click)="open(p)">
+                  {{ p.title }}
+                </button>
+                <small class="d-block text-muted">
+                  {{ p.author }} · {{ p.licenseLabel }}
+                  @if (p.forkable) {
+                    <span class="badge text-bg-light ms-1">permite cópia</span>
+                  }
+                </small>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </div>
+  </div>
+}
+
+@if (store.selected(); as p) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h3 class="h6 modal-title mb-0">{{ p.title }}</h3>
+            <small class="text-muted">
+              {{ p.author }} · {{ p.licenseLabel }} · versão {{ p.recipeVersion }}
+            </small>
+          </div>
+          <button type="button" class="btn-close" (click)="store.close()"></button>
+        </div>
+        <div class="modal-body">
+          @if (p.summary) {
+            <p class="small">{{ p.summary }}</p>
+          }
+          <dl class="row small">
+            <dt class="col-sm-4">Volume da brassa</dt>
+            <dd class="col-sm-8">{{ p.recipe.batchVolumeLiters | number: '1.0-1' }} L</dd>
+            @if (p.recipe.targets; as t) {
+              <dt class="col-sm-4">Alvos</dt>
+              <dd class="col-sm-8">
+                OG {{ t.originalGravity | number: '1.3-3' }} ·
+                FG {{ t.finalGravity | number: '1.3-3' }} ·
+                {{ t.ibu | number: '1.0-0' }} IBU ·
+                {{ t.abvPercent | number: '1.1-1' }}% ABV
+              </dd>
+            }
+          </dl>
+          <h4 class="h6">Ingredientes</h4>
+          <ul class="list-unstyled small mb-0">
+            @for (item of p.recipe.items; track item.ingredientName) {
+              <li>
+                {{ item.quantity | number: '1.0-2' }} {{ item.unit }} —
+                <strong>{{ item.ingredientName }}</strong>
+                <span class="text-muted">({{ item.stage }})</span>
+              </li>
+            }
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+}

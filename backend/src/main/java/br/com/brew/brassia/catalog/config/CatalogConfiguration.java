@@ -54,6 +54,7 @@ class CatalogConfiguration {
         return (breweryId, ingredientId) -> repository.findById(breweryId, ingredientId).map(ingredient -> {
             var attributes = ingredient.attributes();
             return new IngredientSpecLookup.Spec(
+                    ingredient.name().value(),
                     ingredient.type().name(),
                     number(attributes.get("potentialSg")),
                     number(attributes.get("colorEbc")),

@@ -7988,8 +7988,278 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/DemandForecast'}
         '403': {$ref: '#/components/responses/Problem'}
+  /community/library:
+    get:
+      tags: [Comunidade]
+      summary: A vitrine da biblioteca (COM-001)
+      description: >-
+        Só o que está **no ar e é público**, de qualquer cervejaria — a biblioteca pública não é de
+        ninguém, e filtrar por inquilino mostraria a cada um só o que ele mesmo publicou.
+
+
+        **A resposta nunca carrega a cervejaria.** O plano de testes é explícito: busca e feed não expõem
+        tenant. Também não carrega o identificador da receita — ele permitiria tentar os endpoints
+        internos e descobrir, pelo código de resposta, o que existe do outro lado.
+
+
+        `LINK` e `UNLISTED` **não aparecem aqui**: são alcançáveis por endereço e não anunciados.
+      parameters:
+        - name: limit
+          in: query
+          schema: {type: integer, default: 20, maximum: 50}
+      responses:
+        '200':
+          description: Publicações públicas, das mais recentes para as mais antigas
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/LibraryPublication'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Comunidade]
+      summary: Publicar uma versão de receita (COM-001)
+      description: >-
+        **Publica-se uma versão, e não uma receita.** A receita continua evoluindo em casa; o que fica lá
+        fora é o retrato daquela versão, **congelado**. Uma vista faria a edição privada de amanhã alterar
+        em silêncio o que o público já leu — e o autor descobriria ter publicado algo que nunca revisou.
+
+
+        **O retrato é montado por allowlist, campo a campo.** Ficam de fora, por construção: a cervejaria,
+        o identificador do ingrediente (que aponta para o catálogo, onde moram **preço de compra e
+        fornecedor**), o equipamento e a linhagem interna. A alternativa — serializar a receita removendo
+        o que não pode sair — é blacklist, e blacklist falha do lado errado: um campo novo vazaria **por
+        padrão**.
+
+
+        **Só receita publicada entra.** Um rascunho é trabalho em andamento, e publicá-lo colocaria lá fora
+        uma versão que a própria casa ainda não considera pronta.
+
+
+        Alçada `community.recipe.publish`, **crítica**: o que sai não volta — quem leu, leu, e um fork
+        feito enquanto estava público continua legítimo mesmo depois de despublicar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipeId, title, license, visibility]
+              properties:
+                recipeId: {type: string, format: uuid}
+                title: {type: string, maxLength: 160}
+                summary: {type: string, maxLength: 1000, nullable: true}
+                license: {$ref: '#/components/schemas/RecipeLicense'}
+                visibility: {$ref: '#/components/schemas/RecipeVisibility'}
+      responses:
+        '201':
+          description: Publicada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `version_already_published` — duas entradas da mesma versão concorreriam na busca, com
+            títulos possivelmente diferentes, e ninguém saberia qual é a boa.
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /community/library/mine:
+    get:
+      tags: [Comunidade]
+      summary: A estante do autor
+      description: >-
+        O que esta cervejaria publicou, em **qualquer** visibilidade, inclusive o que saiu de circulação.
+        Aqui o identificador da receita aparece: ele é do próprio autor.
+      responses:
+        '200':
+          description: Publicações da cervejaria
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/OwnedPublication'}}
+        '403': {$ref: '#/components/responses/Problem'}
+  /community/library/{id}:
+    get:
+      tags: [Comunidade]
+      summary: Ler uma publicação
+      description: >-
+        A matriz de visibilidade decide: `PRIVATE` e `BREWERY` não alcançam quem está de fora; `LINK`,
+        `UNLISTED` e `PUBLIC` alcançam.
+
+
+        **Publicação inacessível responde 404, e nunca 403.** Numa biblioteca, distinguir "não existe" de
+        "é privada" permite **enumerar o acervo alheio sem ler nada** — basta contar quais identificadores
+        respondem diferente.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: A publicação, com o retrato congelado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LibraryPublication'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /community/library/{id}/visibility:
+    put:
+      tags: [Comunidade]
+      summary: Mudar quem enxerga
+      description: Fechar é sempre possível — é o botão de arrependimento.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [visibility]
+              properties:
+                visibility: {$ref: '#/components/schemas/RecipeVisibility'}
+      responses:
+        '204': {description: Visibilidade alterada}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`publication_not_live` — já saiu de circulação; republicar é ato novo'
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /community/library/{id}/license:
+    put:
+      tags: [Comunidade]
+      summary: Mudar a licença
+      description: >-
+        **Vale daqui para a frente, e não retroage.** Quem já copiou sob a licença antiga copiou sob a
+        licença antiga — fingir que desfaz seria a plataforma prometendo um controle que ela não tem sobre
+        o que já saiu.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [license]
+              properties:
+                license: {$ref: '#/components/schemas/RecipeLicense'}
+      responses:
+        '204': {description: Licença alterada}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /community/library/{id}/unpublish:
+    post:
+      tags: [Comunidade]
+      summary: Tirar de circulação
+      description: >-
+        **Não apaga.** O que já foi lido não se desfaz, e um fork feito enquanto estava pública continua
+        legítimo. A publicação some da busca e do acesso externo, e continua na estante do autor com a
+        data de saída.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Fora de circulação}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    RecipeLicense:
+      type: string
+      enum: [CC0, CC_BY, CC_BY_SA, CC_BY_NC, ALL_RIGHTS_RESERVED]
+      description: >-
+        Lista fechada, ao contrário de canal de venda e atividade de mão de obra, que são cadastro — a
+        diferença é efeito jurídico. Quem escrevesse "livre" num campo de texto estaria dizendo nada, e
+        quem copiasse acreditando naquilo ficaria exposto. `ALL_RIGHTS_RESERVED` não autoriza fork.
+    RecipeVisibility:
+      type: string
+      enum: [PRIVATE, BREWERY, LINK, UNLISTED, PUBLIC]
+      description: >-
+        Do mais fechado para o mais aberto. `LINK` e `UNLISTED` são alcançáveis por endereço e **não
+        listados**; só `PUBLIC` aparece na vitrine.
+    LibraryPublication:
+      type: object
+      description: >-
+        O que o público vê. **Sem cervejaria e sem identificador de receita** — o primeiro é o inquilino,
+        o segundo permitiria sondar os endpoints internos.
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string}
+        summary: {type: string, nullable: true}
+        author: {type: string, description: Nome de exibição congelado na publicação.}
+        license: {$ref: '#/components/schemas/RecipeLicense'}
+        licenseLabel: {type: string}
+        recipeVersion: {type: integer, format: int64}
+        publishedAt: {type: string, format: date-time}
+        forkable: {type: boolean, description: Depende da licença e de a publicação alcançar quem está de fora.}
+        recipe: {$ref: '#/components/schemas/PublicRecipeSnapshot'}
+    PublicRecipeSnapshot:
+      type: object
+      description: >-
+        O retrato congelado, montado por **allowlist**. O que não está descrito aqui não sai — inclusive
+        o que a receita ganhar de campo novo no futuro.
+      properties:
+        name: {type: string}
+        style: {type: string, nullable: true}
+        batchVolumeLiters: {type: number}
+        boilTimeMinutes: {type: integer, nullable: true}
+        targets: {$ref: '#/components/schemas/PublicRecipeTargets'}
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/PublicRecipeItem'}
+    PublicRecipeTargets:
+      type: object
+      nullable: true
+      description: Propriedades da cerveja, e não do negócio. Nulo quando as métricas nunca foram calculadas.
+      properties:
+        originalGravity: {type: number, nullable: true}
+        finalGravity: {type: number, nullable: true}
+        ibu: {type: number, nullable: true}
+        colorSrm: {type: number, nullable: true}
+        abvPercent: {type: number, nullable: true}
+    PublicRecipeItem:
+      type: object
+      properties:
+        ingredientName:
+          type: string
+          description: >-
+            O **nome**, e nunca o identificador: ele é a chave do catálogo da cervejaria, onde moram
+            preço de compra e fornecedor. O nome é o que outro cervejeiro precisa, e não abre porta.
+        stage: {type: string}
+        quantity: {type: number}
+        unit: {type: string}
+        timingMinutes: {type: integer, nullable: true}
+        percentage: {type: number, nullable: true}
+    OwnedPublication:
+      type: object
+      description: A visão do autor sobre a própria estante — aqui o id da receita aparece, porque é dele.
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string}
+        recipeId: {type: string, format: uuid}
+        recipeVersion: {type: integer, format: int64}
+        license: {$ref: '#/components/schemas/RecipeLicense'}
+        visibility: {$ref: '#/components/schemas/RecipeVisibility'}
+        published: {type: boolean, description: Falso quando saiu de circulação — mas continua aqui.}
+        publishedAt: {type: string, format: date-time}
     DemandForecast:
       type: object
       properties:

@@ -1,6 +1,7 @@
 package br.com.brew.brassia.recipe.adapter.outbound.persistence;
 
 import br.com.brew.brassia.recipe.application.port.outbound.RecipeRepository;
+import br.com.brew.brassia.recipe.domain.ExpectedLosses;
 import br.com.brew.brassia.recipe.domain.Recipe;
 import br.com.brew.brassia.recipe.domain.RecipeId;
 import br.com.brew.brassia.recipe.domain.RecipeItem;
@@ -25,7 +26,8 @@ import org.springframework.stereotype.Repository;
 class JdbcRecipeRepository implements RecipeRepository {
     private static final String SELECT_COLUMNS = """
             SELECT id, brewery_id, name, status, equipment_id, batch_volume_liters, target_og_points,
-                   target_ibu, target_color_ebc, target_abv, boil_time_minutes, version, previous_recipe_id
+                   target_ibu, target_color_ebc, target_abv, boil_time_minutes,
+                   transfer_loss_percent, packaging_loss_percent, version, previous_recipe_id
             FROM recipe
             """;
 
@@ -48,16 +50,18 @@ class JdbcRecipeRepository implements RecipeRepository {
         jdbc.sql("""
                 INSERT INTO recipe (
                     id, brewery_id, name, normalized_name, status, equipment_id, batch_volume_liters,
-                    target_og_points, target_ibu, target_color_ebc, target_abv, boil_time_minutes, version,
-                    previous_recipe_id, created_at)
+                    target_og_points, target_ibu, target_color_ebc, target_abv, boil_time_minutes,
+                    transfer_loss_percent, packaging_loss_percent, version, previous_recipe_id, created_at)
                 VALUES (:id, :brewery, :name, :normalized, :status, :equipment, :batch, :og, :ibu, :color, :abv,
-                        :boil, :version, :previous, :at)
+                        :boil, :transferLoss, :packagingLoss, :version, :previous, :at)
                 """)
                 .param("id", r.id().value())
                 .param("brewery", r.breweryId())
                 .param("name", r.name().value())
                 .param("normalized", r.name().value().toLowerCase(Locale.ROOT))
                 .param("status", r.status().name())
+                .param("transferLoss", r.expectedLosses().transferPercent())
+                .param("packagingLoss", r.expectedLosses().packagingPercent())
                 .param("equipment", r.equipmentId())
                 .param("batch", r.batchVolumeLiters())
                 .param("og", t.ogPoints())
@@ -159,18 +163,22 @@ class JdbcRecipeRepository implements RecipeRepository {
                 rs.getBigDecimal("target_color_ebc"),
                 rs.getBigDecimal("target_abv"),
                 (Integer) rs.getObject("boil_time_minutes"),
+                rs.getBigDecimal("transfer_loss_percent"),
+                rs.getBigDecimal("packaging_loss_percent"),
                 rs.getLong("version"),
                 rs.getObject("previous_recipe_id", UUID.class));
     }
 
     private record RawRecipe(UUID id, UUID breweryId, String name, String status, UUID equipmentId,
             BigDecimal batchVolumeLiters, BigDecimal og, BigDecimal ibu, BigDecimal color, BigDecimal abv,
-            Integer boilTimeMinutes, long version, UUID previousRecipeId) {
+            Integer boilTimeMinutes, BigDecimal transferLoss, BigDecimal packagingLoss, long version,
+            UUID previousRecipeId) {
 
         Recipe build(List<RecipeItem> items) {
             return Recipe.reconstitute(new RecipeId(id), breweryId, new RecipeName(name),
                     RecipeStatus.valueOf(status), equipmentId, batchVolumeLiters,
-                    new RecipeTargets(og, ibu, color, abv), boilTimeMinutes, items, version, previousRecipeId);
+                    new RecipeTargets(og, ibu, color, abv), boilTimeMinutes,
+                    new ExpectedLosses(transferLoss, packagingLoss), items, version, previousRecipeId);
         }
     }
 }

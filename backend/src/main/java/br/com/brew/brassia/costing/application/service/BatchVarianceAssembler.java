@@ -12,6 +12,7 @@ import br.com.brew.brassia.costing.domain.UnknownBatchCostException;
 import br.com.brew.brassia.packaging.PackagingOutcomeLookup;
 import br.com.brew.brassia.planning.OrderPlanLookup;
 import br.com.brew.brassia.production.BatchLookup;
+import br.com.brew.brassia.recipe.RecipeLookup;
 import br.com.brew.brassia.production.BatchOutcomeLookup;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -41,10 +42,12 @@ public final class BatchVarianceAssembler {
     private final MaterialActualSource actuals;
     private final PackagingOutcomeLookup packaging;
     private final IngredientPurchaseLookup ingredients;
+    private final RecipeLookup recipes;
 
     public BatchVarianceAssembler(BatchLookup batches, BatchOutcomeLookup outcomes, OrderPlanLookup plans,
             MaterialActualSource actuals, PackagingOutcomeLookup packaging,
-            IngredientPurchaseLookup ingredients) {
+            IngredientPurchaseLookup ingredients, RecipeLookup recipes) {
+        this.recipes = Objects.requireNonNull(recipes);
         this.batches = Objects.requireNonNull(batches);
         this.outcomes = Objects.requireNonNull(outcomes);
         this.plans = Objects.requireNonNull(plans);
@@ -167,8 +170,12 @@ public final class BatchVarianceAssembler {
             volumes.add(new VolumeVariance(VolumeKind.YIELD, "volume transferido ao fermentador",
                     outcome.plannedVolumeLiters(), outcome.transferredVolumeLiters()));
             if (outcome.transferLossesLiters() != null) {
-                // Sem perda esperada cadastrada, o número é fato e não desvio — CST-002-A.
-                volumes.add(new VolumeVariance(VolumeKind.LOSS, "perda na transferência", null,
+                // CST-002-A: com perda esperada cadastrada, o número passa a ter contra o que ser
+                // comparado. Sem ela, continua sendo fato e não desvio — assumir esperado zero faria
+                // toda perda parecer desvio, e acusaria a fábrica com um critério que ela nunca definiu.
+                var expected = expectedLoss(breweryId, batch.recipeId(),
+                        RecipeLookup.ExpectedLoss::transferPercent, outcome.plannedVolumeLiters());
+                volumes.add(new VolumeVariance(VolumeKind.LOSS, "perda na transferência", expected,
                         outcome.transferLossesLiters()));
             }
         }
@@ -184,15 +191,38 @@ public final class BatchVarianceAssembler {
             volumes.add(new VolumeVariance(VolumeKind.LOSS, "rejeito no plano " + run.planCode(), null,
                     run.rejectedVolumeLiters()));
             volumes.add(new VolumeVariance(VolumeKind.LOSS, "perda de linha no plano " + run.planCode(),
-                    null, run.lossesLiters()));
+                    expectedLoss(breweryId, batch.recipeId(), RecipeLookup.ExpectedLoss::packagingPercent,
+                            run.plannedVolumeLiters()),
+                    run.lossesLiters()));
         }
 
         if (volumes.stream().anyMatch(volume -> volume.kind() == VolumeKind.LOSS && !volume.comparable())) {
             gaps.add(new VarianceGap("perda esperada",
-                    "não há perda esperada cadastrada para transferência nem para linha de envase: a "
-                            + "perda aparece como fato, sem desvio (CST-002-A)"));
+                    "a receita deste lote não define perda esperada para esta etapa: a perda aparece como "
+                            + "fato, sem desvio. Cadastre o percentual na receita para que ela seja "
+                            + "comparada."));
         }
         return volumes;
+    }
+
+    /**
+     * A perda esperada em litros, a partir do percentual da receita.
+     *
+     * <p>O percentual incide sobre o volume PLANEJADO da etapa, e não sobre o realizado: comparar a perda
+     * real com um esperado calculado sobre o próprio realizado faria o esperado seguir o desvio — um lote
+     * que rendeu menos "esperaria" perder menos, e o desvio sumiria por construção.
+     */
+    private BigDecimal expectedLoss(UUID breweryId, UUID recipeId,
+            java.util.function.Function<RecipeLookup.ExpectedLoss, BigDecimal> percentOf,
+            BigDecimal baseLiters) {
+        if (recipeId == null || baseLiters == null) {
+            return null;
+        }
+        return recipes.expectedLoss(breweryId, recipeId)
+                .map(percentOf)
+                .map(percent -> baseLiters.multiply(percent)
+                        .divide(new BigDecimal("100"), 3, java.math.RoundingMode.HALF_UP))
+                .orElse(null);
     }
 
     // --- apoio ---

@@ -20,7 +20,7 @@ class RecipeCloneScaleCompareTest {
                 new RecipeItem(MALT, RecipeStage.MASH, new BigDecimal(maltKg), RecipeUnit.KG, null, null),
                 new RecipeItem(UUID.randomUUID(), RecipeStage.BOIL, new BigDecimal("30"), RecipeUnit.G, 60, null));
         return Recipe.draft(BREWERY, "Base", EQUIPMENT, new BigDecimal(batch), CAPACITY, RecipeTargets.none(),
-                60, items);
+                60, ExpectedLosses.none(), items);
     }
 
     @Test

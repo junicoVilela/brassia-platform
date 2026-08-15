@@ -35,7 +35,7 @@ class CreateRecipeHandlerTest {
 
     private Command command(BigDecimal batch) {
         return new Command(UUID.randomUUID(), BREWERY, "Hoppy Lager", EQUIPMENT, batch,
-                null, null, null, null, 60,
+                null, null, null, null, 60, null, null,
                 List.of(new ItemInput(UUID.randomUUID(), "MASH", new BigDecimal("5"), "KG", null, null),
                         new ItemInput(UUID.randomUUID(), "BOIL", new BigDecimal("30"), "G", 60, null)));
     }

@@ -123,7 +123,8 @@ final class RecipeController {
         var result = createRecipe.handle(new CreateRecipeUseCase.Command(
                 principal.userId(), principal.requireBrewery(), request.name(), request.equipmentId(),
                 request.batchVolumeLiters(), request.targetOgPoints(), request.targetIbu(),
-                request.targetColorEbc(), request.targetAbv(), request.boilTimeMinutes(), items));
+                request.targetColorEbc(), request.targetAbv(), request.boilTimeMinutes(),
+                request.transferLossPercent(), request.packagingLossPercent(), items));
         return ResponseEntity.created(URI.create("/api/v1/recipes/" + result.id()))
                 .body(new RecipeResponse(result.id(), result.name(), result.status()));
     }

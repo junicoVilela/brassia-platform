@@ -271,11 +271,11 @@ estoque, porque custo não lê tabela alheia.
 - **Em volume, o sinal sozinho não basta.** Render 10 L a menos é ruim; perder 2 L a menos é bom. Por
   isso cada comparação de volume diz por si se é desfavorável, em vez de deixar a interface adivinhar
   pelo sinal.
-- **`CST-002-A` — não há perda esperada cadastrada.** Nem para a transferência nem para a linha de
-  envase existe um "quanto se admite perder". A perda entra como **fato**, sem desvio: chamá-la de
-  desfavorável seria acusar a fábrica com um critério que ela nunca definiu, e assumir esperado zero
-  faria toda perda parecer desvio. *Critério de remoção:* a casa definir perda admissível por etapa
-  (no equipamento ou na política de envase).
+- ~~**`CST-002-A`**~~ — **FECHADO EM 2026-08-14**, com a perda esperada **na receita** e não no
+  equipamento como o critério sugeria: a perda característica é da cerveja tanto quanto do tanque, e a
+  receita já carrega eficiência e volumes. Percentual, porque perda de trub e absorção de lúpulo escalam
+  com o tamanho da brassa. Sem cadastro, a perda continua entrando como fato — o raciocínio original
+  segue valendo para quem ainda não mediu. Ver DEC-CST-002 na Sprint 17.
 - **Alçada separada da leitura do custo.** A variação expõe preço de compra por ingrediente, que é
   informação comercial: quem pode ver o total do lote não necessariamente pode ver por quanto a casa
   comprou o malte. Daí `costing.variance.read`, e não `costing.cost.read`.
@@ -385,7 +385,7 @@ Todos com critério de remoção registrado nas seções acima.
 |---|---|
 | ~~`CST-001-A`~~ | **Fechado em 2026-08-14**: apontamento de hora no lote + taxa da casa (V117) |
 | `CST-001-B` | Utilidade não tem fonte por lote: água e energia são medidas por equipamento |
-| `CST-002-A` | Não há perda esperada cadastrada, nem na transferência nem no envase |
+| ~~`CST-002-A`~~ | **Fechado em 2026-08-14**: perda esperada por etapa na receita (V118) |
 | `UTL-001-A` | O CO₂ não declara cobertura: não existe consumo esperado contra o qual comparar |
 | `RPT-001-A` | A exportação é JSON, não PDF: layout e identidade visual não foram decididos |
 | ~~`RPT-003-A`~~ | **Fechado em 2026-08-11 por decisão**: a plataforma registra e não envia; enviar exige SMTP, bounce e LGPD. Ver DEC-DEBT-001 na Sprint 17 |

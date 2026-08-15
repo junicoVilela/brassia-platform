@@ -35,6 +35,28 @@
           <input id="boilTimeMinutes" type="number" class="form-control" formControlName="boilTimeMinutes">
         </div>
       </div>
+      <!--
+        CST-002-A: perda esperada por etapa. Em branco é legítimo — quem ainda não mediu a própria perda
+        não tem esperado, e o planejado × real mostra a perda como fato em vez de acusar desvio.
+      -->
+      <div class="row g-3 mb-3">
+        <div class="col-sm-3">
+          <label class="form-label small" for="transferLoss">Perda esperada na transferência (%)</label>
+          <input id="transferLoss" type="number" step="0.01" min="0" max="99.99" class="form-control"
+                 formControlName="transferLossPercent" placeholder="deixe em branco se não mediu">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small" for="packagingLoss">Perda esperada no envase (%)</label>
+          <input id="packagingLoss" type="number" step="0.01" min="0" max="99.99" class="form-control"
+                 formControlName="packagingLossPercent" placeholder="deixe em branco se não mediu">
+        </div>
+        <div class="col-12">
+          <p class="form-text mb-0">
+            Percentual do volume planejado da etapa. Sem ele, a perda aparece no planejado × real como
+            fato, sem desvio — e o relatório diz por quê.
+          </p>
+        </div>
+      </div>
       <div class="row g-3 mb-3">
         <div class="col"><label class="form-label small" for="og">OG (pts)</label>
           <input id="og" type="number" step="0.01" class="form-control" formControlName="targetOgPoints"></div>

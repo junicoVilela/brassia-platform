@@ -32,6 +32,12 @@ export interface CreateRecipeRequest {
   targetColorEbc?: number | null;
   targetAbv?: number | null;
   boilTimeMinutes?: number | null;
+  /**
+   * Perda esperada por etapa, em % (CST-002-A). Nulo é legítimo: sem ela a variação mostra a perda como
+   * fato, sem desvio — e assumir zero faria toda perda parecer desvio.
+   */
+  transferLossPercent?: number | null;
+  packagingLossPercent?: number | null;
   items: CreateRecipeItem[];
 }
 

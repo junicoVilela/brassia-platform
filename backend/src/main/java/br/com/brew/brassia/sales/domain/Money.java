@@ -64,6 +64,19 @@ public record Money(BigDecimal amount, String currency) implements Comparable<Mo
         }
     }
 
+    /**
+     * O valor como se escreve numa nota: duas casas.
+     *
+     * <p><strong>Armazenamento e apresentação de dinheiro não são a mesma coisa.</strong> As quatro casas
+     * existem para o arredondamento acontecer uma vez só, no total; quem lê um total — uma nota, um
+     * webhook de pedido, uma tela — espera centavos. Sem este método, um total de R$ 120,00 sai como
+     * "120.0000" no corpo de um webhook, e quem integra tem que adivinhar se aquilo é precisão ou
+     * descuido.
+     */
+    public java.math.BigDecimal toMinorUnit() {
+        return amount.setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
     /** Como se escreve num relatório: {@code 12.5000 BRL}. O código vem junto, sempre. */
     @Override
     public String toString() {

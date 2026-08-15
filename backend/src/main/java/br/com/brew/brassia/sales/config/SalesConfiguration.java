@@ -7,6 +7,7 @@ import br.com.brew.brassia.sales.application.port.outbound.PriceRepository;
 import br.com.brew.brassia.sales.application.port.outbound.ProductRepository;
 import br.com.brew.brassia.sales.application.port.outbound.SalesChannelRepository;
 import br.com.brew.brassia.sales.application.port.outbound.LotAvailabilityRepository;
+import br.com.brew.brassia.sales.application.port.outbound.SalesOrderEventPublisher;
 import br.com.brew.brassia.sales.application.port.outbound.SalesOrderRepository;
 import br.com.brew.brassia.sales.application.service.OrderHandlers;
 import br.com.brew.brassia.sales.application.service.ProductHandlers;
@@ -25,7 +26,8 @@ class SalesConfiguration {
     @Bean
     OrderCommands orderCommands(SalesOrderRepository orders, ProductRepository products,
             SalesChannelRepository channels, PriceRepository prices,
-            LotAvailabilityRepository availability, SellableLotLookup sellableLots) {
-        return new OrderHandlers(orders, products, channels, prices, availability, sellableLots);
+            LotAvailabilityRepository availability, SellableLotLookup sellableLots,
+            SalesOrderEventPublisher events) {
+        return new OrderHandlers(orders, products, channels, prices, availability, sellableLots, events);
     }
 }

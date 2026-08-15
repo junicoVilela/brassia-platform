@@ -1100,4 +1100,120 @@ class PackagingRunIT {
         var p = new SecurityPrincipal(userId, breweryId, "Portal", permissions);
         return new UsernamePasswordAuthenticationToken(p, "n/a", Set.of());
     }
+
+    // --- INT-008: os fatos comerciais saem pelo outbox ---
+
+    @Test
+    void oPedidoConfirmadoEnfileiraEntregaSemDadoPessoal() throws Exception {
+        // O critério da história é "integração externa falha sem corromper pedido", e ele já era o
+        // motivo de o outbox existir: o pedido grava a INTENÇÃO de entregar no mesmo commit, e quem
+        // entrega é outro processo, depois. Nenhum provedor fora do ar segura uma venda.
+        var session = login();
+        var cena = cenaVendavel(session);
+        var assinatura = assina(session, "sales_order.placed");
+
+        var body = pedido(session, cena, 10, null).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        var pedidoId = JSON.readTree(body).get("id").asText();
+
+        var payload = payloadDaEntrega(assinatura, pedidoId);
+        assertThat(payload.get("orderId").asText()).isEqualTo(pedidoId);
+        assertThat(payload.get("total").asText()).isEqualTo("120.00");
+        assertThat(payload.get("currency").asText()).isEqualTo("BRL");
+        assertThat(payload.get("customerId").asText()).isEqualTo(cena.clienteId);
+
+        // O corpo NÃO leva dado pessoal: consentimento é por finalidade, e "integrar com o POS" não é
+        // finalidade que alguém consentiu. Quem precisar do contato pede pela API, com alçada.
+        assertThat(payload.has("contactName")).isFalse();
+        assertThat(payload.has("email")).isFalse();
+        assertThat(payload.has("phone")).isFalse();
+    }
+
+    @Test
+    void oCancelamentoTambemSai() throws Exception {
+        // Sem ele, o e-commerce continuaria anunciando como vendido um item que voltou para a vitrine.
+        var session = login();
+        var cena = cenaVendavel(session);
+        var assinatura = assina(session, "sales_order.cancelled");
+
+        var body = pedido(session, cena, 10, null).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        var pedidoId = JSON.readTree(body).get("id").asText();
+        mockMvc.perform(post("/api/v1/sales/orders/" + pedidoId + "/cancel").session(session).with(csrf()))
+                .andExpect(status().isNoContent());
+
+        assertThat(payloadDaEntrega(assinatura, pedidoId).get("code").asText()).isNotBlank();
+    }
+
+    @Test
+    void aLiberacaoDoLoteAvisaQuemVendeLaFora() throws Exception {
+        // É o gatilho para o e-commerce publicar o produto: antes da liberação não há o que vender.
+        var session = login();
+        var scene = reservedPlan(session, 1000);
+        var lotId = loteAcabado(session, scene.planId);
+        var assinatura = assina(session, "finished_lot.released");
+
+        mockMvc.perform(post(LOTS + "/" + lotId + "/release").session(session).with(csrf()))
+                .andExpect(status().isNoContent());
+
+        var payload = payloadDaEntrega(assinatura, lotId);
+        assertThat(payload.get("finishedLotId").asText()).isEqualTo(lotId);
+        assertThat(payload.get("units").asInt()).isEqualTo(780);
+        // Sem evidência de oxigênio ainda: validade nula, e o corpo diz isso em vez de omitir o campo —
+        // campo ausente faria quem integra achar que a versão do payload mudou.
+        assertThat(payload.hasNonNull("bestBefore")).isFalse();
+        assertThat(payload.has("bestBefore")).isTrue();
+    }
+
+    @Test
+    void oPedidoSobreviveAFalhaDaEntrega() throws Exception {
+        // A prova do critério: a entrega fica pendente para o processo de retry, e o pedido está lá,
+        // confirmado, com o estoque reservado. Nenhum provedor fora do ar desfaz uma venda.
+        var session = login();
+        var cena = cenaVendavel(session);
+        var assinatura = assina(session, "sales_order.placed");
+
+        var body = pedido(session, cena, 10, null).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        var pedidoId = JSON.readTree(body).get("id").asText();
+
+        // A entrega existe e ainda não foi entregue — o endereço é fictício e nunca vai responder.
+        var status = jdbc.sql("""
+                SELECT status FROM webhook_delivery
+                WHERE subscription_id = :s AND event_id = :e
+                """)
+                .param("s", UUID.fromString(assinatura)).param("e", pedidoId)
+                .query(String.class).single();
+        assertThat(status).isEqualTo("PENDING");
+
+        // E o pedido continua de pé, com a reserva.
+        mockMvc.perform(get("/api/v1/sales/orders/" + pedidoId).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("PLACED")))
+                .andExpect(jsonPath("$.lines[0].reservations[0].units", is(10)));
+    }
+
+    /** Uma assinatura de webhook para o evento, com endereço que nunca responde. */
+    private String assina(MockHttpSession session, String evento) throws Exception {
+        var sfx = UUID.randomUUID().toString().substring(0, 8);
+        var body = mockMvc.perform(post("/api/v1/integration/webhooks").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"ERP-%s","endpoint":"https://erp.example.com/hooks",
+                                 "events":["%s"]}
+                                """.formatted(sfx, evento)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        // O id vem aninhado: a resposta de criação também traz o segredo, que só aparece uma vez.
+        return JSON.readTree(body).get("subscription").get("id").asText();
+    }
+
+    private JsonNode payloadDaEntrega(String assinatura, String eventId) throws Exception {
+        var payload = jdbc.sql("""
+                SELECT payload FROM webhook_delivery
+                WHERE subscription_id = :s AND event_id = :e
+                """)
+                .param("s", UUID.fromString(assinatura)).param("e", eventId)
+                .query(String.class).single();
+        return JSON.readTree(payload);
+    }
 }

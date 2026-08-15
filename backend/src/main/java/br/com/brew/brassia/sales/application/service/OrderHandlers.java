@@ -6,6 +6,9 @@ import br.com.brew.brassia.sales.application.port.outbound.LotAvailabilityReposi
 import br.com.brew.brassia.sales.application.port.outbound.PriceRepository;
 import br.com.brew.brassia.sales.application.port.outbound.ProductRepository;
 import br.com.brew.brassia.sales.application.port.outbound.SalesChannelRepository;
+import br.com.brew.brassia.sales.SalesOrderCancelled;
+import br.com.brew.brassia.sales.SalesOrderPlaced;
+import br.com.brew.brassia.sales.application.port.outbound.SalesOrderEventPublisher;
 import br.com.brew.brassia.sales.application.port.outbound.SalesOrderRepository;
 import br.com.brew.brassia.sales.domain.InsufficientLotStockException;
 import br.com.brew.brassia.sales.domain.LotReservation;
@@ -31,16 +34,19 @@ public class OrderHandlers implements OrderCommands {
     private final PriceRepository prices;
     private final LotAvailabilityRepository availability;
     private final SellableLotLookup sellableLots;
+    private final SalesOrderEventPublisher events;
 
     public OrderHandlers(SalesOrderRepository orders, ProductRepository products,
             SalesChannelRepository channels, PriceRepository prices,
-            LotAvailabilityRepository availability, SellableLotLookup sellableLots) {
+            LotAvailabilityRepository availability, SellableLotLookup sellableLots,
+            SalesOrderEventPublisher events) {
         this.orders = Objects.requireNonNull(orders);
         this.products = Objects.requireNonNull(products);
         this.channels = Objects.requireNonNull(channels);
         this.prices = Objects.requireNonNull(prices);
         this.availability = Objects.requireNonNull(availability);
         this.sellableLots = Objects.requireNonNull(sellableLots);
+        this.events = Objects.requireNonNull(events);
     }
 
     @Override
@@ -71,6 +77,15 @@ public class OrderHandlers implements OrderCommands {
         // O agregado valida a promessa contra a validade ANTES de qualquer reserva ser gravada: recusar
         // depois de reservar deixaria o estoque preso até alguém perceber.
         orders.insert(order, actorId, command.idempotencyKey());
+        // Publicado DENTRO da transação: o outbox grava a intenção de entregar no mesmo commit do
+        // pedido. Se a transação reverter, o webhook "pedido confirmado" não sai para um pedido que
+        // não existe — e um webhook não se desmanda.
+        var total = order.total();
+        // O total vai em centavos, e não nas quatro casas do armazenamento: quem integra espera o
+        // valor da nota, e "120.0000" faz o consumidor adivinhar se é precisão ou descuido.
+        events.publish(new SalesOrderPlaced(breweryId, order.id(), order.code(), order.customerId(),
+                order.channelId(), total.toMinorUnit(), total.currency(), order.placedOn(),
+                order.promisedFor().orElse(null), Instant.now()));
         return order.id();
     }
 
@@ -85,6 +100,8 @@ public class OrderHandlers implements OrderCommands {
         // está cancelado e o estoque continua preso — e uma falha no meio o deixaria preso para sempre.
         order.reservations()
                 .forEach(r -> availability.release(breweryId, r.finishedLotId(), r.units()));
+        events.publish(new SalesOrderCancelled(breweryId, order.id(), order.code(), order.customerId(),
+                Instant.now()));
     }
 
     @Override

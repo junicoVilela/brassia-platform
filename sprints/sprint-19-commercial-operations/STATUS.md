@@ -9,7 +9,7 @@ Estado: **ATIVA desde 2026-08-15** — escolhida como próxima sprint. Nenhuma h
 | SAL-002 | Em execução — domínio, fatia de fora e tela | `sales/*`, `V122`, 15 unitários + 8 IT |
 | SAL-003 | Em execução — domínio, fatia de fora e tela | `sales/adapter/inbound/portal`, `V123`, 6 unitários + 8 IT |
 | FCST-001 | Em execução — domínio, fatia de fora e tela | `forecast/*`, `V124`, 11 unitários + 6 IT |
-| INT-008 | A fazer | — |
+| INT-008 | Em execução — eventos comerciais no outbox | `integration/*`, `sales/SalesOrder*`, 4 IT |
 
 Ordem prevista: **CRM-001 → SAL-001 → SAL-002 → SAL-003 → FCST-001 → INT-008**. Não é arbitrária — pedido
 precisa de cliente e de produto com preço, e portal B2B precisa de pedido. A previsão de demanda vem
@@ -391,6 +391,43 @@ que existe dá **litros de um tanque**, que é outra pergunta.
 
 Inventar esses números produziria uma "capacidade" que parece cálculo e é chute — exatamente o que esta
 história existe para não fazer com a demanda. Registrado em vez de inventado.
+
+### DEC-INT-001b (INT-008) — A porta já existia, e a história foi acrescentar fatos a ela
+
+**A descoberta que definiu o tamanho da história.** O outbox da INT-002 já nasceu com a propriedade que o
+aceite da INT-008 pede. O Javadoc do `WebhookDelivery` diz, com todas as letras, que mandar o webhook
+dentro do caso de uso faria *"o critério 'falha não bloqueia domínio' ser exatamente o oposto do que
+acontece"* — e é por isso que existe uma linha no outbox em vez de um POST direto.
+
+Então a INT-008 **não construiu integração nova**: acrescentou quatro eventos à allowlist fechada
+(`sales_order.placed`, `sales_order.cancelled`, `sales_order.fulfilled`, `finished_lot.released`) e os
+publicou no mesmo commit do fato. Fiscal, contábil, POS e e-commerce consomem o que já entrega com retry,
+backoff e limite de cinco tentativas.
+
+**`BEFORE_COMMIT`, como o resto.** Se a transação do pedido reverter, a entrega reverte junto — um
+webhook "pedido confirmado" não sai para um pedido que não existe, e um webhook não se desmanda.
+
+**O payload não leva dado pessoal, e há teste para isso.** `customerId` é a organização compradora, que é
+dado de negócio; contato, e-mail e telefone ficam de fora. Mandá-los furaria a regra que a CRM-001 existe
+para sustentar: consentimento é por finalidade, e "integrar com o POS" não é finalidade que alguém
+consentiu. Quem precisar do contato pede pela API, com alçada.
+
+**Campo nulo vai como nulo, e não some do corpo.** `promisedFor` sem data e `bestBefore` sem validade
+apurada viajam nulos: um campo ausente faria quem integra achar que a versão do payload mudou.
+
+**A plataforma não calcula imposto** — motor fiscal está fora do escopo da sprint. Ela avisa que o fato
+aconteceu, com total e moeda; quem emite nota emite nota.
+
+**Achado durante a implementação: `Money` guardava quatro casas e o total saía como `120.0000`.** As
+quatro casas existem para o arredondamento acontecer uma vez só, no total (SAL-002) — mas o total de um
+pedido é dinheiro de nota, e são duas. Nasceu `Money.toMinorUnit()`, com a distinção entre
+**armazenamento e apresentação** escrita no código. Sem isso, quem integra teria que adivinhar se
+`120.0000` era precisão ou descuido.
+
+**Entregue:** quatro eventos publicados (`SalesOrderPlaced`, `SalesOrderCancelled`, `SalesOrderFulfilled`,
+`FinishedLotReleased`), duas portas de publicação com adaptadores Spring, quatro tipos na allowlist e os
+listeners do outbox. **4 testes de integração**, incluindo *o pedido sobrevive à falha da entrega* e *o
+corpo não leva dado pessoal*. Sem migration: o outbox e as assinaturas já existem.
 
 ## Evidências de encerramento
 

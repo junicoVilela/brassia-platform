@@ -6,6 +6,10 @@ import br.com.brew.brassia.planning.BrewOrderCancelled;
 import br.com.brew.brassia.planning.BrewOrderReleased;
 import br.com.brew.brassia.planning.BrewOrderStarted;
 import br.com.brew.brassia.recipe.RecipePublished;
+import br.com.brew.brassia.packaging.FinishedLotReleased;
+import br.com.brew.brassia.sales.SalesOrderCancelled;
+import br.com.brew.brassia.sales.SalesOrderFulfilled;
+import br.com.brew.brassia.sales.SalesOrderPlaced;
 import br.com.brew.brassia.sanitation.CleaningCycleReleased;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -103,6 +107,74 @@ class DomainEventOutboxListener {
         body.put("procedureCode", event.procedureCode());
         body.put("procedureVersion", event.procedureVersion());
         enqueue(event.breweryId(), WebhookEventType.CLEANING_CYCLE_RELEASED, event.cycleId(), body);
+    }
+
+
+    // --- INT-008: os fatos comerciais ---
+
+    /**
+     * O pedido confirmado, para o fiscal emitir a nota e o POS/e-commerce acertarem o estoque deles.
+     *
+     * <p><strong>Sem dado pessoal no corpo.</strong> {@code customerId} é a organização compradora, que é
+     * dado de negócio; contato, e-mail e telefone ficam de fora. Mandá-los para um provedor externo
+     * furaria a regra que a CRM-001 existe para sustentar — consentimento é por finalidade, e "integrar
+     * com o POS" não é finalidade que alguém consentiu. Quem precisar do contato pede pela API, com
+     * alçada.
+     *
+     * <p><strong>A plataforma não calcula imposto</strong> (motor fiscal está fora do escopo da sprint):
+     * ela avisa que o fato aconteceu, com o total e a moeda, e quem emite nota emite nota.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    void on(SalesOrderPlaced event) {
+        var body = base(event.occurredAt());
+        body.put("orderId", event.orderId().toString());
+        body.put("code", event.code());
+        body.put("customerId", event.customerId().toString());
+        body.put("channelId", event.channelId().toString());
+        body.put("total", event.total().toPlainString());
+        body.put("currency", event.currency());
+        body.put("placedOn", event.placedOn().toString());
+        // Nulo é "a combinar", e vai como nulo em vez de sumir do corpo: o campo ausente faria quem
+        // integra achar que a versão do payload mudou.
+        body.put("promisedFor", event.promisedFor() == null ? null : event.promisedFor().toString());
+        enqueue(event.breweryId(), WebhookEventType.SALES_ORDER_PLACED, event.orderId(), body);
+    }
+
+    /** Cancelamento: o e-commerce devolve o item à vitrine, e a nota não deve sair. */
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    void on(SalesOrderCancelled event) {
+        var body = base(event.occurredAt());
+        body.put("orderId", event.orderId().toString());
+        body.put("code", event.code());
+        body.put("customerId", event.customerId().toString());
+        enqueue(event.breweryId(), WebhookEventType.SALES_ORDER_CANCELLED, event.orderId(), body);
+    }
+
+    /** Atendido: é o fato que o contábil espera. Reconhecer receita é com ele, não com a plataforma. */
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    void on(SalesOrderFulfilled event) {
+        var body = base(event.occurredAt());
+        body.put("orderId", event.orderId().toString());
+        body.put("code", event.code());
+        body.put("customerId", event.customerId().toString());
+        enqueue(event.breweryId(), WebhookEventType.SALES_ORDER_FULFILLED, event.orderId(), body);
+    }
+
+    /**
+     * O lote foi liberado: é o gatilho para o e-commerce publicar o produto.
+     *
+     * <p>{@code bestBefore} pode ser nulo — lote liberado sem validade apurada ainda não é vendável
+     * (SAL-001-B), e quem integra precisa saber disso em vez de anunciar sem prazo.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    void on(FinishedLotReleased event) {
+        var body = base(event.occurredAt());
+        body.put("finishedLotId", event.finishedLotId().toString());
+        body.put("code", event.code());
+        body.put("batchCode", event.batchCode());
+        body.put("units", event.units());
+        body.put("bestBefore", event.bestBefore() == null ? null : event.bestBefore().toString());
+        enqueue(event.breweryId(), WebhookEventType.FINISHED_LOT_RELEASED, event.finishedLotId(), body);
     }
 
     private ObjectNode base(java.time.Instant occurredAt) {

@@ -37,6 +37,6 @@ As capacidades de segurança da Sprint 01 foram entregues como "fatia 1" (só ba
 ## Edições pós-release
 
 - Sprint 18 — [Comunidade e colaboração](../../sprints/sprint-18-community-collaboration/README.md): Compartilhar e evoluir receitas com privacidade, autoria e moderação.
-- Sprint 19 — [Operação comercial e CRM](../../sprints/sprint-19-commercial-operations/README.md): Ligar produção, pedidos, clientes, preços e previsão de demanda.
+- Sprint 19 — [Operação comercial e CRM](../../sprints/sprint-19-commercial-operations/README.md): Ligar produção, pedidos, clientes, preços e previsão de demanda. **Ativa desde 2026-08-15** — escolhida por ser a única que destrava outra sprint (a 20) e por ser interna, enquanto a 18 aponta para fora. Assume premissa declarada: desenvolver não exige produção, publicar exige. Ver DEC-SPR-019.
 - Sprint 20 — [Contêineres e distribuição](../../sprints/sprint-20-containers-distribution/README.md): Rastrear kegs, retornáveis, rotas, entregas e prova de entrega.
 - Sprint 21 — [Conectores externos](../../sprints/sprint-21-external-connectors/README.md): Importar receitas de Brewfather e Brewer's Friend sob credencial do usuário, com sincronização e conflito visíveis. Bloqueada até haver credencial de teste dos provedores (INT-004, INT-005 e INT-007, vindas da Sprint 15 por DEC-INT-001).

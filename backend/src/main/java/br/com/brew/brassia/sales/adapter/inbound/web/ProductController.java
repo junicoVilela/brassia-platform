@@ -10,6 +10,7 @@ import br.com.brew.brassia.sales.adapter.inbound.web.dto.SalesDtos.PriceFromRequ
 import br.com.brew.brassia.sales.adapter.inbound.web.dto.SalesDtos.PriceScheduleView;
 import br.com.brew.brassia.sales.adapter.inbound.web.dto.SalesDtos.ProductView;
 import br.com.brew.brassia.sales.adapter.inbound.web.dto.SalesDtos.RenameRequest;
+import br.com.brew.brassia.sales.adapter.inbound.web.dto.SalesDtos.SellableLotView;
 import br.com.brew.brassia.sales.adapter.inbound.web.dto.SalesDtos.SetActiveRequest;
 import br.com.brew.brassia.sales.application.port.inbound.ProductCommands;
 import br.com.brew.brassia.sales.application.port.outbound.PriceRepository;
@@ -19,8 +20,10 @@ import br.com.brew.brassia.sales.domain.Money;
 import br.com.brew.brassia.sales.domain.Product;
 import br.com.brew.brassia.sales.domain.SalesChannel;
 import br.com.brew.brassia.sales.domain.UnknownProductException;
+import br.com.brew.brassia.packaging.SellableLotLookup;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -54,14 +57,17 @@ final class ProductController {
     private final ProductRepository products;
     private final SalesChannelRepository channels;
     private final PriceRepository prices;
+    private final SellableLotLookup sellableLots;
     private final AuditTrail audit;
 
     ProductController(ProductCommands commands, ProductRepository products,
-            SalesChannelRepository channels, PriceRepository prices, AuditTrail audit) {
+            SalesChannelRepository channels, PriceRepository prices, SellableLotLookup sellableLots,
+            AuditTrail audit) {
         this.commands = Objects.requireNonNull(commands);
         this.products = Objects.requireNonNull(products);
         this.channels = Objects.requireNonNull(channels);
         this.prices = Objects.requireNonNull(prices);
+        this.sellableLots = Objects.requireNonNull(sellableLots);
         this.audit = Objects.requireNonNull(audit);
     }
 
@@ -165,6 +171,31 @@ final class ProductController {
                 id.toString(), Map.of("channelId", request.channelId().toString(),
                         "amount", request.amount().toPlainString(), "currency", request.currency(),
                         "validFrom", request.validFrom().toString())));
+    }
+
+    /**
+     * Os lotes que dá para prometer deste produto (SAL-001-B).
+     *
+     * <p><strong>Só os vendáveis.</strong> Misturar o que não pode ser vendido com um aviso ao lado
+     * convida ao erro de clicar no primeiro da lista. Quem quiser saber por que um lote específico não
+     * está aqui pergunta o estado dele em {@code /packaging/finished-lots/{id}/sale-status}.
+     *
+     * <p>O produto é o par (receita, embalagem), e é assim que ele encontra os lotes: o lote acabado sabe
+     * de que lote de produção veio, e o lote de produção sabe a receita.
+     */
+    @GetMapping("/products/{id}/sellable-lots")
+    List<SellableLotView> sellableLots(@AuthenticationPrincipal SecurityPrincipal principal,
+            @PathVariable UUID id) {
+        principal.requirePermission("sales.catalog.read");
+        var brewery = principal.requireBrewery();
+        var product = products.find(brewery, id)
+                .orElseThrow(() -> new UnknownProductException("o produto", id));
+        return sellableLots
+                .sellableLots(brewery, product.recipeId(), product.containerId(), LocalDate.now())
+                .stream()
+                .map(l -> new SellableLotView(l.finishedLotId(), l.code(), l.batchCode(), l.units(),
+                        l.containerVolumeMl(), l.packagedOn(), l.bestBefore()))
+                .toList();
     }
 
     private static ProductView view(Product p) {

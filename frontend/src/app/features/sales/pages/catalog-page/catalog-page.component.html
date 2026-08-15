@@ -250,6 +250,43 @@
                 </form>
               }
 
+              <!--
+                SAL-001-B: vendável é liberado pela qualidade, dentro da validade e sem quarentena. A
+                lista vazia é informação e não erro — significa que há produto e preço, mas nada
+                liberado, e é aí que alguém precisa ir atrás da qualidade.
+              -->
+              <h3 class="h6 mt-3">Lotes disponíveis para venda</h3>
+              @if (store.sellableLots().length === 0) {
+                <p class="text-muted small">
+                  Nenhum lote liberado. Um lote só fica vendável depois de <strong>liberado pela
+                  qualidade</strong>, com <strong>validade apurada</strong> e <strong>sem
+                  quarentena</strong>.
+                </p>
+              } @else {
+                <div class="table-responsive mb-3">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th scope="col">Lote</th>
+                        <th scope="col">Produção</th>
+                        <th scope="col" class="text-end">Unidades</th>
+                        <th scope="col">Validade</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (lot of store.sellableLots(); track lot.finishedLotId) {
+                        <tr>
+                          <td>{{ lot.code }}</td>
+                          <td class="small text-muted">{{ lot.batchCode }}</td>
+                          <td class="text-end">{{ lot.units }}</td>
+                          <td>{{ lot.bestBefore | date: 'dd/MM/yyyy' }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+
               @if (store.priceEntries().length > 0) {
                 <!--
                   A história fica visível. Quando alguém pergunta "por que este pedido de março saiu a

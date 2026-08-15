@@ -7392,8 +7392,145 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /packaging/finished-lots/{id}/release:
+    post:
+      tags: [Envase]
+      summary: Liberar lote acabado para venda (SAL-001-B)
+      description: >-
+        **Liberação é ato assinado, e não dedução.** A alternativa considerada era derivar "liberado" de
+        "não há não conformidade nem desvio em aberto"; foi recusada porque um lote **nunca medido**
+        passaria como liberado, e porque a auditoria que pergunta *"quem liberou este lote?"* receberia
+        "o sistema deduziu".
+
+
+        **Alçada `quality.lot.release`, crítica.** Planejar e executar envase não dá o direito de afirmar
+        que a cerveja pode ir ao cliente. O registro mora em envase porque é estado do lote — se morasse
+        em qualidade, a expedição precisaria consultar o outro módulo e fecharia ciclo (ADR-0016).
+
+
+        **Não há revogação.** Lote liberado que depois se mostra problemático é caso de quarentena ou
+        recall, que alcançam por herança e deixam rastro do porquê. Apagar a liberação faria sumir o fato
+        de que alguém a assinou.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+                  maxLength: 500
+                  description: >-
+                    Opcional. O ato já é a afirmação, e exigir texto faria o operador escrever "ok" para
+                    poder seguir — pior que campo vazio, porque parece justificativa.
+      responses:
+        '204': {description: Lote liberado}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `lot_already_released` — com as extensões `releasedBy` e `releasedAt`, porque quem recebeu a
+            recusa precisa saber que já está liberado e por quem.
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /packaging/finished-lots/{id}/sale-status:
+    get:
+      tags: [Envase]
+      summary: Estado de venda do lote (SAL-001-B)
+      description: >-
+        **Vendável = liberado pela qualidade + dentro da validade + sem quarentena.** Decisão do
+        mantenedor em 2026-08-15, respondendo a `DUV-SAL-001`.
+
+
+        O impedimento vem **nomeado**, e não como um booleano: falta de assinatura, validade vencida e
+        quarentena levam a três ações diferentes, e "não disponível" faria o operador ligar para a
+        qualidade perguntar o motivo.
+
+
+        A ordem dos impedimentos não é acidental: quarentena primeiro, porque é a mais grave e um lote em
+        quarentena não é caso de correr atrás de assinatura; depois a liberação, que é ação de alguém; por
+        último a validade, que é fato consumado.
+
+
+        `shelf_life_unknown` é impedimento de verdade: **validade desconhecida não é validade em dia**.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Estado de venda
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LotSaleStatus'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /sales/products/{id}/sellable-lots:
+    get:
+      tags: [Vendas]
+      summary: Lotes que dá para prometer deste produto (SAL-001-B)
+      description: >-
+        **Só os vendáveis.** Misturar o que não pode ser vendido com um aviso ao lado convida ao erro de
+        clicar no primeiro da lista. Para saber por que um lote específico não está aqui, consulte
+        `/packaging/finished-lots/{id}/sale-status`.
+
+
+        O produto é o par (receita, embalagem), e é assim que ele encontra os lotes: o lote acabado sabe
+        de que lote de produção veio, e o lote de produção sabe a receita.
+
+
+        **Quem compõe as três condições é o módulo de envase**, que já tem lote, validade e quarentena ao
+        alcance. Se vendas compusesse, precisaria depender de três módulos para responder uma pergunta só.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Lotes vendáveis hoje
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/SellableLot'}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    SellableLot:
+      type: object
+      properties:
+        finishedLotId: {type: string, format: uuid}
+        code: {type: string}
+        batchCode: {type: string}
+        units: {type: integer}
+        containerVolumeMl: {type: number}
+        packagedOn: {type: string, format: date}
+        bestBefore: {type: string, format: date}
+    LotSaleStatus:
+      type: object
+      properties:
+        finishedLotId: {type: string, format: uuid}
+        code: {type: string}
+        sellable: {type: boolean}
+        bestBefore: {type: string, format: date, nullable: true}
+        blocker:
+          nullable: true
+          allOf: [{$ref: '#/components/schemas/LotSaleBlocker'}]
+    LotSaleBlocker:
+      type: object
+      properties:
+        code:
+          type: string
+          enum: [not_released, shelf_life_unknown, expired, quarantined, quarantine_suspected]
+        message: {type: string}
     SalesProduct:
       type: object
       properties:

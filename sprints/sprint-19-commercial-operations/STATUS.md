@@ -162,15 +162,49 @@ real com dólar sem que nada reclame, e o erro aparece no fechamento do mês, lo
 `Money` da SAL-001 (ou uma versão dele promovida a `shared`). **Não ampliei o escopo aqui** porque mexer
 no custeio significa migration em tabela com dado, e isso é história própria.
 
-### DUV-SAL-001 (SAL-001) — O que torna um lote "vendável"
+### DUV-SAL-001 — RESOLVIDA em 2026-08-15: o que torna um lote "vendável"
 
-O backlog pede "relacionar SKU/embalagem com **lote vendável**". A parte de SKU e embalagem está feita; a
-de lote **não**, e de propósito: decidir o que torna um lote vendável atravessa três módulos — liberado
-pela qualidade? dentro da validade? não bloqueado por recall ou quarentena? — e cada resposta muda quem
-pode vender o quê.
+**Decisão do mantenedor: vendável é liberado pela qualidade, dentro da validade e não bloqueado por
+quarentena.** Implementado em SAL-001-B (ver DEC-SAL-002).
 
-Registrado em vez de inventado. É provavelmente a primeira coisa a decidir antes da SAL-002, porque
-pedido reserva lote.
+### DEC-SAL-002 (SAL-001-B) — Liberação é ato assinado, e mora no lote
+
+**Liberação não é dedução.** A alternativa considerada era derivar "liberado" de "não há não conformidade
+nem desvio em aberto", sem tabela nova. Foi recusada por dois motivos: um lote **nunca medido** passaria
+como liberado — `BatchQualityLookup.unmeasured()` é verdadeiro e nada reclama — e a auditoria que pergunta
+"quem liberou este lote?" receberia "o sistema deduziu". Em alimento, liberação é decisão registrada.
+
+**A tabela mora em `packaging`, e a alçada em `quality`.** A liberação é estado do lote; se o registro
+morasse em `quality`, a expedição — que já vive em `packaging` — precisaria consultá-lo para recusar lote
+não liberado, e isso criaria `packaging → quality` sobre um `quality → packaging` recém-criado: ciclo,
+como em CLN-004-A e FDS-004-A. **Desta vez a decisão veio antes do `ModularityTest`, e não depois dele
+reclamar** — é o ADR-0016 fazendo o trabalho que ele foi escrito para fazer. A permissão
+`quality.lot.release` é crítica e nasce no domínio da qualidade, porque quem decide é a qualidade mesmo
+que o dado seja do lote.
+
+**Um quarto impedimento apareceu, e não estava na pergunta: `shelf_life_unknown`.** Lote sem evidência de
+oxigênio nem validade registrada não tem validade nenhuma, e **validade desconhecida não é validade em
+dia** — vender seria prometer um prazo que ninguém apurou. Bloqueia.
+
+**As três condições são compostas em `packaging.SellableLotLookup`, e não em quem pergunta.** Lote,
+validade (FSL-001) e quarentena já estão todos ao alcance de `packaging`, que já depende de
+`traceability`. Se `sales` compusesse, precisaria de três dependências para responder uma pergunta só, e
+cada critério novo viraria uma dependência nova lá.
+
+**O impedimento vem nomeado, e não como booleano.** Falta de assinatura, validade vencida e quarentena
+levam a três ações diferentes; "não disponível" faria o operador ligar para a qualidade perguntar o
+motivo. A ordem também é decisão: quarentena primeiro, porque um lote em quarentena não é caso de correr
+atrás de assinatura; depois a liberação, que é ação de alguém; por último a validade, que é fato
+consumado.
+
+**Não há revogação de liberação.** Lote liberado que depois se mostra problemático é caso de quarentena
+ou recall, que alcançam por herança e deixam rastro do porquê. Apagar a liberação faria sumir o fato de
+que alguém a assinou — que é o que a investigação precisa saber.
+
+**Entregue:** `V121`, `LotRelease`, `SellableLotLookup`, `SellableLotService`, endpoints de liberação, de
+estado de venda e de lotes vendáveis do produto; 3 caminhos e 3 schemas no OpenAPI; a tela mostra os
+lotes disponíveis. **4 testes de integração novos**, e `ModularityTest` verde com a aresta
+`sales → packaging`.
 
 ## Evidências de encerramento
 

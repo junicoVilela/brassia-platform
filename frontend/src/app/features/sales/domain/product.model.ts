@@ -32,3 +32,19 @@ export interface PriceSchedule {
   channelId: string;
   entries: PriceEntry[];
 }
+
+/**
+ * Um lote que dá para prometer (SAL-001-B).
+ *
+ * Vendável é liberado pela qualidade, dentro da validade e sem quarentena — o backend compõe as três
+ * condições e só devolve o que passou nas três.
+ */
+export interface SellableLot {
+  finishedLotId: string;
+  code: string;
+  batchCode: string;
+  units: number;
+  containerVolumeMl: number;
+  packagedOn: string;
+  bestBefore: string;
+}

@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { PriceSchedule, Product, SalesChannel } from '../domain/product.model';
+import { PriceSchedule, Product, SalesChannel, SellableLot } from '../domain/product.model';
 
 @Injectable({ providedIn: 'root' })
 export class SalesApi {
@@ -35,6 +35,11 @@ export class SalesApi {
 
   createChannel(body: { code: string; name: string }): Observable<{ id: string }> {
     return this.http.post<{ id: string }>(`${this.baseUrl}/channels`, body);
+  }
+
+  /** Só os lotes vendáveis: o backend já aplicou liberação, validade e quarentena. */
+  sellableLots(productId: string): Observable<SellableLot[]> {
+    return this.http.get<SellableLot[]>(`${this.baseUrl}/products/${productId}/sellable-lots`);
   }
 
   priceSchedule(productId: string, channelId: string): Observable<PriceSchedule> {

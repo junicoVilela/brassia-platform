@@ -240,6 +240,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/sales/sales.routes').then(m => m.SALES_ROUTES),
       },
       {
+        path: 'sales/orders',
+        canActivate: [permissionGuard],
+        data: { permission: 'sales.order.read' },
+        loadChildren: () => import('./features/sales/sales.routes').then(m => m.ORDER_ROUTES),
+      },
+      {
         path: 'crm/customers',
         canActivate: [permissionGuard],
         data: { permission: 'crm.customer.read' },

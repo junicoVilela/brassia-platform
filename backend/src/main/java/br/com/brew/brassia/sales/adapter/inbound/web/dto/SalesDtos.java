@@ -55,7 +55,13 @@ public final class SalesDtos {
      * <p>Vendável é <strong>liberado pela qualidade</strong>, <strong>dentro da validade</strong> e
      * <strong>sem quarentena</strong> — decisão do mantenedor em 2026-08-15. Quem compõe as três
      * condições é o módulo de envase, que já tem as três ao alcance.
+     *
+     * <p><strong>{@code units} é o que o lote tem; {@code freeUnits} é o que sobrou depois das
+     * reservas.</strong> Os dois viajam porque respondem perguntas diferentes: um lote de 780 unidades
+     * com 780 vendidas continua existindo, e mostrar só o total faria a tela oferecer cerveja que já
+     * tem dono. O desconto é feito <em>aqui</em>, e não no envase — a reserva é dado de vendas, e
+     * pedir ao envase que a conhecesse fecharia ciclo entre os módulos.
      */
     public record SellableLotView(UUID finishedLotId, String code, String batchCode, int units,
-            BigDecimal containerVolumeMl, LocalDate packagedOn, LocalDate bestBefore) {}
+            int freeUnits, BigDecimal containerVolumeMl, LocalDate packagedOn, LocalDate bestBefore) {}
 }

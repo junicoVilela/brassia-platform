@@ -13,6 +13,7 @@ import br.com.brew.brassia.sales.adapter.inbound.web.dto.SalesDtos.RenameRequest
 import br.com.brew.brassia.sales.adapter.inbound.web.dto.SalesDtos.SellableLotView;
 import br.com.brew.brassia.sales.adapter.inbound.web.dto.SalesDtos.SetActiveRequest;
 import br.com.brew.brassia.sales.application.port.inbound.ProductCommands;
+import br.com.brew.brassia.sales.application.port.outbound.LotAvailabilityRepository;
 import br.com.brew.brassia.sales.application.port.outbound.PriceRepository;
 import br.com.brew.brassia.sales.application.port.outbound.ProductRepository;
 import br.com.brew.brassia.sales.application.port.outbound.SalesChannelRepository;
@@ -58,16 +59,18 @@ final class ProductController {
     private final SalesChannelRepository channels;
     private final PriceRepository prices;
     private final SellableLotLookup sellableLots;
+    private final LotAvailabilityRepository availability;
     private final AuditTrail audit;
 
     ProductController(ProductCommands commands, ProductRepository products,
             SalesChannelRepository channels, PriceRepository prices, SellableLotLookup sellableLots,
-            AuditTrail audit) {
+            LotAvailabilityRepository availability, AuditTrail audit) {
         this.commands = Objects.requireNonNull(commands);
         this.products = Objects.requireNonNull(products);
         this.channels = Objects.requireNonNull(channels);
         this.prices = Objects.requireNonNull(prices);
         this.sellableLots = Objects.requireNonNull(sellableLots);
+        this.availability = Objects.requireNonNull(availability);
         this.audit = Objects.requireNonNull(audit);
     }
 
@@ -190,11 +193,20 @@ final class ProductController {
         var brewery = principal.requireBrewery();
         var product = products.find(brewery, id)
                 .orElseThrow(() -> new UnknownProductException("o produto", id));
-        return sellableLots
-                .sellableLots(brewery, product.recipeId(), product.containerId(), LocalDate.now())
-                .stream()
+        var lotes = sellableLots.sellableLots(brewery, product.recipeId(), product.containerId(),
+                LocalDate.now());
+        // O desconto das reservas é feito aqui, e não no envase: reserva é dado de vendas, e pedir ao
+        // envase que a conhecesse criaria packaging -> sales sobre o sales -> packaging que já existe.
+        var livres = availability.freeUnits(brewery,
+                lotes.stream().map(SellableLotLookup.SellableLot::finishedLotId)
+                        .collect(java.util.stream.Collectors.toSet()));
+        return lotes.stream()
+                // Lote sem linha de disponibilidade nunca foi reservado: está inteiro livre.
                 .map(l -> new SellableLotView(l.finishedLotId(), l.code(), l.batchCode(), l.units(),
-                        l.containerVolumeMl(), l.packagedOn(), l.bestBefore()))
+                        livres.getOrDefault(l.finishedLotId(), l.units()), l.containerVolumeMl(),
+                        l.packagedOn(), l.bestBefore()))
+                // Lote sem nada livre não é oferta: mostrá-lo faria alguém prometer o que tem dono.
+                .filter(v -> v.freeUnits() > 0)
                 .toList();
     }
 

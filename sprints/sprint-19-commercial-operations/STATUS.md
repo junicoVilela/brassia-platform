@@ -6,7 +6,7 @@ Estado: **ATIVA desde 2026-08-15** — escolhida como próxima sprint. Nenhuma h
 |---|---|---|
 | CRM-001 | Em execução — domínio e testes prontos | `crm/domain/*`, 26 testes unitários |
 | SAL-001 | Em execução — domínio, fatia de fora e tela | `sales/*`, `V120`, 21 unitários + 10 IT |
-| SAL-002 | A fazer | — |
+| SAL-002 | Em execução — domínio, fatia de fora e tela | `sales/*`, `V122`, 15 unitários + 8 IT |
 | SAL-003 | A fazer | — |
 | FCST-001 | A fazer | — |
 | INT-008 | A fazer | — |
@@ -205,6 +205,60 @@ que alguém a assinou — que é o que a investigação precisa saber.
 estado de venda e de lotes vendáveis do produto; 3 caminhos e 3 schemas no OpenAPI; a tela mostra os
 lotes disponíveis. **4 testes de integração novos**, e `ModularityTest` verde com a aresta
 `sales → packaging`.
+
+### DEC-SAL-003 (SAL-002) — As duas garantias do pedido não estão no código
+
+**"Concorrência não vende estoque duas vezes" é critério transversal da sprint, e não dava para cumprir
+com checagem.** Ler o disponível e depois gravar deixa uma janela entre as duas operações, e é ela que
+duas telas abertas encontram. O Postgres também não expressa "a soma das reservas deste lote cabe no
+lote" de forma declarativa — não há assertion entre linhas.
+
+A saída foi **uma linha por lote** (`sales_lot_availability`) com total e reservado, e a reserva virou um
+`UPDATE` condicional: `SET reserved_units = reserved_units + :n WHERE reserved_units + :n <=
+total_units`. Duas requisições simultâneas disputam a **mesma linha**: a segunda espera o commit da
+primeira e relê o valor já atualizado. Se não couber, o `UPDATE` afeta zero linhas — e é assim que quem
+perdeu a corrida descobre, sem lock explícito e sem retry. O `CHECK` é a rede embaixo.
+
+**Idempotência por índice único parcial** em `(cervejaria, chave)`. Um duplo clique ou um retry de rede
+não pode criar um segundo pedido: ele tiraria do próximo comprador uma cerveja que ninguém vai levar.
+Nulo é legítimo — pedido digitado na tela não tem por que ter chave — e é por isso que o índice é
+parcial. **No cliente a chave é gerada por tentativa de envio, e não por pedido**: fixa por formulário,
+o operador que corrige a quantidade e reenvia receberia o pedido antigo de volta e concluiria que o
+sistema ignorou a correção.
+
+**A promessa é validada contra a validade do lote reservado, e manda o que vence primeiro** — quem
+entrega tudo junto entrega o mais velho junto. A validade é o **último dia bom**, então prometer
+exatamente para ela vale. Sem essa regra o pedido é aceito, o cliente organiza a operação dele em cima
+da data, e o problema aparece no dia da carga.
+
+**A reserva é FEFO, e não FIFO.** Sai antes o que *vence* antes, não o que foi produzido antes: são a
+mesma coisa quase sempre, e diferentes justamente quando importa — um lote novo com validade curta
+precisa sair na frente de um velho com validade longa, ou vence na prateleira.
+
+**O preço é congelado no pedido.** A lista muda (é para isso que ela tem vigência), e se a fatura
+relesse a lista, um aumento aplicado depois mudaria o valor de um pedido que o cliente já aceitou.
+
+**A reserva aponta para o lote, e não só para o produto.** É o que faz o pedido manter rastreio: quando
+um recall alcança um lote, "quem comprou disto?" precisa ter resposta. Reservar "10 unidades de IPA
+lata" obrigaria a avisar todo mundo que comprou IPA.
+
+**O arredondamento é do total, e não da linha.** Duas linhas de R$ 0,0050 dão R$ 0,02 arredondando por
+linha e R$ 0,01 somando antes — é o centavo que o cliente encontra ao conferir a nota. `Money` guarda
+quatro casas justamente para o arredondamento acontecer uma vez só.
+
+**Não existe rascunho.** Um pedido que não reservou nada não segura lote, e chamá-lo de pedido faria a
+cervejaria contar como vendido o que outro cliente ainda pode levar. E não existe DELETE: cancelar
+devolve as reservas **na mesma transação** — separadas, haveria um instante com o pedido cancelado e o
+estoque preso, e uma falha no meio o deixaria preso para sempre.
+
+**Buraco encontrado e fechado durante a implementação:** a lista de lotes vendáveis não descontava o
+reservado, então a tela ofereceria 780 unidades de um lote com 780 já vendidas. Agora `freeUnits` viaja
+junto e lote zerado sai da oferta. O desconto é feito em `sales`, e não em `packaging` — pedir ao envase
+que conhecesse reservas criaria `packaging → sales` sobre o `sales → packaging` que já existe.
+
+**Entregue:** `V122` com quatro tabelas, `SalesOrder`, `OrderLine`, `LotReservation`, `OrderHandlers`,
+dois repositórios, controller com Problem Details para os cinco modos de recusa; 4 caminhos e 3 schemas
+no OpenAPI; tela de pedidos com os lotes reservados visíveis. **15 testes de domínio e 8 de integração.**
 
 ## Evidências de encerramento
 

@@ -16,6 +16,8 @@ import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Set;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,8 +44,16 @@ class PackagingPlanIT {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String PLANS = "/api/v1/packaging/plans";
-    private static final String START = "2026-08-20T09:00:00Z";
-    private static final String END = "2026-08-20T15:00:00Z";
+    /**
+     * Janela do envase ancorada em AGORA, e não numa data fixa.
+     *
+     * <p>A linha limpa exige liberação <strong>anterior</strong> ao início planejado
+     * ({@code LineCleanliness}). Com data fixa, o dia em que ela passa inverte a ordem e todo envase
+     * destes testes passa a ser recusado com {@code line_not_clean} — uma falha datada, que aparece sem
+     * ninguém ter mexido em nada.
+     */
+    private static final String START = Instant.now().plus(Duration.ofHours(1)).toString();
+    private static final String END = Instant.now().plus(Duration.ofHours(7)).toString();
 
     @Autowired WebApplicationContext context;
     MockMvc mockMvc;
@@ -400,8 +410,13 @@ class PackagingPlanIT {
     private void scheduleMaintenance(MockHttpSession session, String equipmentId) throws Exception {
         mockMvc.perform(post("/api/v1/equipment/" + equipmentId + "/maintenance").session(session).with(csrf())
                         .contentType("application/json")
-                        .content("{\"kind\":\"MAINTENANCE\",\"startAt\":\"2026-08-20T10:00:00Z\","
-                                + "\"endAt\":\"2026-08-20T12:00:00Z\",\"notes\":\"troca de bico\"}"))
+                        // DENTRO da janela do plano, que é o cenário: a manutenção só bloqueia se
+                        // acontecer enquanto o envase estaria rodando. Ancorada em data fixa, ela saiu
+                        // da janela no momento em que a janela passou a ser relativa a agora.
+                        .content("{\"kind\":\"MAINTENANCE\",\"startAt\":\""
+                                + Instant.now().plus(Duration.ofHours(2)) + "\","
+                                + "\"endAt\":\"" + Instant.now().plus(Duration.ofHours(3))
+                                + "\",\"notes\":\"troca de bico\"}"))
                 .andExpect(status().isCreated());
     }
 

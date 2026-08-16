@@ -4,6 +4,8 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.community.application.port.inbound.LibraryCommands;
 import br.com.brew.brassia.community.application.port.outbound.PublishedRecipeRepository;
+import br.com.brew.brassia.community.application.port.outbound.RecipeForkRepository;
+import br.com.brew.brassia.community.application.service.ForkHandlers;
 import br.com.brew.brassia.community.domain.PublicRecipeSnapshot;
 import br.com.brew.brassia.community.domain.PublishedRecipe;
 import br.com.brew.brassia.community.domain.RecipeLicense;
@@ -50,11 +52,16 @@ final class LibraryController {
 
     private final LibraryCommands commands;
     private final PublishedRecipeRepository library;
+    private final ForkHandlers forks;
+    private final RecipeForkRepository lineage;
     private final AuditTrail audit;
 
-    LibraryController(LibraryCommands commands, PublishedRecipeRepository library, AuditTrail audit) {
+    LibraryController(LibraryCommands commands, PublishedRecipeRepository library, ForkHandlers forks,
+            RecipeForkRepository lineage, AuditTrail audit) {
         this.commands = Objects.requireNonNull(commands);
         this.library = Objects.requireNonNull(library);
+        this.forks = Objects.requireNonNull(forks);
+        this.lineage = Objects.requireNonNull(lineage);
         this.audit = Objects.requireNonNull(audit);
     }
 
@@ -133,6 +140,44 @@ final class LibraryController {
                 "community.publication", id.toString(), Map.of()));
     }
 
+    /**
+     * Copiar a receita para a própria casa (COM-003).
+     *
+     * <p><strong>A cópia sai do retrato congelado, e não da receita do autor.</strong> O forkador leva o
+     * que estava publicado naquele momento — nem mais, nem o que vier depois. Se o autor fechar a
+     * publicação amanhã, esta receita continua sendo dele e a atribuição continua correta.
+     *
+     * <p>O equipamento é de quem copia: o do autor nunca saiu no retrato, e quem vai brassar escolhe o
+     * seu.
+     *
+     * <p>Alçada de criar receita, e não uma nova: quem pode criar do zero pode criar inspirado na de
+     * outro.
+     */
+    @PostMapping("/{id}/fork")
+    @ResponseStatus(HttpStatus.CREATED)
+    ForkedView fork(@AuthenticationPrincipal SecurityPrincipal principal, @PathVariable UUID id,
+            @Valid @RequestBody ForkRequest request) {
+        principal.requirePermission("recipe.create");
+        var brewery = principal.requireBrewery();
+        var result = forks.fork(brewery, principal.userId(), id, request.name(), request.equipmentId());
+        audit.record(AuditEvent.success(brewery, principal.userId(), "community.recipe.fork",
+                "recipe.recipe", result.recipeId().toString(),
+                Map.of("sourcePublicationId", id.toString())));
+        return new ForkedView(result.recipeId(), result.origin().attribution(),
+                result.origin().sourceLicense().name(),
+                result.origin().requiredLicenseForDerivative().map(Enum::name).orElse(null));
+    }
+
+    /** Quantas cópias esta publicação gerou — a pergunta do autor. */
+    @GetMapping("/{id}/forks")
+    Map<String, Integer> forkCount(@AuthenticationPrincipal SecurityPrincipal principal,
+            @PathVariable UUID id) {
+        principal.requirePermission("community.library.read");
+        library.findForReader(id, principal.requireBrewery())
+                .orElseThrow(() -> new UnknownPublicationException(id));
+        return Map.of("count", lineage.countForksOf(id));
+    }
+
     private static PublicationView view(PublishedRecipe p) {
         return new PublicationView(p.id(), p.title(), p.summary().orElse(null), p.authorDisplayName(),
                 p.license().name(), p.license().label(), p.recipeVersion(), p.publishedAt(),
@@ -149,6 +194,17 @@ final class LibraryController {
             @NotNull Visibility visibility) {}
 
     record VisibilityRequest(@NotNull Visibility visibility) {}
+
+    record ForkRequest(@Size(max = 160) String name, @NotNull UUID equipmentId) {}
+
+    /**
+     * A resposta do fork traz a atribuição pronta e a obrigação de licença, se houver.
+     *
+     * <p>{@code requiredLicense} não nulo significa que a licença de origem se propaga (CC BY-SA) — e
+     * dizer isso na resposta evita o forkador descobrir a obrigação quando for publicar.
+     */
+    record ForkedView(UUID recipeId, String attribution, String sourceLicense,
+            String requiredLicense) {}
 
     record LicenseRequest(@NotNull RecipeLicense license) {}
 

@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, forkJoin } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
 import {
+  ForkedRecipe,
   LibraryPublication,
   OwnedPublication,
   RecipeLicense,
@@ -14,7 +15,7 @@ import { LibraryApi } from './library.api';
 
 interface ApiError {
   status?: number;
-  error?: { code?: string; detail?: string };
+  error?: { code?: string; detail?: string; missing?: string[] };
 }
 
 /**
@@ -48,6 +49,12 @@ export class LibraryStore {
    * hash.
    */
   readonly freshToken = signal<string | null>(null);
+
+  /** O resultado do último fork, para a tela mostrar a atribuição e a obrigação de licença. */
+  readonly lastFork = signal<ForkedRecipe | null>(null);
+
+  /** Os ingredientes que faltaram no catálogo — é o que torna a recusa acionável. */
+  readonly missingIngredients = signal<string[]>([]);
 
   /** O que está fora de circulação continua na estante, e a tela separa as duas coisas. */
   readonly live = computed(() => this.mine().filter(p => p.published));
@@ -120,6 +127,30 @@ export class LibraryStore {
           this.load();
         },
         error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível retirar.')),
+      });
+  }
+
+  fork(publication: LibraryPublication, equipmentId: string, name: string | null): void {
+    this.saving.set(true);
+    this.lastFork.set(null);
+    this.missingIngredients.set([]);
+    this.api
+      .fork(publication.id, { equipmentId, name })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.saving.set(false)),
+      )
+      .subscribe({
+        next: forked => {
+          this.lastFork.set(forked);
+          this.toast.success('Receita copiada para a sua cervejaria.');
+        },
+        error: (e: ApiError) => {
+          // A lista do que falta fica na tela, e não só no toast: o operador precisa dela na mão para
+          // cadastrar os ingredientes, e um toast some antes disso.
+          this.missingIngredients.set(e?.error?.missing ?? []);
+          this.toast.error(this.message(e, 'Não foi possível copiar a receita.'));
+        },
       });
   }
 

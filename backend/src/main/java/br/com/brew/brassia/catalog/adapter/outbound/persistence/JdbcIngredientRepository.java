@@ -92,6 +92,19 @@ class JdbcIngredientRepository implements IngredientRepository {
     }
 
     @Override
+    public Optional<UUID> findIdByName(UUID breweryId, String name) {
+        // lower(btrim(...)) dos dois lados: o nome vem de um retrato público digitado por outra pessoa,
+        // e a diferença de um espaço ou de uma maiúscula não é diferença de ingrediente.
+        return jdbc.sql("""
+                SELECT id FROM catalog_ingredient
+                WHERE brewery_id = :brewery AND lower(btrim(name)) = lower(btrim(:name))
+                LIMIT 1
+                """)
+                .param("brewery", breweryId).param("name", name)
+                .query(UUID.class).optional();
+    }
+
+    @Override
     public Optional<Ingredient> findById(UUID breweryId, UUID id) {
         return jdbc.sql("""
                 SELECT id, brewery_id, type, code, name, use_unit, purchase_unit, purchase_package_size, reorder_point, attributes, active, version

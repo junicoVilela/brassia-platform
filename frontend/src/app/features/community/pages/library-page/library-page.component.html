@@ -217,6 +217,64 @@
               </dd>
             }
           </dl>
+          @if (p.forkable) {
+            <div class="border rounded p-3 mb-3 bg-body-tertiary">
+              <h4 class="h6">Copiar para a minha cervejaria</h4>
+              <!--
+                A cópia sai do retrato congelado: o que o autor fizer depois não muda esta receita, e o
+                que ele fechar depois não a quebra.
+              -->
+              <p class="small text-muted">
+                A cópia é independente. Se o autor mudar ou fechar a publicação, sua receita continua —
+                e o crédito também.
+              </p>
+              <form [formGroup]="forkForm" (ngSubmit)="submitFork(p)" class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label small mb-1" for="forkEquip">Seu equipamento</label>
+                  <input id="forkEquip" class="form-control form-control-sm"
+                         formControlName="equipmentId" />
+                  <div class="form-text">O do autor não vem junto — quem brassa escolhe o seu.</div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small mb-1" for="forkName">Nome da sua receita</label>
+                  <input id="forkName" class="form-control form-control-sm" formControlName="name" />
+                  <div class="form-text">Em branco: o nome de origem com "(cópia)".</div>
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+                    Copiar
+                  </button>
+                </div>
+              </form>
+
+              @if (store.lastFork(); as forked) {
+                <div class="alert alert-success mt-2 mb-0 small" role="status">
+                  Copiada. Cite assim: <strong>{{ forked.attribution }}</strong>.
+                  @if (forked.requiredLicense) {
+                    <!--
+                      CC BY-SA se propaga. Dizer isso aqui evita o forkador descobrir a obrigação só
+                      quando for publicar.
+                    -->
+                    <br />Esta licença <strong>obriga</strong> publicar derivados sob
+                    {{ forked.requiredLicense }}.
+                  }
+                </div>
+              }
+
+              @if (store.missingIngredients().length > 0) {
+                <!--
+                  A lista fica na tela, e não só no toast: o operador precisa dela na mão para cadastrar
+                  os ingredientes, e um toast some antes disso.
+                -->
+                <div class="alert alert-warning mt-2 mb-0 small" role="alert">
+                  Faltam no seu catálogo:
+                  <strong>{{ store.missingIngredients().join(', ') }}</strong>.
+                  Cadastre-os e copie de novo — a receita não é criada pela metade.
+                </div>
+              }
+            </div>
+          }
+
           <h4 class="h6">Ingredientes</h4>
           <ul class="list-unstyled small mb-0">
             @for (item of p.recipe.items; track item.ingredientName) {

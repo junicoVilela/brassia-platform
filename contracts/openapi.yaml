@@ -8316,8 +8316,110 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /community/library/{id}/fork:
+    post:
+      tags: [Comunidade]
+      summary: Copiar a receita para a própria cervejaria (COM-003)
+      description: >-
+        **A cópia sai do retrato congelado, e nunca da receita do autor.** É o que dá sentido a "sem
+        acesso futuro ao conteúdo privado": o forkador leva o que estava publicado naquele momento — nem
+        mais, nem o que vier depois. Se o autor fechar a publicação amanhã, esta receita continua sendo
+        dele e a **atribuição continua correta**.
+
+
+        **A linhagem é atribuição congelada, e não ponteiro.** Nome do autor, título, licença e versão
+        ficam gravados como estavam. O identificador da publicação é guardado para a tela poder oferecer
+        o link de volta — abrir aquela publicação continua passando pela matriz de visibilidade.
+
+
+        **O equipamento é de quem copia:** o do autor nunca saiu no retrato, e quem vai brassar escolhe o
+        seu.
+
+
+        **Sem `name`, a cópia ganha o sufixo "(cópia)".** Reusar o nome do original colide — nome de
+        receita é único por cervejaria —, mas o motivo de fundo é outro: duas receitas com o mesmo nome no
+        mesmo catálogo fazem o cervejeiro pegar a errada no dia da brassa.
+
+
+        **Alçada `recipe.create`**, e não uma nova: quem pode criar uma receita do zero pode criar uma
+        inspirada na de outro.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [equipmentId]
+              properties:
+                equipmentId: {type: string, format: uuid}
+                name: {type: string, maxLength: 160, nullable: true}
+      responses:
+        '201':
+          description: Receita criada, com a atribuição e a obrigação de licença
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ForkedRecipe'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: >-
+            A publicação não existe **ou não alcança quem pediu** — não se forka o que não se pode ler, e
+            isto não é sobre licença: é a matriz de visibilidade.
+          content:
+            application/problem+json:
+              schema: {type: object}
+        '409':
+          description: >-
+            `fork_not_allowed` — a licença não autoriza derivados. · `unmapped_ingredients` — faltam
+            ingredientes no catálogo de quem copia, **com a lista em `missing`**. A recusa é inteira: uma
+            receita a que faltam três de oito ingredientes não é incompleta, é **errada**, e alguém a
+            brassaria achando que é a do outro.
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /community/library/{id}/forks:
+    get:
+      tags: [Comunidade]
+      summary: Quantas cópias esta publicação gerou
+      description: A pergunta do autor — "quantos copiaram a minha?".
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Contagem de forks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: {type: integer}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    ForkedRecipe:
+      type: object
+      properties:
+        recipeId: {type: string, format: uuid, description: A receita nova, que é de quem copiou e evolui sozinha.}
+        attribution:
+          type: string
+          description: 'Pronta para a tela — por exemplo "IPA da Casa, de Ana (CC BY 4.0)".'
+        sourceLicense: {$ref: '#/components/schemas/RecipeLicense'}
+        requiredLicense:
+          type: string
+          nullable: true
+          description: >-
+            Não nulo quando a licença de origem **se propaga** (CC BY-SA existe para que derivados
+            continuem abertos). Vem na resposta para o forkador não descobrir a obrigação só na hora de
+            publicar.
     ShareLinkView:
       type: object
       description: O estado de um link, na lista do autor. Sem o token — ele apareceu uma vez, na criação.

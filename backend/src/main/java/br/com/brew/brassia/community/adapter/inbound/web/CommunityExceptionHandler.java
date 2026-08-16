@@ -1,6 +1,8 @@
 package br.com.brew.brassia.community.adapter.inbound.web;
 
 import br.com.brew.brassia.community.domain.AlreadyPublishedException;
+import br.com.brew.brassia.community.domain.ForkNotAllowedException;
+import br.com.brew.brassia.community.domain.UnmappedIngredientsException;
 import br.com.brew.brassia.community.domain.RecipeUnpublishedException;
 import br.com.brew.brassia.community.domain.UnknownPublicationException;
 import br.com.brew.brassia.community.domain.UnknownShareLinkException;
@@ -37,6 +39,26 @@ class CommunityExceptionHandler {
     @ExceptionHandler(UnknownShareLinkException.class)
     ProblemDetail handleLink(UnknownShareLinkException ex) {
         return ProblemDetails.of(HttpStatus.NOT_FOUND, "share_link_invalid", ex.getMessage());
+    }
+
+    /** 409: a publicação existe e é legível; o que ela não dá é permissão de copiar. */
+    @ExceptionHandler(ForkNotAllowedException.class)
+    ProblemDetail handleFork(ForkNotAllowedException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, "fork_not_allowed", ex.getMessage());
+    }
+
+    /**
+     * 409 com a lista do que falta (COM-003).
+     *
+     * <p>Recusar inteiro é a decisão: uma receita a que faltam três de oito ingredientes não é
+     * incompleta, é errada — e alguém a brassaria achando que é a do outro. A lista é o que torna a
+     * recusa acionável.
+     */
+    @ExceptionHandler(UnmappedIngredientsException.class)
+    ProblemDetail handleUnmapped(UnmappedIngredientsException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "unmapped_ingredients", ex.getMessage());
+        problem.setProperty("missing", ex.missing());
+        return problem;
     }
 
     @ExceptionHandler(AlreadyPublishedException.class)

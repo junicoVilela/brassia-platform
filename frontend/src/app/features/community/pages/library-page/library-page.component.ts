@@ -58,6 +58,11 @@ export class LibraryPageComponent implements OnInit {
   protected readonly showForm = signal(false);
   protected readonly canPublish = this.auth.hasPermission('community.recipe.publish');
 
+  protected readonly forkForm = this.fb.nonNullable.group({
+    equipmentId: ['', Validators.required],
+    name: ['', Validators.maxLength(160)],
+  });
+
   protected readonly linkForm = this.fb.nonNullable.group({
     permission: ['READ' as SharePermission, Validators.required],
     label: ['', Validators.maxLength(120)],
@@ -99,7 +104,19 @@ export class LibraryPageComponent implements OnInit {
   }
 
   protected open(publication: LibraryPublication): void {
+    this.forkForm.reset({ equipmentId: '', name: '' });
     this.store.open(publication);
+  }
+
+  protected submitFork(publication: LibraryPublication): void {
+    if (this.forkForm.invalid) {
+      this.forkForm.markAllAsTouched();
+      return;
+    }
+    const v = this.forkForm.getRawValue();
+    // Nome vazio vira nulo: o servidor acrescenta "(cópia)", que é melhor que reusar o nome do
+    // original — duas receitas iguais no catálogo fazem o cervejeiro pegar a errada.
+    this.store.fork(publication, v.equipmentId, v.name || null);
   }
 
   protected retire(publication: OwnedPublication): void {

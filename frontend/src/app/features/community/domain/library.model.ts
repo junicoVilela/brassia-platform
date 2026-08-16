@@ -101,3 +101,17 @@ export interface CreatedShareLink {
   id: string;
   token: string;
 }
+
+/** O resultado de copiar uma receita publicada (COM-003). */
+export interface ForkedRecipe {
+  recipeId: string;
+  /** Pronta para a tela: "IPA da Casa, de Ana (CC BY 4.0)". */
+  attribution: string;
+  sourceLicense: RecipeLicense;
+  /**
+   * Não nulo quando a licença de origem se propaga (CC BY-SA).
+   *
+   * Vem na resposta para o forkador não descobrir a obrigação só na hora de publicar.
+   */
+  requiredLicense: RecipeLicense | null;
+}

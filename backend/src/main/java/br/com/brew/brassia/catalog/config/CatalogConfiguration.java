@@ -1,6 +1,7 @@
 package br.com.brew.brassia.catalog.config;
 
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.catalog.IngredientDirectory;
 import br.com.brew.brassia.catalog.IngredientSpecLookup;
 import br.com.brew.brassia.catalog.application.port.inbound.CreateTechnicalProfileUseCase;
 import br.com.brew.brassia.catalog.application.port.inbound.ListIngredientsUseCase;
@@ -46,6 +47,12 @@ class CatalogConfiguration {
     @Bean
     ListIngredientsUseCase listIngredientsUseCase(IngredientRepository repository) {
         return new ListIngredientsHandler(repository);
+    }
+
+    /** Nome para identificador (COM-003): o retrato público de uma receita traz nomes, e não ids. */
+    @Bean
+    IngredientDirectory ingredientDirectory(IngredientRepository repository) {
+        return repository::findIdByName;
     }
 
     /** Especificação publicada do ingrediente, consumida por outros módulos (ex.: metas de receita). */

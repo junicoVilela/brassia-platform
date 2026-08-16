@@ -1,6 +1,6 @@
 # Status — Sprint 18
 
-Estado: **ATIVA desde 2026-08-15** — COM-001 e COM-002 entregues; COM-003 a COM-005 pendentes.
+Estado: **ATIVA desde 2026-08-15** — COM-001, COM-002 e COM-003 entregues; COM-004 e COM-005 pendentes.
 
 **A ressalva que esta sprint carrega, e que a Sprint 19 não carregava:** ela é a que **aponta para
 fora**. Biblioteca pública, link compartilhado, fork e moderação colocam dado da cervejaria fora dela,
@@ -107,6 +107,42 @@ SQL, na migration e no contrato — para o próximo a ler não achar que sempre 
 
 O teste da matriz de visibilidade foi corrigido junto: `LINK` passou da lista dos que abrem para a lista
 dos que não abrem por endereço.
+
+### DEC-COM-004 (COM-003) — A linhagem é atribuição congelada, e não ponteiro
+
+**O critério é literal — "sem acesso futuro ao conteúdo privado do autor" — e ele decidiu a modelagem.**
+Nome do autor, título, licença e versão são gravados **como estavam** no momento do fork. Se o autor
+renomear a publicação, fechar a visibilidade ou despublicar, a atribuição continua correta e o forkador
+**não ganha nada novo**. Provado de ponta a ponta: fechar a publicação depois do fork não quebra a
+receita nem apaga o crédito.
+
+O identificador da publicação fica guardado para a tela oferecer o link de volta — e **não para dar
+acesso**: abrir aquela publicação continua passando pela matriz de visibilidade.
+
+**O fork é recusado inteiro quando falta ingrediente.** O retrato público traz os ingredientes pelo
+**nome** — o id é do catálogo do autor e nunca sai. A alternativa seria criar a receita só com o que
+casou; uma receita a que faltam três de oito ingredientes **não é incompleta, é errada**, e alguém a
+brassaria achando que é a do outro. A recusa vem com a lista, que é o que a torna acionável.
+
+**A comparação de nome é normalizada** (sem maiúsculas nem espaços nas pontas): exigir igualdade exata
+faria o forkador criar ingredientes duplicados para casar com um espaço.
+
+**Sem nome informado, a cópia ganha o sufixo "(cópia)".** Descoberto porque o teste falhou com 409: nome
+de receita é único por cervejaria. Mas a colisão é o sintoma — o motivo de fundo é que **duas receitas
+com o mesmo nome no mesmo catálogo fazem o cervejeiro pegar a errada no dia da brassa**.
+
+**CC BY-SA se propaga**, e a resposta do fork diz isso: descobrir a obrigação só na hora de publicar
+seria descobrir tarde. As demais licenças deixam o forkador escolher a dele, desde que a atribuição fique.
+
+**Dois módulos passaram a publicar coisas novas, ambos na direção padrão do ADR-0016:**
+
+- `recipe.RecipeImportCommands` — porta de escrita, que **delega ao `CreateRecipeUseCase`** em vez de
+  reimplementar. Um caminho paralelo seria um segundo lugar onde volume contra capacidade e percentuais
+  de mostura precisariam ser mantidos iguais, e divergiriam na primeira mudança.
+- `catalog.IngredientDirectory` — nome para identificador, porque o retrato público carrega nomes.
+
+**Entregue:** `V127`, `ForkOrigin` e exceções, porta, caso de uso, dois endpoints, 2 caminhos e 1 schema
+no OpenAPI, e a tela. **7 testes de domínio e 9 de integração.**
 
 ## Evidências de encerramento
 

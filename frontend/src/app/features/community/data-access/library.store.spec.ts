@@ -184,6 +184,64 @@ describe('LibraryStore', () => {
     expect(createLink).not.toHaveBeenCalled();
   });
 
+  it('guarda a atribuição e a obrigação de licença do fork', () => {
+    // A obrigação vem na resposta para o forkador não descobri-la só na hora de publicar.
+    const { store, toast } = setup({
+      fork: () =>
+        of({
+          recipeId: 'r9',
+          attribution: 'Pilsen do Vizinho, de Bruno (CC BY-SA 4.0)',
+          sourceLicense: 'CC_BY_SA' as const,
+          requiredLicense: 'CC_BY_SA' as const,
+        }),
+    } as Partial<LibraryApi>);
+
+    store.fork(published(), 'eq1', null);
+
+    expect(store.lastFork()?.requiredLicense).toBe('CC_BY_SA');
+    expect(toast.success).toHaveBeenCalledWith('Receita copiada para a sua cervejaria.');
+  });
+
+  it('a lista de ingredientes faltantes fica na tela, e não só no toast', () => {
+    // O operador precisa dela na mão para cadastrar os ingredientes, e um toast some antes disso.
+    const { store } = setup({
+      fork: () =>
+        throwError(() => ({
+          status: 409,
+          error: {
+            code: 'unmapped_ingredients',
+            detail: 'faltam ingredientes no seu catálogo: Lúpulo Citra',
+            missing: ['Lúpulo Citra'],
+          },
+        })),
+    } as Partial<LibraryApi>);
+
+    store.fork(published(), 'eq1', null);
+
+    expect(store.missingIngredients()).toEqual(['Lúpulo Citra']);
+    expect(store.lastFork()).toBeNull();
+  });
+
+  it('um fork novo limpa o resultado do anterior', () => {
+    // Sem isso, a atribuição de uma receita ficaria visível sob o formulário de outra.
+    const { store } = setup({
+      fork: () =>
+        of({
+          recipeId: 'r9',
+          attribution: 'X, de Y (CC0 1.0)',
+          sourceLicense: 'CC0' as const,
+          requiredLicense: null,
+        }),
+    } as Partial<LibraryApi>);
+    store.fork(published(), 'eq1', null);
+    expect(store.lastFork()).not.toBeNull();
+
+    store.open(published());
+    store.fork(published(), 'eq1', null);
+
+    expect(store.missingIngredients()).toEqual([]);
+  });
+
   it('mostra a mensagem do servidor quando a versão já está publicada', () => {
     const { store, toast } = setup({
       publish: () =>

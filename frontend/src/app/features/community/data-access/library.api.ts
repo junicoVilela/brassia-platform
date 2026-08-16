@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
   CreatedShareLink,
+  ForkedRecipe,
   LibraryPublication,
   OwnedPublication,
   RecipeLicense,
@@ -62,5 +63,12 @@ export class LibraryApi {
 
   revokeLink(id: string): Observable<void> {
     return this.http.post<void>(`/api/v1/community/links/${id}/revoke`, {});
+  }
+
+  fork(
+    publicationId: string,
+    body: { equipmentId: string; name: string | null },
+  ): Observable<ForkedRecipe> {
+    return this.http.post<ForkedRecipe>(`${this.baseUrl}/${publicationId}/fork`, body);
   }
 }

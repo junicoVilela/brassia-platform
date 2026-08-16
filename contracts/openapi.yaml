@@ -8716,8 +8716,365 @@ paths:
               schema: {type: array, items: {$ref: '#/components/schemas/AbuseReport'}}
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
+  /containers:
+    get:
+      tags: [Contêineres]
+      summary: Os vasilhames da casa (CON-001)
+      parameters:
+        - name: state
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/ContainerState'}
+      responses:
+        '200':
+          description: Contêineres
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Container'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Contêineres]
+      summary: Cadastrar um contêiner
+      description: >-
+        Nasce vazio e em boa condição, mas **sem inspeção** — que é ato de alguém, com alçada própria.
+        Enquanto não houver inspeção válida, ele não pode ser enchido: tratar "nunca inspecionado" como
+        aprovado deixaria a frota nova inteira fora de controle.
+
+
+        `ownership` importa porque o retornável de terceiro **não é ativo da cervejaria** — tratar os três
+        como iguais faria o inventário contar como patrimônio o que é do cliente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, kind, nominalCapacityLiters, ownership]
+              properties:
+                code:
+                  type: string
+                  maxLength: 40
+                  description: 'O código legível da casa, pintado no vasilhame — não é a etiqueta lida por máquina.'
+                kind: {type: string, enum: [KEG, CASK, GROWLER]}
+                nominalCapacityLiters: {type: number, format: double, minimum: 0.001}
+                ownership: {type: string, enum: [OWN, CUSTOMER, POOL]}
+      responses:
+        '201':
+          description: Cadastrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /containers/by-identifier:
+    get:
+      tags: [Contêineres]
+      summary: Resolver uma leitura de código
+      description: >-
+        Uma leitura de QR, código de barras ou RFID vira um contêiner — **e nada além disso**.
+
+
+        **Ler um código identifica, e não autoriza.** Este endereço exige `container.read` como qualquer
+        outra consulta, e quem escaneou continua precisando de alçada para mover, encher ou dar baixa. Um
+        código fotografado no bar não é credencial em lugar nenhum.
+
+
+        **Só etiqueta viva resolve.** A aposentada continua existindo para explicar leituras antigas, mas
+        deixa de apontar: senão uma entrega de seis meses atrás passaria a resolver para outro keg depois
+        de uma reetiquetagem.
+      parameters:
+        - name: value
+          in: query
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: O contêiner daquela etiqueta
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Container'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /containers/{id}:
+    get:
+      tags: [Contêineres]
+      summary: Um contêiner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: O contêiner
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Container'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /containers/{id}/identifiers:
+    get:
+      tags: [Contêineres]
+      summary: As etiquetas do contêiner, vivas e aposentadas
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Etiquetas
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ContainerIdentifier'}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Contêineres]
+      summary: Colar uma etiqueta
+      description: >-
+        Um contêiner aceita **mais de uma etiqueta ativa** — adesivo de QR e tag RFID no mesmo keg é o
+        caso normal, e não exceção.
+
+
+        O que não pode é o contrário: **um código ativo aponta para um contêiner só**. A garantia é um
+        índice único parcial, porque duas telas colando o mesmo adesivo em kegs diferentes passariam por
+        qualquer checagem prévia e deixariam a leitura ambígua para sempre.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value, technology]
+              properties:
+                value: {type: string, maxLength: 120}
+                technology: {type: string, enum: [QR, BARCODE, RFID]}
+      responses:
+        '201':
+          description: Etiqueta colada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `identifier_in_use` — a etiqueta já está viva em outro contêiner. · `container_retired` —
+            etiquetar um baixado o colocaria de volta em circulação.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /containers/identifiers/{identifierId}/retire:
+    post:
+      tags: [Contêineres]
+      summary: Aposentar uma etiqueta
+      description: >-
+        **Aposentar não apaga.** O registro de que aquele valor um dia apontou para este contêiner é o que
+        permite entender uma leitura antiga. O valor pode voltar a viver depois, em outro vasilhame — o
+        índice único é parcial de propósito, e o que ele proíbe é o mesmo código em dois vínculos vivos.
+      parameters:
+        - name: identifierId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Aposentada}
+        '403': {$ref: '#/components/responses/Problem'}
+  /containers/{id}/inspections:
+    post:
+      tags: [Contêineres]
+      summary: Registrar inspeção (alçada crítica)
+      description: >-
+        **A validade é registrada, e não calculada.** A periodicidade de inspeção de vaso de pressão vem
+        de norma e do tipo do contêiner; inventar aqui um intervalo padrão faria o sistema afirmar
+        conformidade que ninguém verificou. Quem inspeciona informa até quando vale (`DUV-CON-001`).
+
+
+        Alçada `container.inspect`, crítica: liberar um vaso de pressão para uso é atestado técnico, e não
+        operação de rotina.
+
+
+        Inspecionar **não muda estado nem condição** — ele diz que o vasilhame foi olhado. Consertar é a
+        manutenção.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [performedAt, validUntil]
+              properties:
+                performedAt: {type: string, format: date-time}
+                validUntil: {type: string, format: date-time}
+                note: {type: string, maxLength: 500, nullable: true}
+      responses:
+        '204': {description: Inspeção registrada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /containers/{id}/moves:
+    post:
+      tags: [Contêineres]
+      summary: Mover no ciclo
+      description: >-
+        **`RETURNED` não é `EMPTY`.** O que voltou do cliente está sujo até que alguém *diga* o
+        contrário — e a diferença entre os dois estados é exatamente o que impede um keg de voltar direto
+        para a enchedeira. Derivar a limpeza da chegada encheria um vasilhame que ninguém lavou, e o
+        problema apareceria na boca do cliente.
+
+
+        **Só o destino é informado.** "Vazio" vindo da oficina e "vazio" vindo do cliente são transições
+        diferentes, e o estado atual já diz qual é — pedir a origem permitiria que ela viesse errada.
+
+
+        Encher exige, junto: condição boa, estado vazio e **inspeção válida**. A recusa vem com
+        `reasonCode` para a tela dizer qual dos três faltou — recusar sem motivo faria o operador tentar
+        outro keg até um passar, sem nunca saber o que havia de errado com o primeiro.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to]
+              properties:
+                to: {$ref: '#/components/schemas/ContainerState'}
+      responses:
+        '204': {description: Movido}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `container_not_fillable` (com `reasonCode`: `damaged`, `condemned`, `inspection_expired`,
+            `not_ready`) · `illegal_container_transition` · `container_retired`
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /containers/{id}/condition:
+    post:
+      tags: [Contêineres]
+      summary: Marcar avaria ou condenar
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [condemned]
+              properties:
+                condemned:
+                  type: boolean
+                  description: 'true = sem recuperação, e o destino é a baixa; false = avariado, recuperável.'
+      responses:
+        '204': {description: Registrado}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /containers/{id}/retire:
+    post:
+      tags: [Contêineres]
+      summary: Dar baixa (alçada crítica)
+      description: >-
+        Terminal, com motivo obrigatório, e **não apaga nada**.
+
+
+        **Não se dá baixa no que está com o cliente ou na rua.** O vasilhame que não voltou é *perda*, que
+        é outro fato e tem outro dono (CON-003) — o mesmo botão faria "sumiu" e "descartei" virarem a
+        mesma linha no inventário.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, maxLength: 500}
+      responses:
+        '204': {description: Baixado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    ContainerState:
+      type: string
+      description: >-
+        `RETURNED` é o que voltou do cliente e ainda **não** foi liberado — sujo até que alguém diga o
+        contrário. `RETIRED` é terminal.
+      enum: [EMPTY, FILLED, IN_TRANSIT, AT_CUSTOMER, RETURNED, IN_MAINTENANCE, RETIRED]
+    Container:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        kind: {type: string, enum: [KEG, CASK, GROWLER]}
+        nominalCapacityLiters: {type: number, format: double}
+        ownership: {type: string, enum: [OWN, CUSTOMER, POOL]}
+        condition: {type: string, enum: [GOOD, DAMAGED, CONDEMNED]}
+        state: {$ref: '#/components/schemas/ContainerState'}
+        inspectionValidUntil:
+          type: string
+          format: date-time
+          nullable: true
+          description: Nulo quando nunca foi inspecionado — e nesse caso ele não pode ser enchido.
+        fillable:
+          type: boolean
+          description: >-
+            Já composto — avaria, estado e inspeção juntos. A tela não recalcula a regra, e por isso não
+            pode divergir dela.
+        retiredAt: {type: string, format: date-time, nullable: true}
+        retirementReason: {type: string, nullable: true}
+    ContainerIdentifier:
+      type: object
+      description: >-
+        Uma etiqueta colada no vasilhame. **Não carrega alçada, cervejaria nem token** — ela responde
+        "qual keg é esta", e nada mais.
+      properties:
+        id: {type: string, format: uuid}
+        value: {type: string}
+        technology: {type: string, enum: [QR, BARCODE, RFID]}
+        assignedAt: {type: string, format: date-time}
+        retiredAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Depois disso ela não resolve mais — mas continua explicando as leituras antigas.
     Contribution:
       type: object
       description: >-

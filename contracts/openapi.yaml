@@ -9188,8 +9188,369 @@ paths:
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /distribution/loads:
+    get:
+      tags: [Distribuição]
+      summary: As cargas do dia (LOG-001)
+      parameters:
+        - name: day
+          in: query
+          required: false
+          schema: {type: string, format: date}
+      responses:
+        '200':
+          description: Cargas
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Load'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Distribuição]
+      summary: Montar uma carga
+      description: >-
+        Quem chama vira o **planejador** da carga — e por isso não poderá liberá-la. A separação de deveres
+        não é desconfiança do motorista: a conferência existe para encontrar o erro de quem montou, e quem
+        montou relê o próprio trabalho enxergando o que quis colocar, não o que colocou. Uma conferência
+        feita pela mesma pessoa custa o mesmo tempo e não encontra nada.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, scheduledFor, capacityLiters]
+              properties:
+                code: {type: string, maxLength: 40}
+                scheduledFor: {type: string, format: date}
+                capacityLiters:
+                  type: number
+                  format: double
+                  minimum: 0.001
+                  description: 'Do veículo. O limite conta as paradas juntas — o caminhão é um só.'
+      responses:
+        '201':
+          description: Carga criada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /distribution/loads/{id}:
+    get:
+      tags: [Distribuição]
+      summary: Uma carga, com o roteiro na ordem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: A carga
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Load'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /distribution/loads/{id}/stops:
+    post:
+      tags: [Distribuição]
+      summary: Acrescentar uma parada
+      description: >-
+        **Duas paradas na mesma posição não convivem** — é ambiguidade que o motorista resolve inventando,
+        e a rota que ele inventar não é a que a janela combinada pressupõe. A garantia é um índice único.
+
+
+        A **janela é compromisso, e não previsão**: "entre 8h e 11h" é o que o bar ouviu para decidir quem
+        fica na porta, então ela viaja com a parada em vez de ser derivada da ordem da rota — recalcular a
+        partir da sequência faria a promessa mudar toda vez que alguém reordena o roteiro. Parada **sem**
+        janela é estado legítimo: obrigar uma faria alguém inventar "8h às 18h".
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerId, customerName, sequence]
+              properties:
+                customerId: {type: string, format: uuid}
+                customerName:
+                  type: string
+                  maxLength: 160
+                  description: >-
+                    Congelado: renomear o cliente não reescreve o romaneio que já saiu impresso.
+                sequence: {type: integer, minimum: 1}
+                windowFrom: {type: string, format: date-time, nullable: true}
+                windowTo: {type: string, format: date-time, nullable: true}
+      responses:
+        '201':
+          description: Parada criada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /distribution/loads/{id}/stops/{stopId}:
+    delete:
+      tags: [Distribuição]
+      summary: Tirar uma parada
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: stopId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Removida}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /distribution/loads/{id}/stops/{stopId}/containers:
+    post:
+      tags: [Distribuição]
+      summary: Pôr um vasilhame na parada
+      description: >-
+        **É aqui que a saída cobra a qualidade** — a promessa que a CON-002 deixou em aberto. Encher
+        precede liberar: o keg é enchido na produção, antes de a qualidade assinar, e quem exige a
+        assinatura é a saída.
+
+
+        A checagem acontece na montagem **e** na liberação, por motivos opostos: na montagem, para não
+        jogar fora o trabalho de montar uma carga que não pode sair; na liberação, porque entre uma e outra
+        um lote pode ter entrado em quarentena.
+
+
+        O volume do conteúdo entra na conta da capacidade **do veículo**. E o mesmo keg não vai em duas
+        cargas abertas: seria entrega prometida duas vezes, e uma delas vai faltar.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: stopId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [containerId]
+              properties:
+                containerId: {type: string, format: uuid}
+      responses:
+        '204': {description: Carregado}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `container_not_shippable` com `reasonCode`: `container_empty`, `wrong_state`,
+            `not_released`, `expired`, `quarantined`, `shelf_life_unknown` ou `already_loaded`. ·
+            `load_capacity_exceeded`, com `excessLiters` — quanto passou, e não só que passou. ·
+            `illegal_load_transition` quando a carga já está liberada.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /distribution/loads/{id}/containers/{containerId}:
+    delete:
+      tags: [Distribuição]
+      summary: Tirar um vasilhame da carga
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: containerId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Removido}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /distribution/loads/{id}/driver:
+    post:
+      tags: [Distribuição]
+      summary: Definir o responsável
+      description: >-
+        **Sem responsável a carga não sai.** Uma carga na rua sem nome é uma carga sem a quem perguntar
+        quando o cliente liga dizendo que não chegou.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [driverId]
+              properties:
+                driverId: {type: string, format: uuid}
+                vehicle: {type: string, maxLength: 60, nullable: true}
+      responses:
+        '204': {description: Definido}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /distribution/loads/{id}/release:
+    post:
+      tags: [Distribuição]
+      summary: Conferir e liberar (alçada própria)
+      description: >-
+        **Quem montou não libera.** A separação de deveres tem duas metades: o agregado recusa a mesma
+        pessoa nos dois papéis, e a alçada `distribution.load.release` é separada de `plan`. Só a primeira
+        seria contornável dando as duas permissões a todo mundo; só a segunda seria contornável por quem
+        tem as duas. Juntas, exigem duas pessoas de verdade — e um `CHECK` no banco fecha o caminho para
+        qualquer rota futura que esqueça de passar pelo agregado.
+
+
+        A carga é **revalidada inteira** antes de sair: entre montar e liberar pode ter passado um dia, e
+        confiar na checagem da montagem seria confiar num retrato de ontem.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Liberada}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `separation_of_duties` — 409, e não 403: não é falta de permissão, é a mesma pessoa nos dois
+            papéis. · `container_not_shippable` quando algo mudou desde a montagem.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /distribution/loads/{id}/reopen:
+    post:
+      tags: [Distribuição]
+      summary: Voltar ao planejamento
+      description: >-
+        **A liberação cai junto.** Manter a conferência de pé depois de a carga mudar seria pior que não
+        ter conferência: o papel diria que alguém olhou aquilo, e ninguém olhou.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Reaberta}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /distribution/loads/{id}/depart:
+    post:
+      tags: [Distribuição]
+      summary: A carga saiu
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Na rua}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /distribution/loads/{id}/close:
+    post:
+      tags: [Distribuição]
+      summary: Encerrar a carga
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Encerrada}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /distribution/loads/{id}/cancel:
+    post:
+      tags: [Distribuição]
+      summary: Cancelar a carga
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Cancelada}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    Load:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        scheduledFor: {type: string, format: date}
+        capacityLiters: {type: number, format: double}
+        loadedLiters: {type: number, format: double}
+        remainingLiters: {type: number, format: double}
+        status: {type: string, enum: [PLANNED, RELEASED, IN_ROUTE, CLOSED, CANCELLED]}
+        plannedBy: {type: string, format: uuid}
+        releasedBy:
+          type: string
+          format: uuid
+          nullable: true
+          description: Nunca igual a `plannedBy` — é a separação de deveres, verificável depois.
+        releasedAt: {type: string, format: date-time, nullable: true}
+        driverId: {type: string, format: uuid, nullable: true}
+        vehicle: {type: string, nullable: true}
+        frozen:
+          type: boolean
+          description: >-
+            Depois de liberada a carga não muda. A tela esconde os botões em vez de deixar o operador
+            descobrir no 409.
+        customerCount: {type: integer, description: 'Clientes distintos — oito paradas em três clientes é outra rota que oito em oito.'}
+        route:
+          type: array
+          description: Na ordem da sequência, e não na de digitação.
+          items: {$ref: '#/components/schemas/LoadStop'}
+    LoadStop:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        sequence: {type: integer}
+        customerId: {type: string, format: uuid}
+        customerName: {type: string}
+        windowFrom: {type: string, format: date-time, nullable: true}
+        windowTo: {type: string, format: date-time, nullable: true}
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              containerId: {type: string, format: uuid}
+              volumeLiters: {type: number, format: double}
     ContainerState:
       type: string
       description: >-

@@ -1,12 +1,12 @@
 # Status — Sprint 20
 
-Estado: **ATIVA desde 2026-08-16** — CON-001 e CON-002 entregues.
+Estado: **ATIVA desde 2026-08-16** — CON-001, CON-002 e LOG-001 entregues.
 
 | História | Estado | Evidência |
 |---|---|---|
 | CON-001 | Entregue | `V130` · identidade, etiqueta e ciclo · 18 de domínio e 12 de integração |
 | CON-002 | Entregue | `V131` · conteúdo e posição append-only · 11 de domínio e 11 de integração |
-| LOG-001 | A fazer | — |
+| LOG-001 | Entregue | `V132` · carga, roteiro e conferência por outra pessoa · 16 de domínio e 12 de integração |
 | LOG-002 | A fazer | — |
 | CON-003 | A fazer | — |
 | MOB-001 | A fazer | — |
@@ -95,6 +95,50 @@ significa "sumiu"**: significa que ninguém registrou.
 **Entregue:** `V131`, `ContainerFill`, `ContainerLocation`, porta, caso de uso, `ContainerLineageSource`,
 cinco endpoints, 3 caminhos e 2 schemas no OpenAPI, e o histórico na tela. **11 testes de domínio, 11 de
 integração e 3 de store.**
+
+### DEC-LOG-001 (LOG-001) — Quem montou a carga não é quem a libera
+
+**A decisão.** `PLANNED` e `RELEASED` são estados diferentes de propósito: entre um e outro há uma pessoa
+que não é a que planejou. A separação de deveres não é desconfiança do motorista — **a conferência existe
+para encontrar o erro de quem montou**, e quem montou relê o próprio trabalho enxergando o que quis
+colocar, e não o que colocou. Uma conferência feita pela mesma pessoa custa o mesmo tempo e não encontra
+nada.
+
+**Ela tem três camadas, e cada uma sozinha seria contornável.** O agregado recusa a mesma pessoa nos dois
+papéis. A alçada `distribution.load.release` é separada de `plan` — só a regra do agregado seria burlada
+dando as duas permissões a todo mundo, e só a alçada seria burlada por quem tem as duas. E um
+`CHECK (released_by <> planned_by)` fecha o caminho para qualquer rota futura que esqueça de passar pelo
+agregado: importação, correção manual, endpoint novo.
+
+**A carga liberada congela, e reabrir derruba a conferência.** Acrescentar um keg numa carga já conferida
+desfaz a conferência sem que ninguém perceba, e o papel que o motorista leva deixa de descrever o que está
+no caminhão. Manter a conferência de pé depois da mudança seria pior que não ter conferência: o papel
+diria que alguém olhou aquilo, e ninguém olhou.
+
+**A saída cobra a qualidade** — a promessa que a CON-002 deixou em aberto. Encher precede liberar, e quem
+exige a assinatura é a saída. A checagem roda na montagem **e** na liberação, por motivos opostos: na
+montagem, para não jogar fora o trabalho de montar uma carga que não pode sair; na liberação, porque entre
+uma e outra um lote pode ter entrado em quarentena — confiar na checagem da montagem seria confiar num
+retrato de ontem. O `ContainerShippingLookup` compõe as condições em `container`, pelo mesmo desenho do
+`SellableLotLookup`: quem tem o dado responde a pergunta.
+
+**A capacidade é do veículo e conta as paradas juntas** (o caminhão é um só), e a recusa diz **quanto**
+passou — "excedeu a capacidade" manda o operador tirar itens no chute. **A janela é compromisso, e não
+previsão**: viaja com a parada em vez de ser derivada da sequência, senão a promessa mudaria toda vez que
+alguém reordena o roteiro.
+
+**Entregue:** `V132`, `Load`, `LoadStop`, `DeliveryWindow` e exceções, porta, caso de uso,
+`ContainerShippingLookup` publicado por `container`, treze endpoints, 12 caminhos e 2 schemas no OpenAPI, e
+as cargas na tela. **16 testes de domínio, 12 de integração e 5 de store.**
+
+### DEB-LOG-001 (LOG-001) — O mesmo keg em duas cargas abertas é checado no caso de uso
+
+O índice único garante que o vasilhame não se repita **dentro** de uma carga. A condição "não estar em
+outra carga aberta" depende do estado da carga, que mora na outra tabela, e índice não faz junção — hoje
+ela é checada no caso de uso, o que basta para o engano do dia a dia e **não** basta para duas telas
+montando rotas ao mesmo tempo, que é exatamente o que acontece na véspera. A saída conhecida é o vasilhame
+passar a `IN_TRANSIT` ao ser carregado, e aí o próprio ciclo do contêiner o torna indisponível: isso chega
+com a LOG-002, que é quem move o estado na saída.
 
 ### DEB-CON-001 (CON-002) — O dublê de lote acabado nos testes de contêiner
 

@@ -1,0 +1,327 @@
+<app-page-header
+  title="Cargas"
+  subtitle="O que sai, em que ordem, para quem — e com quem."
+/>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <p class="text-muted small mb-1">Esperando conferência</p>
+        <p class="h4 mb-0">{{ store.awaitingRelease() }}</p>
+        <!--
+          A conferência é ato de OUTRA pessoa: ela existe para encontrar o erro de quem montou, e quem
+          montou relê o próprio trabalho enxergando o que quis colocar.
+        -->
+        <p class="form-text mb-0">Cargas montadas que ainda precisam de outra pessoa para sair.</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <p class="text-muted small mb-1">Na rua</p>
+        <p class="h4 mb-0">{{ store.onTheRoad() }}</p>
+        <p class="form-text mb-0">Já saíram com responsável.</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h2 class="h6 mb-1">Dia</h2>
+        <input type="date" class="form-control form-control-sm"
+               (change)="filterByDay($any($event.target).value)" />
+      </div>
+    </div>
+  </div>
+</div>
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando cargas…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else {
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h2 class="h6 mb-0">Cargas</h2>
+      @if (canPlan) {
+        <button type="button" class="btn btn-sm btn-primary" (click)="showForm.set(!showForm())">
+          {{ showForm() ? 'Cancelar' : 'Nova carga' }}
+        </button>
+      }
+    </div>
+
+    @if (showForm()) {
+      <div class="card-body border-bottom">
+        <form [formGroup]="form" (ngSubmit)="submit()" class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label small mb-1" for="code">Código</label>
+            <input id="code" class="form-control form-control-sm" formControlName="code"
+                   placeholder="CG-2026-08-17" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1" for="dia">Dia</label>
+            <input id="dia" type="date" class="form-control form-control-sm"
+                   formControlName="scheduledFor" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1" for="cap">Capacidade do veículo (L)</label>
+            <input id="cap" type="number" step="0.001" class="form-control form-control-sm"
+                   formControlName="capacityLiters" />
+            <!-- O caminhão é um só: o limite conta as paradas juntas. -->
+            <div class="form-text">O limite vale para a carga inteira, e não por parada.</div>
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+              Criar
+            </button>
+            <span class="form-text ms-2">
+              Você vira o planejador — e por isso não poderá conferir esta carga.
+            </span>
+          </div>
+        </form>
+      </div>
+    }
+
+    <div class="card-body p-0">
+      @if (store.loads().length === 0) {
+        <app-empty-state message="Nenhuma carga" hint="Monte a primeira carga do dia." />
+      } @else {
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Dia</th>
+                <th>Estado</th>
+                <th>Ocupação</th>
+                <th>Paradas</th>
+                <th class="text-end">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (l of store.loads(); track l.id) {
+                <tr>
+                  <td><strong>{{ l.code }}</strong></td>
+                  <td class="small">{{ l.scheduledFor | date: 'dd/MM/yyyy' }}</td>
+                  <td>
+                    <span class="badge text-bg-secondary">{{ statusLabels[l.status] }}</span>
+                    <br />
+                    <small class="text-muted">{{ statusHelp[l.status] }}</small>
+                  </td>
+                  <td class="small">
+                    {{ l.loadedLiters | number: '1.0-1' }} /
+                    {{ l.capacityLiters | number: '1.0-1' }} L
+                  </td>
+                  <td class="small">
+                    {{ l.route.length }} · {{ l.customerCount }} cliente(s)
+                  </td>
+                  <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            (click)="open(l)">
+                      Abrir
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+@if (store.selected(); as l) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h3 class="h6 modal-title mb-0">{{ l.code }}</h3>
+            <small class="text-muted">
+              {{ statusLabels[l.status] }} ·
+              {{ l.loadedLiters | number: '1.0-1' }} de {{ l.capacityLiters | number: '1.0-1' }} L
+            </small>
+          </div>
+          <button type="button" class="btn-close" (click)="store.close()"></button>
+        </div>
+        <div class="modal-body">
+          @if (l.frozen) {
+            <!--
+              Depois de liberada a carga não muda: acrescentar um keg desfaz a conferência sem ninguém
+              perceber, e o papel do motorista deixa de descrever o que está no caminhão.
+            -->
+            <div class="alert alert-secondary small" role="status">
+              Carga conferida — ela não muda mais. Para alterar, reabra: <strong>a conferência
+              anterior cai junto</strong>, e alguém precisa conferir de novo.
+            </div>
+          }
+
+          <h4 class="h6">Roteiro</h4>
+          @if (l.route.length === 0) {
+            <p class="small">Nenhuma parada ainda.</p>
+          } @else {
+            <ul class="list-group list-group-flush mb-3">
+              @for (s of l.route; track s.id) {
+                <li class="list-group-item px-0">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <strong class="small">{{ s.sequence }}. {{ s.customerName }}</strong>
+                      @if (s.windowFrom) {
+                        <br />
+                        <!-- A janela é compromisso: é o que o bar ouviu para decidir quem fica na porta. -->
+                        <small class="text-muted">
+                          janela {{ s.windowFrom | date: 'dd/MM HH:mm' }} –
+                          {{ s.windowTo | date: 'HH:mm' }}
+                        </small>
+                      }
+                      <br />
+                      <small class="text-muted">{{ s.items.length }} vasilhame(s)</small>
+                    </div>
+                    @if (canPlan && !l.frozen) {
+                      <button type="button" class="btn btn-sm btn-outline-danger"
+                              (click)="removeStop(l, s)">
+                        Remover
+                      </button>
+                    }
+                  </div>
+                  @if (s.items.length > 0) {
+                    <ul class="list-unstyled small mb-0 mt-1">
+                      @for (i of s.items; track i.containerId) {
+                        <li class="d-flex justify-content-between">
+                          <span class="text-muted">
+                            {{ i.containerId }} · {{ i.volumeLiters | number: '1.0-1' }} L
+                          </span>
+                          @if (canPlan && !l.frozen) {
+                            <button type="button" class="btn btn-link btn-sm p-0"
+                                    (click)="unload(l, i.containerId)">
+                              tirar
+                            </button>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  }
+                </li>
+              }
+            </ul>
+          }
+
+          @if (canPlan && !l.frozen) {
+            <h4 class="h6">Acrescentar parada</h4>
+            <form [formGroup]="stopForm" (ngSubmit)="submitStop(l)" class="row g-2 mb-3">
+              <div class="col-md-4">
+                <input class="form-control form-control-sm" formControlName="customerId"
+                       placeholder="Cliente (id)" />
+              </div>
+              <div class="col-md-4">
+                <input class="form-control form-control-sm" formControlName="customerName"
+                       placeholder="Nome do cliente" />
+              </div>
+              <div class="col-md-2">
+                <input type="number" min="1" class="form-control form-control-sm"
+                       formControlName="sequence" />
+              </div>
+              <div class="col-md-2">
+                <button type="submit" class="btn btn-sm btn-primary w-100">Incluir</button>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small mb-1" for="wf">Janela — de</label>
+                <input id="wf" type="datetime-local" class="form-control form-control-sm"
+                       formControlName="windowFrom" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small mb-1" for="wt">até</label>
+                <input id="wt" type="datetime-local" class="form-control form-control-sm"
+                       formControlName="windowTo" />
+                <div class="form-text">Opcional — nem toda entrega tem hora combinada.</div>
+              </div>
+            </form>
+
+            <h4 class="h6">Carregar vasilhame</h4>
+            <!--
+              É aqui que a saída cobra a qualidade: encher precede liberar, e quem exige a assinatura é
+              a saída.
+            -->
+            <p class="form-text mt-0">
+              Só entra keg cheio, no depósito, com o lote liberado pela qualidade.
+            </p>
+            <form [formGroup]="containerForm" (ngSubmit)="submitContainer(l)" class="row g-2 mb-3">
+              <div class="col-md-5">
+                <select class="form-select form-select-sm" formControlName="stopId">
+                  <option value="">Parada…</option>
+                  @for (s of l.route; track s.id) {
+                    <option [value]="s.id">{{ s.sequence }}. {{ s.customerName }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-md-5">
+                <input class="form-control form-control-sm" formControlName="containerId"
+                       placeholder="Vasilhame (id)" />
+              </div>
+              <div class="col-md-2">
+                <button type="submit" class="btn btn-sm btn-primary w-100">Carregar</button>
+              </div>
+            </form>
+
+            <h4 class="h6">Responsável</h4>
+            <!-- Uma carga na rua sem nome é uma carga sem a quem perguntar quando o cliente liga. -->
+            <form [formGroup]="driverForm" (ngSubmit)="submitDriver(l)" class="row g-2 mb-3">
+              <div class="col-md-5">
+                <input class="form-control form-control-sm" formControlName="driverId"
+                       placeholder="Motorista (id)" />
+              </div>
+              <div class="col-md-5">
+                <input class="form-control form-control-sm" formControlName="vehicle"
+                       placeholder="Placa" />
+              </div>
+              <div class="col-md-2">
+                <button type="submit" class="btn btn-sm btn-outline-primary w-100">Definir</button>
+              </div>
+            </form>
+          }
+
+          <div class="d-flex gap-2 flex-wrap">
+            @if (canRelease && l.status === 'PLANNED') {
+              <!--
+                Só aparece para quem tem a alçada de conferir — e o servidor ainda recusa se for a mesma
+                pessoa que montou.
+              -->
+              <button type="button" class="btn btn-sm btn-success" (click)="store.release(l)">
+                Conferir e liberar
+              </button>
+            }
+            @if (canPlan && l.status === 'RELEASED') {
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      (click)="store.reopen(l)">
+                Reabrir
+              </button>
+              <button type="button" class="btn btn-sm btn-primary" (click)="store.depart(l)">
+                Saiu
+              </button>
+            }
+            @if (canPlan && l.status === 'IN_ROUTE') {
+              <button type="button" class="btn btn-sm btn-primary" (click)="store.closeLoad(l)">
+                Encerrar
+              </button>
+            }
+            @if (canPlan && !l.frozen) {
+              <button type="button" class="btn btn-sm btn-outline-danger" (click)="store.cancel(l)">
+                Cancelar carga
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+}

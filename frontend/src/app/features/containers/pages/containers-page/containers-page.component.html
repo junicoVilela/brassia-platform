@@ -1,0 +1,399 @@
+<app-page-header
+  title="Contêineres"
+  subtitle="Kegs, barris e retornáveis — onde cada um está, e quais podem ser enchidos."
+/>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <p class="text-muted small mb-1">Prontos para encher</p>
+        <p class="h4 mb-0">{{ store.readyToFill() }}</p>
+        <!--
+          "Pronto" é composto no servidor: condição boa, vazio e inspeção válida. A tela não recalcula a
+          regra, e por isso não pode divergir dela.
+        -->
+        <p class="form-text mb-0">Vazios, em boa condição e com inspeção em dia.</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <p class="text-muted small mb-1">Voltaram — a lavar</p>
+        <p class="h4 mb-0">{{ store.awaitingCleaning() }}</p>
+        <!--
+          Fila de trabalho, e não estoque. É a distinção que impede um keg de voltar direto para a
+          enchedeira sem passar pela limpeza.
+        -->
+        <p class="form-text mb-0">Chegaram do cliente e ainda ninguém liberou.</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h2 class="h6 mb-1">Ler etiqueta</h2>
+        <!--
+          Ler um código IDENTIFICA, e não autoriza: quem escaneou continua precisando de alçada para
+          mover, encher ou dar baixa.
+        -->
+        <p class="form-text mt-0">O código diz qual vasilhame é. Ele não dá permissão de nada.</p>
+        <form [formGroup]="scanForm" (ngSubmit)="scan()" class="d-flex gap-2">
+          <input class="form-control form-control-sm" formControlName="value"
+                 placeholder="QR, código de barras ou RFID" />
+          <button type="submit" class="btn btn-sm btn-outline-primary">Ler</button>
+        </form>
+        @if (store.scanned(); as encontrado) {
+          <div class="alert alert-info small mt-2 mb-0" role="status">
+            <strong>{{ encontrado.code }}</strong> · {{ stateLabels[encontrado.state] }}
+            @if (encontrado.fillable) {
+              · pronto para encher
+            }
+            <button type="button" class="btn-close float-end" (click)="store.clearScan()"></button>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>
+
+@if (store.loading()) {
+  <div class="card">
+    <div class="card-body p-4"><app-loading-indicator text="Carregando contêineres…" /></div>
+  </div>
+} @else if (store.error(); as error) {
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="store.load()">
+      Tentar de novo
+    </button>
+  </div>
+} @else {
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center gap-2">
+      <h2 class="h6 mb-0">Frota</h2>
+      <div class="d-flex gap-2">
+        <select class="form-select form-select-sm" style="width: auto"
+                (change)="filterBy($any($event.target).value)">
+          <option value="">Todos os estados</option>
+          @for (s of states; track s) {
+            <option [value]="s">{{ stateLabels[s] }}</option>
+          }
+        </select>
+        @if (canManage) {
+          <button type="button" class="btn btn-sm btn-primary" (click)="showForm.set(!showForm())">
+            {{ showForm() ? 'Cancelar' : 'Cadastrar' }}
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (showForm()) {
+      <div class="card-body border-bottom">
+        <form [formGroup]="form" (ngSubmit)="submit()" class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label small mb-1" for="code">Código</label>
+            <input id="code" class="form-control form-control-sm" formControlName="code"
+                   placeholder="KEG-0142" />
+            <div class="form-text">O que está pintado no vasilhame — não é a etiqueta lida.</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1" for="kind">Tipo</label>
+            <select id="kind" class="form-select form-select-sm" formControlName="kind">
+              <option value="KEG">Keg</option>
+              <option value="CASK">Barril</option>
+              <option value="GROWLER">Growler</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1" for="cap">Capacidade (L)</label>
+            <input id="cap" type="number" step="0.001" class="form-control form-control-sm"
+                   formControlName="nominalCapacityLiters" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1" for="own">De quem é</label>
+            <select id="own" class="form-select form-select-sm" formControlName="ownership">
+              <option value="OWN">Da casa</option>
+              <option value="CUSTOMER">Do cliente</option>
+              <option value="POOL">De pool</option>
+            </select>
+            <!--
+              O retornável de terceiro não é ativo da cervejaria: tratar os três como iguais faria o
+              inventário contar como patrimônio o que é do cliente.
+            -->
+            <div class="form-text">O de terceiro não entra no patrimônio da casa.</div>
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+              Cadastrar
+            </button>
+            <!--
+              Dizer só "cadastrado" deixaria o operador achar que o keg já serve — e ele não serve até
+              alguém atestar a inspeção.
+            -->
+            <span class="form-text ms-2">
+              Ele nasce sem inspeção, e sem inspeção não pode ser enchido.
+            </span>
+          </div>
+        </form>
+      </div>
+    }
+
+    <div class="card-body p-0">
+      @if (store.containers().length === 0) {
+        <app-empty-state title="Nenhum contêiner" text="Cadastre o primeiro vasilhame da frota." />
+      } @else {
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Tipo</th>
+                <th>Estado</th>
+                <th>Condição</th>
+                <th>Inspeção</th>
+                <th class="text-end">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of store.containers(); track c.id) {
+                <tr>
+                  <td>
+                    <strong>{{ c.code }}</strong>
+                    <br />
+                    <small class="text-muted">
+                      {{ c.nominalCapacityLiters | number: '1.0-1' }} L ·
+                      {{ ownershipLabels[c.ownership] }}
+                    </small>
+                  </td>
+                  <td class="small">{{ c.kind }}</td>
+                  <td>
+                    <span class="badge text-bg-secondary">{{ stateLabels[c.state] }}</span>
+                    <br />
+                    <small class="text-muted">{{ stateHelp[c.state] }}</small>
+                  </td>
+                  <td class="small">{{ conditionLabels[c.condition] }}</td>
+                  <td class="small">
+                    @if (c.inspectionValidUntil) {
+                      até {{ c.inspectionValidUntil | date: 'dd/MM/yyyy' }}
+                    } @else {
+                      <!--
+                        "Nunca inspecionado" é pior que "venceu": tratar a ausência como aprovação
+                        deixaria a frota nova inteira fora de controle.
+                      -->
+                      <span class="text-danger">nunca inspecionado</span>
+                    }
+                  </td>
+                  <td class="text-end">
+                    @if (c.state !== 'RETIRED') {
+                      <div class="btn-group btn-group-sm">
+                        @if (canManage) {
+                          @if (c.state === 'EMPTY') {
+                            <button type="button" class="btn btn-outline-primary"
+                                    [disabled]="!c.fillable" (click)="move(c, 'FILLED')">
+                              Encher
+                            </button>
+                          }
+                          @if (c.state === 'FILLED') {
+                            <button type="button" class="btn btn-outline-secondary"
+                                    (click)="move(c, 'IN_TRANSIT')">
+                              Despachar
+                            </button>
+                          }
+                          @if (c.state === 'IN_TRANSIT') {
+                            <button type="button" class="btn btn-outline-secondary"
+                                    (click)="move(c, 'AT_CUSTOMER')">
+                              Entregar
+                            </button>
+                          }
+                          @if (c.state === 'AT_CUSTOMER') {
+                            <button type="button" class="btn btn-outline-secondary"
+                                    (click)="move(c, 'RETURNED')">
+                              Coletar
+                            </button>
+                          }
+                          @if (c.state === 'RETURNED' || c.state === 'IN_MAINTENANCE') {
+                            <!--
+                              Alguém DIZ que está limpo. Derivar a limpeza da chegada encheria um
+                              vasilhame que ninguém lavou.
+                            -->
+                            <button type="button" class="btn btn-outline-success"
+                                    (click)="move(c, 'EMPTY')">
+                              Liberar
+                            </button>
+                          }
+                          <button type="button" class="btn btn-outline-secondary"
+                                  (click)="openLabels(c)">
+                            Etiquetas
+                          </button>
+                        }
+                        @if (canInspect) {
+                          <button type="button" class="btn btn-outline-secondary"
+                                  (click)="openInspection(c)">
+                            Inspecionar
+                          </button>
+                          @if (c.state !== 'AT_CUSTOMER' && c.state !== 'IN_TRANSIT') {
+                            <button type="button" class="btn btn-outline-danger"
+                                    (click)="openRetire(c)">
+                              Baixar
+                            </button>
+                          }
+                        }
+                      </div>
+                    } @else {
+                      <small class="text-muted">{{ c.retirementReason }}</small>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+@if (inspecting(); as c) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="h6 modal-title mb-0">Inspeção · {{ c.code }}</h3>
+          <button type="button" class="btn-close" (click)="inspecting.set(null)"></button>
+        </div>
+        <div class="modal-body">
+          <!--
+            A validade é REGISTRADA, e não calculada: inventar um intervalo padrão faria o sistema
+            afirmar conformidade que ninguém verificou (DUV-CON-001).
+          -->
+          <p class="small text-muted">
+            Informe até quando a inspeção vale. O sistema não arbitra o prazo — ele vem da norma e do
+            tipo do vasilhame.
+          </p>
+          <form [formGroup]="inspectionForm" (ngSubmit)="submitInspection()" class="row g-2">
+            <div class="col-12">
+              <label class="form-label small mb-1" for="validUntil">Válida até</label>
+              <input id="validUntil" type="date" class="form-control form-control-sm"
+                     formControlName="validUntil" />
+            </div>
+            <div class="col-12">
+              <label class="form-label small mb-1" for="inspNote">Observação</label>
+              <input id="inspNote" class="form-control form-control-sm" formControlName="note" />
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+                Registrar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (store.selected(); as c) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="h6 modal-title mb-0">Etiquetas · {{ c.code }}</h3>
+          <button type="button" class="btn-close" (click)="store.closeIdentifiers()"></button>
+        </div>
+        <div class="modal-body">
+          <!--
+            A identidade é do contêiner, e não da etiqueta: um keg reetiquetado continua o mesmo keg,
+            com a mesma inspeção e o mesmo histórico.
+          -->
+          <p class="small text-muted">
+            O vasilhame aceita mais de uma etiqueta viva — adesivo e RFID no mesmo keg é o normal.
+            Trocar a etiqueta não muda a identidade dele.
+          </p>
+          <form [formGroup]="labelForm" (ngSubmit)="submitLabel()" class="row g-2 mb-3">
+            <div class="col-7">
+              <input class="form-control form-control-sm" formControlName="value"
+                     placeholder="Valor lido" />
+            </div>
+            <div class="col-3">
+              <select class="form-select form-select-sm" formControlName="technology">
+                <option value="QR">QR</option>
+                <option value="BARCODE">Barras</option>
+                <option value="RFID">RFID</option>
+              </select>
+            </div>
+            <div class="col-2">
+              <button type="submit" class="btn btn-sm btn-primary w-100" [disabled]="store.saving()">
+                Colar
+              </button>
+            </div>
+          </form>
+
+          @if (store.identifiers().length === 0) {
+            <p class="small mb-0">Nenhuma etiqueta.</p>
+          } @else {
+            <ul class="list-group list-group-flush">
+              @for (i of store.identifiers(); track i.id) {
+                <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong class="small">{{ i.value }}</strong>
+                    <small class="text-muted"> · {{ i.technology }}</small>
+                    @if (i.retiredAt) {
+                      <!--
+                        Aposentar não apaga: a etiqueta continua explicando as leituras antigas, mas
+                        deixa de apontar.
+                      -->
+                      <br />
+                      <small class="text-muted">
+                        aposentada em {{ i.retiredAt | date: 'dd/MM/yyyy' }} — não resolve mais
+                      </small>
+                    }
+                  </div>
+                  @if (!i.retiredAt) {
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            (click)="retireLabel(i)">
+                      Aposentar
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (retiring(); as c) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="h6 modal-title mb-0">Baixa · {{ c.code }}</h3>
+          <button type="button" class="btn-close" (click)="retiring.set(null)"></button>
+        </div>
+        <div class="modal-body">
+          <!--
+            Baixa é terminal e não apaga nada. E não é o mesmo que perda: o vasilhame que não voltou tem
+            outro fato e outro dono — o mesmo botão faria "sumiu" e "descartei" virarem a mesma linha.
+          -->
+          <p class="small text-muted">
+            Sai do inventário para sempre, com o motivo registrado. Não é o botão do keg que não voltou.
+          </p>
+          <form [formGroup]="retireForm" (ngSubmit)="submitRetire()" class="row g-2">
+            <div class="col-12">
+              <label class="form-label small mb-1" for="reason">Motivo</label>
+              <input id="reason" class="form-control form-control-sm" formControlName="reason"
+                     placeholder="furo na costura, sem recuperação" />
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-sm btn-danger">Dar baixa</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+}

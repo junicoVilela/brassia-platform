@@ -11,6 +11,8 @@ import {
   Container,
   ContainerIdentifier,
   ContainerState,
+  LOCATION_LABELS,
+  LocationKind,
   OWNERSHIP_LABELS,
   STATE_HELP,
   STATE_LABELS,
@@ -46,6 +48,13 @@ export class ContainersPageComponent implements OnInit {
   protected readonly stateHelp = STATE_HELP;
   protected readonly conditionLabels = CONDITION_LABELS;
   protected readonly ownershipLabels = OWNERSHIP_LABELS;
+  protected readonly locationLabels = LOCATION_LABELS;
+  protected readonly locationKinds: LocationKind[] = [
+    'WAREHOUSE',
+    'IN_TRANSIT',
+    'CUSTOMER',
+    'THIRD_PARTY',
+  ];
 
   protected readonly states: ContainerState[] = [
     'EMPTY',
@@ -85,6 +94,17 @@ export class ContainersPageComponent implements OnInit {
 
   protected readonly inspecting = signal<Container | null>(null);
   protected readonly retiring = signal<Container | null>(null);
+  protected readonly filling = signal<Container | null>(null);
+
+  protected readonly fillForm = this.fb.nonNullable.group({
+    finishedLotId: ['', Validators.required],
+    volumeLiters: [50, [Validators.required, Validators.min(0.001)]],
+  });
+
+  protected readonly locationForm = this.fb.nonNullable.group({
+    kind: ['WAREHOUSE' as LocationKind, Validators.required],
+    place: ['', Validators.maxLength(160)],
+  });
 
   protected readonly retireForm = this.fb.nonNullable.group({
     reason: ['', [Validators.required, Validators.maxLength(500)]],
@@ -149,6 +169,42 @@ export class ContainersPageComponent implements OnInit {
 
   protected retireLabel(identifier: ContainerIdentifier): void {
     this.store.retireIdentifier(identifier);
+  }
+
+  protected openFill(container: Container): void {
+    this.fillForm.reset({ finishedLotId: '', volumeLiters: container.nominalCapacityLiters });
+    this.filling.set(container);
+  }
+
+  protected submitFill(): void {
+    const container = this.filling();
+    if (!container || this.fillForm.invalid) {
+      this.fillForm.markAllAsTouched();
+      return;
+    }
+    const v = this.fillForm.getRawValue();
+    this.store.fill(container, v.finishedLotId, v.volumeLiters);
+    this.filling.set(null);
+  }
+
+  protected empty(container: Container): void {
+    this.store.emptyFill(container);
+  }
+
+  protected openHistory(container: Container): void {
+    this.locationForm.reset({ kind: 'WAREHOUSE', place: '' });
+    this.store.openHistory(container);
+  }
+
+  protected submitLocation(): void {
+    const container = this.store.historyOf();
+    if (!container || this.locationForm.invalid) {
+      this.locationForm.markAllAsTouched();
+      return;
+    }
+    const v = this.locationForm.getRawValue();
+    this.store.locate(container, v.kind, v.place || null);
+    this.locationForm.reset({ kind: 'WAREHOUSE', place: '' });
   }
 
   protected openRetire(container: Container): void {

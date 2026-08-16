@@ -3,10 +3,13 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
   Container,
+  ContainerFill,
   ContainerIdentifier,
   ContainerKind,
+  ContainerLocation,
   ContainerState,
   IdentifierTechnology,
+  LocationKind,
   Ownership,
 } from '../domain/container.model';
 
@@ -61,6 +64,28 @@ export class ContainersApi {
   /** Só o destino: o estado atual já diz qual transição é. */
   move(id: string, to: ContainerState): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/${id}/moves`, { to });
+  }
+
+  /** O histórico do que já esteve dentro — e não só o de agora. */
+  fills(id: string): Observable<ContainerFill[]> {
+    return this.http.get<ContainerFill[]>(`${this.baseUrl}/${id}/fills`);
+  }
+
+  fill(id: string, body: { finishedLotId: string; volumeLiters: number }): Observable<{ id: string }> {
+    return this.http.post<{ id: string }>(`${this.baseUrl}/${id}/fills`, body);
+  }
+
+  /** Fecha o período; não apaga o vínculo. */
+  emptyFill(id: string): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/${id}/fills/empty`, {});
+  }
+
+  locations(id: string): Observable<ContainerLocation[]> {
+    return this.http.get<ContainerLocation[]>(`${this.baseUrl}/${id}/locations`);
+  }
+
+  locate(id: string, body: { kind: LocationKind; place: string | null }): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/${id}/locations`, body);
   }
 
   condition(id: string, condemned: boolean): Observable<void> {

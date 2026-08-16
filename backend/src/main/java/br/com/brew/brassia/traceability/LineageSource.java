@@ -61,7 +61,15 @@ public interface LineageSource {
         /** Lote de produto acabado — o que um recall recolhe. */
         FINISHED_LOT,
         /** Expedição: para onde o lote saiu — a quem um recall se dirige (TRC-001-D). */
-        SHIPMENT
+        SHIPMENT,
+        /**
+         * Vasilhame retornável (CON-002).
+         *
+         * <p>Ele é nó, e não atributo do lote, porque atravessa lotes: o mesmo keg carrega um lote em
+         * março e outro em abril, e um recall precisa alcançar o vasilhame do período certo — não o
+         * conteúdo de hoje.
+         */
+        CONTAINER
     }
 
     /**

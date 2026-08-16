@@ -1,11 +1,11 @@
 # Status — Sprint 20
 
-Estado: **ATIVA desde 2026-08-16** — CON-001 entregue.
+Estado: **ATIVA desde 2026-08-16** — CON-001 e CON-002 entregues.
 
 | História | Estado | Evidência |
 |---|---|---|
 | CON-001 | Entregue | `V130` · identidade, etiqueta e ciclo · 18 de domínio e 12 de integração |
-| CON-002 | A fazer | — |
+| CON-002 | Entregue | `V131` · conteúdo e posição append-only · 11 de domínio e 11 de integração |
 | LOG-001 | A fazer | — |
 | LOG-002 | A fazer | — |
 | CON-003 | A fazer | — |
@@ -56,6 +56,53 @@ inventário.
 **Entregue:** `V130`, `Container`, `ContainerIdentifier`, `ContainerInspection` e exceções, porta, caso de
 uso, oito endpoints, 8 caminhos e 3 schemas no OpenAPI, e a frota na tela. **18 testes de domínio, 12 de
 integração e 6 de store.**
+
+### DEC-CON-003 (CON-002) — O vínculo com o lote é evento, e não campo
+
+**A decisão.** Um `lote_atual` na tabela do contêiner responderia "o que está dentro agora" e perderia "o
+que estava dentro em 12 de março" — que é exatamente a pergunta de um recall. Um keg vive anos e passa por
+dezenas de lotes; a única forma de a genealogia sobreviver a isso é o vínculo nascer histórico.
+**Esvaziar fecha o período, e não apaga.**
+
+O intervalo é **fechado no início e aberto no fim**. Sem isso, dois enchimentos seguidos responderiam
+"sim" no mesmo instante da troca, e o recall recolheria dois lotes por causa de um keg. E a lacuna entre um
+enchimento e o seguinte também é resposta: o vasilhame estava vazio.
+
+**Um conteúdo vivo por contêiner**, garantido por índice único parcial — dois lotes no mesmo vasilhame
+seria mistura sem registro. É o sexto caso da família: **a invariante que atravessa linhas mora no banco**,
+porque a checagem prévia não sobrevive a duas telas enchendo o mesmo keg ao mesmo tempo.
+
+**O contêiner virou nó da genealogia** (`NodeType.CONTAINER`), e não atributo do lote. Ele atravessa
+lotes: pendurá-lo como propriedade do lote responderia "onde este lote foi parar" e nunca "o que este keg
+já teve dentro" — e o segundo é o caminho de um recall que começa numa reclamação de bar. As direções são
+`container → packaging` e `container → traceability`, sem ciclo: nenhum dos dois sabe que contêineres
+existem.
+
+**Encher precede liberar.** Kegs são enchidos na produção, antes de a qualidade assinar — exigir a
+liberação aqui impediria a operação real de acontecer. Então lote **não liberado** passa, e lote
+**vencido** ou **em quarentena** não: esses dois são fato consumado no momento do envase. Quem exige a
+assinatura é a saída da casa.
+
+**Duas famílias de recusa, e a distinção importa.** O *vasilhame* pode não estar apto
+(`container_not_fillable`); o *líquido* pode não poder entrar (`fill_not_allowed`). Misturá-las daria ao
+operador uma mensagem que não diz o que trocar.
+
+**A posição acompanha o ciclo sem ninguém digitar** — rua, cliente e volta. Vazio e manutenção ficam de
+fora de propósito: um keg vazio pode estar em qualquer depósito, e a oficina pode ser da casa ou de
+terceiro. Inventar esses dois encheria o histórico de linhas que ninguém observou. E **sem posição não
+significa "sumiu"**: significa que ninguém registrou.
+
+**Entregue:** `V131`, `ContainerFill`, `ContainerLocation`, porta, caso de uso, `ContainerLineageSource`,
+cinco endpoints, 3 caminhos e 2 schemas no OpenAPI, e o histórico na tela. **11 testes de domínio, 11 de
+integração e 3 de store.**
+
+### DEB-CON-001 (CON-002) — O dublê de lote acabado nos testes de contêiner
+
+Os testes de integração do vasilhame usam um `SellableLotLookup` roteirizado. A composição real das três
+condições de venda é exercida de ponta a ponta pelo `PackagingRunIT`; reproduzir mil linhas de cenário de
+envase aqui deixaria o teste caro e o motivo da falha longe da causa. **O risco assumido:** se a assinatura
+ou a semântica dos impedimentos mudar, estes testes continuam verdes com um contrato velho. Mitiga em
+parte o fato de os códigos de impedimento serem os mesmos que o `PackagingRunIT` exercita de verdade.
 
 ### DUV-CON-001 (CON-001) — Qual é a periodicidade da inspeção?
 

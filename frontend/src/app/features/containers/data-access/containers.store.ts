@@ -4,10 +4,14 @@ import { finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
 import {
   Container,
+  ContainerFill,
   ContainerIdentifier,
   ContainerKind,
+  ContainerLocation,
   ContainerState,
+  FILL_REFUSAL_REASONS,
   IdentifierTechnology,
+  LocationKind,
   NOT_FILLABLE_REASONS,
   Ownership,
 } from '../domain/container.model';
@@ -39,6 +43,11 @@ export class ContainersStore {
 
   readonly selected = signal<Container | null>(null);
   readonly identifiers = signal<ContainerIdentifier[]>([]);
+
+  /** O histórico do vasilhame aberto: o que já esteve dentro, e por onde ele andou. */
+  readonly fills = signal<ContainerFill[]>([]);
+  readonly locations = signal<ContainerLocation[]>([]);
+  readonly historyOf = signal<Container | null>(null);
 
   /** O que a leitura de um código encontrou — e só isso: ler não autoriza nada. */
   readonly scanned = signal<Container | null>(null);
@@ -147,6 +156,67 @@ export class ContainersStore {
       });
   }
 
+  fill(container: Container, finishedLotId: string, volumeLiters: number): void {
+    this.saving.set(true);
+    this.api
+      .fill(container.id, { finishedLotId, volumeLiters })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.saving.set(false)),
+      )
+      .subscribe({
+        next: () => {
+          this.toast.success('Enchimento registrado.');
+          this.load();
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível encher.')),
+      });
+  }
+
+  emptyFill(container: Container): void {
+    this.api
+      .emptyFill(container.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          // "Período fechado", e não "conteúdo apagado": o vínculo continua respondendo pelo passado.
+          this.toast.success('Conteúdo encerrado. O registro do que esteve dentro continua.');
+          this.load();
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível esvaziar.')),
+      });
+  }
+
+  openHistory(container: Container): void {
+    this.historyOf.set(container);
+    this.fills.set([]);
+    this.locations.set([]);
+    this.api
+      .fills(container.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: list => this.fills.set(list) });
+    this.api
+      .locations(container.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: list => this.locations.set(list) });
+  }
+
+  closeHistory(): void {
+    this.historyOf.set(null);
+    this.fills.set([]);
+    this.locations.set([]);
+  }
+
+  locate(container: Container, kind: LocationKind, place: string | null): void {
+    this.api
+      .locate(container.id, { kind, place })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.openHistory(container),
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível registrar.')),
+      });
+  }
+
   openIdentifiers(container: Container): void {
     this.selected.set(container);
     this.identifiers.set([]);
@@ -222,8 +292,13 @@ export class ContainersStore {
    */
   private message(e: ApiError, fallback: string): string {
     const reason = e?.error?.reasonCode;
-    if (reason && NOT_FILLABLE_REASONS[reason]) {
-      return NOT_FILLABLE_REASONS[reason];
+    if (reason) {
+      // Duas famílias de motivo: o vasilhame e o líquido. Misturá-las daria ao operador uma mensagem
+      // que não diz o que trocar.
+      const frase = NOT_FILLABLE_REASONS[reason] ?? FILL_REFUSAL_REASONS[reason];
+      if (frase) {
+        return frase;
+      }
     }
     return e?.error?.detail ?? fallback;
   }

@@ -1,6 +1,6 @@
 # Status — Sprint 18
 
-Estado: **ATIVA desde 2026-08-15** — COM-001 a COM-005 entregues.
+Estado: **ENCERRADA em 2026-08-16** — COM-001 a COM-005 entregues; aceite pendente.
 
 **A ressalva que esta sprint carrega, e que a Sprint 19 não carregava:** ela é a que **aponta para
 fora**. Biblioteca pública, link compartilhado, fork e moderação colocam dado da cervejaria fora dela,
@@ -247,17 +247,56 @@ chamar isso**: nenhum papel da plataforma está acima das cervejarias.
 
 ## Evidências de encerramento
 
-- Build/commit:
-- Testes executados:
-- Migration aplicada:
-- Contratos atualizados:
-- Riscos remanescentes:
-- Aceite:
+- **Build/commit:** cinco PRs, um por história, mergeados em série na `main` — #237 (COM-001), #238
+  (COM-002), #239 (COM-003), #240 (COM-004), #241 (COM-005).
+- **Testes executados:** `mvnw clean verify` verde na árvore final — **1.397 unitários e 904 de
+  integração** contra PostgreSQL real via Testcontainers, zero falhas. Frontend: **550 testes em 88
+  arquivos**, build e lint limpos. `ModularityTest` e `TenantIsolationTest` verdes. A sprint começou com
+  855 testes de integração e terminou com 904.
+- **Migration aplicada:** `V125` a `V129`. Nenhuma destrutiva. As de maior consequência não são as que
+  criam tabela, e sim as garantias: a chave primária `(publication_id, user_id)` da avaliação, o índice
+  único da denúncia e o `CHECK` de revisão tudo-ou-nada.
+- **Contratos atualizados:** `contracts/openapi.yaml` — **301 caminhos**, 17 a mais que no encerramento da
+  Sprint 19, sem `$ref` órfã nem chave duplicada.
+- **Riscos remanescentes:**
+  - **A premissa de produção**, a mesma da Sprint 19: enquanto REL-001 e o ciclo da REL-005 seguirem
+    abertos, isto é software que funciona e não opera.
+  - **`DUV-COM-001`** — não há quem revise uma denúncia. A denúncia é registrada, o autor a vê, o agregado
+    sabe ser revisado e a tabela tem os campos; falta decidir **quem pode**, e essa decisão é de modelo de
+    segurança. Enquanto isso, a moderação é registro e não ação.
+  - **A remoção de conteúdo é ato manual do autor.** Julgar procedente não esconde nada por conta própria
+    — encadear automático faria a moderação executar antes de alguém decidir o que fazer.
+- **Aceite:** pendente de validação manual. Junto com os aceites das Sprints 09, 16, 17 e 19.
+
+### O que esta sprint ensinou, e que vale carregar
+
+**Allowlist, e nunca blacklist.** O retrato público lista campo a campo o que sai. A blacklist teria o
+comportamento oposto no ponto que importa: campo novo na receita **vaza por padrão** até alguém lembrar de
+proibi-lo. Num módulo cujo assunto é o que sai de casa, o padrão errado não é incômodo — é vazamento.
+
+**Congelar é o que permite compartilhar sem entregar a chave.** O retrato publicado, a atribuição do fork
+e o nome de quem comentou: os três são cópias, e não ponteiros. Se fossem ponteiros, o autor renomear ou
+fechar a receita mudaria o que outra pessoa já leu ou já copiou — e a cópia de um estranho continuaria
+lendo o conteúdo privado dele.
+
+**A invariante que atravessa linhas mora no banco** — pela quinta vez, contando as três da Sprint 19. Aqui
+foram o escopo da decisão sobre contribuição (subconsulta pela publicação, e **não** pela cervejaria da
+linha, que é a de quem escreveu) e a nota única por pessoa (chave primária composta). E de novo: o código
+continua checando **para dar mensagem boa, não para garantir**.
+
+**Registrar uma dúvida é entrega, e não pendência escondida.** A COM-005 podia ter inventado um moderador
+global em vinte linhas. Inventá-lo significaria decidir, sem o mantenedor, que alguém pode esconder
+publicação de qualquer cervejaria. O que a fatia entrega funciona sozinho — nota, denúncia registrada,
+direito de resposta — e o que falta está escrito com as três saídas possíveis e o custo de cada uma.
+
+**A média nunca viaja sem a contagem.** Vale além da avaliação: é o mesmo problema da previsão de demanda
+da FCST-001, que se recusa a responder com pouco histórico. Um número sem a medida da sua própria
+confiança convida a decisão errada com cara de dado.
 
 | História | Estado | Evidência |
 |---|---|---|
-| COM-001 | A fazer | — |
-| COM-002 | A fazer | — |
-| COM-003 | A fazer | — |
-| COM-004 | A fazer | — |
-| COM-005 | A fazer | — |
+| COM-001 | Entregue | PR #237 · `V125` · retrato allowlist, 15 de domínio e 10 de integração |
+| COM-002 | Entregue | PR #238 · `V126` · link não eleva visibilidade, 12 de domínio e 10 de integração |
+| COM-003 | Entregue | PR #239 · `V127` · fork independente, 7 de domínio e 9 de integração |
+| COM-004 | Entregue | PR #240 · `V128` · aceitar registra concordância, 10 de domínio e 8 de integração |
+| COM-005 | Entregue | PR #241 · `V129` · nota e denúncia, 11 de domínio e 12 de integração · `DUV-COM-001` |

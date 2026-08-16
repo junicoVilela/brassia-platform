@@ -3,6 +3,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, forkJoin } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
 import {
+  Contribution,
+  ContributionKind,
   ForkedRecipe,
   LibraryPublication,
   OwnedPublication,
@@ -53,6 +55,11 @@ export class LibraryStore {
   /** O resultado do último fork, para a tela mostrar a atribuição e a obrigação de licença. */
   readonly lastFork = signal<ForkedRecipe | null>(null);
 
+  readonly contributions = signal<Contribution[]>([]);
+
+  /** Quantas sugestões esperam decisão — comentários não entram, porque não pediram nada. */
+  readonly pendingCount = computed(() => this.contributions().filter(c => c.pending).length);
+
   /** Os ingredientes que faltaram no catálogo — é o que torna a recusa acionável. */
   readonly missingIngredients = signal<string[]>([]);
 
@@ -79,10 +86,13 @@ export class LibraryStore {
 
   open(publication: LibraryPublication): void {
     this.selected.set(publication);
+    this.contributions.set([]);
+    this.loadContributions(publication.id);
   }
 
   close(): void {
     this.selected.set(null);
+    this.contributions.set([]);
   }
 
   publish(recipeId: string, title: string, summary: string | null, license: RecipeLicense,
@@ -127,6 +137,47 @@ export class LibraryStore {
           this.load();
         },
         error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível retirar.')),
+      });
+  }
+
+  loadContributions(publicationId: string): void {
+    this.api
+      .contributions(publicationId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: list => this.contributions.set(list) });
+  }
+
+  write(publication: LibraryPublication, kind: ContributionKind, body: string,
+    context: string | null): void {
+    this.saving.set(true);
+    this.api
+      .write(publication.id, { kind, body, context })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.saving.set(false)),
+      )
+      .subscribe({
+        next: () => {
+          this.toast.success(kind === 'SUGGESTION' ? 'Sugestão enviada.' : 'Comentário enviado.');
+          this.loadContributions(publication.id);
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível enviar.')),
+      });
+  }
+
+  decide(publication: LibraryPublication, contribution: Contribution, accept: boolean,
+    note: string | null): void {
+    this.api
+      .decide(contribution.id, accept, note)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          // "Concordância registrada", e não "sugestão aplicada": aplicar é ato do autor, na receita
+          // dele. Dizer o contrário aqui prometeria uma mudança que não aconteceu.
+          this.toast.success(accept ? 'Concordância registrada.' : 'Sugestão recusada.');
+          this.loadContributions(publication.id);
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível decidir.')),
       });
   }
 

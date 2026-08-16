@@ -115,3 +115,29 @@ export interface ForkedRecipe {
    */
   requiredLicense: RecipeLicense | null;
 }
+
+/** O que se espera do autor: um comentário não pede resposta, uma sugestão pede decisão (COM-004). */
+export type ContributionKind = 'COMMENT' | 'SUGGESTION';
+
+export type ContributionStatus = 'OPEN' | 'ACCEPTED' | 'DECLINED';
+
+/**
+ * Um comentário ou uma sugestão.
+ *
+ * Sem cervejaria e sem id de usuário: quem lê vê o nome, e nada que permita cruzar aquela pessoa com
+ * outra coisa da plataforma.
+ */
+export interface Contribution {
+  id: string;
+  kind: ContributionKind;
+  author: string;
+  /** Nunca reescrito — aceitar não muda o que foi proposto. */
+  body: string;
+  context: string | null;
+  status: ContributionStatus;
+  createdAt: string;
+  decidedAt: string | null;
+  decisionNote: string | null;
+  /** Sugestão aberta. Comentário nunca é pendente. */
+  pending: boolean;
+}

@@ -1,6 +1,6 @@
 # Status — Sprint 18
 
-Estado: **ATIVA desde 2026-08-15** — COM-001, COM-002 e COM-003 entregues; COM-004 e COM-005 pendentes.
+Estado: **ATIVA desde 2026-08-15** — COM-001 a COM-004 entregues; COM-005 pendente.
 
 **A ressalva que esta sprint carrega, e que a Sprint 19 não carregava:** ela é a que **aponta para
 fora**. Biblioteca pública, link compartilhado, fork e moderação colocam dado da cervejaria fora dela,
@@ -143,6 +143,54 @@ seria descobrir tarde. As demais licenças deixam o forkador escolher a dele, de
 
 **Entregue:** `V127`, `ForkOrigin` e exceções, porta, caso de uso, dois endpoints, 2 caminhos e 1 schema
 no OpenAPI, e a tela. **7 testes de domínio e 9 de integração.**
+
+### DEC-COM-005 (COM-004) — Aceitar registra concordância, e não altera nada
+
+**A decisão central da história é uma recusa**, e ela existe para manter de pé as duas anteriores:
+
+1. **O retrato publicado é congelado** (COM-001). Aplicar uma sugestão nele faria mudar o que o público
+   já leu — exatamente o que congelar existe para impedir.
+2. **A receita de verdade é privada.** Deixar que texto de alguém de fora a reescreva daria a estranhos
+   uma chave que nem o link de colaboração dá.
+
+Então aceitar é **registrar concordância**: fica escrito que o autor achou boa, com nome e data. Aplicar é
+ato dele, na receita dele, e vira versão nova — que ele publica quando quiser. Há teste de integração que
+captura o retrato **antes** e **depois** de aceitar e compara: ele não muda uma vírgula.
+
+**A tela repete a decisão onde o usuário a lê:** o botão diz "Concordo", não "Aplicar", e o aviso embaixo
+diz que concordar não altera a receita. Escrever "aplicar" prometeria uma mudança que não acontece, e o
+autor descobriria a mentira na próxima brassa.
+
+**Comentário não se aceita nem se recusa** — ele não propôs nada. Sem essa regra, a tela ofereceria dois
+botões sem sentido e a contagem de "pendentes" incluiria elogios. O `CHECK` da migration guarda isso.
+
+**Recusar não apaga**, e **não se decide duas vezes**: decidir de novo reescreveria quem decidiu e quando,
+e é esse registro que faz da conversa um histórico em vez de uma caixa de entrada.
+
+**O texto não vai para a auditoria.** Ele já está na própria linha, e duplicá-lo num rastro que sobrevive à
+moderação recriaria o conteúdo que alguém mandou esconder.
+
+**Entregue:** `V128`, `Contribution` e exceções, porta, caso de uso, quatro endpoints, 4 caminhos e 1
+schema no OpenAPI, e a conversa na tela. **10 testes de domínio e 8 de integração.**
+
+### DEC-COM-006 (COM-004) — O `TenantIsolationTest` pegou uma escrita sem escopo, e a correção não era óbvia
+
+**O achado.** O `update` de contribuições escrevia com `WHERE id = :id` apenas. A garantia de isolamento
+morava no handler — o padrão que a `OBS-REL-001` encontrou em dez escritas e que aquele teste existe para
+substituir por barreira.
+
+**A correção quase saiu errada.** O `brewery_id` da linha é de **quem escreveu**; quem decide é o **dono
+da publicação**, de outra casa. Filtrar pela cervejaria da linha recusaria toda decisão legítima. A regra
+real é "só mexe quem responde por esta publicação", e ela agora está no SQL:
+
+```sql
+WHERE id = :id
+  AND publication_id IN (SELECT id FROM community_published_recipe WHERE brewery_id = :brewery)
+```
+
+É o quarto caso da mesma família nesta leva — depois da sobreposição de preço, da liberação única do lote
+e da reserva de estoque: **a invariante que atravessa linhas mora no banco**, e o código continua checando
+para dar mensagem boa, não para garantir.
 
 ## Evidências de encerramento
 

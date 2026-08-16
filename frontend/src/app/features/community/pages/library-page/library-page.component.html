@@ -275,6 +275,89 @@
             </div>
           }
 
+          <h4 class="h6">Conversa</h4>
+          @if (store.pendingCount() > 0) {
+            <!--
+              Só sugestões contam: contar comentários faria o autor abrir a tela achando que tem
+              decisão a tomar quando só recebeu elogios.
+            -->
+            <p class="small text-muted">
+              {{ store.pendingCount() }} sugestão(ões) esperando decisão.
+            </p>
+          }
+
+          <form [formGroup]="contributionForm" (ngSubmit)="submitContribution(p)" class="row g-2 mb-3">
+            <div class="col-md-3">
+              <label class="form-label small mb-1" for="cKind">Tipo</label>
+              <select id="cKind" class="form-select form-select-sm" formControlName="kind">
+                <option value="COMMENT">Comentário</option>
+                <option value="SUGGESTION">Sugestão</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small mb-1" for="cContext">Sobre o quê</label>
+              <input id="cContext" class="form-control form-control-sm" formControlName="context"
+                     placeholder="Malte Pilsen, fervura…" />
+            </div>
+            <div class="col-md-5">
+              <label class="form-label small mb-1" for="cBody">Texto</label>
+              <input id="cBody" class="form-control form-control-sm" formControlName="body" />
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-sm btn-outline-primary" [disabled]="store.saving()">
+                Enviar
+              </button>
+            </div>
+          </form>
+
+          @if (store.contributions().length > 0) {
+            <ul class="list-unstyled small mb-3">
+              @for (c of store.contributions(); track c.id) {
+                <li class="border-start ps-2 mb-2">
+                  <div>
+                    <strong>{{ c.author }}</strong>
+                    @if (c.kind === 'SUGGESTION') {
+                      <span class="badge text-bg-light">sugestão</span>
+                    }
+                    @if (c.context) {
+                      <span class="text-muted">· sobre {{ c.context }}</span>
+                    }
+                  </div>
+                  <div>{{ c.body }}</div>
+                  @if (c.status !== 'OPEN') {
+                    <!--
+                      A decisão fica ao lado do texto: recusar não apaga, e ver a recusa é o que evita a
+                      mesma sugestão voltar três vezes.
+                    -->
+                    <div class="text-muted">
+                      {{ c.status === 'ACCEPTED' ? 'Aceita' : 'Recusada' }}
+                      em {{ c.decidedAt | date: 'dd/MM/yyyy' }}
+                      @if (c.decisionNote) {
+                        — "{{ c.decisionNote }}"
+                      }
+                    </div>
+                  } @else if (c.pending && canPublish) {
+                    <div class="mt-1 d-flex gap-2">
+                      <button type="button" class="btn btn-sm btn-outline-success"
+                              (click)="decide(p, c, true)">
+                        Concordo
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary"
+                              (click)="decide(p, c, false)">
+                        Não vou seguir
+                      </button>
+                    </div>
+                    <!--
+                      "Concordo", e não "Aplicar": aceitar registra concordância. Aplicar é ato do autor
+                      na receita dele, e vira versão nova.
+                    -->
+                    <div class="form-text">Concordar registra sua opinião — não altera a receita.</div>
+                  }
+                </li>
+              }
+            </ul>
+          }
+
           <h4 class="h6">Ingredientes</h4>
           <ul class="list-unstyled small mb-0">
             @for (item of p.recipe.items; track item.ingredientName) {

@@ -7,6 +7,8 @@ import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicat
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
 import { LibraryStore } from '../../data-access/library.store';
 import {
+  Contribution,
+  ContributionKind,
   LibraryPublication,
   OwnedPublication,
   SharePermission,
@@ -58,6 +60,12 @@ export class LibraryPageComponent implements OnInit {
   protected readonly showForm = signal(false);
   protected readonly canPublish = this.auth.hasPermission('community.recipe.publish');
 
+  protected readonly contributionForm = this.fb.nonNullable.group({
+    kind: ['COMMENT' as ContributionKind, Validators.required],
+    body: ['', [Validators.required, Validators.maxLength(2000)]],
+    context: ['', Validators.maxLength(120)],
+  });
+
   protected readonly forkForm = this.fb.nonNullable.group({
     equipmentId: ['', Validators.required],
     name: ['', Validators.maxLength(160)],
@@ -105,7 +113,22 @@ export class LibraryPageComponent implements OnInit {
 
   protected open(publication: LibraryPublication): void {
     this.forkForm.reset({ equipmentId: '', name: '' });
+    this.contributionForm.reset({ kind: 'COMMENT', body: '', context: '' });
     this.store.open(publication);
+  }
+
+  protected submitContribution(publication: LibraryPublication): void {
+    if (this.contributionForm.invalid) {
+      this.contributionForm.markAllAsTouched();
+      return;
+    }
+    const v = this.contributionForm.getRawValue();
+    this.store.write(publication, v.kind, v.body, v.context || null);
+    this.contributionForm.reset({ kind: 'COMMENT', body: '', context: '' });
+  }
+
+  protected decide(publication: LibraryPublication, c: Contribution, accept: boolean): void {
+    this.store.decide(publication, c, accept, null);
   }
 
   protected submitFork(publication: LibraryPublication): void {

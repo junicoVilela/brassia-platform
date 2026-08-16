@@ -142,7 +142,7 @@
 
     <div class="card-body p-0">
       @if (store.containers().length === 0) {
-        <app-empty-state title="Nenhum contêiner" text="Cadastre o primeiro vasilhame da frota." />
+        <app-empty-state message="Nenhum contêiner" hint="Cadastre o primeiro vasilhame da frota." />
       } @else {
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0">

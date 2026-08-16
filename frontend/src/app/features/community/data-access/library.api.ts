@@ -2,13 +2,16 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
+  AbuseReport,
   Contribution,
   ContributionKind,
   CreatedShareLink,
   ForkedRecipe,
   LibraryPublication,
   OwnedPublication,
+  RatingSummary,
   RecipeLicense,
+  ReportReason,
   SharePermission,
   ShareLink,
   Visibility,
@@ -81,6 +84,27 @@ export class LibraryApi {
   decide(id: string, accept: boolean, note: string | null): Observable<void> {
     const acao = accept ? 'accept' : 'decline';
     return this.http.post<void>(`/api/v1/community/contributions/${id}/${acao}`, { note });
+  }
+
+  rating(publicationId: string): Observable<RatingSummary> {
+    return this.http.get<RatingSummary>(`${this.baseUrl}/${publicationId}/rating`);
+  }
+
+  /** Uma nota por pessoa: repetir troca a anterior, e não acumula. */
+  rate(publicationId: string, value: number): Observable<void> {
+    return this.http.put<void>(`${this.baseUrl}/${publicationId}/rating`, { value });
+  }
+
+  /** Denunciar abre um caso — não esconde nada. */
+  report(
+    publicationId: string,
+    body: { reason: ReportReason; note: string | null },
+  ): Observable<{ id: string }> {
+    return this.http.post<{ id: string }>(`${this.baseUrl}/${publicationId}/reports`, body);
+  }
+
+  reports(publicationId: string): Observable<AbuseReport[]> {
+    return this.http.get<AbuseReport[]>(`${this.baseUrl}/${publicationId}/reports`);
   }
 
   fork(

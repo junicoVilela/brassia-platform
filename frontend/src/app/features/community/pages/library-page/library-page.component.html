@@ -125,6 +125,14 @@
                             (click)="openLinks(p)">
                       Links
                     </button>
+                    <!--
+                      Saber do que se é acusado é o mínimo: o autor vê as denúncias contra a própria
+                      publicação, e é só isso que ele vê.
+                    -->
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            (click)="openReports(p)">
+                      Denúncias
+                    </button>
                     <button type="button" class="btn btn-sm btn-outline-danger" (click)="retire(p)">
                       Retirar
                     </button>
@@ -274,6 +282,96 @@
               }
             </div>
           }
+
+          <div class="border rounded p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h4 class="h6 mb-1">Avaliação</h4>
+                @if (store.rating(); as r) {
+                  @if (r.count === 0) {
+                    <!--
+                      Sem votos NÃO é nota zero. Zero é a pior nota possível, e mostrá-lo aqui faria uma
+                      receita recém-publicada nascer parecendo péssima.
+                    -->
+                    <p class="small text-muted mb-0">Ninguém avaliou ainda.</p>
+                  } @else {
+                    <p class="small mb-0">
+                      <strong>{{ r.average | number: '1.1-1' }}</strong>
+                      de 5 · {{ r.count }} avaliação(ões)
+                    </p>
+                    @if (!r.meaningful) {
+                      <!--
+                        A média nunca viaja sem a contagem: "5,0" de uma avaliação e "5,0" de duzentas
+                        são o mesmo número e significam coisas opostas.
+                      -->
+                      <p class="small text-muted mb-0">
+                        Poucos votos — isto ainda é opinião, e não reputação.
+                      </p>
+                    }
+                  }
+                }
+              </div>
+              @if (canRate) {
+                <div class="btn-group btn-group-sm" role="group" aria-label="Sua nota">
+                  @for (n of scale; track n) {
+                    <button type="button" class="btn"
+                            [class.btn-primary]="store.rating()?.myRating === n"
+                            [class.btn-outline-secondary]="store.rating()?.myRating !== n"
+                            (click)="rate(p, n)">
+                      {{ n }}
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+            @if (canRate) {
+              <!--
+                Uma nota por pessoa, e ela se troca: dizer isso evita a pessoa clicar cinco vezes
+                achando que soma.
+              -->
+              <p class="form-text mb-0">Sua nota se troca a qualquer momento; ela não acumula.</p>
+              @if (!showReport()) {
+                <button type="button" class="btn btn-link btn-sm px-0 text-danger"
+                        (click)="showReport.set(true)">
+                  Denunciar esta publicação
+                </button>
+              } @else {
+                <form [formGroup]="reportForm" (ngSubmit)="submitReport(p)" class="row g-2 mt-1">
+                  <div class="col-md-4">
+                    <label class="form-label small mb-1" for="rReason">Motivo</label>
+                    <select id="rReason" class="form-select form-select-sm" formControlName="reason">
+                      @for (r of reportReasons; track r) {
+                        <option [value]="r">{{ reportLabels[r] }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="col-md-8">
+                    <label class="form-label small mb-1" for="rNote">O que aconteceu</label>
+                    <input id="rNote" class="form-control form-control-sm" formControlName="note" />
+                    <div class="form-text">Obrigatório em "Outro" — ninguém revisa o que não foi dito.</div>
+                  </div>
+                  <div class="col-12 d-flex gap-2">
+                    <button type="submit" class="btn btn-sm btn-danger" [disabled]="store.saving()">
+                      Denunciar
+                    </button>
+                    <button type="button" class="btn btn-sm btn-link"
+                            (click)="showReport.set(false)">
+                      Cancelar
+                    </button>
+                  </div>
+                  <!--
+                    Denunciar REGISTRA: não esconde nada. Uma denúncia que tirasse o conteúdo do ar
+                    seria uma arma — qualquer um derrubaria a receita de um concorrente com três linhas.
+                  -->
+                  <div class="col-12">
+                    <p class="form-text mb-0">
+                      A denúncia abre um caso e <strong>não tira a publicação do ar</strong>.
+                    </p>
+                  </div>
+                </form>
+              }
+            }
+          </div>
 
           <h4 class="h6">Conversa</h4>
           @if (store.pendingCount() > 0) {
@@ -480,6 +578,51 @@
                 }
               </tbody>
             </table>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (store.reportsOf(); as publicacao) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="h6 modal-title mb-0">Denúncias · {{ publicacao.title }}</h3>
+          <button type="button" class="btn-close" (click)="store.closeReports()"></button>
+        </div>
+        <div class="modal-body">
+          <!--
+            Sem quem denunciou: a identidade do denunciante exposta ao denunciado transformaria a
+            denúncia em convite à retaliação.
+          -->
+          <p class="small text-muted">
+            Você vê do que a publicação foi acusada, e não quem acusou.
+          </p>
+          @if (store.reports().length === 0) {
+            <p class="small mb-0">Nenhuma denúncia.</p>
+          } @else {
+            <ul class="list-group list-group-flush">
+              @for (d of store.reports(); track d.id) {
+                <li class="list-group-item px-0">
+                  <div class="d-flex justify-content-between">
+                    <strong class="small">{{ reportLabels[d.reason] }}</strong>
+                    <small class="text-muted">{{ d.reportedAt | date: 'dd/MM/yyyy' }}</small>
+                  </div>
+                  @if (d.note) {
+                    <p class="small mb-1">{{ d.note }}</p>
+                  }
+                  @if (d.outcome) {
+                    <span class="badge text-bg-secondary">{{ d.outcome }}</span>
+                  } @else {
+                    <!-- Não há quem revise nesta fatia, e a tela não finge que há (DUV-COM-001). -->
+                    <small class="text-muted">Registrada. Ainda não revisada.</small>
+                  }
+                </li>
+              }
+            </ul>
           }
         </div>
       </div>

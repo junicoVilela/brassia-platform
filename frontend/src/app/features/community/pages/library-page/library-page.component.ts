@@ -11,6 +11,8 @@ import {
   ContributionKind,
   LibraryPublication,
   OwnedPublication,
+  REPORT_REASON_LABELS,
+  ReportReason,
   SharePermission,
   ShareLink,
   VISIBILITY_HELP,
@@ -59,6 +61,21 @@ export class LibraryPageComponent implements OnInit {
 
   protected readonly showForm = signal(false);
   protected readonly canPublish = this.auth.hasPermission('community.recipe.publish');
+  protected readonly canRate = this.auth.hasPermission('community.rating.write');
+
+  protected readonly reportLabels = REPORT_REASON_LABELS;
+  protected readonly reportReasons: ReportReason[] = ['ABUSE', 'PLAGIARISM', 'SPAM', 'OTHER'];
+
+  /** As notas possíveis. Zero não está aqui: ele seria "não avaliou", que é a ausência de nota. */
+  protected readonly scale = [1, 2, 3, 4, 5];
+
+  /** O formulário de denúncia só aparece quando alguém decide denunciar — não é botão de primeira. */
+  protected readonly showReport = signal(false);
+
+  protected readonly reportForm = this.fb.nonNullable.group({
+    reason: ['ABUSE' as ReportReason, Validators.required],
+    note: ['', Validators.maxLength(1000)],
+  });
 
   protected readonly contributionForm = this.fb.nonNullable.group({
     kind: ['COMMENT' as ContributionKind, Validators.required],
@@ -112,6 +129,8 @@ export class LibraryPageComponent implements OnInit {
   }
 
   protected open(publication: LibraryPublication): void {
+    this.showReport.set(false);
+    this.reportForm.reset({ reason: 'ABUSE', note: '' });
     this.forkForm.reset({ equipmentId: '', name: '' });
     this.contributionForm.reset({ kind: 'COMMENT', body: '', context: '' });
     this.store.open(publication);
@@ -129,6 +148,32 @@ export class LibraryPageComponent implements OnInit {
 
   protected decide(publication: LibraryPublication, c: Contribution, accept: boolean): void {
     this.store.decide(publication, c, accept, null);
+  }
+
+  protected rate(publication: LibraryPublication, value: number): void {
+    this.store.rate(publication, value);
+  }
+
+  protected submitReport(publication: LibraryPublication): void {
+    const v = this.reportForm.getRawValue();
+    // "Outro" sem texto não é denúncia, é ruído: ninguém revisa o que não foi dito. A validação vive
+    // aqui porque ela depende do motivo escolhido, e não do campo isolado.
+    if (v.reason === 'OTHER' && !v.note.trim()) {
+      this.reportForm.controls.note.setErrors({ required: true });
+      this.reportForm.markAllAsTouched();
+      return;
+    }
+    if (this.reportForm.invalid) {
+      this.reportForm.markAllAsTouched();
+      return;
+    }
+    this.store.report(publication, v.reason, v.note || null);
+    this.reportForm.reset({ reason: 'ABUSE', note: '' });
+    this.showReport.set(false);
+  }
+
+  protected openReports(publication: OwnedPublication): void {
+    this.store.openReports(publication);
   }
 
   protected submitFork(publication: LibraryPublication): void {

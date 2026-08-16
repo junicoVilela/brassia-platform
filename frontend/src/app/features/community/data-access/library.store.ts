@@ -3,12 +3,15 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, forkJoin } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
 import {
+  AbuseReport,
   Contribution,
   ContributionKind,
   ForkedRecipe,
   LibraryPublication,
   OwnedPublication,
+  RatingSummary,
   RecipeLicense,
+  ReportReason,
   SharePermission,
   ShareLink,
   Visibility,
@@ -57,6 +60,18 @@ export class LibraryStore {
 
   readonly contributions = signal<Contribution[]>([]);
 
+  /**
+   * A nota da publicação aberta.
+   *
+   * <p>Nasce nula e não zerada: a tela precisa saber a diferença entre "ninguém votou" e "todo mundo
+   * deu zero" — e zero nem existe na escala.
+   */
+  readonly rating = signal<RatingSummary | null>(null);
+
+  /** As denúncias contra a MINHA publicação: direito de resposta, e nunca sobre a dos outros. */
+  readonly reports = signal<AbuseReport[]>([]);
+  readonly reportsOf = signal<OwnedPublication | null>(null);
+
   /** Quantas sugestões esperam decisão — comentários não entram, porque não pediram nada. */
   readonly pendingCount = computed(() => this.contributions().filter(c => c.pending).length);
 
@@ -87,12 +102,67 @@ export class LibraryStore {
   open(publication: LibraryPublication): void {
     this.selected.set(publication);
     this.contributions.set([]);
+    this.rating.set(null);
     this.loadContributions(publication.id);
+    this.loadRating(publication.id);
   }
 
   close(): void {
     this.selected.set(null);
     this.contributions.set([]);
+    this.rating.set(null);
+  }
+
+  loadRating(publicationId: string): void {
+    this.api
+      .rating(publicationId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: r => this.rating.set(r) });
+  }
+
+  rate(publication: LibraryPublication, value: number): void {
+    this.api
+      .rate(publication.id, value)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success('Avaliação registrada.');
+          this.loadRating(publication.id);
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível avaliar.')),
+      });
+  }
+
+  report(publication: LibraryPublication, reason: ReportReason, note: string | null): void {
+    this.saving.set(true);
+    this.api
+      .report(publication.id, { reason, note })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.saving.set(false)),
+      )
+      .subscribe({
+        next: () => {
+          // "Registrada", e não "removida": denunciar abre um caso e não tira nada do ar. Prometer
+          // remoção aqui faria a tela mentir sobre o que aconteceu.
+          this.toast.success('Denúncia registrada.');
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível denunciar.')),
+      });
+  }
+
+  openReports(publication: OwnedPublication): void {
+    this.reportsOf.set(publication);
+    this.reports.set([]);
+    this.api
+      .reports(publication.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: list => this.reports.set(list) });
+  }
+
+  closeReports(): void {
+    this.reportsOf.set(null);
+    this.reports.set([]);
   }
 
   publish(recipeId: string, title: string, summary: string | null, license: RecipeLicense,

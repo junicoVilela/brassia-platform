@@ -8565,6 +8565,157 @@ paths:
         '204': {description: Escondido}
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
+  /community/library/{publicationId}/rating:
+    get:
+      tags: [Comunidade]
+      summary: A nota da publicação (COM-005)
+      description: >-
+        **A média nunca viaja sem a contagem.** "5,0" de uma avaliação e "5,0" de duzentas são o mesmo
+        número e significam coisas opostas — `meaningful` é o que diz à tela quando o número ainda é
+        opinião em vez de reputação.
+
+
+        **Sem votos, `average` vem nulo — e não zero.** Zero é a pior nota possível: uma receita recém
+        publicada nasceria parecendo péssima.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: A nota, com quantos votaram
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RatingSummary'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Comunidade]
+      summary: Avaliar de 1 a 5
+      description: >-
+        **Uma nota por pessoa, e ela se troca em vez de acumular.** Deixar a mesma pessoa avaliar duas
+        vezes transformaria a média numa contagem de quem insistiu mais — o jeito mais simples de
+        manipular reputação sem robô nenhum.
+
+
+        Escala fechada de 1 a 5. Zero seria "não avaliou", que é a ausência de nota: permitir zero faria
+        "sem opinião" e "péssima" virarem o mesmo número na média.
+
+
+        **Não se avalia o que não se pode ler** — a mesma matriz de visibilidade de sempre.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value: {type: integer, minimum: 1, maximum: 5}
+      responses:
+        '204': {description: Avaliado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `self_rating` — o autor não avalia a própria receita. A nota dele não informa ninguém, e uma
+            média que a inclui mede outra coisa.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /community/library/{publicationId}/reports:
+    post:
+      tags: [Comunidade]
+      summary: Denunciar uma publicação (COM-005)
+      description: >-
+        **Denunciar REGISTRA: não esconde nada.** Uma denúncia que tirasse o conteúdo do ar seria uma
+        arma — qualquer pessoa derrubaria a receita de um concorrente escrevendo três linhas. O que ela
+        abre é um caso, e o conteúdo continua exatamente onde estava.
+
+
+        `OTHER` exige explicação: "outro" sem texto não é denúncia, é ruído — ninguém revisa o que não foi
+        dito. Os motivos da lista dispensam texto, porque obrigar explicação em "spam" faria a pessoa
+        escrever "spam" no campo.
+
+
+        **A mesma pessoa não denuncia a mesma publicação duas vezes pelo mesmo motivo.** Não é limite de
+        opinião: a contagem de denúncias é sinal, e um sinal que a mesma pessoa repete deixa de medir a
+        comunidade e passa a medir a insistência.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, enum: [ABUSE, PLAGIARISM, SPAM, OTHER]}
+                note:
+                  type: string
+                  maxLength: 1000
+                  nullable: true
+                  description: Obrigatório quando o motivo é OTHER.
+      responses:
+        '201':
+          description: Caso aberto
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `already_reported` — já denunciada por este motivo. · `self_rating` — se o autor quer tirar do
+            ar, o botão é despublicar.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+    get:
+      tags: [Comunidade]
+      summary: As denúncias contra a própria publicação
+      description: >-
+        **Só o autor vê**, e ele vê porque é o direito de resposta: saber do que se é acusado é o mínimo
+        antes de qualquer revisão existir. Ler as denúncias contra a receita do concorrente seria
+        inteligência competitiva servida de graça.
+
+
+        **Sem quem denunciou.** A identidade do denunciante exposta ao denunciado transformaria a denúncia
+        em convite à retaliação.
+
+
+        **Não há endpoint de revisão nesta fatia, e a ausência é decisão registrada** (DUV-COM-001):
+        "moderação auditada" pressupõe um papel acima das cervejarias — o autor não pode julgar denúncia
+        contra a própria receita, e dar a alguém o poder de esconder publicação de qualquer casa é decisão
+        de modelo de segurança. O registro já nasce com os campos da revisão; falta decidir quem pode.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: As denúncias, da mais recente para a mais antiga
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/AbuseReport'}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
     Contribution:
@@ -8587,6 +8738,45 @@ components:
           description: >-
             Sugestão aberta. Comentário nunca é pendente — ele não propôs nada, e contá-lo faria "3
             pendentes" incluir elogios.
+    RatingSummary:
+      type: object
+      description: A nota média, e nunca sem a contagem ao lado.
+      properties:
+        average:
+          type: number
+          nullable: true
+          description: >-
+            Uma casa decimal. **Nulo quando ninguém votou** — zero é a pior nota, e não a ausência dela.
+        count: {type: integer, description: Quantos votaram.}
+        meaningful:
+          type: boolean
+          description: >-
+            Falso com menos de 5 votos. A tela mostra o número como opinião, e não como reputação.
+        myRating:
+          type: integer
+          nullable: true
+          description: A nota de quem está perguntando; nula se ainda não avaliou.
+    AbuseReport:
+      type: object
+      description: >-
+        Uma denúncia, como o autor a vê. **Sem o denunciante:** expô-lo ao denunciado seria convite à
+        retaliação.
+      properties:
+        id: {type: string, format: uuid}
+        reason: {type: string, enum: [ABUSE, PLAGIARISM, SPAM, OTHER]}
+        note: {type: string, nullable: true}
+        reportedAt: {type: string, format: date-time}
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Nulo enquanto não houver quem revise (DUV-COM-001).
+        outcome:
+          type: string
+          nullable: true
+          enum: [UPHELD, DISMISSED]
+          description: >-
+            Julgar procedente **não apaga nem esconde sozinho** — a ação sobre o conteúdo é ato separado.
     ForkedRecipe:
       type: object
       properties:

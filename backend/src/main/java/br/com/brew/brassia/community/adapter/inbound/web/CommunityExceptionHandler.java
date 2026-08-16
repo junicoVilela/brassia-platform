@@ -2,7 +2,9 @@ package br.com.brew.brassia.community.adapter.inbound.web;
 
 import br.com.brew.brassia.community.domain.AlreadyDecidedException;
 import br.com.brew.brassia.community.domain.AlreadyPublishedException;
+import br.com.brew.brassia.community.domain.AlreadyReportedException;
 import br.com.brew.brassia.community.domain.NotDecidableException;
+import br.com.brew.brassia.community.domain.SelfRatingException;
 import br.com.brew.brassia.community.domain.ForkNotAllowedException;
 import br.com.brew.brassia.community.domain.UnmappedIngredientsException;
 import br.com.brew.brassia.community.domain.RecipeUnpublishedException;
@@ -73,6 +75,18 @@ class CommunityExceptionHandler {
     @ExceptionHandler(AlreadyDecidedException.class)
     ProblemDetail handleAlreadyDecided(AlreadyDecidedException ex) {
         return ProblemDetails.of(HttpStatus.CONFLICT, "already_decided", ex.getMessage());
+    }
+
+    /** 409: a contagem de denúncias é sinal, e repetir mediria a insistência em vez da comunidade. */
+    @ExceptionHandler(AlreadyReportedException.class)
+    ProblemDetail handleAlreadyReported(AlreadyReportedException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, "already_reported", ex.getMessage());
+    }
+
+    /** 409: a nota do autor não informa ninguém, e denunciar-se é despublicar por outro caminho. */
+    @ExceptionHandler(SelfRatingException.class)
+    ProblemDetail handleSelfRating(SelfRatingException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, "self_rating", ex.getMessage());
     }
 
     @ExceptionHandler(AlreadyPublishedException.class)

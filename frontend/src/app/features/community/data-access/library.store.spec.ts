@@ -72,6 +72,9 @@ function setup(api: Partial<LibraryApi>) {
   // Abrir uma publicação carrega a conversa; sem o stub, os testes de fork quebrariam por um motivo
   // que nada tem a ver com fork.
   api.contributions ??= () => of([]);
+  // Abrir também carrega a nota. Sem votos ela é NULA, e não zero — o padrão do stub é o mesmo estado
+  // que o servidor devolve para uma publicação recém-criada.
+  api.rating ??= () => of({ average: null, count: 0, meaningful: false, myRating: null });
   TestBed.configureTestingModule({
     providers: [
       LibraryStore,
@@ -322,5 +325,54 @@ describe('LibraryStore', () => {
     store.publish('r1', 'IPA', null, 'CC0', 'PUBLIC');
 
     expect(toast.error).toHaveBeenCalledWith('a versão 3 desta receita já está publicada');
+  });
+
+  it('mostra ninguém-votou como ausência de nota, e não como zero', () => {
+    // Zero é a pior nota possível: exibi-lo faria uma receita recém-publicada nascer parecendo péssima.
+    const { store } = setup({} as Partial<LibraryApi>);
+
+    store.open(published());
+
+    expect(store.rating()?.average).toBeNull();
+    expect(store.rating()?.count).toBe(0);
+  });
+
+  it('a média vem com a contagem, e poucos votos não são reputação', () => {
+    // "5,0" de uma avaliação e "5,0" de duzentas são o mesmo número e significam coisas opostas.
+    const { store } = setup({
+      rating: () => of({ average: 5, count: 1, meaningful: false, myRating: null }),
+    } as Partial<LibraryApi>);
+
+    store.open(published());
+
+    expect(store.rating()?.average).toBe(5);
+    expect(store.rating()?.meaningful).toBe(false);
+  });
+
+  it('avaliar relê a nota, porque a média mudou', () => {
+    // Sem reler, a tela mostraria a média de antes do voto que a pessoa acabou de dar.
+    const rating = vi
+      .fn()
+      .mockReturnValueOnce(of({ average: null, count: 0, meaningful: false, myRating: null }))
+      .mockReturnValueOnce(of({ average: 4, count: 1, meaningful: false, myRating: 4 }));
+    const { store, toast } = setup({ rating, rate: () => of(undefined) } as Partial<LibraryApi>);
+
+    store.open(published());
+    store.rate(published(), 4);
+
+    expect(store.rating()?.myRating).toBe(4);
+    expect(toast.success).toHaveBeenCalled();
+  });
+
+  it('denunciar diz "registrada", e nunca "removida"', () => {
+    // Denunciar abre um caso e não tira nada do ar. Prometer remoção aqui faria a tela mentir sobre o
+    // que aconteceu — e uma denúncia que derrubasse o conteúdo seria uma arma.
+    const { store, toast } = setup({
+      report: () => of({ id: 'r1' }),
+    } as Partial<LibraryApi>);
+
+    store.report(published(), 'SPAM', null);
+
+    expect(toast.success).toHaveBeenCalledWith('Denúncia registrada.');
   });
 });

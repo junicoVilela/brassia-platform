@@ -141,3 +141,39 @@ export interface Contribution {
   /** Sugestão aberta. Comentário nunca é pendente. */
   pending: boolean;
 }
+
+/** Os motivos de denúncia (COM-005). `OTHER` exige explicação. */
+export type ReportReason = 'ABUSE' | 'PLAGIARISM' | 'SPAM' | 'OTHER';
+
+export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
+  ABUSE: 'Conteúdo abusivo',
+  PLAGIARISM: 'Plágio',
+  SPAM: 'Spam',
+  OTHER: 'Outro',
+};
+
+/**
+ * A nota média — que nunca viaja sem a contagem.
+ *
+ * "5,0" de uma avaliação e "5,0" de duzentas são o mesmo número e significam coisas opostas.
+ */
+export interface RatingSummary {
+  /** Nulo quando ninguém votou: zero é a pior nota, e não a ausência dela. */
+  average: number | null;
+  count: number;
+  /** Falso com poucos votos — a tela mostra o número como opinião, e não como reputação. */
+  meaningful: boolean;
+  /** A sua nota; nula se ainda não avaliou. */
+  myRating: number | null;
+}
+
+/** Uma denúncia, como o autor a vê. Sem o denunciante: expô-lo seria convite à retaliação. */
+export interface AbuseReport {
+  id: string;
+  reason: ReportReason;
+  note: string | null;
+  reportedAt: string;
+  /** Nulo enquanto não houver quem revise (DUV-COM-001). */
+  reviewedAt: string | null;
+  outcome: 'UPHELD' | 'DISMISSED' | null;
+}

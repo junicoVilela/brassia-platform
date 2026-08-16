@@ -4,9 +4,11 @@ import br.com.brew.brassia.catalog.IngredientDirectory;
 import br.com.brew.brassia.catalog.IngredientSpecLookup;
 import br.com.brew.brassia.community.application.port.inbound.LibraryCommands;
 import br.com.brew.brassia.community.application.port.outbound.PublishedRecipeRepository;
+import br.com.brew.brassia.community.application.port.outbound.ContributionRepository;
 import br.com.brew.brassia.community.application.port.outbound.RecipeForkRepository;
 import br.com.brew.brassia.community.application.port.outbound.ShareLinkRepository;
 import br.com.brew.brassia.community.application.service.LibraryHandlers;
+import br.com.brew.brassia.community.application.service.ContributionHandlers;
 import br.com.brew.brassia.community.application.service.ForkHandlers;
 import br.com.brew.brassia.community.application.service.ShareLinkHandlers;
 import br.com.brew.brassia.recipe.RecipeImportCommands;
@@ -21,6 +23,12 @@ class CommunityConfiguration {
     LibraryCommands libraryCommands(PublishedRecipeRepository library, RecipeLookup recipes,
             IngredientSpecLookup ingredients) {
         return new LibraryHandlers(library, recipes, ingredients);
+    }
+
+    @Bean
+    ContributionHandlers contributionHandlers(ContributionRepository contributions,
+            PublishedRecipeRepository library) {
+        return new ContributionHandlers(contributions, library);
     }
 
     @Bean

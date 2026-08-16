@@ -1,6 +1,8 @@
 package br.com.brew.brassia.community.adapter.inbound.web;
 
+import br.com.brew.brassia.community.domain.AlreadyDecidedException;
 import br.com.brew.brassia.community.domain.AlreadyPublishedException;
+import br.com.brew.brassia.community.domain.NotDecidableException;
 import br.com.brew.brassia.community.domain.ForkNotAllowedException;
 import br.com.brew.brassia.community.domain.UnmappedIngredientsException;
 import br.com.brew.brassia.community.domain.RecipeUnpublishedException;
@@ -59,6 +61,18 @@ class CommunityExceptionHandler {
         var problem = ProblemDetails.of(HttpStatus.CONFLICT, "unmapped_ingredients", ex.getMessage());
         problem.setProperty("missing", ex.missing());
         return problem;
+    }
+
+    /** 409: um comentário não propôs nada, então não há o que aceitar. */
+    @ExceptionHandler(NotDecidableException.class)
+    ProblemDetail handleNotDecidable(NotDecidableException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, "not_decidable", ex.getMessage());
+    }
+
+    /** 409: decidir duas vezes reescreveria quem decidiu e quando. */
+    @ExceptionHandler(AlreadyDecidedException.class)
+    ProblemDetail handleAlreadyDecided(AlreadyDecidedException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, "already_decided", ex.getMessage());
     }
 
     @ExceptionHandler(AlreadyPublishedException.class)

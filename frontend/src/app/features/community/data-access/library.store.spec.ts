@@ -69,6 +69,9 @@ function setup(api: Partial<LibraryApi>) {
   api.feed ??= () => of([published()]);
   api.mine ??= () => of([owned()]);
   api.links ??= () => of([link()]);
+  // Abrir uma publicação carrega a conversa; sem o stub, os testes de fork quebrariam por um motivo
+  // que nada tem a ver com fork.
+  api.contributions ??= () => of([]);
   TestBed.configureTestingModule({
     providers: [
       LibraryStore,
@@ -240,6 +243,68 @@ describe('LibraryStore', () => {
     store.fork(published(), 'eq1', null);
 
     expect(store.missingIngredients()).toEqual([]);
+  });
+
+  it('conta só as sugestões pendentes, e não os comentários', () => {
+    // Contar comentários faria "3 pendentes" incluir elogios — e o autor abriria a tela achando que
+    // tem decisão a tomar.
+    const { store } = setup({
+      contributions: () =>
+        of([
+          {
+            id: 'c1',
+            kind: 'SUGGESTION' as const,
+            author: 'Bruno',
+            body: 'Mais lúpulo',
+            context: null,
+            status: 'OPEN' as const,
+            createdAt: '2026-08-15T10:00:00Z',
+            decidedAt: null,
+            decisionNote: null,
+            pending: true,
+          },
+          {
+            id: 'c2',
+            kind: 'COMMENT' as const,
+            author: 'Carla',
+            body: 'Ficou ótima!',
+            context: null,
+            status: 'OPEN' as const,
+            createdAt: '2026-08-15T11:00:00Z',
+            decidedAt: null,
+            decisionNote: null,
+            pending: false,
+          },
+        ]),
+    } as Partial<LibraryApi>);
+
+    store.open(published());
+
+    expect(store.contributions()).toHaveLength(2);
+    expect(store.pendingCount()).toBe(1);
+  });
+
+  it('aceitar diz "concordância registrada", e não "aplicada"', () => {
+    // Aplicar é ato do autor, na receita dele. Dizer o contrário prometeria uma mudança que não
+    // aconteceu.
+    const decide = vi.fn().mockReturnValue(of(void 0));
+    const { store, toast } = setup({ decide } as Partial<LibraryApi>);
+
+    store.decide(published(), {
+      id: 'c1',
+      kind: 'SUGGESTION',
+      author: 'Bruno',
+      body: 'Mais lúpulo',
+      context: null,
+      status: 'OPEN',
+      createdAt: '2026-08-15T10:00:00Z',
+      decidedAt: null,
+      decisionNote: null,
+      pending: true,
+    }, true, 'boa ideia');
+
+    expect(decide).toHaveBeenCalledWith('c1', true, 'boa ideia');
+    expect(toast.success).toHaveBeenCalledWith('Concordância registrada.');
   });
 
   it('mostra a mensagem do servidor quando a versão já está publicada', () => {

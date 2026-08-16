@@ -2,6 +2,8 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
+  Contribution,
+  ContributionKind,
   CreatedShareLink,
   ForkedRecipe,
   LibraryPublication,
@@ -63,6 +65,22 @@ export class LibraryApi {
 
   revokeLink(id: string): Observable<void> {
     return this.http.post<void>(`/api/v1/community/links/${id}/revoke`, {});
+  }
+
+  contributions(publicationId: string): Observable<Contribution[]> {
+    return this.http.get<Contribution[]>(`${this.baseUrl}/${publicationId}/contributions`);
+  }
+
+  write(
+    publicationId: string,
+    body: { kind: ContributionKind; body: string; context: string | null },
+  ): Observable<{ id: string }> {
+    return this.http.post<{ id: string }>(`${this.baseUrl}/${publicationId}/contributions`, body);
+  }
+
+  decide(id: string, accept: boolean, note: string | null): Observable<void> {
+    const acao = accept ? 'accept' : 'decline';
+    return this.http.post<void>(`/api/v1/community/contributions/${id}/${acao}`, { note });
   }
 
   fork(

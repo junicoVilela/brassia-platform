@@ -8403,8 +8403,190 @@ paths:
                   count: {type: integer}
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
+  /community/library/{publicationId}/contributions:
+    get:
+      tags: [Comunidade]
+      summary: A conversa sobre uma publicação (COM-004)
+      description: >-
+        Comentários e sugestões visíveis, do mais recente para o mais antigo. O que foi escondido pela
+        moderação não aparece — mas **continua existindo**: moderação precisa poder ser revista, e texto
+        apagado não se revisa.
+
+
+        **A resposta não carrega a cervejaria nem o identificador de quem escreveu.** Quem lê vê o nome, e
+        nada que permita cruzar aquela pessoa com outra coisa da plataforma.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Comentários e sugestões
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Contribution'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Comunidade]
+      summary: Comentar ou sugerir
+      description: >-
+        **Não se comenta o que não se pode ler** — a mesma matriz de visibilidade de sempre, e não uma
+        regra nova.
+
+
+        `context` é o que torna o comentário **contextual** em vez de um mural: "o lúpulo está alto" sem
+        dizer qual lúpulo não ajuda ninguém.
+
+
+        A diferença entre os dois tipos é o que se espera do autor: um comentário não pede resposta, uma
+        sugestão pede decisão.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, body]
+              properties:
+                kind: {type: string, enum: [COMMENT, SUGGESTION]}
+                body: {type: string, maxLength: 2000}
+                context:
+                  type: string
+                  maxLength: 120
+                  nullable: true
+                  description: 'Onde na receita — "Malte Pilsen", "fervura".'
+      responses:
+        '201':
+          description: Escrito
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /community/contributions/{id}/accept:
+    post:
+      tags: [Comunidade]
+      summary: Aceitar uma sugestão (COM-004)
+      description: >-
+        **Aceitar NÃO altera a receita nem o retrato publicado.** Duas razões, e as duas são estruturais:
+
+
+        1. O retrato publicado é **congelado** (COM-001) — aplicar uma sugestão nele faria mudar o que o
+           público já leu, exatamente o que congelar existe para impedir.
+        2. A receita de verdade é **privada** — deixar texto de alguém de fora reescrevê-la daria a
+           estranhos uma chave que nem o link de colaboração dá.
+
+
+        Então aceitar é **registrar concordância**: fica escrito que o autor achou boa, com nome e data.
+        Aplicar é ato dele, na receita dele, e vira versão nova — que ele publica quando quiser.
+
+
+        Alçada `community.recipe.publish`: quem responde pela receita lá fora é quem decide o que sugerem
+        sobre ela.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+                  maxLength: 500
+                  nullable: true
+                  description: >-
+                    Opcional — obrigar texto faria o autor escrever "ok" para poder seguir.
+      responses:
+        '204': {description: Concordância registrada}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `not_decidable` — um comentário não propôs nada, então não há o que aceitar. ·
+            `already_decided` — decidir duas vezes reescreveria quem decidiu e quando, e é esse registro
+            que torna a conversa auditável.
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /community/contributions/{id}/decline:
+    post:
+      tags: [Comunidade]
+      summary: Recusar uma sugestão
+      description: >-
+        **Recusar não apaga.** A sugestão continua visível, com a decisão ao lado: é isso que evita a
+        mesma sugestão voltar três vezes, e o que torna a conversa um histórico em vez de uma caixa de
+        entrada.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: {type: string, maxLength: 500, nullable: true}
+      responses:
+        '204': {description: Recusa registrada}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /community/contributions/{id}/hide:
+    post:
+      tags: [Comunidade]
+      summary: Esconder da lista pública
+      description: >-
+        **Esconder não apaga.** O texto continua no banco: moderação precisa poder ser revista, e um texto
+        apagado não se revisa.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Escondido}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    Contribution:
+      type: object
+      description: >-
+        Um comentário ou uma sugestão. **Sem cervejaria e sem identificador de usuário** — quem lê vê o
+        nome de quem escreveu, e nada que permita cruzar aquela pessoa com outra coisa da plataforma.
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [COMMENT, SUGGESTION]}
+        author: {type: string, description: Nome congelado, como a atribuição do fork.}
+        body: {type: string, description: Nunca reescrito — aceitar não muda o que foi proposto.}
+        context: {type: string, nullable: true}
+        status: {type: string, enum: [OPEN, ACCEPTED, DECLINED]}
+        createdAt: {type: string, format: date-time}
+        decidedAt: {type: string, format: date-time, nullable: true}
+        decisionNote: {type: string, nullable: true}
+        pending:
+          type: boolean
+          description: >-
+            Sugestão aberta. Comentário nunca é pendente — ele não propôs nada, e contá-lo faria "3
+            pendentes" incluir elogios.
     ForkedRecipe:
       type: object
       properties:

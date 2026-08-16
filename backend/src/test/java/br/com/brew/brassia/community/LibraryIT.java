@@ -91,12 +91,16 @@ class LibraryIT {
         var session = login();
         var deFora = principal(UUID.randomUUID(), Set.of("community.library.read"));
 
-        for (var nivel : new String[] {"PRIVATE", "BREWERY"}) {
+        // PRIVATE e BREWERY não alcançam de fora. LINK TAMBÉM NÃO, por endereço: ele exige o token
+        // (COM-002) — na COM-001 ele abria para qualquer autenticado que soubesse o id, que é
+        // semântica de UNLISTED e não de LINK.
+        for (var nivel : new String[] {"PRIVATE", "BREWERY", "LINK"}) {
             var id = publica(session, nivel, "CC0");
             mockMvc.perform(get(LIBRARY + "/" + id).with(authentication(deFora)))
                     .andExpect(status().isNotFound());
         }
-        for (var nivel : new String[] {"LINK", "UNLISTED", "PUBLIC"}) {
+        // UNLISTED abre por endereço direto, sem segredo. PUBLIC idem, e ainda aparece na busca.
+        for (var nivel : new String[] {"UNLISTED", "PUBLIC"}) {
             var id = publica(session, nivel, "CC0");
             mockMvc.perform(get(LIBRARY + "/" + id).with(authentication(deFora)))
                     .andExpect(status().isOk());

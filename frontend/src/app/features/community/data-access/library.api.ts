@@ -2,9 +2,12 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
+  CreatedShareLink,
   LibraryPublication,
   OwnedPublication,
   RecipeLicense,
+  SharePermission,
+  ShareLink,
   Visibility,
 } from '../domain/library.model';
 
@@ -43,5 +46,21 @@ export class LibraryApi {
 
   unpublish(id: string): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/${id}/unpublish`, {});
+  }
+
+  links(publicationId: string): Observable<ShareLink[]> {
+    return this.http.get<ShareLink[]>(`${this.baseUrl}/${publicationId}/links`);
+  }
+
+  /** A resposta traz o token — a única vez que ele existe fora de quem compartilha. */
+  createLink(
+    publicationId: string,
+    body: { permission: SharePermission; label: string | null; expiresAt: string | null },
+  ): Observable<CreatedShareLink> {
+    return this.http.post<CreatedShareLink>(`${this.baseUrl}/${publicationId}/links`, body);
+  }
+
+  revokeLink(id: string): Observable<void> {
+    return this.http.post<void>(`/api/v1/community/links/${id}/revoke`, {});
   }
 }

@@ -79,10 +79,15 @@ class JdbcPublishedRecipeRepository implements PublishedRecipeRepository {
     public Optional<PublishedRecipe> findForReader(UUID id, UUID readerBreweryId) {
         // A regra de leitura vive no SQL, e não numa checagem depois de carregar: carregar primeiro e
         // decidir depois é o padrão em que alguém, um dia, esquece o "depois".
+        //
+        // LINK NÃO ESTÁ AQUI, e isso é a correção que a COM-002 trouxe: na COM-001 ele era legível por
+        // qualquer autenticado que soubesse o identificador — semântica de UNLISTED, e não de LINK.
+        // Quem chega por link entra pelo caminho do token (ShareLinkHandlers.resolve), que confere o
+        // segredo E a visibilidade. UNLISTED continua sendo "abre por endereço direto, sem segredo".
         return jdbc.sql(SELECT + """
                  WHERE id = :id
                    AND unpublished_at IS NULL
-                   AND (visibility IN ('LINK', 'UNLISTED', 'PUBLIC')
+                   AND (visibility IN ('UNLISTED', 'PUBLIC')
                         OR (visibility = 'BREWERY' AND brewery_id = :reader))
                 """)
                 .param("id", id).param("reader", readerBreweryId)

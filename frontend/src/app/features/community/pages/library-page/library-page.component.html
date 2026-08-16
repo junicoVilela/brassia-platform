@@ -121,6 +121,10 @@
                         <option [value]="v">{{ visibilityLabels[v] }}</option>
                       }
                     </select>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            (click)="openLinks(p)">
+                      Links
+                    </button>
                     <button type="button" class="btn btn-sm btn-outline-danger" (click)="retire(p)">
                       Retirar
                     </button>
@@ -223,6 +227,119 @@
               </li>
             }
           </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (store.linksOf(); as publicacao) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h3 class="h6 modal-title mb-0">Links de {{ publicacao.title }}</h3>
+            <small class="text-muted">{{ visibilityLabels[publicacao.visibility] }}</small>
+          </div>
+          <button type="button" class="btn-close" (click)="store.closeLinks()"></button>
+        </div>
+        <div class="modal-body">
+          @if (publicacao.visibility !== 'LINK') {
+            <!--
+              O link não eleva visibilidade: ele torna alcançável o que já está em "quem tem o link".
+              Dizer isso aqui evita o autor criar um link e concluir que o sistema está quebrado.
+            -->
+            <div class="alert alert-warning py-2 small" role="alert">
+              Esta publicação está como <strong>{{ visibilityLabels[publicacao.visibility] }}</strong>.
+              O link <strong>não eleva a visibilidade</strong> — mude para
+              "{{ visibilityLabels['LINK'] }}" para que ele abra.
+            </div>
+          }
+
+          @if (store.freshToken(); as token) {
+            <!--
+              O token aparece UMA vez. Ele fica só em memória: guardá-lo em storage ou na URL o
+              transformaria num segredo persistido, que é o que o servidor evitou ao guardar só o hash.
+            -->
+            <div class="alert alert-success" role="alert">
+              <div class="small mb-1">
+                <strong>Guarde agora.</strong> Este token não é recuperável — se perder, crie outro e
+                revogue este.
+              </div>
+              <code class="d-block text-break">{{ token }}</code>
+            </div>
+          }
+
+          <form [formGroup]="linkForm" (ngSubmit)="submitLink()" class="row g-2 mb-3">
+            <div class="col-md-4">
+              <label class="form-label small mb-1" for="permission">Permissão</label>
+              <select id="permission" class="form-select form-select-sm" formControlName="permission">
+                <option value="READ">Só leitura</option>
+                <option value="COMMENT">Leitura e comentários</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small mb-1" for="label">Para quem</label>
+              <input id="label" class="form-control form-control-sm" formControlName="label"
+                     placeholder="pro Bruno avaliar" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small mb-1" for="expiresAt">Validade</label>
+              <input id="expiresAt" type="date" class="form-control form-control-sm"
+                     formControlName="expiresAt" />
+              <div class="form-text">Em branco: sem prazo.</div>
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+                Criar link
+              </button>
+            </div>
+          </form>
+
+          @if (store.links().length === 0) {
+            <p class="text-muted small mb-0">Nenhum link criado.</p>
+          } @else {
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th scope="col">Para quem</th>
+                  <th scope="col">Permissão</th>
+                  <th scope="col">Validade</th>
+                  <th scope="col">Estado</th>
+                  <th scope="col"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (l of store.links(); track l.id) {
+                  <tr>
+                    <td>{{ l.label ?? '—' }}</td>
+                    <td class="small">{{ l.permission === 'COMMENT' ? 'comenta' : 'só lê' }}</td>
+                    <td class="small">
+                      {{ l.expiresAt ? (l.expiresAt | date: 'dd/MM/yyyy') : 'sem prazo' }}
+                    </td>
+                    <td>
+                      @if (l.revokedAt) {
+                        <span class="badge text-bg-secondary">revogado</span>
+                      } @else if (!l.usable) {
+                        <span class="badge text-bg-warning">expirado</span>
+                      } @else {
+                        <span class="badge text-bg-success">ativo</span>
+                      }
+                    </td>
+                    <td class="text-end">
+                      @if (!l.revokedAt) {
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                (click)="revoke(l)">
+                          Revogar
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
         </div>
       </div>
     </div>

@@ -76,3 +76,28 @@ export const VISIBILITY_HELP: Record<Visibility, string> = {
   UNLISTED: 'Abre por endereço direto, e não aparece na busca.',
   PUBLIC: 'Na vitrine, na busca e no feed, para qualquer cervejaria.',
 };
+
+/** O que o link autoriza. Nenhum nível permite editar a receita (COM-002). */
+export type SharePermission = 'READ' | 'COMMENT';
+
+/**
+ * Um link, como o autor o vê.
+ *
+ * Sem o token: ele aparece uma vez, na criação, e o servidor guarda só o hash.
+ */
+export interface ShareLink {
+  id: string;
+  label: string | null;
+  permission: SharePermission;
+  createdAt: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  /** Se o link, por si, ainda vale — ele ainda pode não abrir nada se a publicação foi fechada. */
+  usable: boolean;
+}
+
+/** O token só existe aqui, e só uma vez. */
+export interface CreatedShareLink {
+  id: string;
+  token: string;
+}

@@ -1,6 +1,6 @@
 # Status — Sprint 18
 
-Estado: **ATIVA desde 2026-08-15** — COM-001 a COM-004 entregues; COM-005 pendente.
+Estado: **ATIVA desde 2026-08-15** — COM-001 a COM-005 entregues.
 
 **A ressalva que esta sprint carrega, e que a Sprint 19 não carregava:** ela é a que **aponta para
 fora**. Biblioteca pública, link compartilhado, fork e moderação colocam dado da cervejaria fora dela,
@@ -191,6 +191,59 @@ WHERE id = :id
 É o quarto caso da mesma família nesta leva — depois da sobreposição de preço, da liberação única do lote
 e da reserva de estoque: **a invariante que atravessa linhas mora no banco**, e o código continua checando
 para dar mensagem boa, não para garantir.
+
+### DEC-COM-007 (COM-005) — Avaliação e denúncia entram; a revisão fica registrada como dúvida
+
+**A escolha do mantenedor.** O critério da história pedia "executar moderação auditada". Entregar isso
+exigiria decidir **quem** modera, e essa pergunta não tem resposta no modelo de segurança de hoje: todo
+principal tem uma cervejaria, o autor não pode julgar denúncia contra a própria receita, e usar o grupo
+de sistema `ADMINISTRATORS` como moderador global significa dar a alguém o poder de esconder publicação
+de qualquer casa. Isso é decisão de modelo de segurança, não detalhe de implementação — então a fatia
+entrega **nota, denúncia registrada e o autor vendo do que foi acusado**, e a autoridade de revisão vira
+`DUV-COM-001`.
+
+**A média nunca viaja sem a contagem.** "5,0" de uma avaliação e "5,0" de duzentas são o mesmo número e
+significam coisas opostas; `meaningful` é o que permite a tela mostrar o primeiro como opinião e o segundo
+como reputação. E **sem votos a média é nula, e não zero**: zero é a pior nota possível, e uma receita
+recém-publicada nasceria parecendo péssima.
+
+**Uma nota por pessoa, garantida pela chave primária composta.** Acumular transformaria a média numa
+contagem de quem insistiu mais — o jeito mais simples de manipular reputação sem robô nenhum. O `ON
+CONFLICT ... DO UPDATE` é consequência da chave, e não conveniência. É o quinto caso da mesma família na
+leva: **a invariante que atravessa linhas mora no banco**.
+
+**Denunciar REGISTRA: não esconde nada.** Uma denúncia que tirasse o conteúdo do ar seria uma arma —
+qualquer pessoa derrubaria a receita de um concorrente escrevendo três linhas. E a mesma pessoa não
+denuncia a mesma publicação duas vezes pelo mesmo motivo (índice único): a contagem de denúncias é sinal,
+e um sinal que a mesma pessoa repete deixa de medir a comunidade e passa a medir a insistência.
+
+**O autor vê as denúncias contra si, e não quem denunciou.** Saber do que se é acusado é o mínimo antes de
+qualquer revisão existir; a identidade do denunciante exposta ao denunciado transformaria a denúncia em
+convite à retaliação.
+
+**Ninguém avalia nem denuncia a si mesmo** (409 `self_rating`). A nota do autor não informa ninguém, e se
+ele quer tirar a publicação do ar, o botão é despublicar.
+
+**Entregue:** `V129`, `Rating`, `RatingSummary`, `AbuseReport` e exceções, porta, caso de uso, quatro
+endpoints, 2 caminhos e 2 schemas no OpenAPI, e a avaliação na tela. **11 testes de domínio, 12 de
+integração e 4 de store.**
+
+### DUV-COM-001 (COM-005) — Quem revisa uma denúncia?
+
+**A pergunta.** O agregado `AbuseReport` já sabe ser revisado — registra quem, quando e o desfecho, recusa
+revisão dupla e não apaga a denúncia improcedente, tudo coberto por teste. O que não existe é **quem pode
+chamar isso**: nenhum papel da plataforma está acima das cervejarias.
+
+**Por que não foi inventado.** As três saídas plausíveis levam a modelos de segurança diferentes:
+
+1. O grupo de sistema `ADMINISTRATORS` (sem cervejaria) vira moderador global — e ganha o poder de
+   esconder publicação de qualquer casa.
+2. Cada cervejaria modera o que publica — mas então o autor julga a denúncia contra si, que é justamente o
+   que a moderação existe para evitar.
+3. Moderação distribuída por reputação — história inteira, e não um endpoint.
+
+**O que fica pronto para qualquer uma delas.** A tabela já tem `reviewed_at`, `reviewed_by`, `outcome` e
+`outcome_note`, com `CHECK` garantindo que uma revisão pela metade não existe. Falta o endpoint e o papel.
 
 ## Evidências de encerramento
 

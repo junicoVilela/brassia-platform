@@ -27,6 +27,8 @@ function setup(api: Partial<ContainersApi>) {
   const toast = { success: vi.fn(), error: vi.fn() };
   api.list ??= () => of([keg()]);
   api.identifiers ??= () => of([]);
+  api.fills ??= () => of([]);
+  api.locations ??= () => of([]);
   TestBed.configureTestingModule({
     providers: [
       ContainersStore,
@@ -128,5 +130,67 @@ describe('ContainersStore', () => {
     expect(toast.error).toHaveBeenCalledWith(
       'A etiqueta QR-1 já está em uso por outro contêiner.',
     );
+  });
+
+  it('esvaziar anuncia fim de período, e nunca conteúdo apagado', () => {
+    // O vínculo continua respondendo pelo passado: é ele que liga este keg àquele lote num recall.
+    const { store, toast } = setup({ emptyFill: () => of(undefined) } as Partial<ContainersApi>);
+
+    store.emptyFill(keg({ state: 'FILLED' }));
+
+    expect(toast.success).toHaveBeenCalledWith(
+      'Conteúdo encerrado. O registro do que esteve dentro continua.',
+    );
+  });
+
+  it('o histórico traz o que esteve dentro e por onde andou', () => {
+    // Não só o conteúdo de agora: um campo sobrescrito perderia "o que estava dentro em 12 de março".
+    const { store } = setup({
+      fills: () =>
+        of([
+          {
+            id: 'f2',
+            finishedLotId: 'l2',
+            lotCode: 'L-2',
+            volumeLiters: 50,
+            filledAt: '2026-04-02T09:00:00Z',
+            emptiedAt: null,
+            current: true,
+          },
+          {
+            id: 'f1',
+            finishedLotId: 'l1',
+            lotCode: 'L-1',
+            volumeLiters: 50,
+            filledAt: '2026-03-12T14:00:00Z',
+            emptiedAt: '2026-03-22T14:00:00Z',
+            current: false,
+          },
+        ]),
+      locations: () =>
+        of([{ id: 'p1', kind: 'CUSTOMER', place: 'Bar do Bruno', recordedAt: '2026-04-03T10:00:00Z' }]),
+    } as Partial<ContainersApi>);
+
+    store.openHistory(keg());
+
+    expect(store.fills()).toHaveLength(2);
+    expect(store.fills()[1].lotCode).toBe('L-1');
+    expect(store.fills()[1].emptiedAt).not.toBeNull();
+    expect(store.locations()[0].place).toBe('Bar do Bruno');
+  });
+
+  it('a recusa do conteúdo é outra frase que a recusa do vasilhame', () => {
+    // Misturá-las daria ao operador uma mensagem que não diz o que trocar.
+    const { store, toast } = setup({
+      fill: () =>
+        throwError(() => ({
+          status: 409,
+          error: { code: 'fill_not_allowed', detail: 'recusado', reasonCode: 'over_capacity' },
+        })),
+    } as Partial<ContainersApi>);
+
+    store.fill(keg(), 'lote-1', 60);
+
+    expect(toast.error).toHaveBeenCalledWith('O volume informado não cabe no vasilhame.');
   });
 });

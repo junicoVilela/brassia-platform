@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mock.web.MockHttpSession;
@@ -39,6 +40,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  */
 @SpringBootTest
 @Testcontainers
+@Import(ScriptedLots.class)
 class ContainerIT {
 
     @Container
@@ -53,6 +55,9 @@ class ContainerIT {
 
     @Autowired
     JdbcClient jdbc;
+
+    @Autowired
+    ScriptedLots.Roteiro lotes;
 
     MockMvc mockMvc;
 
@@ -73,9 +78,14 @@ class ContainerIT {
                 .andExpect(jsonPath("$.state", is("EMPTY")))
                 .andExpect(jsonPath("$.fillable", is(false)));
 
-        move(session, keg, "FILLED", status().isConflict())
+        enche(session, keg, status().isConflict())
                 .andExpect(jsonPath("$.code", is("container_not_fillable")))
                 .andExpect(jsonPath("$.reasonCode", is("inspection_expired")));
+
+        // E "cheio" deixou de ser um movimento cego: sem dizer qual lote entrou, o vasilhame ficaria
+        // cheio de nada, e a genealogia teria um buraco onde o recall olha.
+        move(session, keg, "FILLED", status().isConflict())
+                .andExpect(jsonPath("$.reasonCode", is("content_required")));
     }
 
     @Test
@@ -92,7 +102,7 @@ class ContainerIT {
         move(session, keg, "AT_CUSTOMER", status().isConflict())
                 .andExpect(jsonPath("$.code", is("illegal_container_transition")));
 
-        move(session, keg, "FILLED", status().isNoContent());
+        enche(session, keg, status().isCreated());
         move(session, keg, "IN_TRANSIT", status().isNoContent());
         move(session, keg, "AT_CUSTOMER", status().isNoContent());
     }
@@ -109,7 +119,7 @@ class ContainerIT {
                 .andExpect(jsonPath("$.state", is("RETURNED")))
                 .andExpect(jsonPath("$.fillable", is(false)));
 
-        move(session, keg, "FILLED", status().isConflict())
+        enche(session, keg, status().isConflict())
                 .andExpect(jsonPath("$.reasonCode", is("not_ready")));
 
         // Alguém DIZ que está limpo. É ato explícito, como a liberação do lote pela qualidade.
@@ -132,7 +142,7 @@ class ContainerIT {
                                 """.formatted(feita, feita.plus(Duration.ofDays(365)))))
                 .andExpect(status().isNoContent());
 
-        move(session, keg, "FILLED", status().isConflict())
+        enche(session, keg, status().isConflict())
                 .andExpect(jsonPath("$.reasonCode", is("inspection_expired")));
     }
 
@@ -212,7 +222,7 @@ class ContainerIT {
                         .contentType("application/json").content("{\"condemned\":false}"))
                 .andExpect(status().isNoContent());
 
-        move(session, keg, "FILLED", status().isConflict())
+        enche(session, keg, status().isConflict())
                 .andExpect(jsonPath("$.reasonCode", is("damaged")));
 
         move(session, keg, "IN_MAINTENANCE", status().isNoContent());
@@ -251,7 +261,7 @@ class ContainerIT {
                 .andExpect(jsonPath("$.retirementReason", is("furo na costura, sem recuperação")));
 
         // Baixado é histórico, e não estoque: 409 com motivo, e não 500.
-        move(session, keg, "FILLED", status().isConflict())
+        enche(session, keg, status().isConflict())
                 .andExpect(jsonPath("$.code", is("container_retired")));
     }
 
@@ -294,10 +304,20 @@ class ContainerIT {
     private String noCliente(MockHttpSession session) throws Exception {
         var keg = registra(session);
         inspeciona(session, keg, Duration.ofDays(365));
-        move(session, keg, "FILLED", status().isNoContent());
+        enche(session, keg, status().isCreated());
         move(session, keg, "IN_TRANSIT", status().isNoContent());
         move(session, keg, "AT_CUSTOMER", status().isNoContent());
         return keg;
+    }
+
+    /** Encher agora é dizer qual lote entrou (CON-002). */
+    private org.springframework.test.web.servlet.ResultActions enche(MockHttpSession session,
+            String keg, org.springframework.test.web.servlet.ResultMatcher esperado) throws Exception {
+        var lote = lotes.recemEnvasado("L-" + UUID.randomUUID().toString().substring(0, 6));
+        return mockMvc.perform(post(BASE + "/" + keg + "/fills").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"finishedLotId\":\"%s\",\"volumeLiters\":50}".formatted(lote)))
+                .andExpect(esperado);
     }
 
     private org.springframework.test.web.servlet.ResultActions move(MockHttpSession session, String keg,

@@ -8975,6 +8975,164 @@ paths:
           content:
             application/problem+json:
               schema: {$ref: '#/components/schemas/Problem'}
+  /containers/{id}/fills:
+    get:
+      tags: [Contêineres]
+      summary: O que já esteve dentro (CON-002)
+      description: >-
+        O histórico, e não só o conteúdo de agora. **É a pergunta do recall**: um campo "lote atual"
+        sobrescrito responderia "o que está dentro hoje" e perderia "o que estava dentro em 12 de março".
+        Um keg vive anos e passa por dezenas de lotes.
+
+
+        Do mais recente para o mais antigo; `current` marca o que está dentro agora. A lacuna entre um
+        enchimento e o seguinte também é resposta — o vasilhame estava vazio.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Enchimentos
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ContainerFill'}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Contêineres]
+      summary: Encher, dizendo qual lote entrou
+      description: >-
+        **Encher precede liberar.** Kegs são enchidos na produção, antes de a qualidade assinar — exigir a
+        liberação aqui impediria a operação real de acontecer. Então lote ainda **não liberado** passa, e
+        lote **vencido** ou **em quarentena** não: esses dois são fato consumado no momento do envase, e
+        não pendência que se resolve depois. Quem exige a assinatura da qualidade é a saída da casa.
+
+
+        **Duas recusas diferentes, e a distinção importa.** O *vasilhame* pode não estar apto — avaria,
+        inspeção vencida, estado errado, e aí o erro é `container_not_fillable`. O *líquido* pode não
+        poder entrar — lote impedido, volume maior que o contêiner, e aí é `fill_not_allowed`.
+        Misturá-las daria ao operador uma mensagem que não diz o que trocar.
+
+
+        **Um contêiner tem no máximo um conteúdo vivo**, garantido por índice único parcial: dois lotes no
+        mesmo vasilhame seria mistura sem registro, e o recall não saberia o que recolher.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [finishedLotId, volumeLiters]
+              properties:
+                finishedLotId: {type: string, format: uuid}
+                volumeLiters: {type: number, format: double, minimum: 0.001}
+      responses:
+        '201':
+          description: Enchimento registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `fill_not_allowed` com `reasonCode`: `already_full`, `over_capacity`, `content_required`, ou o
+            código do impedimento do lote (`expired`, `quarantined`). · `container_not_fillable` quando o
+            problema é o vasilhame.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /containers/{id}/fills/empty:
+    post:
+      tags: [Contêineres]
+      summary: O conteúdo saiu
+      description: >-
+        **Esvaziar fecha o período; não apaga o vínculo.** É esse intervalo que liga o keg entregue ao
+        lote recolhido, e ele continua respondendo por março depois de o vasilhame já ter passado por
+        abril.
+
+
+        Existe separado da coleta porque nem todo esvaziamento é uma volta do cliente: barril servido na
+        fábrica, descarte de lote reprovado. **A coleta já esvazia sozinha** — o que volta do cliente volta
+        vazio, e o registro que depende de alguém lembrar é o que falta justamente no dia em que o keg
+        some.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Período fechado}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /containers/{id}/locations:
+    get:
+      tags: [Contêineres]
+      summary: Por onde o vasilhame andou (CON-002)
+      description: >-
+        "Onde está" é a última linha; o histórico é o que responde **quantos dias ele ficou parado num
+        cliente** — a conta que a CON-003 vai fazer para depósito e atraso.
+
+
+        **Sem posição não significa "sumiu"**: significa que ninguém registrou, e a diferença importa —
+        um keg sem histórico é falha de processo, e não perda de ativo.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Posições, da mais recente para a mais antiga
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ContainerLocation'}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Contêineres]
+      summary: Registrar posição à mão
+      description: >-
+        O ciclo já registra sozinho a rua (`IN_TRANSIT`), o cliente (`CUSTOMER`) e a volta
+        (`WAREHOUSE`) — o que ele **não** infere é a troca de depósito, e nem a oficina, que pode ser da
+        casa ou de terceiro. Inventar essas duas encheria o histórico de linhas que ninguém observou.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind: {type: string, enum: [WAREHOUSE, IN_TRANSIT, CUSTOMER, THIRD_PARTY]}
+                place:
+                  type: string
+                  maxLength: 160
+                  nullable: true
+                  description: >-
+                    Texto livre nesta fatia — o depósito, o nome do bar. O vínculo com o cliente de
+                    verdade chega com a entrega (LOG-002), que é quem sabe a quem entregou.
+      responses:
+        '204': {description: Registrada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
   /containers/{id}/condition:
     post:
       tags: [Contêineres]
@@ -9060,6 +9218,34 @@ components:
             pode divergir dela.
         retiredAt: {type: string, format: date-time, nullable: true}
         retirementReason: {type: string, nullable: true}
+    ContainerFill:
+      type: object
+      description: >-
+        Um período em que um lote esteve dentro do vasilhame. **Evento, e não campo** — é o que permite a
+        um keg que vive anos dizer o que carregou em cada época.
+      properties:
+        id: {type: string, format: uuid}
+        finishedLotId: {type: string, format: uuid}
+        lotCode:
+          type: string
+          description: >-
+            Congelado no enchimento: é o que aparece na tela e no aviso de recall, e buscá-lo em outro
+            módulo a cada leitura faria a rastreabilidade depender de uma consulta viva.
+        volumeLiters: {type: number, format: double}
+        filledAt: {type: string, format: date-time}
+        emptiedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fecha o período. Nulo enquanto o conteúdo está dentro.
+        current: {type: boolean, description: O que está dentro agora; os demais são história.}
+    ContainerLocation:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [WAREHOUSE, IN_TRANSIT, CUSTOMER, THIRD_PARTY]}
+        place: {type: string, nullable: true}
+        recordedAt: {type: string, format: date-time}
     ContainerIdentifier:
       type: object
       description: >-

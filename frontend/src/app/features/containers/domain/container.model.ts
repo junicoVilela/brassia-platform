@@ -93,3 +93,47 @@ export const NOT_FILLABLE_REASONS: Record<string, string> = {
   inspection_expired: 'A inspeção está vencida. Vaso de pressão sem inspeção em dia é risco físico.',
   not_ready: 'Não está vazio e liberado.',
 };
+
+/** Onde o vasilhame está. Grosso de propósito: a rota fina é da LOG-001. */
+export type LocationKind = 'WAREHOUSE' | 'IN_TRANSIT' | 'CUSTOMER' | 'THIRD_PARTY';
+
+export const LOCATION_LABELS: Record<LocationKind, string> = {
+  WAREHOUSE: 'Depósito',
+  IN_TRANSIT: 'Na rua',
+  CUSTOMER: 'No cliente',
+  THIRD_PARTY: 'Em terceiro',
+};
+
+/**
+ * Um período em que um lote esteve dentro do vasilhame (CON-002).
+ *
+ * Evento, e não campo: é o que permite a um keg que vive anos dizer o que carregou em cada época.
+ */
+export interface ContainerFill {
+  id: string;
+  finishedLotId: string;
+  /** Congelado no enchimento — é o que aparece no aviso de recall. */
+  lotCode: string;
+  volumeLiters: number;
+  filledAt: string;
+  /** Fecha o período. Nulo enquanto o conteúdo está dentro. */
+  emptiedAt: string | null;
+  current: boolean;
+}
+
+export interface ContainerLocation {
+  id: string;
+  kind: LocationKind;
+  place: string | null;
+  recordedAt: string;
+}
+
+/** Por que o conteúdo não pôde entrar — outra coisa que o motivo do vasilhame. */
+export const FILL_REFUSAL_REASONS: Record<string, string> = {
+  already_full: 'Já há um lote dentro. Dois lotes no mesmo vasilhame seria mistura sem registro.',
+  over_capacity: 'O volume informado não cabe no vasilhame.',
+  content_required: 'Encher exige dizer qual lote entrou.',
+  expired: 'O lote está vencido.',
+  quarantined: 'O lote está em quarentena.',
+  quarantine_suspected: 'O lote está sob suspeita de quarentena.',
+};

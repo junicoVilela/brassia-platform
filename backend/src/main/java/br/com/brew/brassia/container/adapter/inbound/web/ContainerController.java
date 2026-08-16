@@ -3,10 +3,12 @@ package br.com.brew.brassia.container.adapter.inbound.web;
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.container.application.service.ContainerHandlers;
+import br.com.brew.brassia.container.application.service.FillHandlers;
 import br.com.brew.brassia.container.domain.Container;
 import br.com.brew.brassia.container.domain.ContainerKind;
 import br.com.brew.brassia.container.domain.ContainerState;
 import br.com.brew.brassia.container.domain.IdentifierTechnology;
+import br.com.brew.brassia.container.domain.LocationKind;
 import br.com.brew.brassia.container.domain.Ownership;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import jakarta.validation.Valid;
@@ -37,10 +39,12 @@ import org.springframework.web.bind.annotation.RestController;
 final class ContainerController {
 
     private final ContainerHandlers handlers;
+    private final FillHandlers fills;
     private final AuditTrail audit;
 
-    ContainerController(ContainerHandlers handlers, AuditTrail audit) {
+    ContainerController(ContainerHandlers handlers, FillHandlers fills, AuditTrail audit) {
         this.handlers = Objects.requireNonNull(handlers);
+        this.fills = Objects.requireNonNull(fills);
         this.audit = Objects.requireNonNull(audit);
     }
 
@@ -169,6 +173,82 @@ final class ContainerController {
         audit.record(AuditEvent.success(brewery, principal.userId(), "container.retire", "container",
                 id.toString(), Map.of("reason", request.reason())));
     }
+
+    /**
+     * Encher: dizer qual lote entrou, e quanto.
+     *
+     * <p>Duas recusas diferentes, e a distinção importa: o <strong>vasilhame</strong> pode não estar
+     * apto (avaria, inspeção vencida, estado errado) e o <strong>líquido</strong> pode não poder entrar
+     * (lote vencido, quarentena, volume maior que o contêiner). Misturá-las daria ao operador uma
+     * mensagem que não diz o que trocar.
+     */
+    @PostMapping("/{id}/fills")
+    @ResponseStatus(HttpStatus.CREATED)
+    Map<String, UUID> fill(@AuthenticationPrincipal SecurityPrincipal principal, @PathVariable UUID id,
+            @Valid @RequestBody FillRequest request) {
+        principal.requirePermission("container.manage");
+        var brewery = principal.requireBrewery();
+        var fillId = fills.fill(brewery, id, request.finishedLotId(), request.volumeLiters(),
+                principal.userId());
+        audit.record(AuditEvent.success(brewery, principal.userId(), "container.fill", "container",
+                id.toString(), Map.of("finishedLotId", request.finishedLotId().toString())));
+        return Map.of("id", fillId);
+    }
+
+    /** O histórico do que já esteve dentro — e não só o de agora. É a pergunta do recall. */
+    @GetMapping("/{id}/fills")
+    List<FillView> fills(@AuthenticationPrincipal SecurityPrincipal principal, @PathVariable UUID id) {
+        principal.requirePermission("container.read");
+        return fills.history(principal.requireBrewery(), id).stream()
+                .map(f -> new FillView(f.id(), f.finishedLotId(), f.lotCode(), f.volumeLiters(),
+                        f.filledAt(), f.emptiedAt().orElse(null), f.isCurrent()))
+                .toList();
+    }
+
+    /**
+     * O conteúdo saiu — sem esperar a coleta.
+     *
+     * <p>Existe porque nem todo esvaziamento é uma volta do cliente: barril servido na fábrica, descarte
+     * de lote reprovado. Esvaziar <strong>fecha o período</strong>, e não apaga o vínculo.
+     */
+    @PostMapping("/{id}/fills/empty")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void empty(@AuthenticationPrincipal SecurityPrincipal principal, @PathVariable UUID id) {
+        principal.requirePermission("container.manage");
+        var brewery = principal.requireBrewery();
+        fills.empty(brewery, id);
+        audit.record(AuditEvent.success(brewery, principal.userId(), "container.empty", "container",
+                id.toString(), Map.of()));
+    }
+
+    @GetMapping("/{id}/locations")
+    List<LocationView> locations(@AuthenticationPrincipal SecurityPrincipal principal,
+            @PathVariable UUID id) {
+        principal.requirePermission("container.read");
+        return fills.locations(principal.requireBrewery(), id).stream()
+                .map(l -> new LocationView(l.id(), l.kind().name(), l.place(), l.recordedAt()))
+                .toList();
+    }
+
+    /** Registrar posição à mão: o ciclo cobre a rua e o cliente, e não a troca de depósito. */
+    @PostMapping("/{id}/locations")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void locate(@AuthenticationPrincipal SecurityPrincipal principal, @PathVariable UUID id,
+            @Valid @RequestBody LocationRequest request) {
+        principal.requirePermission("container.manage");
+        fills.locate(principal.requireBrewery(), id, request.kind(), request.place());
+    }
+
+    record FillRequest(@NotNull UUID finishedLotId,
+            @NotNull @DecimalMin(value = "0.001") BigDecimal volumeLiters) {}
+
+    record LocationRequest(@NotNull LocationKind kind, @Size(max = 160) String place) {}
+
+    /** @param current o que está dentro agora; os demais são história, e continuam respondendo por ela */
+    record FillView(UUID id, UUID finishedLotId, String lotCode, BigDecimal volumeLiters,
+            Instant filledAt, Instant emptiedAt, boolean current) {}
+
+    record LocationView(UUID id, String kind, String place, Instant recordedAt) {}
 
     record RegisterRequest(@NotBlank @Size(max = 40) String code, @NotNull ContainerKind kind,
             @NotNull @DecimalMin(value = "0.001") BigDecimal nominalCapacityLiters,

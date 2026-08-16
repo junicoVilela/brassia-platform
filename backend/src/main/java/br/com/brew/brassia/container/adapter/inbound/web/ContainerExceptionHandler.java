@@ -3,6 +3,7 @@ package br.com.brew.brassia.container.adapter.inbound.web;
 import br.com.brew.brassia.container.domain.ContainerNotFillableException;
 import br.com.brew.brassia.container.domain.ContainerRetiredException;
 import br.com.brew.brassia.container.domain.DuplicateIdentifierException;
+import br.com.brew.brassia.container.domain.FillNotAllowedException;
 import br.com.brew.brassia.container.domain.IllegalContainerTransitionException;
 import br.com.brew.brassia.container.domain.UnknownContainerException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
@@ -39,6 +40,20 @@ class ContainerExceptionHandler {
     @ExceptionHandler(ContainerRetiredException.class)
     ProblemDetail handleRetired(ContainerRetiredException ex) {
         return ProblemDetails.of(HttpStatus.CONFLICT, "container_retired", ex.getMessage());
+    }
+
+    /**
+     * 409 com o motivo do <strong>conteúdo</strong>, que é outra coisa que o motivo do vasilhame.
+     *
+     * <p>`already_full`, `over_capacity`, `content_required` ou o código do impedimento do lote
+     * (`expired`, `quarantined`). Sem essa separação, "não deu para encher" mandaria o operador trocar de
+     * keg quando o problema era a cerveja.
+     */
+    @ExceptionHandler(FillNotAllowedException.class)
+    ProblemDetail handleFill(FillNotAllowedException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "fill_not_allowed", ex.getMessage());
+        problem.setProperty("reasonCode", ex.reasonCode());
+        return problem;
     }
 
     @ExceptionHandler(IllegalContainerTransitionException.class)

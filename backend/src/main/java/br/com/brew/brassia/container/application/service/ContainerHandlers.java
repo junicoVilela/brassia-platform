@@ -1,13 +1,17 @@
 package br.com.brew.brassia.container.application.service;
 
 import br.com.brew.brassia.container.application.port.outbound.ContainerRepository;
+import br.com.brew.brassia.container.application.port.outbound.FillRepository;
 import br.com.brew.brassia.container.domain.Container;
 import br.com.brew.brassia.container.domain.ContainerIdentifier;
 import br.com.brew.brassia.container.domain.ContainerInspection;
 import br.com.brew.brassia.container.domain.ContainerKind;
+import br.com.brew.brassia.container.domain.ContainerLocation;
 import br.com.brew.brassia.container.domain.ContainerRetiredException;
 import br.com.brew.brassia.container.domain.ContainerState;
+import br.com.brew.brassia.container.domain.FillNotAllowedException;
 import br.com.brew.brassia.container.domain.IdentifierTechnology;
+import br.com.brew.brassia.container.domain.LocationKind;
 import br.com.brew.brassia.container.domain.Ownership;
 import br.com.brew.brassia.container.domain.UnknownContainerException;
 import java.math.BigDecimal;
@@ -22,9 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class ContainerHandlers {
 
     private final ContainerRepository containers;
+    private final FillRepository fills;
 
-    public ContainerHandlers(ContainerRepository containers) {
+    public ContainerHandlers(ContainerRepository containers, FillRepository fills) {
         this.containers = Objects.requireNonNull(containers);
+        this.fills = Objects.requireNonNull(fills);
     }
 
     @Transactional
@@ -67,10 +73,19 @@ public class ContainerHandlers {
         // O ciclo é máquina de estados: a tela manda para onde quer ir, e o agregado diz se dá.
         apply(breweryId, containerId, c -> {
             switch (to) {
-                case FILLED -> c.fill(Instant.now());
+                // Encher deixou de ser movimento cego (CON-002): sem dizer qual lote entrou, o vasilhame
+                // ficaria "cheio de nada" e a genealogia teria um buraco exatamente onde o recall olha.
+                case FILLED -> throw FillNotAllowedException.lot("content_required",
+                        "Encher exige dizer qual lote entrou — um vasilhame cheio sem conteúdo "
+                                + "registrado é um buraco na rastreabilidade.");
                 case IN_TRANSIT -> c.dispatch();
                 case AT_CUSTOMER -> c.deliver();
-                case RETURNED -> c.collect();
+                case RETURNED -> {
+                    c.collect();
+                    // O que volta do cliente volta VAZIO, e o período do lote se fecha aqui. Fechar não
+                    // apaga: o intervalo continua ligando este keg àquele lote.
+                    fills.empty(breweryId, containerId, Instant.now());
+                }
                 // "Vazio" tem dois caminhos, e o estado atual diz qual: quem sai da oficina também
                 // recupera a condição; quem volta do cliente só é declarado limpo.
                 case EMPTY -> {
@@ -134,6 +149,26 @@ public class ContainerHandlers {
         var container = require(breweryId, containerId);
         acao.accept(container);
         containers.update(container);
+        // A posição acompanha o ciclo sem ninguém digitar: o registro que depende de alguém lembrar é o
+        // registro que falta justamente no dia em que o keg some.
+        posicaoDe(container.state()).ifPresent(kind ->
+                fills.locate(ContainerLocation.at(containerId, kind, null, Instant.now())));
+    }
+
+    /**
+     * A posição implicada pelo estado, quando ela é inequívoca.
+     *
+     * <p>Vazio e manutenção ficam de fora de propósito: um keg vazio pode estar em qualquer depósito, e a
+     * oficina pode ser da casa ou de terceiro. Inventar a posição desses dois encheria o histórico de
+     * linhas que ninguém observou.
+     */
+    private static java.util.Optional<LocationKind> posicaoDe(ContainerState state) {
+        return switch (state) {
+            case IN_TRANSIT -> java.util.Optional.of(LocationKind.IN_TRANSIT);
+            case AT_CUSTOMER -> java.util.Optional.of(LocationKind.CUSTOMER);
+            case RETURNED -> java.util.Optional.of(LocationKind.WAREHOUSE);
+            default -> java.util.Optional.empty();
+        };
     }
 
     private Container require(UUID breweryId, UUID containerId) {

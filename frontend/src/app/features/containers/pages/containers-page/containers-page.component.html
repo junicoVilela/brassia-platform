@@ -190,9 +190,19 @@
                       <div class="btn-group btn-group-sm">
                         @if (canManage) {
                           @if (c.state === 'EMPTY') {
+                            <!--
+                              Encher é dizer QUAL lote entrou: um vasilhame cheio sem conteúdo
+                              registrado é um buraco na rastreabilidade, bem onde o recall olha.
+                            -->
                             <button type="button" class="btn btn-outline-primary"
-                                    [disabled]="!c.fillable" (click)="move(c, 'FILLED')">
+                                    [disabled]="!c.fillable" (click)="openFill(c)">
                               Encher
+                            </button>
+                          }
+                          @if (c.state === 'FILLED') {
+                            <button type="button" class="btn btn-outline-secondary"
+                                    (click)="empty(c)">
+                              Esvaziar
                             </button>
                           }
                           @if (c.state === 'FILLED') {
@@ -227,6 +237,12 @@
                                   (click)="openLabels(c)">
                             Etiquetas
                           </button>
+                        }
+                        <button type="button" class="btn btn-outline-secondary"
+                                (click)="openHistory(c)">
+                          Histórico
+                        </button>
+                        @if (canManage) {
                         }
                         @if (canInspect) {
                           <button type="button" class="btn btn-outline-secondary"
@@ -392,6 +408,135 @@
               <button type="submit" class="btn btn-sm btn-danger">Dar baixa</button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (filling(); as c) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="h6 modal-title mb-0">Encher · {{ c.code }}</h3>
+          <button type="button" class="btn-close" (click)="filling.set(null)"></button>
+        </div>
+        <div class="modal-body">
+          <!--
+            Encher precede liberar: kegs são enchidos na produção, antes de a qualidade assinar. O que
+            não entra é lote vencido ou em quarentena — esses são fato consumado, e não pendência.
+          -->
+          <p class="small text-muted">
+            Lote ainda não liberado pode entrar — a assinatura da qualidade é exigida na saída, e não
+            aqui. O que não entra é lote vencido ou em quarentena.
+          </p>
+          <form [formGroup]="fillForm" (ngSubmit)="submitFill()" class="row g-2">
+            <div class="col-12">
+              <label class="form-label small mb-1" for="lote">Lote acabado</label>
+              <input id="lote" class="form-control form-control-sm" formControlName="finishedLotId" />
+            </div>
+            <div class="col-12">
+              <label class="form-label small mb-1" for="vol">Volume (L)</label>
+              <input id="vol" type="number" step="0.001" class="form-control form-control-sm"
+                     formControlName="volumeLiters" />
+              <div class="form-text">Não pode passar da capacidade do vasilhame.</div>
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+                Encher
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (store.historyOf(); as c) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="h6 modal-title mb-0">Histórico · {{ c.code }}</h3>
+          <button type="button" class="btn-close" (click)="store.closeHistory()"></button>
+        </div>
+        <div class="modal-body">
+          <h4 class="h6">O que já esteve dentro</h4>
+          <!--
+            O histórico, e não só o conteúdo de agora: é a pergunta do recall. Um campo sobrescrito
+            perderia "o que estava dentro em 12 de março".
+          -->
+          <p class="small text-muted">
+            Esvaziar fecha o período e não apaga o vínculo — é ele que liga este keg àquele lote.
+          </p>
+          @if (store.fills().length === 0) {
+            <p class="small">Nunca foi enchido.</p>
+          } @else {
+            <ul class="list-group list-group-flush mb-3">
+              @for (f of store.fills(); track f.id) {
+                <li class="list-group-item px-0">
+                  <div class="d-flex justify-content-between">
+                    <strong class="small">{{ f.lotCode }}</strong>
+                    <small class="text-muted">
+                      {{ f.volumeLiters | number: '1.0-1' }} L
+                    </small>
+                  </div>
+                  <small class="text-muted">
+                    {{ f.filledAt | date: 'dd/MM/yyyy HH:mm' }}
+                    @if (f.emptiedAt) {
+                      → {{ f.emptiedAt | date: 'dd/MM/yyyy HH:mm' }}
+                    } @else {
+                      — dentro agora
+                    }
+                  </small>
+                </li>
+              }
+            </ul>
+          }
+
+          <h4 class="h6">Por onde andou</h4>
+          <!--
+            Sem posição não significa "sumiu": significa que ninguém registrou — falha de processo, e
+            não perda de ativo.
+          -->
+          @if (store.locations().length === 0) {
+            <p class="small">Nenhuma posição registrada ainda.</p>
+          } @else {
+            <ul class="list-group list-group-flush mb-3">
+              @for (l of store.locations(); track l.id) {
+                <li class="list-group-item px-0 d-flex justify-content-between">
+                  <span class="small">
+                    {{ locationLabels[l.kind] }}
+                    @if (l.place) {
+                      · {{ l.place }}
+                    }
+                  </span>
+                  <small class="text-muted">{{ l.recordedAt | date: 'dd/MM/yyyy HH:mm' }}</small>
+                </li>
+              }
+            </ul>
+          }
+
+          @if (canManage) {
+            <form [formGroup]="locationForm" (ngSubmit)="submitLocation()" class="row g-2">
+              <div class="col-5">
+                <select class="form-select form-select-sm" formControlName="kind">
+                  @for (k of locationKinds; track k) {
+                    <option [value]="k">{{ locationLabels[k] }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-5">
+                <input class="form-control form-control-sm" formControlName="place"
+                       placeholder="Depósito 2, Bar do Bruno…" />
+              </div>
+              <div class="col-2">
+                <button type="submit" class="btn btn-sm btn-outline-primary w-100">Registrar</button>
+              </div>
+            </form>
+          }
         </div>
       </div>
     </div>

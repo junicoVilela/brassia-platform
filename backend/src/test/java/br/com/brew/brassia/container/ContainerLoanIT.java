@@ -44,7 +44,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  */
 @SpringBootTest
 @Testcontainers
-@Import(ScriptedLots.class)
 class ContainerLoanIT {
 
     @Container
@@ -59,9 +58,6 @@ class ContainerLoanIT {
 
     @Autowired
     JdbcClient jdbc;
-
-    @Autowired
-    ScriptedLots.Roteiro lotes;
 
     MockMvc mockMvc;
 

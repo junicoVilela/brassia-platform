@@ -1,5 +1,6 @@
 package br.com.brew.brassia.container;
 
+import br.com.brew.brassia.support.BrewScenario;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -40,7 +41,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  */
 @SpringBootTest
 @Testcontainers
-@Import(ScriptedLots.class)
 class ContainerFillIT {
 
     @Container
@@ -56,14 +56,14 @@ class ContainerFillIT {
     @Autowired
     JdbcClient jdbc;
 
-    @Autowired
-    ScriptedLots.Roteiro lotes;
+    BrewScenario cenario;
 
     MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         mockMvc = webAppContextSetup(context).apply(springSecurity()).build();
+        cenario = new BrewScenario(mockMvc);
     }
 
     @Test
@@ -72,8 +72,8 @@ class ContainerFillIT {
         // perderia "o que estava dentro em 12 de março" — que é a pergunta do recall.
         var session = login();
         var keg = pronto(session);
-        var lote = lotes.recemEnvasado("L-2026-031");
-        enche(session, keg, lote, 50, status().isCreated());
+        var lote = cenario.finishedLot(session);
+        enche(session, keg, UUID.fromString(lote.id()), 50, status().isCreated());
 
         mockMvc.perform(post(BASE + "/" + keg + "/fills/empty").session(session).with(csrf()))
                 .andExpect(status().isNoContent());
@@ -81,7 +81,9 @@ class ContainerFillIT {
         mockMvc.perform(get(BASE + "/" + keg + "/fills").session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()", is(1)))
-                .andExpect(jsonPath("$[0].lotCode", is("L-2026-031")))
+                // O código é o que o envase gerou: a fixture constrói um lote de verdade, e o teste
+                // deixou de afirmar um rótulo inventado (DEB-CON-001).
+                .andExpect(jsonPath("$[0].lotCode", is(lote.code())))
                 .andExpect(jsonPath("$[0].current", is(false)))
                 .andExpect(jsonPath("$[0].emptiedAt").exists());
     }
@@ -92,17 +94,19 @@ class ContainerFillIT {
         var session = login();
         var keg = pronto(session);
 
-        enche(session, keg, lotes.recemEnvasado("L-1"), 50, status().isCreated());
+        var primeiro = cenario.finishedLot(session);
+        var segundo = cenario.finishedLot(session);
+        enche(session, keg, UUID.fromString(primeiro.id()), 50, status().isCreated());
         esvazia(session, keg);
         volta(session, keg);
-        enche(session, keg, lotes.recemEnvasado("L-2"), 50, status().isCreated());
+        enche(session, keg, UUID.fromString(segundo.id()), 50, status().isCreated());
 
         mockMvc.perform(get(BASE + "/" + keg + "/fills").session(session))
                 .andExpect(jsonPath("$.length()", is(2)))
                 // Do mais recente para o mais antigo, e o primeiro é o que está dentro agora.
-                .andExpect(jsonPath("$[0].lotCode", is("L-2")))
+                .andExpect(jsonPath("$[0].lotCode", is(segundo.code())))
                 .andExpect(jsonPath("$[0].current", is(true)))
-                .andExpect(jsonPath("$[1].lotCode", is("L-1")))
+                .andExpect(jsonPath("$[1].lotCode", is(primeiro.code())))
                 .andExpect(jsonPath("$[1].current", is(false)));
     }
 
@@ -112,9 +116,9 @@ class ContainerFillIT {
         // parcial: a checagem prévia não sobrevive a duas telas enchendo o mesmo keg ao mesmo tempo.
         var session = login();
         var keg = pronto(session);
-        enche(session, keg, lotes.recemEnvasado("L-1"), 50, status().isCreated());
+        enche(session, keg, loteReal(session), 50, status().isCreated());
 
-        enche(session, keg, lotes.recemEnvasado("L-2"), 50, status().isConflict())
+        enche(session, keg, loteReal(session), 50, status().isConflict())
                 .andExpect(jsonPath("$.code", is("container_not_fillable")));
     }
 
@@ -124,7 +128,7 @@ class ContainerFillIT {
         // a operação real de acontecer — quem exige a assinatura é a saída da casa.
         var session = login();
         var keg = pronto(session);
-        var naoLiberado = lotes.recemEnvasado("L-NOVO");
+        var naoLiberado = loteReal(session);
 
         enche(session, keg, naoLiberado, 50, status().isCreated());
     }
@@ -133,8 +137,8 @@ class ContainerFillIT {
     void loteVencidoOuEmQuarentenaNaoEntraNoVasilhame() throws Exception {
         // Estes dois são fato consumado no momento do envase, e não pendência que se resolve depois.
         var session = login();
-        var vencido = lotes.comImpedimento("L-V", "expired", "A validade venceu.");
-        var quarentena = lotes.comImpedimento("L-Q", "quarantined", "O lote está em quarentena.");
+        var vencido = loteVencido(session);
+        var quarentena = loteEmQuarentena(session);
 
         enche(session, pronto(session), vencido, 50, status().isConflict())
                 .andExpect(jsonPath("$.code", is("fill_not_allowed")))
@@ -151,7 +155,7 @@ class ContainerFillIT {
         var session = login();
         var keg = pronto(session);
 
-        enche(session, keg, lotes.recemEnvasado("L-1"), 60, status().isConflict())
+        enche(session, keg, loteReal(session), 60, status().isConflict())
                 .andExpect(jsonPath("$.reasonCode", is("over_capacity")));
     }
 
@@ -161,14 +165,15 @@ class ContainerFillIT {
         // apaga: o intervalo continua ligando este keg àquele lote.
         var session = login();
         var keg = pronto(session);
-        enche(session, keg, lotes.recemEnvasado("L-1"), 50, status().isCreated());
+        var lote = cenario.finishedLot(session);
+        enche(session, keg, UUID.fromString(lote.id()), 50, status().isCreated());
         move(session, keg, "IN_TRANSIT");
         move(session, keg, "AT_CUSTOMER");
         move(session, keg, "RETURNED");
 
         mockMvc.perform(get(BASE + "/" + keg + "/fills").session(session))
                 .andExpect(jsonPath("$[0].current", is(false)))
-                .andExpect(jsonPath("$[0].lotCode", is("L-1")));
+                .andExpect(jsonPath("$[0].lotCode", is(lote.code())));
     }
 
     @Test
@@ -177,7 +182,7 @@ class ContainerFillIT {
         // some.
         var session = login();
         var keg = pronto(session);
-        enche(session, keg, lotes.recemEnvasado("L-1"), 50, status().isCreated());
+        enche(session, keg, loteReal(session), 50, status().isCreated());
         move(session, keg, "IN_TRANSIT");
         move(session, keg, "AT_CUSTOMER");
 
@@ -209,7 +214,7 @@ class ContainerFillIT {
         // abril, e o recall precisa alcançar o vasilhame do período certo.
         var session = login();
         var keg = pronto(session);
-        enche(session, keg, lotes.recemEnvasado("L-GEN"), 50, status().isCreated());
+        enche(session, keg, loteReal(session), 50, status().isCreated());
 
         // A consulta parte do VASILHAME, que é o caminho de um recall que começa numa reclamação de
         // bar: "este keg estava servindo o quê?".
@@ -228,7 +233,7 @@ class ContainerFillIT {
     void outraCervejariaNaoLeOConteudoAlheio() throws Exception {
         var session = login();
         var keg = pronto(session);
-        enche(session, keg, lotes.recemEnvasado("L-1"), 50, status().isCreated());
+        enche(session, keg, loteReal(session), 50, status().isCreated());
 
         mockMvc.perform(get(BASE + "/" + keg + "/fills")
                         .with(authentication(principal(UUID.randomUUID(), Set.of("container.read")))))
@@ -307,5 +312,50 @@ class ContainerFillIT {
     private Authentication principal(UUID breweryId, Set<String> permissions) {
         var p = new SecurityPrincipal(UUID.randomUUID(), breweryId, "Tester", permissions);
         return new UsernamePasswordAuthenticationToken(p, "n/a", Set.of());
+    }
+
+    /**
+     * Um lote de produto acabado <strong>de verdade</strong>, pela fixture compartilhada (DEB-CON-001).
+     *
+     * <p>Aqui morava um dublê de {@code SellableLotLookup}: montar o lote custava as mil linhas do
+     * {@code PackagingRunIT}, e o teste ficava verde contra o contrato que supúnhamos. Com a
+     * {@link BrewScenario} o custo caiu para uma linha, e o que se exercita é a composição real das
+     * condições de venda.
+     */
+    private UUID loteReal(MockHttpSession session) throws Exception {
+        return UUID.fromString(cenario.finishedLot(session).id());
+    }
+
+    /**
+     * Um lote cuja validade já passou.
+     *
+     * <p>Envelhecido no banco: a data de envase é do dia, e a API não oferece — de propósito — um jeito
+     * de envasar no passado. Aqui o que se testa é a reação do vasilhame ao impedimento, e não a
+     * passagem do tempo.
+     */
+    private UUID loteVencido(MockHttpSession session) throws Exception {
+        // LIBERADO e vencido: a ordem dos impedimentos põe a falta de liberação antes da validade, e o
+        // enchimento aceita lote não liberado de propósito. Sem liberar, o teste mediria outra coisa.
+        var lote = cenario.sellableLot(session);
+        // A validade que VALE é o override, que é data absoluta — envelhecer a data de envase não
+        // mexeria nela. É a mesma lição do link de compartilhamento: envelhecer o campo certo.
+        jdbc.sql("""
+                UPDATE packaging_freshness SET override_best_before = current_date - 1
+                WHERE plan_id = :p
+                """)
+                .param("p", UUID.fromString(lote.planId())).update();
+        return UUID.fromString(lote.id());
+    }
+
+    /** Um lote realmente em quarentena, aberta pelo endpoint que a operação usa. */
+    private UUID loteEmQuarentena(MockHttpSession session) throws Exception {
+        var lote = cenario.finishedLot(session);
+        cenario.recordFreshness(session, lote.planId());
+        mockMvc.perform(post("/api/v1/traceability/quarantines").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"nodeType\":\"BATCH\",\"nodeId\":\"" + lote.batchId()
+                                + "\",\"reason\":\"investigação aberta no teste\"}"))
+                .andExpect(status().isCreated());
+        return UUID.fromString(lote.id());
     }
 }

@@ -1,5 +1,6 @@
 package br.com.brew.brassia.container;
 
+import br.com.brew.brassia.support.BrewScenario;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -40,7 +41,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  */
 @SpringBootTest
 @Testcontainers
-@Import(ScriptedLots.class)
 class ContainerIT {
 
     @Container
@@ -56,14 +56,14 @@ class ContainerIT {
     @Autowired
     JdbcClient jdbc;
 
-    @Autowired
-    ScriptedLots.Roteiro lotes;
+    BrewScenario cenario;
 
     MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         mockMvc = webAppContextSetup(context).apply(springSecurity()).build();
+        cenario = new BrewScenario(mockMvc);
     }
 
     @Test
@@ -313,7 +313,8 @@ class ContainerIT {
     /** Encher agora é dizer qual lote entrou (CON-002). */
     private org.springframework.test.web.servlet.ResultActions enche(MockHttpSession session,
             String keg, org.springframework.test.web.servlet.ResultMatcher esperado) throws Exception {
-        var lote = lotes.recemEnvasado("L-" + UUID.randomUUID().toString().substring(0, 6));
+        // Um lote de produto acabado de verdade, pela fixture compartilhada (DEB-CON-001).
+        var lote = cenario.finishedLot(session).id();
         return mockMvc.perform(post(BASE + "/" + keg + "/fills").session(session).with(csrf())
                         .contentType("application/json")
                         .content("{\"finishedLotId\":\"%s\",\"volumeLiters\":50}".formatted(lote)))

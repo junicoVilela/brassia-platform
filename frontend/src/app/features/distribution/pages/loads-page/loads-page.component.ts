@@ -7,10 +7,12 @@ import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicat
 import { PageHeaderComponent } from '../../../../shared/ui/page-header.component';
 import { LoadsStore } from '../../data-access/loads.store';
 import {
+  DeliveryOutcome,
   LOAD_STATUS_HELP,
   LOAD_STATUS_LABELS,
   Load,
   LoadStop,
+  OUTCOME_LABELS,
 } from '../../domain/load.model';
 
 /**
@@ -44,6 +46,33 @@ export class LoadsPageComponent implements OnInit {
 
   protected readonly canPlan = this.auth.hasPermission('distribution.load.plan');
   protected readonly canRelease = this.auth.hasPermission('distribution.load.release');
+  protected readonly canRecord = this.auth.hasPermission('distribution.delivery.record');
+  protected readonly canCorrect = this.auth.hasPermission('distribution.delivery.correct');
+
+  protected readonly outcomeLabels = OUTCOME_LABELS;
+  protected readonly outcomes: DeliveryOutcome[] = [
+    'DELIVERED',
+    'PARTIAL',
+    'REFUSED',
+    'ABSENT',
+    'RESCHEDULED',
+  ];
+
+  /** A parada cuja entrega está sendo registrada agora. */
+  protected readonly recording = signal<LoadStop | null>(null);
+  protected readonly correcting = signal<LoadStop | null>(null);
+
+  protected readonly proofForm = this.fb.nonNullable.group({
+    outcome: ['DELIVERED' as DeliveryOutcome, Validators.required],
+    note: ['', Validators.maxLength(1000)],
+    collected: ['', Validators.maxLength(500)],
+    consentedByName: ['', Validators.maxLength(160)],
+  });
+
+  protected readonly correctionForm = this.fb.nonNullable.group({
+    outcome: ['PARTIAL' as DeliveryOutcome, Validators.required],
+    reason: ['', [Validators.required, Validators.maxLength(1000)]],
+  });
 
   protected readonly showForm = signal(false);
 
@@ -144,6 +173,56 @@ export class LoadsPageComponent implements OnInit {
 
   protected unload(load: Load, containerId: string): void {
     this.store.unloadContainer(load, containerId);
+  }
+
+  protected openRecord(stop: LoadStop): void {
+    this.proofForm.reset({ outcome: 'DELIVERED', note: '', collected: '', consentedByName: '' });
+    this.recording.set(stop);
+  }
+
+  protected submitProof(load: Load): void {
+    const stop = this.recording();
+    if (!stop || this.proofForm.invalid) {
+      this.proofForm.markAllAsTouched();
+      return;
+    }
+    const v = this.proofForm.getRawValue();
+    // Só desce o que estava na parada. "Entregue" leva tudo; os demais desfechos não entregam nada, e
+    // registrar item numa não entrega faria o estoque acreditar em uma das duas metades.
+    const delivered = v.outcome === 'DELIVERED' || v.outcome === 'PARTIAL'
+      ? stop.items.map(i => i.containerId)
+      : [];
+    const collected = v.collected
+      .split(',')
+      .map(c => c.trim())
+      .filter(c => c.length > 0);
+    this.store.recordProof(load, stop.id, v.outcome, delivered, collected, v.note || null,
+      v.consentedByName || null);
+    this.recording.set(null);
+  }
+
+  protected openCorrection(stop: LoadStop): void {
+    this.correctionForm.reset({ outcome: 'PARTIAL', reason: '' });
+    this.correcting.set(stop);
+  }
+
+  protected submitCorrection(load: Load): void {
+    const stop = this.correcting();
+    if (!stop || this.correctionForm.invalid) {
+      this.correctionForm.markAllAsTouched();
+      return;
+    }
+    const v = this.correctionForm.getRawValue();
+    this.store.correctProof(load, stop.id, v.outcome, [], [], v.reason);
+    this.correcting.set(null);
+  }
+
+  protected proofsOf(stopId: string) {
+    return this.store.proofs().filter(p => p.stopId === stopId);
+  }
+
+  protected recorded(stopId: string): boolean {
+    return this.store.recordedStops().has(stopId);
   }
 
   protected filterByDay(value: string): void {

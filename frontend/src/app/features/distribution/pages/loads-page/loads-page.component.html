@@ -186,13 +186,55 @@
                       }
                       <br />
                       <small class="text-muted">{{ s.items.length }} vasilhame(s)</small>
+                      @for (p of proofsOf(s.id); track p.id) {
+                        <br />
+                        <small [class.text-muted]="!p.correctsProofId"
+                               [class.text-warning-emphasis]="p.correctsProofId">
+                          @if (p.correctsProofId) {
+                            <!--
+                              A correção não apaga: as duas ficam, e o caminho até a última palavra
+                              continua legível.
+                            -->
+                            correção:
+                          }
+                          {{ outcomeLabels[p.outcome] }} ·
+                          {{ p.occurredAt | date: 'dd/MM HH:mm' }}
+                          @if (p.outsideWindow) {
+                            · fora da janela
+                          }
+                          @if (p.mediaKind) {
+                            · assinatura de {{ p.consentedByName }}
+                          }
+                          @if (p.note) {
+                            <br />{{ p.note }}
+                          }
+                        </small>
+                      }
                     </div>
-                    @if (canPlan && !l.frozen) {
-                      <button type="button" class="btn btn-sm btn-outline-danger"
-                              (click)="removeStop(l, s)">
-                        Remover
-                      </button>
-                    }
+                    <div class="d-flex gap-2">
+                      @if (canRecord && l.status === 'IN_ROUTE' && !recorded(s.id)) {
+                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                (click)="openRecord(s)">
+                          Registrar entrega
+                        </button>
+                      }
+                      @if (canCorrect && recorded(s.id)) {
+                        <!--
+                          A prova não se edita: corrigir cria um registro novo que aponta para o
+                          anterior, e os dois ficam.
+                        -->
+                        <button type="button" class="btn btn-sm btn-outline-warning"
+                                (click)="openCorrection(s)">
+                          Corrigir
+                        </button>
+                      }
+                      @if (canPlan && !l.frozen) {
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                (click)="removeStop(l, s)">
+                          Remover
+                        </button>
+                      }
+                    </div>
                   </div>
                   @if (s.items.length > 0) {
                     <ul class="list-unstyled small mb-0 mt-1">
@@ -324,4 +366,111 @@
       </div>
     </div>
   </div>
+}
+
+@if (recording(); as stop) {
+  @if (store.selected(); as l) {
+    <div class="modal d-block" tabindex="-1" role="dialog">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 class="h6 modal-title mb-0">Entrega · {{ stop.customerName }}</h3>
+            <button type="button" class="btn-close" (click)="recording.set(null)"></button>
+          </div>
+          <div class="modal-body">
+            <!--
+              Registrar move os vasilhames: o que desceu vai para o cliente, o que voltou volta sujo.
+              É isso que faz o estoque contar certo sem ninguém digitar duas vezes.
+            -->
+            <p class="small text-muted">
+              O que descer sai do caminhão e fica com o cliente; o que for recolhido volta como
+              <strong>sujo</strong>, para lavar antes de encher de novo.
+            </p>
+            <form [formGroup]="proofForm" (ngSubmit)="submitProof(l)" class="row g-2">
+              <div class="col-12">
+                <label class="form-label small mb-1" for="outcome">O que aconteceu</label>
+                <select id="outcome" class="form-select form-select-sm" formControlName="outcome">
+                  @for (o of outcomes; track o) {
+                    <option [value]="o">{{ outcomeLabels[o] }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label small mb-1" for="note">Observação</label>
+                <input id="note" class="form-control form-control-sm" formControlName="note" />
+                <!-- O que fazer amanhã depende do motivo. -->
+                <div class="form-text">Obrigatória quando não houve entrega.</div>
+              </div>
+              <div class="col-12">
+                <label class="form-label small mb-1" for="collected">Vazios recolhidos</label>
+                <input id="collected" class="form-control form-control-sm"
+                       formControlName="collected" placeholder="ids separados por vírgula" />
+                <!-- Coletar é fato separado: dá para recolher num bar onde não se deixou nada. -->
+                <div class="form-text">Pode recolher mesmo sem entregar nada.</div>
+              </div>
+              <div class="col-12">
+                <label class="form-label small mb-1" for="consent">Quem assinou</label>
+                <input id="consent" class="form-control form-control-sm"
+                       formControlName="consentedByName" />
+                <!--
+                  A assinatura é dado pessoal: sem nome de quem consentiu, ela simplesmente não é
+                  guardada — e a entrega acontece do mesmo jeito.
+                -->
+                <div class="form-text">
+                  Em branco: nenhuma assinatura é guardada, e a entrega vale igual.
+                </div>
+              </div>
+              <div class="col-12">
+                <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+                  Registrar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+}
+
+@if (correcting(); as stop) {
+  @if (store.selected(); as l) {
+    <div class="modal d-block" tabindex="-1" role="dialog">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 class="h6 modal-title mb-0">Corrigir · {{ stop.customerName }}</h3>
+            <button type="button" class="btn-close" (click)="correcting.set(null)"></button>
+          </div>
+          <div class="modal-body">
+            <!--
+              Uma prova reescrita parece original e diz outra coisa. A correção é registro novo, e o
+              anterior continua no histórico.
+            -->
+            <p class="small text-muted">
+              O registro anterior <strong>não é apagado</strong>. Esta correção entra ao lado dele, com
+              o motivo — e os vasilhames continuam onde estão até alguém movê-los.
+            </p>
+            <form [formGroup]="correctionForm" (ngSubmit)="submitCorrection(l)" class="row g-2">
+              <div class="col-12">
+                <label class="form-label small mb-1" for="cout">O que aconteceu de fato</label>
+                <select id="cout" class="form-select form-select-sm" formControlName="outcome">
+                  @for (o of outcomes; track o) {
+                    <option [value]="o">{{ outcomeLabels[o] }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label small mb-1" for="reason">O que estava errado</label>
+                <input id="reason" class="form-control form-control-sm" formControlName="reason" />
+              </div>
+              <div class="col-12">
+                <button type="submit" class="btn btn-sm btn-warning">Registrar correção</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
 }

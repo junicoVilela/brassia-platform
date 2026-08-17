@@ -2,6 +2,7 @@ package br.com.brew.brassia.distribution.adapter.inbound.web;
 
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
+import br.com.brew.brassia.distribution.application.service.DeliveryHandlers;
 import br.com.brew.brassia.distribution.application.service.LoadHandlers;
 import br.com.brew.brassia.distribution.domain.Load;
 import br.com.brew.brassia.distribution.domain.LoadStop;
@@ -38,10 +39,12 @@ import org.springframework.web.bind.annotation.RestController;
 final class LoadController {
 
     private final LoadHandlers handlers;
+    private final DeliveryHandlers deliveries;
     private final AuditTrail audit;
 
-    LoadController(LoadHandlers handlers, AuditTrail audit) {
+    LoadController(LoadHandlers handlers, DeliveryHandlers deliveries, AuditTrail audit) {
         this.handlers = Objects.requireNonNull(handlers);
+        this.deliveries = Objects.requireNonNull(deliveries);
         this.audit = Objects.requireNonNull(audit);
     }
 
@@ -150,11 +153,21 @@ final class LoadController {
                 "distribution_load", id.toString(), Map.of()));
     }
 
+    /**
+     * A carga saiu — e <strong>os vasilhames vão junto</strong>.
+     *
+     * <p>Sair passa cada keg para a rua, e é isso que fecha o {@code DEB-LOG-001}: um vasilhame em
+     * trânsito não está mais no depósito, e o próprio ciclo passa a impedir que ele entre numa segunda
+     * carga, sem depender de uma checagem que duas telas simultâneas contornam.
+     */
     @PostMapping("/{id}/depart")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void depart(@AuthenticationPrincipal SecurityPrincipal principal, @PathVariable UUID id) {
         principal.requirePermission("distribution.load.plan");
-        handlers.depart(principal.requireBrewery(), id);
+        var brewery = principal.requireBrewery();
+        deliveries.depart(brewery, id);
+        audit.record(AuditEvent.success(brewery, principal.userId(), "distribution.load.depart",
+                "distribution_load", id.toString(), Map.of()));
     }
 
     @PostMapping("/{id}/close")

@@ -2,7 +2,13 @@ import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { Load, NOT_SHIPPABLE_REASONS } from '../domain/load.model';
+import {
+  DeliveryOutcome,
+  Load,
+  NOT_RECORDABLE_REASONS,
+  NOT_SHIPPABLE_REASONS,
+  ProofOfDelivery,
+} from '../domain/load.model';
 import { LoadsApi } from './loads.api';
 
 interface ApiError {
@@ -29,6 +35,14 @@ export class LoadsStore {
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
   readonly day = signal<string | null>(null);
+
+  /** As provas da carga aberta — original e correção, na ordem. */
+  readonly proofs = signal<ProofOfDelivery[]>([]);
+
+  /** Paradas já registradas: a tela some com o botão em vez de deixar o 409 explicar. */
+  readonly recordedStops = computed(
+    () => new Set(this.proofs().filter(p => !p.correctsProofId).map(p => p.stopId)),
+  );
 
   /** Cargas que esperam conferência — a fila de quem tem a alçada de liberar. */
   readonly awaitingRelease = computed(
@@ -59,10 +73,74 @@ export class LoadsStore {
 
   open(load: Load): void {
     this.reload(load.id);
+    this.reloadProofs(load.id);
   }
 
   close(): void {
     this.selected.set(null);
+    this.proofs.set([]);
+  }
+
+  /**
+   * Registra o que aconteceu na parada.
+   *
+   * <p>Sem consentimento não vai assinatura — e a entrega acontece do mesmo jeito. A coordenada, quando
+   * há, é arredondada no servidor: a cheia não é guardada em lugar nenhum.
+   */
+  recordProof(load: Load, stopId: string, outcome: DeliveryOutcome, delivered: string[],
+    collected: string[], note: string | null, consentedByName: string | null): void {
+    this.saving.set(true);
+    this.api
+      .recordProof(load.id, stopId, {
+        outcome,
+        delivered,
+        collected,
+        note,
+        signatureConsent: consentedByName
+          ? {
+              kind: 'SIGNATURE',
+              storageKey: `assinatura/${load.id}/${stopId}`,
+              consentedByName,
+              purpose: 'comprovar a entrega',
+            }
+          : null,
+        latitude: null,
+        longitude: null,
+      })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.saving.set(false)),
+      )
+      .subscribe({
+        next: () => {
+          this.toast.success('Entrega registrada.');
+          this.reloadProofs(load.id);
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível registrar.')),
+      });
+  }
+
+  correctProof(load: Load, stopId: string, outcome: DeliveryOutcome, delivered: string[],
+    collected: string[], reason: string): void {
+    this.api
+      .correctProof(stopId, { outcome, delivered, collected, reason })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          // "Correção registrada", e não "entrega corrigida": a original continua de pé, e dizer o
+          // contrário faria a tela prometer um apagamento que não houve.
+          this.toast.success('Correção registrada. O registro anterior continua no histórico.');
+          this.reloadProofs(load.id);
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível corrigir.')),
+      });
+  }
+
+  private reloadProofs(loadId: string): void {
+    this.api
+      .proofsOfLoad(loadId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: list => this.proofs.set(list) });
   }
 
   plan(code: string, scheduledFor: string, capacityLiters: number): void {
@@ -201,8 +279,11 @@ export class LoadsStore {
    */
   private message(e: ApiError, fallback: string): string {
     const reason = e?.error?.reasonCode;
-    if (reason && NOT_SHIPPABLE_REASONS[reason]) {
-      return NOT_SHIPPABLE_REASONS[reason];
+    if (reason) {
+      const frase = NOT_SHIPPABLE_REASONS[reason] ?? NOT_RECORDABLE_REASONS[reason];
+      if (frase) {
+        return frase;
+      }
     }
     return e?.error?.detail ?? fallback;
   }

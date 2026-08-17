@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Load } from '../domain/load.model';
+import { DeliveryOutcome, Load, ProofOfDelivery } from '../domain/load.model';
 
 @Injectable({ providedIn: 'root' })
 export class LoadsApi {
@@ -69,6 +69,52 @@ export class LoadsApi {
 
   close(id: string): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/${id}/close`, {});
+  }
+
+  proofsOfLoad(id: string): Observable<ProofOfDelivery[]> {
+    return this.http.get<ProofOfDelivery[]>(`${this.baseUrl}/${id}/proofs`);
+  }
+
+  proofsOfStop(stopId: string): Observable<ProofOfDelivery[]> {
+    return this.http.get<ProofOfDelivery[]>(`/api/v1/distribution/stops/${stopId}/proof`);
+  }
+
+  /** Registrar move os vasilhames: o que desceu vai para o cliente, o que voltou volta sujo. */
+  recordProof(
+    id: string,
+    stopId: string,
+    body: {
+      outcome: DeliveryOutcome;
+      delivered: string[];
+      collected: string[];
+      note: string | null;
+      signatureConsent: {
+        kind: 'SIGNATURE';
+        storageKey: string;
+        consentedByName: string;
+        purpose: string;
+      } | null;
+      latitude: number | null;
+      longitude: number | null;
+    },
+  ): Observable<{ id: string }> {
+    return this.http.post<{ id: string }>(`${this.baseUrl}/${id}/stops/${stopId}/proof`, body);
+  }
+
+  /** Não apaga a anterior: as duas ficam, e a correção aponta para a original. */
+  correctProof(
+    stopId: string,
+    body: {
+      outcome: DeliveryOutcome;
+      delivered: string[];
+      collected: string[];
+      reason: string;
+    },
+  ): Observable<{ id: string }> {
+    return this.http.post<{ id: string }>(
+      `/api/v1/distribution/stops/${stopId}/proof/correction`,
+      body,
+    );
   }
 
   cancel(id: string): Observable<void> {

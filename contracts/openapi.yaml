@@ -9504,8 +9504,228 @@ paths:
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /distribution/loads/{loadId}/stops/{stopId}/proof:
+    post:
+      tags: [Distribuição]
+      summary: Registrar entrega e coleta (LOG-002)
+      description: >-
+        **Uma prova por parada.** A segunda tentativa é o duplo clique do celular no meio da rua, e ela
+        viraria duas entregas para o mesmo cliente — a garantia é um índice único parcial. Para mudar o
+        que foi registrado existe a correção, e a original continua de pé.
+
+
+        **Registrar move os vasilhames**: o que desceu vai para o cliente, o que foi recolhido volta como
+        `RETURNED` — sujo, com o período do lote fechado (CON-001/CON-002). É isso que faz o estoque
+        contar certo sem ninguém digitar duas vezes.
+
+
+        **"Não entregue" não é um motivo só.** Recusado, ausente e remarcado levam a ações diferentes
+        amanhã; juntá-los faria o roteirista tratar do mesmo jeito o bar que rejeitou a mercadoria e o que
+        estava fechado às sete. Por isso a não entrega exige `note`.
+
+
+        **Assinatura e foto só com consentimento.** `signatureConsent` carrega quem consentiu, quando e
+        **para quê** — sem finalidade escrita, o consentimento vira cheque em branco. Omitir o campo é
+        estado legítimo: o cliente que não quer assinar continua recebendo a cerveja.
+
+
+        **A coordenada é arredondada aqui, e a cheia não é gravada em lugar nenhum.** Três casas decimais
+        são ~100 m: o bastante para confirmar o endereço, insuficiente para dizer em que ponto da calçada
+        alguém parou. A coordenada cheia do entregador, parada a parada, todo dia, seria um rastro de
+        movimentação de uma pessoa.
+      parameters:
+        - name: loadId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: stopId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome, delivered, collected]
+              properties:
+                outcome: {$ref: '#/components/schemas/DeliveryOutcome'}
+                occurredAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: Quando aconteceu de fato; ausente vale agora.
+                delivered:
+                  type: array
+                  items: {type: string, format: uuid}
+                  description: Só o que estava nesta parada — entregar o que não saiu do depósito faria o estoque perder a conta.
+                collected:
+                  type: array
+                  items: {type: string, format: uuid}
+                  description: >-
+                    Coletar é fato **separado** de entregar: o motorista recolhe vazios num bar onde não
+                    deixou nada, e às vezes deixa sem recolher.
+                note: {type: string, maxLength: 1000, nullable: true}
+                signatureConsent:
+                  nullable: true
+                  allOf: [{$ref: '#/components/schemas/MediaConsent'}]
+                latitude: {type: number, format: double, nullable: true}
+                longitude: {type: number, format: double, nullable: true}
+      responses:
+        '201':
+          description: Prova registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `delivery_not_recordable` com `reasonCode`: `load_not_on_the_road` — uma entrega registrada
+            antes da saída é um registro do que não aconteceu · `already_recorded` · `not_in_stop`.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /distribution/stops/{stopId}/proof:
+    get:
+      tags: [Distribuição]
+      summary: A prova da parada, com a correção quando houver
+      description: >-
+        Original e correção, na ordem em que foram registradas. **As duas ficam** — o caminho até a última
+        palavra continua legível, que é o que separa uma correção de um encobrimento.
+
+
+        A chave do arquivo da mídia **não sai aqui**: quem precisa do binário pede por caminho próprio, e
+        assim a assinatura de alguém não vaza num JSON de rotina.
+      parameters:
+        - name: stopId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Provas
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ProofOfDelivery'}}
+        '403': {$ref: '#/components/responses/Problem'}
+  /distribution/stops/{stopId}/proof/correction:
+    post:
+      tags: [Distribuição]
+      summary: Corrigir a prova (alçada crítica)
+      description: >-
+        **A prova não se edita.** Todo movimento é append-only e se corrige por evento compensatório: uma
+        prova reescrita parece original e diz outra coisa, e ninguém consegue mais saber o que o entregador
+        anotou às dez da manhã.
+
+
+        A correção exige dizer **o que estava errado** — uma versão nova sem explicação faz quem lê seis
+        meses depois não saber em qual acreditar. E **não se corrige uma correção**: encadear versões
+        tornaria "a última palavra" uma pergunta.
+
+
+        **O vasilhame não é remexido aqui.** Um keg marcado como entregue que na verdade voltou precisa ser
+        movido por quem o tem na mão; adivinhar a transição a partir da correção produziria estados que
+        ninguém observou. A correção conserta o *registro*, e o vasilhame se conserta no ciclo dele.
+      parameters:
+        - name: stopId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome, delivered, collected, reason]
+              properties:
+                outcome: {$ref: '#/components/schemas/DeliveryOutcome'}
+                occurredAt: {type: string, format: date-time, nullable: true}
+                delivered: {type: array, items: {type: string, format: uuid}}
+                collected: {type: array, items: {type: string, format: uuid}}
+                reason: {type: string, minLength: 1, maxLength: 1000}
+      responses:
+        '201':
+          description: Correção registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /distribution/loads/{loadId}/proofs:
+    get:
+      tags: [Distribuição]
+      summary: As provas da carga inteira
+      parameters:
+        - name: loadId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Provas
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ProofOfDelivery'}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    DeliveryOutcome:
+      type: string
+      description: >-
+        "Não entregue" não é um motivo só: recusado, ausente e remarcado levam a ações diferentes amanhã.
+      enum: [DELIVERED, PARTIAL, REFUSED, ABSENT, RESCHEDULED]
+    MediaConsent:
+      type: object
+      description: >-
+        O consentimento não é uma caixinha — é o que autoriza guardar. Sem quem consentiu e sem finalidade
+        não há mídia, e não há caminho no código que contorne isso.
+      required: [kind, storageKey, consentedByName, purpose]
+      properties:
+        kind: {type: string, enum: [SIGNATURE, PHOTO]}
+        storageKey: {type: string, description: 'A referência do arquivo; o binário vive no armazenamento.'}
+        consentedByName: {type: string}
+        consentedAt: {type: string, format: date-time, nullable: true}
+        purpose:
+          type: string
+          description: 'Para que aquele consentimento vale — "comprovar a entrega", e não "usar como quiser".'
+    ProofOfDelivery:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        stopId: {type: string, format: uuid}
+        outcome: {$ref: '#/components/schemas/DeliveryOutcome'}
+        occurredAt: {type: string, format: date-time}
+        recordedBy: {type: string, format: uuid}
+        delivered: {type: array, items: {type: string, format: uuid}}
+        collected: {type: array, items: {type: string, format: uuid}}
+        note: {type: string, nullable: true}
+        outsideWindow:
+          type: boolean
+          description: >-
+            A janela era compromisso; perdê-la é fato a explicar depois, e não motivo para recusar a
+            entrega que o cliente aceitou.
+        mediaKind: {type: string, nullable: true, enum: [SIGNATURE, PHOTO]}
+        mediaPurpose: {type: string, nullable: true}
+        consentedByName: {type: string, nullable: true}
+        latitude: {type: number, format: double, nullable: true, description: 'Três casas — ~100 m.'}
+        longitude: {type: number, format: double, nullable: true}
+        correctsProofId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Quando presente, este registro é a correção — e a original continua na lista.
     Load:
       type: object
       properties:

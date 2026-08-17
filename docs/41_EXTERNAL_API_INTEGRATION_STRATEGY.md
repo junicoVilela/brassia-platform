@@ -8,8 +8,6 @@
 | BeerXML 1.0 | Formato legado | Compatibilidade com software antigo | Nenhuma | P1 / Sprint 04 | Modelo limitado e perda semântica |
 | BJCP | Site/documentos/JSON externo referenciado | Dataset de estilos versionado | Nenhuma | P0 / Sprint 04 | Uso de conteúdo exige regras e permissão |
 | Brewers Association | Página/PDF anual | Segundo conjunto de estilos | Nenhuma | P1 / Sprint 04 | Atualização anual e condições de uso |
-| Brewfather REST API v2 | REST | Receitas, lotes e inventário do próprio usuário | Basic com user id + API key e escopos | P1 / Sprint 15 | Limite informado de 500 chamadas/hora/chave |
-| Brewer's Friend API v1 | REST | Receitas, sessões e fermentação do próprio usuário | `X-API-KEY` | P2 / Sprint 15 | API antiga; BeerXML pode ser mais completo |
 | Grainfather | Arquivo/webhook/ecossistema | Migração por formato e ingestão de leituras | Conforme integração | P2 / Sprint 15 | Não depender de API pública não documentada |
 | Sensores | HTTP/MQTT/webhook | Temperatura, densidade, pressão e vazão | Chave por dispositivo ou mTLS | P1 / Sprint 15 | Payloads, relógios e frequência variam |
 | Catálogos de fabricantes | CSV/XLSX/PDF/JSON autorizado | Atualizar ingredientes e especificações | Variável | P1 contínua | Não há API neutra consolidada |
@@ -18,7 +16,6 @@
 
 - BeerJSON é o contrato canônico externo.
 - BeerXML é adaptador de compatibilidade.
-- Brewfather e Brewer's Friend sincronizam somente dados pertencentes ao usuário autenticado.
 - A base global de ingredientes de concorrentes não deve ser copiada nem tratada como API pública.
 - Fontes sem licença, SLA ou documentação ficam desativadas por padrão.
 
@@ -51,26 +48,10 @@ O domínio não conhece DTOs externos. Cada adapter converte o payload para um m
 
 ## Estratégias por integração
 
-### Brewfather
+### Softwares de terceiros
 
-- usar API v2;
-- solicitar somente escopos necessários;
-- começar com importação unilateral de receitas;
-- suportar paginação e `start_after`;
-- respeitar rate limit com backoff e cache;
-- segredos ficam em cofre/secret store;
-- adicionar lotes e inventário somente após resolver conflitos;
-- nunca tentar acessar a base global de ingredientes.
-
-### Brewer's Friend
-
-- iniciar com importação de receita;
-- preferir o endpoint BeerXML quando o JSON não trouxer todos os ingredientes;
-- registrar a versão antiga da API como risco;
-- aplicar timeout, retry limitado e circuit breaker;
-- não assumir escrita ou sincronização bidirecional sem endpoint documentado.
-
-### Grainfather e outros softwares
+**Nenhum conector de conta está no escopo** (DEC-INT-002, 2026-08-18). O caminho para trazer receita de
+fora é o arquivo, e não a API de ninguém:
 
 - priorizar BeerJSON/BeerXML;
 - permitir upload e prévia de compatibilidade;
@@ -143,8 +124,5 @@ POST /api/v1/device-stream/{streamKey}
 - https://beerjson.github.io/beerjson/
 - https://github.com/beerjson/beerjson
 - https://beerxml.com/
-- https://docs.brewfather.app/api
-- https://docs.brewfather.app/integrations
-- https://docs.brewersfriend.com/api/recipes
 - https://www.bjcp.org/bjcp-style-guidelines/
 - https://www.brewersassociation.org/edu/brewers-association-beer-style-guidelines/

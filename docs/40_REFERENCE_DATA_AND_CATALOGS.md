@@ -9,7 +9,6 @@ A BrassIA possui um catálogo interno. Fontes externas alimentam uma área de st
 - padrão oficial: BJCP e Brewers Association;
 - padrão de intercâmbio: BeerJSON e BeerXML;
 - fabricante: fichas técnicas, COA, CSV, XLSX ou JSON autorizado;
-- integração de conta: Brewfather e Brewer's Friend;
 - contribuição manual: cadastrada por usuário e marcada como não verificada;
 - curadoria BrassIA: dado revisado internamente com referências.
 

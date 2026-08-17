@@ -25,8 +25,6 @@
       "enum": [
         "BEERJSON_1_0",
         "BEERXML_1_0",
-        "BREWFATHER_V2",
-        "BREWERS_FRIEND_V1",
         "CSV",
         "XLSX",
         "MANUAL"

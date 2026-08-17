@@ -24,7 +24,7 @@ Registre aqui somente decisões temporárias, bloqueios e dependências. Decisã
 
 ### DEC-INT-001 — Conectores de terceiro saem para a Sprint 21
 
-INT-004 (Brewfather), INT-005 (Brewer's Friend) e INT-007 (central de sincronização) foram movidas para
+INT-004, INT-005 (conectores de conta de terceiros) e INT-007 (central de sincronização) foram movidas para
 `sprints/sprint-21-external-connectors/`.
 
 O motivo é verificabilidade, não prioridade. Os critérios de aceite dessas histórias são sobre comportamento

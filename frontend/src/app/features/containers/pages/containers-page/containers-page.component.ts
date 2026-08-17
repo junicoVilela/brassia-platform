@@ -95,6 +95,12 @@ export class ContainersPageComponent implements OnInit {
     reason: ['', [Validators.required, Validators.maxLength(500)]],
   });
 
+  protected readonly policyForm = this.fb.nonNullable.group({
+    kind: ['KEG' as const, Validators.required],
+    intervalMonths: [60, [Validators.required, Validators.min(1)]],
+    note: ['', Validators.maxLength(300)],
+  });
+
   protected readonly sanitationForm = this.fb.nonNullable.group({
     method: ['', [Validators.required, Validators.maxLength(200)]],
     note: ['', Validators.maxLength(500)],
@@ -144,6 +150,17 @@ export class ContainersPageComponent implements OnInit {
   ngOnInit(): void {
     this.store.load();
     this.store.loadLoans();
+    this.store.loadPolicies();
+  }
+
+  protected submitPolicy(): void {
+    if (this.policyForm.invalid) {
+      this.policyForm.markAllAsTouched();
+      return;
+    }
+    const v = this.policyForm.getRawValue();
+    this.store.definePolicy(v.kind, v.intervalMonths, v.note || null);
+    this.policyForm.reset({ kind: 'KEG', intervalMonths: 60, note: '' });
   }
 
   protected openLend(container: Container): void {
@@ -238,6 +255,17 @@ export class ContainersPageComponent implements OnInit {
   protected openInspection(container: Container): void {
     this.inspectionForm.reset({ validUntil: '', note: '' });
     this.inspecting.set(container);
+    // A política sugere a data; quem inspeciona decide. Buscar aqui evita a tela pedir o que o sistema
+    // já sabe — sem tirar de ninguém a chance de encurtar o prazo.
+    this.store.loadSuggestion(container);
+  }
+
+  /** Aceita a sugestão no campo, em vez de preenchê-lo sozinha: a data continua sendo escolha. */
+  protected useSuggestion(): void {
+    const sugerida = this.store.suggestedValidUntil();
+    if (sugerida) {
+      this.inspectionForm.patchValue({ validUntil: sugerida.slice(0, 10) });
+    }
   }
 
   protected submitInspection(): void {

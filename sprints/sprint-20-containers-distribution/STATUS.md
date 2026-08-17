@@ -333,7 +333,33 @@ envase aqui deixaria o teste caro e o motivo da falha longe da causa. **O risco 
 ou a semântica dos impedimentos mudar, estes testes continuam verdes com um contrato velho. Mitiga em
 parte o fato de os códigos de impedimento serem os mesmos que o `PackagingRunIT` exercita de verdade.
 
-### DUV-CON-001 (CON-001) — Qual é a periodicidade da inspeção?
+### DUV-CON-001 (CON-001) — **RESOLVIDA em 2026-08-18 por delegação do mantenedor**
+
+**A decisão: a casa cadastra o intervalo por tipo, e o sistema não traz número nenhum de fábrica.** Foi a
+única das cinco em que a delegação não mudou minha resposta — escrever "cinco anos" faria a plataforma
+**afirmar conformidade que ninguém verificou**, num equipamento cuja falha é física. Prazo errado por
+excesso é risco; por falta, é frota parada sem motivo, e nos dois casos o sistema teria inventado.
+
+**O que muda, então.** Antes, quem inspecionava precisava saber de cabeça até quando a inspeção valia. Agora
+o sistema **sugere** a data a partir do que a casa cadastrou — e continua aceitando outra, porque a inspeção
+que encontra um problema pode encurtar o prazo. **Sugestão é conveniência, e não autoridade**: na tela, o
+botão preenche o campo em vez de decidir por quem inspeciona.
+
+**Os meses contam da inspeção, e não de hoje.** Uma inspeção lançada com atraso vale a partir de quando
+aconteceu — senão registrar tarde estenderia o prazo de graça.
+
+**Uma política por tipo.** Keg de pressão e growler não seguem o mesmo prazo, e uma política única obrigaria
+a casa a adotar o menor dos dois para todos.
+
+**Sem política, nada afrouxa.** O vasilhame continua exigindo inspeção válida para ser enchido, e a data
+continua vindo de quem inspeciona. A ausência só deixa de sugerir — e a migration **não insere linha
+nenhuma**, de propósito.
+
+**Entregue:** `V138`, `InspectionPolicy`, porta, caso de uso, três endpoints (alçada crítica para definir:
+prazo de inspeção de vaso de pressão não é ajuste de tela), 2 caminhos e 1 schema no OpenAPI, e a
+periodicidade na tela. **5 testes de domínio, 4 de integração e 2 de store.**
+
+### DUV-CON-001 — como estava registrada quando foi aberta
 
 **A pergunta.** A validade da inspeção é **informada por quem inspeciona**, e não calculada a partir de um
 intervalo. Falta saber se a casa segue uma norma com prazo fixo, se ele varia por tipo de vasilhame, e se

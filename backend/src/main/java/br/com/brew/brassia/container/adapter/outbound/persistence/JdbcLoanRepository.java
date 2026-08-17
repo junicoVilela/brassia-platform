@@ -1,7 +1,9 @@
 package br.com.brew.brassia.container.adapter.outbound.persistence;
 
 import br.com.brew.brassia.container.application.port.outbound.LoanRepository;
+import br.com.brew.brassia.container.domain.ContainerKind;
 import br.com.brew.brassia.container.domain.ContainerLoan;
+import br.com.brew.brassia.container.domain.InspectionPolicy;
 import br.com.brew.brassia.shared.money.Money;
 import br.com.brew.brassia.container.domain.LoanNotAllowedException;
 import br.com.brew.brassia.container.domain.SanitationRecord;
@@ -127,6 +129,47 @@ class JdbcLoanRepository implements LoanRepository {
                 """)
                 .param("brewery", breweryId).param("container", containerId)
                 .query(JdbcLoanRepository::map).list();
+    }
+
+    @Override
+    public void savePolicy(InspectionPolicy policy) {
+        jdbc.sql("""
+                INSERT INTO container_inspection_policy (id, brewery_id, kind, interval_months, note,
+                                                        updated_by, updated_at)
+                VALUES (:id, :brewery, :kind, :months, :note, :by, now())
+                ON CONFLICT (brewery_id, kind) DO UPDATE
+                SET interval_months = :months, note = :note, updated_by = :by, updated_at = now()
+                """)
+                .param("id", policy.id()).param("brewery", policy.breweryId())
+                .param("kind", policy.kind().name()).param("months", policy.intervalMonths())
+                .param("note", policy.note()).param("by", policy.updatedBy())
+                .update();
+    }
+
+    @Override
+    public Optional<InspectionPolicy> policyOf(UUID breweryId, ContainerKind kind) {
+        return jdbc.sql("""
+                SELECT id, brewery_id, kind, interval_months, note, updated_by
+                FROM container_inspection_policy WHERE brewery_id = :brewery AND kind = :kind
+                """)
+                .param("brewery", breweryId).param("kind", kind.name())
+                .query(JdbcLoanRepository::mapPolicy).optional();
+    }
+
+    @Override
+    public List<InspectionPolicy> policies(UUID breweryId) {
+        return jdbc.sql("""
+                SELECT id, brewery_id, kind, interval_months, note, updated_by
+                FROM container_inspection_policy WHERE brewery_id = :brewery ORDER BY kind
+                """)
+                .param("brewery", breweryId).query(JdbcLoanRepository::mapPolicy).list();
+    }
+
+    private static InspectionPolicy mapPolicy(ResultSet rs, int row) throws SQLException {
+        return new InspectionPolicy(rs.getObject("id", UUID.class),
+                rs.getObject("brewery_id", UUID.class),
+                ContainerKind.valueOf(rs.getString("kind")), rs.getInt("interval_months"),
+                rs.getString("note"), rs.getObject("updated_by", UUID.class));
     }
 
     @Override

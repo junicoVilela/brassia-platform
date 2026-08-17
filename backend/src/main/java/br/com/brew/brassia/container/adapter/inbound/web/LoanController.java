@@ -1,5 +1,8 @@
 package br.com.brew.brassia.container.adapter.inbound.web;
 
+import org.springframework.web.bind.annotation.PutMapping;
+import jakarta.validation.constraints.Min;
+import br.com.brew.brassia.container.domain.ContainerKind;
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.container.application.service.LoanHandlers;
@@ -137,6 +140,55 @@ final class LoanController {
                 "container", id.toString(), Map.of("reason", request.reason())));
     }
 
+    /**
+     * A periodicidade de inspeção por tipo de vasilhame (DUV-CON-001).
+     *
+     * <p><strong>O sistema não traz número de fábrica.</strong> A periodicidade vem de norma e do tipo do
+     * contêiner; um padrão embutido faria a plataforma afirmar conformidade que ninguém verificou, num
+     * equipamento cuja falha é física.
+     *
+     * <p>Alçada crítica: o prazo de inspeção de vaso de pressão não é ajuste de tela.
+     */
+    @GetMapping("/inspection-policies")
+    List<PolicyView> policies(@AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("container.read");
+        return handlers.policies(principal.requireBrewery()).stream()
+                .map(p -> new PolicyView(p.id(), p.kind().name(), p.intervalMonths(), p.note()))
+                .toList();
+    }
+
+    @PutMapping("/inspection-policies")
+    @ResponseStatus(HttpStatus.CREATED)
+    Map<String, UUID> definePolicy(@AuthenticationPrincipal SecurityPrincipal principal,
+            @Valid @RequestBody PolicyRequest request) {
+        principal.requirePermission("container.inspection-policy.manage");
+        var brewery = principal.requireBrewery();
+        var id = handlers.definePolicy(brewery, request.kind(), request.intervalMonths(),
+                request.note(), principal.userId());
+        audit.record(AuditEvent.success(brewery, principal.userId(),
+                "container.inspection-policy.define", "container_inspection_policy", id.toString(),
+                Map.of("kind", request.kind().name(),
+                        "intervalMonths", String.valueOf(request.intervalMonths()))));
+        return Map.of("id", id);
+    }
+
+    /**
+     * A validade que a política sugere para uma inspeção feita agora.
+     *
+     * <p><strong>Sugestão, e não autoridade</strong>: a inspeção que encontra um problema pode encurtar o
+     * prazo, e a validade continua sendo o que o inspetor informar. Vazio quando não há política — e a
+     * ausência não afrouxa nada, ela só deixa de sugerir.
+     */
+    @GetMapping("/{id}/inspections/suggestion")
+    Map<String, Instant> suggestion(@AuthenticationPrincipal SecurityPrincipal principal,
+            @PathVariable UUID id) {
+        principal.requirePermission("container.read");
+        var agora = Instant.now();
+        return handlers.suggestValidUntil(principal.requireBrewery(), id, agora)
+                .map(validUntil -> Map.of("performedAt", agora, "validUntil", validUntil))
+                .orElseGet(Map::of);
+    }
+
     /** A higienização, com quem, quando e <strong>o quê</strong>: "higienizado" sozinho é carimbo. */
     @PostMapping("/{id}/sanitations")
     @ResponseStatus(HttpStatus.CREATED)
@@ -176,6 +228,11 @@ final class LoanController {
     record LossRequest(@NotBlank @Size(max = 500) String reason) {}
 
     record RecoveryRequest(@NotBlank @Size(max = 500) String reason) {}
+    record PolicyRequest(@NotNull ContainerKind kind, @NotNull @Min(1) Integer intervalMonths,
+            @Size(max = 300) String note) {}
+
+    /** @param intervalMonths o que a CASA cadastrou; o sistema não traz número de fábrica */
+    record PolicyView(UUID id, String kind, int intervalMonths, String note) {}
 
     record SanitationRequest(@NotBlank @Size(max = 200) String method,
             @Size(max = 500) String note) {}

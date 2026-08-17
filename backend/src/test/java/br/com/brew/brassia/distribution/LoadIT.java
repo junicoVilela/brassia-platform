@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup;
 
+import br.com.brew.brassia.container.ContainerMovementCommands;
 import br.com.brew.brassia.container.ContainerShippingLookup;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -412,6 +413,34 @@ class LoadIT {
         }
     }
 
+    /**
+     * Registra os movimentos pedidos, em vez de executá-los.
+     *
+     * <p>O efeito no ciclo do vasilhame é do {@code ContainerIT}, que o exercita de verdade. O que estes
+     * testes precisam provar é que a distribuição <strong>pede</strong> o movimento certo, com os kegs
+     * certos — e um dublê torna a asserção direta em vez de indireta.
+     */
+    static class Movimentos implements ContainerMovementCommands {
+
+        final java.util.List<String> chamadas = java.util.Collections.synchronizedList(
+                new java.util.ArrayList<>());
+
+        @Override
+        public void dispatch(UUID breweryId, java.util.List<UUID> containerIds) {
+            containerIds.forEach(id -> chamadas.add("dispatch:" + id));
+        }
+
+        @Override
+        public void deliver(UUID breweryId, java.util.List<UUID> containerIds) {
+            containerIds.forEach(id -> chamadas.add("deliver:" + id));
+        }
+
+        @Override
+        public void collect(UUID breweryId, java.util.List<UUID> containerIds) {
+            containerIds.forEach(id -> chamadas.add("collect:" + id));
+        }
+    }
+
     @TestConfiguration
     static class ScriptedContainers {
 
@@ -419,6 +448,12 @@ class LoadIT {
         @Primary
         Vasilhames vasilhames() {
             return new Vasilhames();
+        }
+
+        @Bean
+        @Primary
+        Movimentos movimentos() {
+            return new Movimentos();
         }
     }
 }

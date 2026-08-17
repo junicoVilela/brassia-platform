@@ -1,13 +1,13 @@
 # Status — Sprint 20
 
-Estado: **ATIVA desde 2026-08-16** — CON-001, CON-002 e LOG-001 entregues.
+Estado: **ATIVA desde 2026-08-16** — CON-001, CON-002, LOG-001 e LOG-002 entregues.
 
 | História | Estado | Evidência |
 |---|---|---|
 | CON-001 | Entregue | `V130` · identidade, etiqueta e ciclo · 18 de domínio e 12 de integração |
 | CON-002 | Entregue | `V131` · conteúdo e posição append-only · 11 de domínio e 11 de integração |
 | LOG-001 | Entregue | `V132` · carga, roteiro e conferência por outra pessoa · 16 de domínio e 12 de integração |
-| LOG-002 | A fazer | — |
+| LOG-002 | Entregue | `V133` · prova append-only, consentimento e coordenada minimizada · 17 de domínio e 14 de integração |
 | CON-003 | A fazer | — |
 | MOB-001 | A fazer | — |
 
@@ -131,7 +131,46 @@ alguém reordena o roteiro.
 `ContainerShippingLookup` publicado por `container`, treze endpoints, 12 caminhos e 2 schemas no OpenAPI, e
 as cargas na tela. **16 testes de domínio, 12 de integração e 5 de store.**
 
-### DEB-LOG-001 (LOG-001) — O mesmo keg em duas cargas abertas é checado no caso de uso
+### DEC-LOG-002 (LOG-002) — A prova de entrega não se edita, e a mídia não existe sem consentimento
+
+**Append-only, com correção por evento compensatório.** É o critério transversal da sprint, e aqui ele tem
+uma razão específica: **uma prova de entrega reescrita é a pior espécie de registro** — ela *parece*
+original e diz outra coisa, e ninguém consegue mais saber o que o entregador anotou às dez da manhã. A
+correção aponta para a original, exige dizer o que estava errado, e não se corrige uma correção: encadear
+versões tornaria "a última palavra" uma pergunta. Não há `PUT` nem `DELETE` nessa superfície, e a ausência
+dos verbos é a regra.
+
+**Uma prova por parada**, garantida por índice único parcial. A segunda tentativa é o duplo clique do
+celular no meio da rua, e ela viraria duas entregas para o mesmo cliente.
+
+**A mídia não pode existir sem consentimento** — não como checagem que alguém pode esquecer, mas porque o
+objeto `ConsentedMedia` não é construtível sem quem consentiu, quando e **para quê**. Sem finalidade
+escrita, o consentimento vira cheque em branco. E um `CHECK` no banco fecha o meio-termo: uma assinatura
+guardada sem quem consentiu é dado pessoal sem base para estar ali. Recusar assinar **não trava a
+operação**: o cliente que não quer assinar continua recebendo a cerveja.
+
+**A geolocalização é minimizada no tipo, e não numa convenção.** `NUMERIC(6,3)` — três casas, ~100 m — não
+consegue guardar mais casas nem que alguém tente. O motivo é concreto: a coordenada cheia do celular do
+entregador, parada a parada, todo dia, é um rastro de movimentação de uma pessoa, e a operação só precisa
+saber se a entrega foi no lugar certo. A coordenada cheia é arredondada na fronteira e não é guardada em
+lugar nenhum — dado que não existe não vaza.
+
+**"Não entregue" não é um motivo só.** Recusado, ausente e remarcado levam a ações diferentes amanhã;
+juntá-los faria o roteirista tratar do mesmo jeito o bar que rejeitou a mercadoria e o que estava fechado
+às sete. Por isso a não entrega exige motivo, e um `CHECK` cobra isso.
+
+**Entregar e coletar são fatos separados**: o motorista recolhe vazios num bar onde não deixou nada, e às
+vezes deixa sem recolher. Amarrá-los faria uma coleta exigir uma entrega inventada.
+
+**A correção não remexe no vasilhame.** Um keg marcado como entregue que na verdade voltou precisa ser
+movido por quem o tem na mão; adivinhar a transição a partir da correção produziria estados que ninguém
+observou. A correção conserta o *registro*, e o vasilhame se conserta no ciclo dele.
+
+**Entregue:** `V133`, `ProofOfDelivery`, `ConsentedMedia`, `CoarseLocation` e exceções, porta, caso de uso,
+`ContainerMovementCommands` publicado por `container`, quatro endpoints, 4 caminhos e 3 schemas no OpenAPI,
+e a entrega na tela. **17 testes de domínio, 14 de integração e 4 de store.**
+
+### DEB-LOG-001 (LOG-001) — **RESOLVIDO na LOG-002**
 
 O índice único garante que o vasilhame não se repita **dentro** de uma carga. A condição "não estar em
 outra carga aberta" depende do estado da carga, que mora na outra tabela, e índice não faz junção — hoje
@@ -139,6 +178,11 @@ ela é checada no caso de uso, o que basta para o engano do dia a dia e **não**
 montando rotas ao mesmo tempo, que é exatamente o que acontece na véspera. A saída conhecida é o vasilhame
 passar a `IN_TRANSIT` ao ser carregado, e aí o próprio ciclo do contêiner o torna indisponível: isso chega
 com a LOG-002, que é quem move o estado na saída.
+
+**Resolvido.** Foi exatamente essa saída: a partida da carga move o vasilhame para `IN_TRANSIT`, e o
+`ContainerShippingLookup` só aceita quem está `FILLED` no depósito. O próprio ciclo do contêiner virou a
+barreira. A checagem no caso de uso continua — agora para dar mensagem boa antes da saída, e não para
+garantir.
 
 ### DEB-CON-001 (CON-002) — O dublê de lote acabado nos testes de contêiner
 

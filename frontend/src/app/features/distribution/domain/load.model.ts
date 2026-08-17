@@ -67,3 +67,50 @@ export const NOT_SHIPPABLE_REASONS: Record<string, string> = {
   already_loaded: 'O vasilhame já está em outra carga aberta.',
   container_not_found: 'Vasilhame não encontrado.',
 };
+
+/** O que aconteceu na parada (LOG-002). "Não entregue" não é um motivo só. */
+export type DeliveryOutcome = 'DELIVERED' | 'PARTIAL' | 'REFUSED' | 'ABSENT' | 'RESCHEDULED';
+
+export const OUTCOME_LABELS: Record<DeliveryOutcome, string> = {
+  DELIVERED: 'Entregue',
+  PARTIAL: 'Entrega parcial',
+  REFUSED: 'Recusada',
+  ABSENT: 'Ninguém no local',
+  RESCHEDULED: 'Remarcada',
+};
+
+/**
+ * Uma prova de entrega.
+ *
+ * Ela não se edita: quando algo está errado, um registro novo aponta para este, e os dois ficam.
+ */
+export interface ProofOfDelivery {
+  id: string;
+  stopId: string;
+  outcome: DeliveryOutcome;
+  occurredAt: string;
+  recordedBy: string;
+  delivered: string[];
+  collected: string[];
+  note: string | null;
+  /** A janela era compromisso; perdê-la se explica depois, e não impede a entrega. */
+  outsideWindow: boolean;
+  /** Só o tipo e a finalidade — a chave do arquivo não viaja na listagem. */
+  mediaKind: 'SIGNATURE' | 'PHOTO' | null;
+  mediaPurpose: string | null;
+  consentedByName: string | null;
+  /** Três casas decimais, ~100 m: confirma o endereço sem virar rastro de pessoa. */
+  latitude: number | null;
+  longitude: number | null;
+  /** Quando presente, este registro é a correção — e a original continua na lista. */
+  correctsProofId: string | null;
+}
+
+/** Por que a prova não pôde ser registrada agora. */
+export const NOT_RECORDABLE_REASONS: Record<string, string> = {
+  load_not_on_the_road: 'A carga ainda não saiu. Registre a saída antes das entregas.',
+  already_recorded:
+    'Esta parada já tem prova de entrega. Para mudar o que ficou registrado, use a correção.',
+  not_in_stop: 'Um dos vasilhames não estava nesta parada.',
+  no_original: 'Não há prova de entrega para corrigir nesta parada.',
+};

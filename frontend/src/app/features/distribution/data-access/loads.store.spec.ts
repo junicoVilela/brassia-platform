@@ -31,6 +31,7 @@ function setup(api: Partial<LoadsApi>) {
   const toast = { success: vi.fn(), error: vi.fn() };
   api.list ??= () => of([carga()]);
   api.read ??= () => of(carga());
+  api.proofsOfLoad ??= () => of([]);
   TestBed.configureTestingModule({
     providers: [
       LoadsStore,
@@ -114,5 +115,101 @@ describe('LoadsStore', () => {
 
     expect(store.selected()?.frozen).toBe(true);
     expect(store.selected()?.releasedBy).toBe('u2');
+  });
+
+  it('a correção é anunciada como registro novo, e nunca como apagamento', () => {
+    // Dizer "entrega corrigida" faria a tela prometer um apagamento que não houve: a original continua
+    // de pé, e é isso que separa uma correção de um encobrimento.
+    const { store, toast } = setup({ correctProof: () => of({ id: 'p2' }) } as Partial<LoadsApi>);
+
+    store.correctProof(carga(), 's1', 'PARTIAL', [], [], 'só um keg desceu');
+
+    expect(toast.success).toHaveBeenCalledWith(
+      'Correção registrada. O registro anterior continua no histórico.',
+    );
+  });
+
+  it('a parada já registrada some da fila, e a correção não conta como registro novo', () => {
+    // A tela esconde o botão em vez de deixar o 409 explicar — e a correção não pode fazer a parada
+    // parecer registrada duas vezes.
+    const { store } = setup({
+      proofsOfLoad: () =>
+        of([
+          {
+            id: 'p1',
+            stopId: 's1',
+            outcome: 'DELIVERED',
+            occurredAt: '2026-08-17T10:00:00Z',
+            recordedBy: 'u1',
+            delivered: ['k1'],
+            collected: [],
+            note: null,
+            outsideWindow: false,
+            mediaKind: null,
+            mediaPurpose: null,
+            consentedByName: null,
+            latitude: null,
+            longitude: null,
+            correctsProofId: null,
+          },
+          {
+            id: 'p2',
+            stopId: 's1',
+            outcome: 'PARTIAL',
+            occurredAt: '2026-08-17T12:00:00Z',
+            recordedBy: 'u1',
+            delivered: [],
+            collected: [],
+            note: 'marquei errado',
+            outsideWindow: false,
+            mediaKind: null,
+            mediaPurpose: null,
+            consentedByName: null,
+            latitude: null,
+            longitude: null,
+            correctsProofId: 'p1',
+          },
+        ]),
+    } as Partial<LoadsApi>);
+
+    store.open(carga());
+
+    expect(store.proofs()).toHaveLength(2);
+    expect(store.recordedStops().has('s1')).toBe(true);
+    expect(store.recordedStops().size).toBe(1);
+  });
+
+  it('a carga que não saiu recusa a entrega com a frase de quem opera', () => {
+    // Uma entrega registrada antes da saída é um registro do que não aconteceu.
+    const { store, toast } = setup({
+      recordProof: () =>
+        throwError(() => ({
+          status: 409,
+          error: { code: 'delivery_not_recordable', detail: 'x', reasonCode: 'load_not_on_the_road' },
+        })),
+    } as Partial<LoadsApi>);
+
+    store.recordProof(carga(), 's1', 'DELIVERED', ['k1'], [], null, null);
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'A carga ainda não saiu. Registre a saída antes das entregas.',
+    );
+  });
+
+  it('sem nome de quem assinou, nenhuma assinatura é enviada', () => {
+    // A mídia é dado pessoal: ela só existe com consentimento, e a entrega acontece do mesmo jeito.
+    const recordProof = vi.fn().mockReturnValue(of({ id: 'p1' }));
+    const { store } = setup({ recordProof } as Partial<LoadsApi>);
+
+    store.recordProof(carga(), 's1', 'DELIVERED', ['k1'], [], null, null);
+
+    expect(recordProof.mock.calls[0][2].signatureConsent).toBeNull();
+
+    store.recordProof(carga(), 's1', 'DELIVERED', ['k1'], [], null, 'Bruno');
+
+    expect(recordProof.mock.calls[1][2].signatureConsent).toMatchObject({
+      consentedByName: 'Bruno',
+      purpose: 'comprovar a entrega',
+    });
   });
 });

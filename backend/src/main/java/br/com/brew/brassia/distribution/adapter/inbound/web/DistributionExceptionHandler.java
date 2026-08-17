@@ -1,6 +1,7 @@
 package br.com.brew.brassia.distribution.adapter.inbound.web;
 
 import br.com.brew.brassia.distribution.domain.ContainerNotShippableException;
+import br.com.brew.brassia.distribution.domain.DeliveryNotRecordableException;
 import br.com.brew.brassia.distribution.domain.IllegalLoadTransitionException;
 import br.com.brew.brassia.distribution.domain.LoadCapacityExceededException;
 import br.com.brew.brassia.distribution.domain.SeparationOfDutiesException;
@@ -40,6 +41,20 @@ class DistributionExceptionHandler {
     @ExceptionHandler(ContainerNotShippableException.class)
     ProblemDetail handleNotShippable(ContainerNotShippableException ex) {
         var problem = ProblemDetails.of(HttpStatus.CONFLICT, "container_not_shippable",
+                ex.getMessage());
+        problem.setProperty("reasonCode", ex.reasonCode());
+        return problem;
+    }
+
+    /**
+     * 409 com o motivo: carga que não saiu, parada já registrada, item que não estava na parada.
+     *
+     * <p>{@code already_recorded} é o mais importante dos três — ele é o duplo clique do celular no meio
+     * da rua, e sem ele viraria duas entregas para o mesmo cliente.
+     */
+    @ExceptionHandler(DeliveryNotRecordableException.class)
+    ProblemDetail handleDelivery(DeliveryNotRecordableException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "delivery_not_recordable",
                 ex.getMessage());
         problem.setProperty("reasonCode", ex.reasonCode());
         return problem;

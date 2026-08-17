@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { DeliveryOutcome, Load, ProofOfDelivery } from '../domain/load.model';
+import { DeliveryOutcome, Load, ProofOfDelivery, SyncResult } from '../domain/load.model';
 
 @Injectable({ providedIn: 'root' })
 export class LoadsApi {
@@ -115,6 +115,15 @@ export class LoadsApi {
       `/api/v1/distribution/stops/${stopId}/proof/correction`,
       body,
     );
+  }
+
+  /** A fila de conflitos: o aparelho e o escritório registraram a mesma parada. */
+  syncConflicts(): Observable<SyncResult[]> {
+    return this.http.get<SyncResult[]>('/api/v1/distribution/sync/conflicts');
+  }
+
+  syncOfLoad(id: string): Observable<SyncResult[]> {
+    return this.http.get<SyncResult[]>(`/api/v1/distribution/sync/loads/${id}`);
   }
 
   cancel(id: string): Observable<void> {

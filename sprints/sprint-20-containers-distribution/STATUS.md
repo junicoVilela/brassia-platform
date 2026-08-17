@@ -1,6 +1,6 @@
 # Status — Sprint 20
 
-Estado: **ATIVA desde 2026-08-16** — CON-001, CON-002, LOG-001, LOG-002 e CON-003 entregues.
+Estado: **ATIVA desde 2026-08-16** — as seis histórias entregues.
 
 | História | Estado | Evidência |
 |---|---|---|
@@ -9,7 +9,7 @@ Estado: **ATIVA desde 2026-08-16** — CON-001, CON-002, LOG-001, LOG-002 e CON-
 | LOG-001 | Entregue | `V132` · carga, roteiro e conferência por outra pessoa · 16 de domínio e 12 de integração |
 | LOG-002 | Entregue | `V133` · prova append-only, consentimento e coordenada minimizada · 17 de domínio e 14 de integração |
 | CON-003 | Entregue | `V134` · prazo, caução, atraso, perda e higienização · 14 de domínio e 11 de integração |
-| MOB-001 | A fazer | — |
+| MOB-001 | Entregue | `V135` · idempotência por aparelho e conflito explícito · 10 de domínio e 10 de integração |
 
 ## Decisões e bloqueios
 
@@ -222,6 +222,44 @@ transição aqui produziria dois caminhos para o mesmo fato, e eles divergiriam 
 **Entregue:** `V134`, `ContainerLoan`, `DepositAmount`, `SanitationRecord`, porta, caso de uso, seis
 endpoints, 6 caminhos e 2 schemas no OpenAPI, e a fila de atrasados na tela. **14 testes de domínio, 11 de
 integração e 5 de store.**
+
+### DEC-MOB-001 (MOB-001) — O identificador é do aparelho, e o conflito não se resolve sozinho
+
+**A idempotência tem de ser nomeável offline.** O identificador da operação vem do **aparelho**, porque
+sem sinal não há como pedir um número ao servidor — e sem um id que o dispositivo gere sozinho, o
+entregador que aperta "sincronizar" duas vezes num sinal ruim registra duas entregas para o mesmo cliente.
+A garantia é um índice único em `(device_id, client_operation_id)`: o retry automático do aplicativo,
+enquanto o sinal vai e volta, passaria por qualquer checagem prévia. **Por dispositivo, e não global** —
+dois aparelhos podem sortear o mesmo UUID sem que isso signifique nada.
+
+**O reenvio devolve o mesmo resultado, e não grava de novo.** `DUPLICATE` não é erro: é a resposta que
+permite ao aparelho fechar o item na tela.
+
+**Conflito é estado, e não exceção.** Quando a parada já foi registrada pelo escritório, a operação do
+aparelho **não sobrescreve nem some**: fica marcada, com o motivo, numa fila que alguém olha.
+Último-a-escrever-ganha descartaria em silêncio o registro de quem estava lá — ou o do escritório —, e nos
+dois casos alguém descobre semanas depois sem saber o que perdeu. A distinção entre conflito e recusa é
+feita pelo `reasonCode` da LOG-002: `already_recorded` vira conflito, o resto vira recusa com motivo.
+
+**Duas horas, e as duas ficam.** `occurredAt` é do aparelho — quando a cerveja desceu; `receivedAt` é do
+servidor. Usar a do servidor para o fato colocaria toda entrega offline no momento em que o caminhão
+voltou ao depósito, e **ninguém entregou nada no pátio às seis da tarde**. Relógio adiantado é *marcado*
+(`clockAhead`), e não recusado: o celular não se ajusta sozinho no subsolo do bar, e recusar perderia o
+registro do que aconteceu de verdade.
+
+**Cada operação entra na própria transação**, e a resposta é 200 com uma lista de desfechos — e não 201.
+Uma parada em conflito não pode desfazer as outras cinco que já entraram: o entregador ficaria com o dia
+inteiro por sincronizar por causa de uma que o escritório tocou. E "sincronizado" sozinho não distingue o
+que entrou do que foi recusado, então cada item diz o seu status.
+
+**A ordem aplicada é a do aparelho**, e não a dos pacotes que chegaram pela rede: aplicar fora dela
+entregaria antes de despachar.
+
+**A leitura de código já existia** (CON-001) e não foi refeita: `GET /containers/by-identifier` é o mesmo
+endereço que o aplicativo usa, com a mesma regra — ler identifica, e não autoriza.
+
+**Entregue:** `V135`, `OfflineOperation`, `SyncStatus`, porta, caso de uso, três endpoints, 3 caminhos e 2
+schemas no OpenAPI, e a fila de conflitos na tela. **10 testes de domínio, 10 de integração e 1 de store.**
 
 ### DEB-CON-002 (CON-003) — `DepositAmount` duplica a regra do `Money` de vendas
 

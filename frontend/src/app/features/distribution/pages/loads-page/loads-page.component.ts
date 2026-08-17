@@ -13,6 +13,7 @@ import {
   Load,
   LoadStop,
   OUTCOME_LABELS,
+  SYNC_STATUS_LABELS,
 } from '../../domain/load.model';
 
 /**
@@ -50,6 +51,7 @@ export class LoadsPageComponent implements OnInit {
   protected readonly canCorrect = this.auth.hasPermission('distribution.delivery.correct');
 
   protected readonly outcomeLabels = OUTCOME_LABELS;
+  protected readonly syncLabels = SYNC_STATUS_LABELS;
   protected readonly outcomes: DeliveryOutcome[] = [
     'DELIVERED',
     'PARTIAL',
@@ -102,6 +104,7 @@ export class LoadsPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.load();
+    this.store.loadConflicts();
   }
 
   protected submit(): void {

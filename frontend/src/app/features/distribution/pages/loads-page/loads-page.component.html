@@ -37,6 +37,33 @@
   </div>
 </div>
 
+@if (store.conflicts().length > 0) {
+  <!--
+    Conflito não se resolve sozinho: o aparelho e o escritório registraram a mesma parada, e escolher um
+    dos dois em silêncio descartaria o registro de quem estava lá.
+  -->
+  <div class="alert alert-warning" role="alert">
+    <strong>{{ store.conflicts().length }} registro(s) do aplicativo esperando decisão.</strong>
+    <p class="small mb-2 mt-1">
+      O aparelho e o escritório registraram a mesma parada. Nada foi sobrescrito — alguém precisa dizer
+      qual vale.
+    </p>
+    <ul class="list-unstyled small mb-0">
+      @for (c of store.conflicts(); track c.clientOperationId) {
+        <li>
+          {{ syncLabels[c.status] }} · {{ c.occurredAt | date: 'dd/MM HH:mm' }}
+          @if (c.clockAhead) {
+            <!-- O celular não se ajusta sozinho no subsolo do bar. -->
+            · <span class="text-muted">relógio do aparelho adiantado</span>
+          }
+          <br />
+          <span class="text-muted">{{ c.reason }}</span>
+        </li>
+      }
+    </ul>
+  </div>
+}
+
 @if (store.loading()) {
   <div class="card">
     <div class="card-body p-4"><app-loading-indicator text="Carregando cargas…" /></div>

@@ -8,6 +8,7 @@ import {
   NOT_RECORDABLE_REASONS,
   NOT_SHIPPABLE_REASONS,
   ProofOfDelivery,
+  SyncResult,
 } from '../domain/load.model';
 import { LoadsApi } from './loads.api';
 
@@ -35,6 +36,14 @@ export class LoadsStore {
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
   readonly day = signal<string | null>(null);
+
+  /**
+   * Conflitos de sincronização esperando decisão.
+   *
+   * <p>Último-a-escrever-ganha descartaria em silêncio o registro de quem estava lá — ou o do
+   * escritório —, então eles ficam aqui até alguém olhar.
+   */
+  readonly conflicts = signal<SyncResult[]>([]);
 
   /** As provas da carga aberta — original e correção, na ordem. */
   readonly proofs = signal<ProofOfDelivery[]>([]);
@@ -134,6 +143,13 @@ export class LoadsStore {
         },
         error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível corrigir.')),
       });
+  }
+
+  loadConflicts(): void {
+    this.api
+      .syncConflicts()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: list => this.conflicts.set(list) });
   }
 
   private reloadProofs(loadId: string): void {

@@ -114,3 +114,35 @@ export const NOT_RECORDABLE_REASONS: Record<string, string> = {
   not_in_stop: 'Um dos vasilhames não estava nesta parada.',
   no_original: 'Não há prova de entrega para corrigir nesta parada.',
 };
+
+/** O desfecho de uma operação vinda do aplicativo (MOB-001). */
+export type SyncStatus = 'APPLIED' | 'DUPLICATE' | 'CONFLICTED' | 'REJECTED';
+
+export const SYNC_STATUS_LABELS: Record<SyncStatus, string> = {
+  APPLIED: 'Entrou',
+  DUPLICATE: 'Já tinha entrado',
+  CONFLICTED: 'Conflito — alguém precisa decidir',
+  REJECTED: 'Recusada',
+};
+
+/**
+ * O que o aparelho enviou, e o que aconteceu com aquilo.
+ *
+ * "Sincronizado" sozinho não distingue o que entrou do que foi recusado — por isso o status é explícito.
+ */
+export interface SyncResult {
+  clientOperationId: string;
+  sequence: number;
+  stopId: string;
+  status: SyncStatus;
+  /** A prova criada; no reenvio, é a mesma da primeira vez. */
+  resultId: string | null;
+  /** Obrigatório em conflito e recusa: sem ele, resta um item vermelho e nada a fazer. */
+  reason: string | null;
+  /** A hora do aparelho: quando a cerveja desceu. */
+  occurredAt: string;
+  /** A hora do servidor: quando a informação chegou. */
+  receivedAt: string;
+  /** O relógio do aparelho estava à frente. Não invalida nada, mas muda a leitura da linha do tempo. */
+  clockAhead: boolean;
+}

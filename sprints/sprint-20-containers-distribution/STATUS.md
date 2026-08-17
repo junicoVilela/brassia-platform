@@ -1,6 +1,6 @@
 # Status — Sprint 20
 
-Estado: **ATIVA desde 2026-08-16** — as seis histórias entregues.
+Estado: **ENCERRADA em 2026-08-18** — as seis histórias entregues; aceite pendente.
 
 | História | Estado | Evidência |
 |---|---|---|
@@ -304,3 +304,65 @@ prazo errado por excesso é risco físico; por falta, é frota parada sem motivo
 **O que fica pronto para qualquer resposta.** A validade já é campo com `CHECK` de ser posterior à
 inspeção, e a regra de bloqueio já está no agregado. Se a periodicidade vier depois, ela vira sugestão de
 data — e não muda o modelo.
+
+## Evidências de encerramento
+
+- **Build/commit:** seis PRs, um por história, mergeados em série na `main` — #243 (CON-001), #244
+  (CON-002), #245 (LOG-001), #246 (LOG-002), #247 (CON-003), #248 (MOB-001).
+- **Testes executados:** `mvnw clean verify` verde na árvore final — **1.483 unitários e 974 de
+  integração** contra PostgreSQL real via Testcontainers, zero falhas. Frontend: **574 testes em 90
+  arquivos**, `ng build` e lint limpos. `ModularityTest` verde nas arestas novas (`container → packaging`,
+  `container → traceability`, `distribution → container`) e `TenantIsolationTest` verde. A sprint começou
+  com 904 testes de integração e terminou com 974.
+- **Migration aplicada:** `V130` a `V135`. Nenhuma destrutiva. As de maior consequência não criam tabela:
+  o índice único parcial da etiqueta ativa, o do conteúdo vivo por contêiner, o do empréstimo aberto, o da
+  prova original por parada e o de `(aparelho, operação)` — **cinco garantias que o código não consegue
+  dar**.
+- **Contratos atualizados:** `contracts/openapi.yaml` — **337 caminhos**, 36 a mais que no encerramento da
+  Sprint 18, sem `$ref` órfã nem chave duplicada.
+- **Riscos remanescentes:**
+  - **A premissa de produção**, a mesma desde a Sprint 19: enquanto REL-001 e o ciclo da REL-005 seguirem
+    abertos, isto é software que funciona e não opera.
+  - **`DUV-CON-001`** — a periodicidade da inspeção de vaso de pressão. Hoje a validade é informada por
+    quem inspeciona; inventar um intervalo faria o sistema afirmar conformidade que ninguém verificou.
+  - **`DUV-CON-002`** — o vasilhame dado como perdido que reaparece. Envolve dinheiro que já mudou de mãos.
+  - **`DEB-CON-001`** e **`DEB-CON-002`** — o dublê de lote acabado nos testes de contêiner, e a
+    duplicação da regra de dinheiro entre `DepositAmount` e o `Money` de vendas.
+  - **A moderação de comunidade continua sem executor** (`DUV-COM-001`, Sprint 18).
+- **Aceite:** pendente de validação manual. Junto com os aceites das Sprints 09, 16, 17, 18 e 19.
+
+### O que esta sprint ensinou, e que vale carregar
+
+**A identidade é do objeto, e a etiqueta é só como se acha ele.** O keg reetiquetado continua o mesmo keg.
+Se o código lido fosse a chave, trocar um adesivo descolado apagaria cinco anos de vida do vasilhame — e a
+genealogia apontaria para o nada. Vale para qualquer coisa que o mundo físico rotula.
+
+**Ler não autoriza.** Um QR fotografado no bar não pode virar chave de nada, e a forma de garantir isso
+não foi uma checagem: foi o identificador **não ter** campo de permissão, cervejaria ou token, com um teste
+por reflexão para que continue assim.
+
+**Estados que parecem iguais e não são.** `RETURNED` não é `EMPTY` — o que voltou do cliente está sujo até
+que alguém *diga* o contrário. `PLANNED` não é `RELEASED` — entre um e outro há uma pessoa que não é a que
+montou. Atrasado não é devolvido-tarde. Perda não é baixa. Em todos, juntar os dois estados economizaria
+uma coluna e custaria a decisão que só o segundo permite.
+
+**O que atravessa o tempo é evento, e não campo.** O conteúdo do vasilhame, a posição, a prova de entrega:
+um campo sobrescrito responde "agora" e perde "em 12 de março", que é a pergunta do recall. Esvaziar fecha
+o período; corrigir cria registro novo; nada se reescreve.
+
+**A invariante que atravessa linhas mora no banco** — sétima, oitava e nona vez, contando as sprints
+anteriores. Aqui foram cinco índices únicos parciais, e o motivo foi sempre o mesmo: a checagem prévia não
+sobrevive a duas telas fazendo a mesma coisa ao mesmo tempo, que é exatamente o que acontece na véspera da
+entrega.
+
+**Privacidade se garante no tipo, não na disciplina.** A mídia de entrega não é construtível sem
+consentimento e finalidade; a coordenada é `NUMERIC(6,3)` e não guarda mais casas nem que alguém tente. Uma
+regra que depende de alguém lembrar de aplicá-la é uma regra que um dia não será aplicada.
+
+**Recusar em duas famílias diferentes.** "Não deu para encher" vira mensagem inútil quando o problema pode
+ser o vasilhame *ou* a cerveja; "não pode sair" também. Separar as recusas e nomear o motivo é o que diz ao
+operador **o que trocar** em vez de mandá-lo tentar outro keg até um passar.
+
+**Offline muda quem nomeia as coisas.** O identificador da operação precisa vir do aparelho, porque sem
+sinal não há a quem pedir um número — e a partir daí a idempotência deixa de ser detalhe de implementação e
+vira contrato.

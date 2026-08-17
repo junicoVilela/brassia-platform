@@ -41,15 +41,19 @@ public final class CostDtos {
      *                   junto das lacunas, ou ele parecerá menor do que a verdade
      */
     public record BatchCostView(UUID batchId, String batchCode, boolean closed, boolean incomplete,
-            BigDecimal volumeLiters, BigDecimal total, BigDecimal costPerLiter,
+            BigDecimal volumeLiters, BigDecimal total, BigDecimal costPerLiter, String currency,
             Map<String, BigDecimal> totalByCategory, List<LineView> lines, List<GapView> gaps,
             Instant closedAt, String note) {
 
         public static BatchCostView from(BatchCost cost) {
             return new BatchCostView(cost.batchId(), cost.batchCode(), cost.closed(), cost.incomplete(),
-                    cost.volumeLiters(), cost.total(), cost.costPerLiter(),
+                    // Centavos na leitura: quem lê um total espera dinheiro como se escreve numa nota,
+                    // e a moeda vem ao lado — um número sozinho não é dinheiro.
+                    cost.volumeLiters(), cost.total().toMinorUnit(), cost.costPerLiter().amount(),
+                    cost.currency(),
                     cost.totalByCategory().entrySet().stream()
-                            .collect(Collectors.toMap(entry -> entry.getKey().name(), Map.Entry::getValue)),
+                            .collect(Collectors.toMap(entry -> entry.getKey().name(),
+                                    entry -> entry.getValue().toMinorUnit())),
                     cost.lines().stream().map(LineView::from).toList(),
                     cost.gaps().stream().map(GapView::from).toList(),
                     cost.closedAt(), cost.note());

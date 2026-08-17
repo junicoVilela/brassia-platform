@@ -17,7 +17,7 @@ import br.com.brew.brassia.sales.application.port.outbound.LotAvailabilityReposi
 import br.com.brew.brassia.sales.application.port.outbound.PriceRepository;
 import br.com.brew.brassia.sales.application.port.outbound.ProductRepository;
 import br.com.brew.brassia.sales.application.port.outbound.SalesChannelRepository;
-import br.com.brew.brassia.sales.domain.Money;
+import br.com.brew.brassia.shared.money.Money;
 import br.com.brew.brassia.sales.domain.Product;
 import br.com.brew.brassia.sales.domain.SalesChannel;
 import br.com.brew.brassia.sales.domain.UnknownProductException;

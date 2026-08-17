@@ -4468,6 +4468,14 @@ paths:
                 type: object
                 properties:
                   costPerHour: {type: number, nullable: true}
+                  currency:
+                    type: string
+                    nullable: true
+                    description: >-
+                      Nula junto com o valor: quem nunca definiu a taxa não tem moeda a informar. A moeda
+                      é da casa e **não vem no corpo do PUT** — pedi-la ali deixaria a taxa da hora
+                      divergir da moeda em que o custo do lote é somado, e o total misturaria as duas sem
+                      que nada reclamasse (DEB-SAL-001).
         '403': {$ref: '#/components/responses/Problem'}
     put:
       tags: [Custos]
@@ -13705,12 +13713,23 @@ components:
           description: >-
             Divisor do custo por litro: o volume transferido ao fermentador, não o planejado.
             Dividir pelo planejado embelezaria justamente o lote que rendeu menos.
-        total: {type: number}
+        total:
+          type: number
+          description: >-
+            Em centavos da moeda da casa — quem lê um total espera dinheiro como se escreve numa nota.
         costPerLiter: {type: number}
+        currency:
+          type: string
+          description: >-
+            A moeda da cervejaria (DEB-SAL-001). Um número sozinho não é dinheiro: sem ela, a primeira
+            exportação soma real com dólar sem que nada reclame, e o erro aparece no fechamento do mês,
+            longe da causa. Vem das preferências operacionais; quem nunca as configurou opera no padrão
+            da plataforma.
         totalByCategory:
           type: object
           additionalProperties: {type: number}
           description: "Quanto foi insumo, quanto foi embalagem."
+
         lines:
           type: array
           items:
@@ -13945,6 +13964,7 @@ components:
           properties:
             total: {type: number}
             costPerLiter: {type: number}
+            currency: {type: string, description: 'A moeda da casa — o relatório circula fora do sistema.'}
             volumeLiters: {type: number}
             closed: {type: boolean}
             incomplete: {type: boolean}

@@ -1,7 +1,7 @@
 package br.com.brew.brassia.sales.adapter.outbound.persistence;
 
 import br.com.brew.brassia.sales.application.port.outbound.PriceRepository;
-import br.com.brew.brassia.sales.domain.Money;
+import br.com.brew.brassia.shared.money.Money;
 import br.com.brew.brassia.sales.domain.PriceEntry;
 import br.com.brew.brassia.sales.domain.PriceSchedule;
 import java.sql.Date;

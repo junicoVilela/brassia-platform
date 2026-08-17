@@ -164,15 +164,32 @@ senão alguém compara preço com imposto contra preço sem e conclui errado.
 três tabelas; portas, casos de uso, dois controllers com Problem Details; 6 caminhos e 4 schemas no
 OpenAPI; tela de catálogo, canais e linha do tempo de preço. **21 testes de domínio e 10 de integração.**
 
-### DEB-SAL-001 — O custeio usa dinheiro sem moeda
+### DEB-SAL-001 — **RESOLVIDO em 2026-08-18**: o custeio passou a guardar a moeda
 
-Descoberto ao escrever `Money`: `costing` guarda `BigDecimal` puro em custo total, custo por litro e taxa
-da hora. Enquanto a cervejaria opera numa moeda só, nada quebra — mas a primeira exportação faz somar
-real com dólar sem que nada reclame, e o erro aparece no fechamento do mês, longe da causa.
+`costing` guardava `BigDecimal` puro em custo total, custo por litro e taxa da hora. Enquanto a cervejaria
+opera numa moeda só nada quebra — mas a primeira exportação soma real com dólar sem que nada reclame, e o
+erro aparece no fechamento do mês, longe da causa.
 
-**Critério de remoção:** `costing` passar a persistir e expor moeda junto do valor, reaproveitando o
-`Money` da SAL-001 (ou uma versão dele promovida a `shared`). **Não ampliei o escopo aqui** porque mexer
-no custeio significa migration em tabela com dado, e isso é história própria.
+**A moeda já existia**: `brewery_operational_preferences.currency_code`, desde a Sprint 01. O que faltava
+era ela sair do módulo — `brewery` passou a publicar `BreweryCurrencyLookup`, e a `V136` faz backfill a
+partir dessa preferência. Nada foi inventado: a migration materializa a suposição que o custeio já fazia
+em silêncio.
+
+**A moeda é do custo, e não da linha.** Quem produz uma linha é o contribuinte — estoque, envase,
+utilidades, mão de obra — e nenhum conhece dinheiro: eles reportam "consumi 20 kg a 4,50". Exigir moeda na
+linha faria a produção precisar saber de moeda para registrar que trabalhou, que é o que a `V117` recusou
+ao separar apontamento de hora da taxa da hora.
+
+**O alcance foi maior que o módulo**, porque `CostSummary` é porta publicada: a mudança chegou ao
+relatório PDF, à IA e à otimização. No PDF isso tinha consequência real — um documento impresso circula
+fora do sistema, e "1.240,00" sem moeda é o número que alguém soma com outro de outra casa.
+
+**Um erro meu no caminho, corrigido:** eu fiz o custeio recusar quando a cervejaria não tem moeda
+configurada. Mas a linha de preferências nasce **preguiçosamente** — só quando alguém abre aquela tela —,
+e o resultado foi 409 ao perguntar quanto custou a brassa em toda casa que nunca a abriu. A porta passou a
+espelhar a decisão que o módulo dono já tomava: devolve o padrão da plataforma, **lido sem gravar linha
+nenhuma** (o caso de uso das preferências grava ao responder, e uma consulta de custo não pode ter esse
+efeito colateral).
 
 ### DUV-SAL-001 — RESOLVIDA em 2026-08-15: o que torna um lote "vendável"
 

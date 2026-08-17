@@ -1,5 +1,6 @@
 package br.com.brew.brassia.costing.application.service;
 
+import br.com.brew.brassia.brewery.BreweryCurrencyLookup;
 import br.com.brew.brassia.costing.CostContributor;
 import br.com.brew.brassia.costing.CostContributor.CostCategory;
 import br.com.brew.brassia.costing.CostContributor.CostGap;
@@ -28,10 +29,13 @@ public final class BatchCostAssembler {
 
     private final BatchLookup batches;
     private final List<CostContributor> contributors;
+    private final BreweryCurrencyLookup currencies;
 
-    public BatchCostAssembler(BatchLookup batches, List<CostContributor> contributors) {
+    public BatchCostAssembler(BatchLookup batches, List<CostContributor> contributors,
+            BreweryCurrencyLookup currencies) {
         this.batches = Objects.requireNonNull(batches);
         this.contributors = List.copyOf(Objects.requireNonNull(contributors));
+        this.currencies = Objects.requireNonNull(currencies);
     }
 
     public BatchCost assemble(UUID breweryId, UUID batchId) {
@@ -47,8 +51,12 @@ public final class BatchCostAssembler {
         }
         gaps.addAll(structuralGaps(lines));
 
-        return BatchCost.open(breweryId, batchId, batch.code(), batch.packageableVolumeLiters(), lines,
-                gaps);
+        // A moeda é da CASA, e o custeio a carimba ao compor. Ela nunca falta: quem nunca configurou
+        // preferências opera no padrão da plataforma, e recusar o custo por causa disso transformaria
+        // "quanto custou esta brassa?" em erro de configuração.
+        var currency = currencies.currencyOf(breweryId);
+        return BatchCost.open(breweryId, batchId, batch.code(), batch.packageableVolumeLiters(), currency,
+                lines, gaps);
     }
 
     /**

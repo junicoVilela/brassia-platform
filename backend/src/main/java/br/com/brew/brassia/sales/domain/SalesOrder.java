@@ -1,5 +1,7 @@
 package br.com.brew.brassia.sales.domain;
 
+import br.com.brew.brassia.shared.money.CurrencyMismatchException;
+import br.com.brew.brassia.shared.money.Money;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;

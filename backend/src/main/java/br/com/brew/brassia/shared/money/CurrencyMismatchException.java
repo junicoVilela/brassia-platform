@@ -1,4 +1,4 @@
-package br.com.brew.brassia.sales.domain;
+package br.com.brew.brassia.shared.money;
 
 /**
  * Tentaram operar sobre duas moedas diferentes (SAL-001).

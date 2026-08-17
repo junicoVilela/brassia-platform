@@ -10,7 +10,7 @@ import br.com.brew.brassia.sales.application.port.outbound.PriceRepository;
 import br.com.brew.brassia.sales.application.port.outbound.ProductRepository;
 import br.com.brew.brassia.sales.application.port.outbound.SalesOrderRepository;
 import br.com.brew.brassia.sales.domain.CreditLimitExceededException;
-import br.com.brew.brassia.sales.domain.Money;
+import br.com.brew.brassia.shared.money.Money;
 import br.com.brew.brassia.sales.domain.SalesOrder;
 import br.com.brew.brassia.shared.security.ForbiddenException;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;

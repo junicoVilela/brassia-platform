@@ -216,9 +216,12 @@ public final class BatchFactsAssembler {
             return;
         }
         var summary = cost.get();
-        facts.add(Fact.of("custo_total", "Custo apurado do lote", summary.total(), "", "costing"));
-        facts.add(Fact.of("custo_por_litro", "Custo por litro", summary.costPerLiter(), "por L",
-                "costing"));
+        // A moeda entra como unidade do fato: sem ela o copiloto responderia "custou 1.240" e quem
+        // pergunta preencheria o resto sozinho.
+        facts.add(Fact.of("custo_total", "Custo apurado do lote", summary.total().toMinorUnit(),
+                summary.total().currency(), "costing"));
+        facts.add(Fact.of("custo_por_litro", "Custo por litro", summary.costPerLiter().amount(),
+                summary.costPerLiter().currency() + " por L", "costing"));
     }
 
     /**

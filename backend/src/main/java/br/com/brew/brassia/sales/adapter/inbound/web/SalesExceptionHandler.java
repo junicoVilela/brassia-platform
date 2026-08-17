@@ -1,7 +1,7 @@
 package br.com.brew.brassia.sales.adapter.inbound.web;
 
 import br.com.brew.brassia.sales.domain.CreditLimitExceededException;
-import br.com.brew.brassia.sales.domain.CurrencyMismatchException;
+import br.com.brew.brassia.shared.money.CurrencyMismatchException;
 import br.com.brew.brassia.sales.domain.DuplicateSkuException;
 import br.com.brew.brassia.sales.domain.InsufficientLotStockException;
 import br.com.brew.brassia.sales.domain.NoPriceForProductException;

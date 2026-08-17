@@ -1,9 +1,9 @@
 package br.com.brew.brassia.container.application.service;
 
+import br.com.brew.brassia.shared.money.Money;
 import br.com.brew.brassia.container.application.port.outbound.ContainerRepository;
 import br.com.brew.brassia.container.application.port.outbound.LoanRepository;
 import br.com.brew.brassia.container.domain.ContainerLoan;
-import br.com.brew.brassia.container.domain.DepositAmount;
 import br.com.brew.brassia.container.domain.LoanNotAllowedException;
 import br.com.brew.brassia.container.domain.SanitationRecord;
 import br.com.brew.brassia.container.domain.UnknownContainerException;
@@ -37,7 +37,7 @@ public class LoanHandlers {
 
     @Transactional
     public UUID lend(UUID breweryId, UUID containerId, UUID customerId, String customerName,
-            LocalDate dueOn, DepositAmount deposit) {
+            LocalDate dueOn, Money deposit) {
         var container = containers.find(breweryId, containerId)
                 .orElseThrow(() -> new UnknownContainerException(containerId));
         loans.openLoanOf(breweryId, containerId).ifPresent(aberto -> {

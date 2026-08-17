@@ -43,8 +43,10 @@ class LaborCostContributor implements CostContributor {
         return labor.ofBatch(breweryId, scope.batchId()).stream()
                 .map(time -> new CostLine(CostCategory.LABOR, time.activity(),
                         "apontamento de hora no lote",
-                        time.manHours(), "h", rate,
-                        time.manHours().multiply(rate).setScale(4, RoundingMode.HALF_UP)))
+                        // A linha reporta NÚMERO, e a moeda é do custo: exigi-la aqui faria a produção
+                        // precisar saber de dinheiro para registrar que trabalhou (V117).
+                        time.manHours(), "h", rate.amount(),
+                        time.manHours().multiply(rate.amount()).setScale(4, RoundingMode.HALF_UP)))
                 .toList();
     }
 

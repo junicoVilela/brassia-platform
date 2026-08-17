@@ -261,13 +261,24 @@ endereço que o aplicativo usa, com a mesma regra — ler identifica, e não aut
 **Entregue:** `V135`, `OfflineOperation`, `SyncStatus`, porta, caso de uso, três endpoints, 3 caminhos e 2
 schemas no OpenAPI, e a fila de conflitos na tela. **10 testes de domínio, 10 de integração e 1 de store.**
 
-### DEB-CON-002 (CON-003) — `DepositAmount` duplica a regra do `Money` de vendas
+### DEB-CON-002 (CON-003) — **RESOLVIDO em 2026-08-18**: `Money` foi promovido a `shared`
 
-O `Money` da SAL-001 vive dentro do domínio de `sales` — não é porta publicada —, e importá-lo de
-`container` furaria a fronteira do módulo para economizar vinte linhas. Copiar a regra é o preço normal de
-manter os módulos separados, mas a duplicação é real: **duas definições de "dinheiro com moeda explícita"
-podem divergir**, e a segunda a mudar não avisa a primeira. Promover `Money` a tipo compartilhado é decisão
-de arquitetura que merece história própria — e ela fica mais fácil de tomar agora que existem dois usos.
+O `Money` da SAL-001 vivia dentro do domínio de `sales` — não era porta publicada —, e importá-lo de
+`container` furaria a fronteira do módulo. Copiar a regra era o preço normal de manter os módulos
+separados, mas a duplicação era real: duas definições de "dinheiro com moeda explícita" podem divergir sem
+que a segunda avise a primeira.
+
+**Resolvido movendo `Money` e `CurrencyMismatchException` para `shared.money`**, que é módulo `OPEN` do
+Spring Modulith — capacidade técnica compartilhada, e não regra de negócio de domínio nenhum. `sales`
+passou a importar de lá, e `DepositAmount` deixou de existir.
+
+**O que NÃO subiu junto:** a regra de que caução zero não é caução ficou no `ContainerLoan`. Zero é valor
+legítimo para um total de pedido — proibi-lo no tipo de dinheiro quebraria vendas para consertar
+contêineres. **Promover o tipo não é promover as regras de quem o usa.**
+
+A persistência da caução grava `toMinorUnit()`: a coluna é `NUMERIC(12,2)` e `Money` guarda quatro casas
+para o arredondamento acontecer uma vez só num total — caução é valor cobrado do cliente, e existe em
+centavos desde o primeiro dia.
 
 ### DUV-CON-002 (CON-003) — O vasilhame dado como perdido que reaparece
 

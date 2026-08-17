@@ -4,7 +4,7 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.container.application.service.LoanHandlers;
 import br.com.brew.brassia.container.domain.ContainerLoan;
-import br.com.brew.brassia.container.domain.DepositAmount;
+import br.com.brew.brassia.shared.money.Money;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -145,12 +145,11 @@ final class LoanController {
             @NotNull LocalDate dueOn, BigDecimal depositAmount,
             @Size(min = 3, max = 3) String depositCurrency) {
 
-        DepositAmount toDeposit() {
+        Money toDeposit() {
             // Caução ausente é NULO, e não zero: zero somaria no relatório de valores retidos como se
             // houvesse dinheiro parado.
             return depositAmount == null ? null
-                    : new DepositAmount(depositAmount,
-                            depositCurrency == null ? "BRL" : depositCurrency);
+                    : new Money(depositAmount, depositCurrency == null ? "BRL" : depositCurrency);
         }
     }
 

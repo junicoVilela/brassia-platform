@@ -1,5 +1,6 @@
 package br.com.brew.brassia.costing.application.port.outbound;
 
+import br.com.brew.brassia.shared.money.Money;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,7 +13,7 @@ import java.util.UUID;
  */
 public interface LaborRateRepository {
 
-    Optional<BigDecimal> find(UUID breweryId);
+    Optional<Money> find(UUID breweryId);
 
-    void save(UUID breweryId, BigDecimal costPerHour, UUID actorId);
+    void save(UUID breweryId, Money costPerHour, UUID actorId);
 }

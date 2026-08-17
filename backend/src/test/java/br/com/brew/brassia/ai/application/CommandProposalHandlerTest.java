@@ -1,5 +1,6 @@
 package br.com.brew.brassia.ai.application;
 
+import br.com.brew.brassia.shared.money.Money;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -416,7 +417,7 @@ class CommandProposalHandlerTest {
         BatchQualityLookup.BatchQuality quality = new BatchQualityLookup.BatchQuality(10, 8,
                 List.of(), List.of(), List.of());
         Optional<BatchCostLookup.CostSummary> cost = Optional.of(new BatchCostLookup.CostSummary(
-                new BigDecimal("780.00"), new BigDecimal("2.0000"), new BigDecimal("390"), false,
+                Money.of("780.00", "BRL"), Money.of("2.0000", "BRL"), new BigDecimal("390"), false,
                 true, List.of("sem mão de obra")));
         Optional<RecipeLookup.Metrics> metrics = Optional.of(new RecipeLookup.Metrics(
                 new BigDecimal("1.060"), new BigDecimal("1.012"), new BigDecimal("6.3"),

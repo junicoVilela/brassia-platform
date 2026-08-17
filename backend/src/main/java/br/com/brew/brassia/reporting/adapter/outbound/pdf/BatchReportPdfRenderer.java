@@ -1,5 +1,6 @@
 package br.com.brew.brassia.reporting.adapter.outbound.pdf;
 
+import br.com.brew.brassia.shared.money.Money;
 import br.com.brew.brassia.reporting.domain.BatchReport;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -111,7 +112,10 @@ public class BatchReportPdfRenderer {
             if (cost == null) {
                 writer.body("Custo ainda não apurado.");
             } else {
-                writer.body("Total: " + money(cost.total()) + " · por litro: " + money(cost.costPerLiter())
+                // A moeda entra no papel: um relatório impresso circula fora do sistema, e "1.240,00"
+                // sem moeda é o número que alguém soma com outro de outra casa.
+                writer.body("Total: " + money(cost.total()) + " · por litro: "
+                        + money(cost.costPerLiter())
                         + " · " + (cost.closed() ? "fechado" : "aberto, ainda muda"));
                 for (var gap : cost.gaps()) {
                     writer.bullet("Fora do custo: " + gap);
@@ -146,8 +150,8 @@ public class BatchReportPdfRenderer {
         return value == null ? "—" : value.stripTrailingZeros().toPlainString() + " L";
     }
 
-    private static String money(BigDecimal value) {
-        return value == null ? "—" : value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+    private static String money(Money value) {
+        return value == null ? "—" : value.toMinorUnit().toPlainString() + " " + value.currency();
     }
 
     /**

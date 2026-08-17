@@ -1,5 +1,7 @@
 package br.com.brew.brassia.brewery.config;
 
+import br.com.brew.brassia.brewery.BreweryCurrencyLookup;
+import br.com.brew.brassia.brewery.application.service.BreweryCurrencyService;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.brewery.application.port.inbound.OperationalPreferencesUseCase;
 import br.com.brew.brassia.brewery.application.port.inbound.PreferencesRevisionUseCase;
@@ -37,6 +39,11 @@ class BreweryConfiguration {
     @Bean
     ListBreweriesUseCase listBreweriesUseCase(BreweryRepository repository) {
         return new ListBreweriesHandler(repository);
+    }
+
+    @Bean
+    BreweryCurrencyLookup breweryCurrencyLookup(OperationalPreferencesRepository preferences) {
+        return new BreweryCurrencyService(preferences);
     }
 
     @Bean

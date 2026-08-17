@@ -1,5 +1,6 @@
 package br.com.brew.brassia.reporting.application.service;
 
+import br.com.brew.brassia.shared.money.Money;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -49,7 +50,9 @@ class BatchReportAssemblerTest {
         assertThat(report.execution().transferred()).isTrue();
         assertThat(report.execution().packaged()).isTrue();
         assertThat(report.quality().measurements()).isEqualTo(4);
-        assertThat(report.cost().total()).isEqualByComparingTo("195");
+        assertThat(report.cost().total().amount()).isEqualByComparingTo("195");
+        // A moeda viaja com o número: um relatório circula fora do sistema (DEB-SAL-001).
+        assertThat(report.cost().total().currency()).isEqualTo("BRL");
         assertThat(report.lineage().origins()).hasSize(1);
         // A data de geração vai no documento: o relatório é derivado e responde diferente amanhã.
         assertThat(report.generatedAt()).isEqualTo(NOW);
@@ -83,7 +86,7 @@ class BatchReportAssemblerTest {
     @DisplayName("custo incompleto carrega os motivos para dentro do relatório")
     void custoIncompletoCarregaOsMotivos() {
         var report = new Scenario()
-                .cost(new CostSummary(new BigDecimal("195"), new BigDecimal("0.5"),
+                .cost(new CostSummary(Money.of("195", "BRL"), Money.of("0.5", "BRL"),
                         new BigDecimal("390"), false, true, List.of("LABOR: não há hora trabalhada")))
                 .assemble();
 
@@ -153,7 +156,7 @@ class BatchReportAssemblerTest {
                 new BigDecimal("142"), new BigDecimal("138.45"), new BigDecimal("1.77"),
                 new BigDecimal("1.78")));
         private BatchQuality quality = new BatchQuality(4, 4, List.of(), List.of(), List.of());
-        private CostSummary cost = new CostSummary(new BigDecimal("195"), new BigDecimal("0.5"),
+        private CostSummary cost = new CostSummary(Money.of("195", "BRL"), Money.of("0.5", "BRL"),
                 new BigDecimal("390"), true, false, List.of());
         private BatchLineage lineage = new BatchLineage(
                 List.of(new LineageEntry("STOCK_LOT", "Malte F-1234")),

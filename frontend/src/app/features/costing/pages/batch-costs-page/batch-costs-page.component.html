@@ -70,7 +70,8 @@
               <span>
                 <span class="fw-medium">{{ cost.batchCode }}</span>
                 <small class="d-block text-muted">
-                  {{ cost.total | number: '1.2-2' }} · {{ cost.costPerLiter | number: '1.2-4' }}/L
+                  {{ cost.total | number: '1.2-2' }} {{ cost.currency }} ·
+                  {{ cost.costPerLiter | number: '1.2-4' }}/L
                 </small>
               </span>
               <span class="badge text-bg-success">Fechado</span>
@@ -147,13 +148,17 @@
           <div class="card-body">
             <div class="d-flex align-items-baseline gap-3 flex-wrap mb-3">
               <div>
+                <!--
+                  A moeda ao lado do número: o custo sai desta tela para planilha e relatório, e "1.240"
+                  sem moeda é o número que alguém soma com outro de outra casa.
+                -->
                 <span class="h4 mb-0">{{ cost.total | number: '1.2-2' }}</span>
-                <span class="text-muted small ms-1">total</span>
+                <span class="text-muted small ms-1">{{ cost.currency }} total</span>
               </div>
               <div>
                 <span class="h5 mb-0">{{ cost.costPerLiter | number: '1.2-4' }}</span>
                 <span class="text-muted small ms-1">
-                  por litro · {{ cost.volumeLiters | number: '1.0-3' }} L transferidos
+                  {{ cost.currency }} por litro · {{ cost.volumeLiters | number: '1.0-3' }} L transferidos
                 </span>
               </div>
             </div>

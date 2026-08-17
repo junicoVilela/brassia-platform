@@ -95,12 +95,13 @@ public final class BatchReportDtos {
     public record NonConformityView(String code, String title, String severity, String status) {}
 
     /** Nulo quando o custo não pôde ser apurado; a lacuna correspondente diz por quê. */
-    public record CostView(BigDecimal total, BigDecimal costPerLiter, BigDecimal volumeLiters,
-            boolean closed, boolean incomplete, List<String> gaps) {
+    public record CostView(BigDecimal total, BigDecimal costPerLiter, String currency,
+            BigDecimal volumeLiters, boolean closed, boolean incomplete, List<String> gaps) {
 
         static CostView from(br.com.brew.brassia.costing.BatchCostLookup.CostSummary cost) {
             return cost == null ? null
-                    : new CostView(cost.total(), cost.costPerLiter(), cost.volumeLiters(), cost.closed(),
+                    : new CostView(cost.total().toMinorUnit(), cost.costPerLiter().amount(),
+                            cost.total().currency(), cost.volumeLiters(), cost.closed(),
                             cost.incomplete(), cost.gaps());
         }
     }

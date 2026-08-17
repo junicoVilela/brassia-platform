@@ -2,7 +2,7 @@ package br.com.brew.brassia.sales.adapter.outbound.persistence;
 
 import br.com.brew.brassia.sales.application.port.outbound.PortalAccessRepository;
 import br.com.brew.brassia.sales.domain.CreditLimit;
-import br.com.brew.brassia.sales.domain.Money;
+import br.com.brew.brassia.shared.money.Money;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;

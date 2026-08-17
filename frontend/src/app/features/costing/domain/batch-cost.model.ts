@@ -36,6 +36,8 @@ export interface BatchCost {
   volumeLiters: number;
   total: number;
   costPerLiter: number;
+  /** A moeda da casa. Um número sozinho não é dinheiro: sem ela, dois totais de casas diferentes somam. */
+  currency: string;
   totalByCategory: Partial<Record<CostCategory, number>>;
   lines: CostLine[];
   gaps: CostGap[];

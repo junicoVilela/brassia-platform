@@ -1,5 +1,6 @@
 package br.com.brew.brassia.costing;
 
+import br.com.brew.brassia.shared.money.Money;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -21,7 +22,7 @@ public interface BatchCostLookup {
      *                   relatório que não diga isso convida a decidir preço sobre um número vivo
      * @param incomplete alguma parcela conhecida ficou de fora; os motivos vêm em {@code gaps}
      */
-    record CostSummary(BigDecimal total, BigDecimal costPerLiter, BigDecimal volumeLiters,
+    record CostSummary(Money total, Money costPerLiter, BigDecimal volumeLiters,
             boolean closed, boolean incomplete, List<String> gaps) {
 
         public CostSummary {

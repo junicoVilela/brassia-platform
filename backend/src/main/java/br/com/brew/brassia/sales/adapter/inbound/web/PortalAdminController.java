@@ -3,7 +3,7 @@ package br.com.brew.brassia.sales.adapter.inbound.web;
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.sales.application.port.outbound.PortalAccessRepository;
-import br.com.brew.brassia.sales.domain.Money;
+import br.com.brew.brassia.shared.money.Money;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;

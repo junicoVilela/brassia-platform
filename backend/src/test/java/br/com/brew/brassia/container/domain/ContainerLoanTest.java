@@ -1,5 +1,6 @@
 package br.com.brew.brassia.container.domain;
 
+import br.com.brew.brassia.shared.money.Money;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -17,7 +18,7 @@ class ContainerLoanTest {
     private static final Instant SAIDA = Instant.parse("2026-08-01T10:00:00Z");
     private static final LocalDate PRAZO = LocalDate.parse("2026-08-31");
 
-    private static ContainerLoan emprestimo(DepositAmount caucao) {
+    private static ContainerLoan emprestimo(Money caucao) {
         return ContainerLoan.open(UUID.randomUUID(), CERVEJARIA, KEG, CLIENTE, "Bar do Bruno", SAIDA,
                 PRAZO, caucao);
     }
@@ -66,12 +67,15 @@ class ContainerLoanTest {
 
     @Test
     void aCaucaoTemMoedaExplicita() {
-        // Um número solto não é dinheiro: a casa que exporta terá caução em real e em dólar.
-        var c = DepositAmount.of("120.00", "BRL");
+        // Um número solto não é dinheiro: a casa que exporta terá caução em real e em dólar. É o mesmo
+        // `Money` de vendas — promovido a `shared` quando esta história precisou da mesma regra
+        // (DEB-CON-002), em vez de duas definições que podem divergir em silêncio.
+        var c = Money.of("120.00", "BRL");
 
         assertThat(c.amount()).isEqualByComparingTo("120.00");
         assertThat(c.currency()).isEqualTo("BRL");
-        assertThatThrownBy(() -> DepositAmount.of("120", "R$"))
+        assertThat(c.toMinorUnit().scale()).isEqualTo(2);
+        assertThatThrownBy(() -> Money.of("120", "R$"))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("ISO");
     }
 
@@ -79,7 +83,10 @@ class ContainerLoanTest {
     void caucaoZeroNaoECaucao() {
         // A ausência de caução se representa com nulo, e não com zero: zero somaria no relatório de
         // valores retidos como se houvesse dinheiro parado.
-        assertThatThrownBy(() -> DepositAmount.of("0", "BRL"))
+        //
+        // A regra vive no EMPRÉSTIMO, e não no tipo de dinheiro: zero é valor legítimo para um total de
+        // pedido, e proibi-lo no `Money` quebraria vendas para consertar contêineres.
+        assertThatThrownBy(() -> emprestimo(Money.of("0", "BRL")))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("positiva");
     }
 
@@ -96,11 +103,11 @@ class ContainerLoanTest {
     void aDevolucaoTornaACaucaoDevidaEAPerdaARetem() {
         // Isto é a DECISÃO, e não o dinheiro: devolver a caução é lançamento financeiro, e fingir que ele
         // acontece aqui faria o sistema afirmar um pagamento que ninguém fez.
-        var devolvido = emprestimo(DepositAmount.of("120.00", "BRL"));
+        var devolvido = emprestimo(Money.of("120.00", "BRL"));
         devolvido.returned(Instant.parse("2026-08-20T10:00:00Z"));
         assertThat(devolvido.depositOutcome()).isEqualTo(DepositOutcome.TO_REFUND);
 
-        var perdido = emprestimo(DepositAmount.of("120.00", "BRL"));
+        var perdido = emprestimo(Money.of("120.00", "BRL"));
         perdido.lost(Instant.parse("2026-10-01T10:00:00Z"), "o bar fechou e não devolveu");
         assertThat(perdido.depositOutcome()).isEqualTo(DepositOutcome.RETAINED);
     }

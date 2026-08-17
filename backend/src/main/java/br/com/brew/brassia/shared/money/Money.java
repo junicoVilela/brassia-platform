@@ -1,10 +1,16 @@
-package br.com.brew.brassia.sales.domain;
+package br.com.brew.brassia.shared.money;
 
 import java.math.BigDecimal;
 import java.util.Objects;
 
 /**
  * Dinheiro com moeda explícita (SAL-001).
+ *
+ * <p><strong>Mora em {@code shared} desde 2026-08-18</strong> (DEB-CON-002). Nasceu dentro de
+ * {@code sales}, e a CON-003 precisou da mesma regra para a caução do vasilhame — importar de lá furaria
+ * a fronteira do módulo, e copiar criava duas definições de "dinheiro com moeda" que podem divergir sem
+ * que a segunda avise a primeira. Com dois usos, a promoção deixou de ser especulação: é o tipo de
+ * capacidade técnica que {@code shared} existe para guardar, e não regra de negócio de domínio nenhum.
  *
  * <p><strong>Existe porque um número solto não é dinheiro.</strong> O critério transversal desta sprint
  * exige "decimal e moeda explícita", e a razão é concreta: uma cervejaria que exporta terá lista em real

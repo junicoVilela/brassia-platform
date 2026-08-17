@@ -26,16 +26,19 @@ class JdbcBatchCostRepository implements BatchCostRepository {
     @Override
     public void insert(BatchCost cost) {
         jdbc.sql("""
-                INSERT INTO costing_batch_cost (id, brewery_id, batch_id, batch_code, volume_liters,
+                INSERT INTO costing_batch_cost (id, brewery_id, batch_id, batch_code, volume_liters, currency,
                         total_cost, note, closed_by, closed_at)
-                VALUES (:id, :brewery, :batch, :code, :volume, :total, :note, :by, :at)
+                VALUES (:id, :brewery, :batch, :code, :volume, :currency, :total, :note, :by, :at)
                 """)
                 .param("id", cost.id())
                 .param("brewery", cost.breweryId())
                 .param("batch", cost.batchId())
                 .param("code", cost.batchCode())
                 .param("volume", cost.volumeLiters())
-                .param("total", cost.total())
+                .param("currency", cost.currency())
+                // Centavos na coluna do total: quatro casas existem para o arredondamento acontecer uma
+                // vez só, e este É o total.
+                .param("total", cost.total().toMinorUnit())
                 .param("note", cost.note())
                 .param("by", cost.closedBy())
                 .param("at", Timestamp.from(cost.closedAt()))
@@ -78,7 +81,8 @@ class JdbcBatchCostRepository implements BatchCostRepository {
     @Override
     public Optional<BatchCost> findByBatch(UUID breweryId, UUID batchId) {
         return jdbc.sql("""
-                SELECT id, brewery_id, batch_id, batch_code, volume_liters, note, closed_by, closed_at
+                SELECT id, brewery_id, batch_id, batch_code, volume_liters, currency, note, closed_by,
+                       closed_at
                 FROM costing_batch_cost WHERE brewery_id = :brewery AND batch_id = :batch
                 """)
                 .param("brewery", breweryId).param("batch", batchId)
@@ -88,7 +92,8 @@ class JdbcBatchCostRepository implements BatchCostRepository {
     @Override
     public List<BatchCost> findAll(UUID breweryId) {
         return jdbc.sql("""
-                SELECT id, brewery_id, batch_id, batch_code, volume_liters, note, closed_by, closed_at
+                SELECT id, brewery_id, batch_id, batch_code, volume_liters, currency, note, closed_by,
+                       closed_at
                 FROM costing_batch_cost WHERE brewery_id = :brewery ORDER BY closed_at DESC
                 """)
                 .param("brewery", breweryId).query(this::map).list();
@@ -98,8 +103,8 @@ class JdbcBatchCostRepository implements BatchCostRepository {
         var id = rs.getObject("id", UUID.class);
         var breweryId = rs.getObject("brewery_id", UUID.class);
         return BatchCost.reconstitute(id, breweryId, rs.getObject("batch_id", UUID.class),
-                rs.getString("batch_code"), rs.getBigDecimal("volume_liters"), lines(breweryId, id),
-                gaps(breweryId, id), rs.getObject("closed_by", UUID.class),
+                rs.getString("batch_code"), rs.getBigDecimal("volume_liters"), rs.getString("currency"),
+                lines(breweryId, id), gaps(breweryId, id), rs.getObject("closed_by", UUID.class),
                 rs.getTimestamp("closed_at").toInstant(), rs.getString("note"));
     }
 

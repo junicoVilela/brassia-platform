@@ -1,5 +1,6 @@
 package br.com.brew.brassia.container.domain;
 
+import br.com.brew.brassia.shared.money.Money;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -14,6 +15,11 @@ import java.util.UUID;
  * cliente; o que falta é o compromisso: até quando ele deveria voltar, quanto ficou retido, e o que fazer
  * quando o prazo passa. Sem isso, "no cliente há dois dias" e "no cliente há sete meses" são a mesma
  * linha na tela.
+ *
+ * <p><strong>A caução é {@code Money}, o mesmo tipo de vendas</strong> (DEB-CON-002, resolvido em
+ * 2026-08-18). Ele foi promovido a {@code shared} quando esta história precisou da mesma regra —
+ * duplicá-la criava duas definições de "dinheiro com moeda" que podem divergir sem que a segunda avise a
+ * primeira. A regra que ficou <em>aqui</em> é a de negócio: caução zero não existe.
  *
  * <p><strong>Perda não é baixa.</strong> A CON-001 recusa dar baixa no que está com o cliente, e essa
  * recusa continua de pé: o vasilhame que não voltou tem outro fato, outro responsável e outro efeito
@@ -30,13 +36,13 @@ public final class ContainerLoan {
     private final String customerName;
     private final Instant lentAt;
     private final LocalDate dueOn;
-    private final DepositAmount deposit;
+    private final Money deposit;
     private Instant returnedAt;
     private Instant lostAt;
     private String lossReason;
 
     private ContainerLoan(UUID id, UUID breweryId, UUID containerId, UUID customerId,
-            String customerName, Instant lentAt, LocalDate dueOn, DepositAmount deposit,
+            String customerName, Instant lentAt, LocalDate dueOn, Money deposit,
             Instant returnedAt, Instant lostAt, String lossReason) {
         this.id = Objects.requireNonNull(id);
         this.breweryId = Objects.requireNonNull(breweryId);
@@ -45,6 +51,11 @@ public final class ContainerLoan {
         this.customerName = requireName(customerName);
         this.lentAt = Objects.requireNonNull(lentAt, "quando saiu");
         this.dueOn = Objects.requireNonNull(dueOn, "prazo de retorno");
+        if (deposit != null && !deposit.isPositive()) {
+            // Caução zero não é caução: é a ausência dela, e a ausência se representa com nulo. Zero
+            // somaria no relatório de valores retidos como se houvesse dinheiro parado.
+            throw new IllegalArgumentException("a caução deve ser positiva");
+        }
         this.deposit = deposit;
         this.returnedAt = returnedAt;
         this.lostAt = lostAt;
@@ -52,7 +63,7 @@ public final class ContainerLoan {
     }
 
     public static ContainerLoan open(UUID id, UUID breweryId, UUID containerId, UUID customerId,
-            String customerName, Instant lentAt, LocalDate dueOn, DepositAmount deposit) {
+            String customerName, Instant lentAt, LocalDate dueOn, Money deposit) {
         if (dueOn.isBefore(lentAt.atZone(java.time.ZoneOffset.UTC).toLocalDate())) {
             // Um prazo que vence antes de o keg sair nasce em atraso, e o operador só descobriria quando
             // a cobrança saísse errada.
@@ -64,7 +75,7 @@ public final class ContainerLoan {
 
     public static ContainerLoan reconstitute(UUID id, UUID breweryId, UUID containerId,
             UUID customerId, String customerName, Instant lentAt, LocalDate dueOn,
-            DepositAmount deposit, Instant returnedAt, Instant lostAt, String lossReason) {
+            Money deposit, Instant returnedAt, Instant lostAt, String lossReason) {
         return new ContainerLoan(id, breweryId, containerId, customerId, customerName, lentAt, dueOn,
                 deposit, returnedAt, lostAt, lossReason);
     }
@@ -174,7 +185,7 @@ public final class ContainerLoan {
         return dueOn;
     }
 
-    public Optional<DepositAmount> deposit() {
+    public Optional<Money> deposit() {
         return Optional.ofNullable(deposit);
     }
 

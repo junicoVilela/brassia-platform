@@ -2,7 +2,7 @@ package br.com.brew.brassia.sales.adapter.outbound.persistence;
 
 import br.com.brew.brassia.sales.application.port.outbound.SalesOrderRepository;
 import br.com.brew.brassia.sales.domain.LotReservation;
-import br.com.brew.brassia.sales.domain.Money;
+import br.com.brew.brassia.shared.money.Money;
 import br.com.brew.brassia.sales.domain.OrderLine;
 import br.com.brew.brassia.sales.domain.OrderStatus;
 import br.com.brew.brassia.sales.domain.SalesOrder;

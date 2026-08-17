@@ -24,8 +24,8 @@ class BatchCostTest {
         var cost = open(BigDecimal.valueOf(390), line(CostCategory.INGREDIENT, "Malte", 100),
                 line(CostCategory.PACKAGING, "Lata", 95));
 
-        assertThat(cost.total()).isEqualByComparingTo("195");
-        assertThat(cost.costPerLiter()).isEqualByComparingTo("0.5000");
+        assertThat(cost.total().amount()).isEqualByComparingTo("195");
+        assertThat(cost.costPerLiter().amount()).isEqualByComparingTo("0.5000");
     }
 
     @Test
@@ -35,20 +35,20 @@ class BatchCostTest {
                 line(CostCategory.INGREDIENT, "Lúpulo", 20),
                 line(CostCategory.PACKAGING, "Lata", 20));
 
-        assertThat(cost.totalByCategory().get(CostCategory.INGREDIENT)).isEqualByComparingTo("80");
-        assertThat(cost.totalByCategory().get(CostCategory.PACKAGING)).isEqualByComparingTo("20");
+        assertThat(cost.totalByCategory().get(CostCategory.INGREDIENT).amount()).isEqualByComparingTo("80");
+        assertThat(cost.totalByCategory().get(CostCategory.PACKAGING).amount()).isEqualByComparingTo("20");
     }
 
     @Test
     @DisplayName("custo com lacuna se declara incompleto: o total é menor que a verdade")
     void lacunaDeixaOCustoIncompleto() {
         var cost = BatchCost.open(UUID.randomUUID(), UUID.randomUUID(), "LOTE-100",
-                BigDecimal.valueOf(390), List.of(line(CostCategory.INGREDIENT, "Malte", 100)),
+                BigDecimal.valueOf(390), "BRL", List.of(line(CostCategory.INGREDIENT, "Malte", 100)),
                 List.of(new CostGap(CostCategory.LABOR, "não há hora trabalhada registrada")));
 
         assertThat(cost.incomplete()).isTrue();
         // O total continua sendo o que foi somado: a lacuna não vira estimativa inventada.
-        assertThat(cost.total()).isEqualByComparingTo("100");
+        assertThat(cost.total().amount()).isEqualByComparingTo("100");
     }
 
     @Test
@@ -74,9 +74,20 @@ class BatchCostTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
+    @Test
+    void oTotalCarregaAMoedaDaCasa() {
+        // Um BigDecimal nu soma real com dólar sem que nada reclame, e o erro aparece no fechamento do
+        // mês, longe da causa (DEB-SAL-001).
+        var cost = open(BigDecimal.valueOf(100), line(CostCategory.INGREDIENT, "Malte", 50));
+
+        assertThat(cost.total().currency()).isEqualTo("BRL");
+        assertThat(cost.costPerLiter().currency()).isEqualTo("BRL");
+        assertThat(cost.totalByCategory().get(CostCategory.INGREDIENT).currency()).isEqualTo("BRL");
+    }
+
     private static BatchCost open(BigDecimal volume, CostLine... lines) {
-        return BatchCost.open(UUID.randomUUID(), UUID.randomUUID(), "LOTE-100", volume, List.of(lines),
-                List.of());
+        return BatchCost.open(UUID.randomUUID(), UUID.randomUUID(), "LOTE-100", volume, "BRL",
+                List.of(lines), List.of());
     }
 
     private static CostLine line(CostCategory category, String description, int total) {

@@ -84,7 +84,10 @@ class BatchCostIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.closed", is(false)))
                 .andExpect(jsonPath("$.incomplete", is(true)))
-                .andExpect(jsonPath("$.total", is(0)))
+                // Centavos, sempre: quem lê um total espera dinheiro como se escreve numa nota. E a
+                // moeda vem junto — um número sozinho não é dinheiro (DEB-SAL-001).
+                .andExpect(jsonPath("$.total", is(0.00)))
+                .andExpect(jsonPath("$.currency", is("BRL")))
                 .andExpect(jsonPath("$.gaps[?(@.category=='INGREDIENT')].reason",
                         hasItem(containsString("consumo do dia de brassa ainda não foi confirmado"))));
     }

@@ -1,5 +1,6 @@
 package br.com.brew.brassia.sales.domain;
 
+import br.com.brew.brassia.shared.money.Money;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;

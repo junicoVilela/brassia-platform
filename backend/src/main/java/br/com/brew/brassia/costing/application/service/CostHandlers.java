@@ -71,9 +71,9 @@ public final class CostHandlers {
             audit.record(AuditEvent.success(breweryId, actorId, "costing.batch.close",
                     "production.batch", batchId.toString(),
                     Map.of("code", closed.batchCode(),
-                            "total", closed.total().toPlainString(),
+                            "total", closed.total().toString(),
                             "volumeLiters", closed.volumeLiters().toPlainString(),
-                            "costPerLiter", closed.costPerLiter().toPlainString(),
+                            "costPerLiter", closed.costPerLiter().toString(),
                             "lines", String.valueOf(closed.lines().size()),
                             "gaps", String.valueOf(closed.gaps().size()))));
             return closed;

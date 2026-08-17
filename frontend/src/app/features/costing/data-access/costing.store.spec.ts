@@ -15,6 +15,7 @@ function cost(over: Partial<BatchCost> = {}): BatchCost {
     volumeLiters: 390,
     total: 195,
     costPerLiter: 0.5,
+    currency: 'BRL',
     totalByCategory: { INGREDIENT: 100, PACKAGING: 95 },
     lines: [
       {

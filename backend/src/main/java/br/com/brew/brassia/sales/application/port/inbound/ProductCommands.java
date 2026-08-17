@@ -1,6 +1,6 @@
 package br.com.brew.brassia.sales.application.port.inbound;
 
-import br.com.brew.brassia.sales.domain.Money;
+import br.com.brew.brassia.shared.money.Money;
 import java.time.LocalDate;
 import java.util.UUID;
 

@@ -1,5 +1,6 @@
 package br.com.brew.brassia.costing.config;
 
+import br.com.brew.brassia.brewery.BreweryCurrencyLookup;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.catalog.IngredientPurchaseLookup;
 import br.com.brew.brassia.costing.BatchCostLookup;
@@ -36,8 +37,9 @@ class CostingConfiguration {
 
     /** Recebe todos os contribuintes registrados — inclusive os que ainda não existem. */
     @Bean
-    BatchCostAssembler batchCostAssembler(BatchLookup batches, List<CostContributor> contributors) {
-        return new BatchCostAssembler(batches, contributors);
+    BatchCostAssembler batchCostAssembler(BatchLookup batches, List<CostContributor> contributors,
+            BreweryCurrencyLookup currencies) {
+        return new BatchCostAssembler(batches, contributors, currencies);
     }
 
     @Bean

@@ -2,7 +2,7 @@ package br.com.brew.brassia.container.adapter.outbound.persistence;
 
 import br.com.brew.brassia.container.application.port.outbound.LoanRepository;
 import br.com.brew.brassia.container.domain.ContainerLoan;
-import br.com.brew.brassia.container.domain.DepositAmount;
+import br.com.brew.brassia.shared.money.Money;
 import br.com.brew.brassia.container.domain.LoanNotAllowedException;
 import br.com.brew.brassia.container.domain.SanitationRecord;
 import java.sql.ResultSet;
@@ -44,7 +44,10 @@ class JdbcLoanRepository implements LoanRepository {
                     .param("container", loan.containerId()).param("customer", loan.customerId())
                     .param("name", loan.customerName())
                     .param("lentAt", Timestamp.from(loan.lentAt())).param("dueOn", loan.dueOn())
-                    .param("amount", caucao == null ? null : caucao.amount())
+                    // Centavos na coluna: `Money` guarda quatro casas para o arredondamento acontecer
+                    // uma vez só num total, e caução é valor cobrado do cliente — ele existe em centavos
+                    // desde o primeiro dia.
+                    .param("amount", caucao == null ? null : caucao.toMinorUnit())
                     .param("currency", caucao == null ? null : caucao.currency())
                     .update();
         } catch (DuplicateKeyException jaEmprestado) {
@@ -150,7 +153,7 @@ class JdbcLoanRepository implements LoanRepository {
                 rs.getObject("brewery_id", UUID.class), rs.getObject("container_id", UUID.class),
                 rs.getObject("customer_id", UUID.class), rs.getString("customer_name"),
                 rs.getTimestamp("lent_at").toInstant(), rs.getObject("due_on", LocalDate.class),
-                amount == null ? null : new DepositAmount(amount, rs.getString("deposit_currency")),
+                amount == null ? null : new Money(amount, rs.getString("deposit_currency")),
                 returned == null ? null : returned.toInstant(),
                 lost == null ? null : lost.toInstant(), rs.getString("loss_reason"));
     }

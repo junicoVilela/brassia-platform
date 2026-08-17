@@ -32,6 +32,7 @@ function setup(api: Partial<LoadsApi>) {
   api.list ??= () => of([carga()]);
   api.read ??= () => of(carga());
   api.proofsOfLoad ??= () => of([]);
+  api.syncConflicts ??= () => of([]);
   TestBed.configureTestingModule({
     providers: [
       LoadsStore,
@@ -211,5 +212,33 @@ describe('LoadsStore', () => {
       consentedByName: 'Bruno',
       purpose: 'comprovar a entrega',
     });
+  });
+
+  it('os conflitos do aplicativo ficam esperando decisão, e não somem', () => {
+    // Último-a-escrever-ganha descartaria em silêncio o registro de quem estava lá — ou o do
+    // escritório —, e nos dois casos alguém descobre semanas depois sem saber o que perdeu.
+    const { store } = setup({
+      syncConflicts: () =>
+        of([
+          {
+            clientOperationId: 'op1',
+            sequence: 1,
+            stopId: 's1',
+            status: 'CONFLICTED',
+            resultId: null,
+            reason: 'Esta parada já foi registrada no servidor.',
+            occurredAt: '2026-08-18T10:00:00Z',
+            receivedAt: '2026-08-18T18:00:00Z',
+            clockAhead: false,
+          },
+        ]),
+    } as Partial<LoadsApi>);
+
+    store.loadConflicts();
+
+    expect(store.conflicts()).toHaveLength(1);
+    expect(store.conflicts()[0].reason).toContain('já foi registrada');
+    // O conflito não traz resultado: nada foi aplicado, e é isso que a tela precisa dizer.
+    expect(store.conflicts()[0].resultId).toBeNull();
   });
 });

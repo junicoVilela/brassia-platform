@@ -9891,8 +9891,154 @@ paths:
               schema: {type: array, items: {$ref: '#/components/schemas/ProofOfDelivery'}}
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
+  /distribution/sync:
+    post:
+      tags: [Distribuição]
+      summary: Sincronizar a fila do aplicativo (MOB-001)
+      description: >-
+        **O identificador da operação é do aparelho, e não do servidor.** É o que torna o reenvio seguro:
+        offline não há como pedir um número, e sem um id que o dispositivo gere sozinho, o entregador que
+        aperta "sincronizar" duas vezes num sinal ruim registra duas entregas para o mesmo cliente.
+
+
+        **O reenvio devolve o mesmo resultado**, e não cria outro. A idempotência é por
+        `(deviceId, clientOperationId)` e mora num índice único — o retry automático do aplicativo,
+        enquanto o sinal vai e volta, passaria por qualquer checagem prévia. Por dispositivo, e não
+        global: dois aparelhos podem sortear o mesmo UUID sem que isso signifique nada.
+
+
+        **Duas horas, e as duas importam.** `occurredAt` é do aparelho — quando a cerveja desceu.
+        `receivedAt` é do servidor. Usar a do servidor para o fato colocaria toda entrega offline no
+        momento em que o caminhão voltou ao depósito, e ninguém entregou nada no pátio às seis da tarde.
+        Relógio adiantado é **marcado** (`clockAhead`), e não recusado: o celular não se ajusta sozinho no
+        subsolo do bar, e recusar perderia o registro do que aconteceu.
+
+
+        **Cada item tem desfecho próprio, e responde 200 mesmo criando coisas** — o resultado não é
+        "criei", é uma lista em que cada linha conta o que aconteceu com ela. Uma parada em conflito não
+        derruba as outras cinco: o entregador ficaria com o dia inteiro por sincronizar por causa de uma
+        que o escritório tocou.
+
+
+        **A ordem aplicada é a do aparelho** (`sequence`), e não a dos pacotes que chegaram pela rede:
+        aplicar fora dela entregaria antes de despachar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId, operations]
+              properties:
+                deviceId: {type: string, format: uuid}
+                operations:
+                  type: array
+                  minItems: 1
+                  items: {$ref: '#/components/schemas/OfflineOperationRequest'}
+      responses:
+        '200':
+          description: O desfecho de cada operação
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/SyncResult'}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /distribution/sync/conflicts:
+    get:
+      tags: [Distribuição]
+      summary: A fila de quem precisa decidir
+      description: >-
+        **Conflito não se resolve sozinho.** Quando o servidor mudou embaixo — a parada já foi registrada
+        pelo escritório —, a operação do aparelho não sobrescreve nem some: fica aqui, com o motivo, até
+        alguém decidir. Último-a-escrever-ganha descartaria em silêncio o registro de quem estava lá, ou o
+        do escritório, e nos dois casos alguém descobre semanas depois sem saber o que perdeu.
+      responses:
+        '200':
+          description: Conflitos abertos
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/SyncResult'}}
+        '403': {$ref: '#/components/responses/Problem'}
+  /distribution/sync/loads/{loadId}:
+    get:
+      tags: [Distribuição]
+      summary: O que o aplicativo enviou nesta carga
+      parameters:
+        - name: loadId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Operações
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/SyncResult'}}
+        '403': {$ref: '#/components/responses/Problem'}
 components:
   schemas:
+    OfflineOperationRequest:
+      type: object
+      required: [clientOperationId, sequence, loadId, stopId, outcome, occurredAt, delivered, collected]
+      properties:
+        clientOperationId:
+          type: string
+          format: uuid
+          description: Gerado no aparelho, antes de o servidor saber que a operação existe.
+        sequence:
+          type: integer
+          minimum: 1
+          description: A ordem do aparelho — aplicar fora dela entregaria antes de despachar.
+        loadId: {type: string, format: uuid}
+        stopId: {type: string, format: uuid}
+        outcome: {$ref: '#/components/schemas/DeliveryOutcome'}
+        occurredAt:
+          type: string
+          format: date-time
+          description: 'A hora do aparelho: quando a cerveja desceu, e não quando o pacote chegou.'
+        delivered: {type: array, items: {type: string, format: uuid}}
+        collected: {type: array, items: {type: string, format: uuid}}
+        note: {type: string, maxLength: 1000, nullable: true}
+        signatureConsent:
+          nullable: true
+          allOf: [{$ref: '#/components/schemas/MediaConsent'}]
+        latitude:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Arredondada no servidor, como no registro online — o caminho do aplicativo não é exceção.
+        longitude: {type: number, format: double, nullable: true}
+    SyncResult:
+      type: object
+      properties:
+        clientOperationId: {type: string, format: uuid}
+        sequence: {type: integer}
+        stopId: {type: string, format: uuid}
+        status:
+          type: string
+          enum: [APPLIED, DUPLICATE, CONFLICTED, REJECTED]
+          description: >-
+            "Sincronizado" sozinho não distingue o que entrou do que foi recusado. `DUPLICATE` **não é
+            erro**: devolve o que já existia, para o aparelho fechar o item.
+        resultId:
+          type: string
+          format: uuid
+          nullable: true
+          description: A prova criada; no reenvio, é a mesma da primeira vez.
+        reason:
+          type: string
+          nullable: true
+          description: >-
+            Obrigatório em conflito e recusa — sem ele o entregador fica com um item vermelho na tela e
+            nada a fazer.
+        occurredAt: {type: string, format: date-time}
+        receivedAt: {type: string, format: date-time}
+        clockAhead:
+          type: boolean
+          description: >-
+            O relógio do aparelho estava à frente do servidor. Não invalida nada, mas quem lê a linha do
+            tempo precisa saber.
     DeliveryOutcome:
       type: string
       description: >-

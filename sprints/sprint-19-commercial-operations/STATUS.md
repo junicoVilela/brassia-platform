@@ -378,7 +378,7 @@ de existir.
 separá-lo em envase, frescor, liberação e venda é movimento próprio — fazê-lo no mesmo passo misturaria
 "extraí o cenário" com "mudei onde cada teste mora", e um diff assim não se revisa.
 
-### DEB-SAL-003 — o texto original
+**Como estava registrado quando foi aberto:**
 
 Ele tem **1.100 linhas** porque é onde mora a máquina que constrói um lote acabado de verdade — plano,
 checklist, limpeza, reserva, execução —, e as histórias de venda precisam dela: liberação, lote vendável,

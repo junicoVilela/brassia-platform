@@ -280,19 +280,33 @@ A persistência da caução grava `toMinorUnit()`: a coluna é `NUMERIC(12,2)` e
 para o arredondamento acontecer uma vez só num total — caução é valor cobrado do cliente, e existe em
 centavos desde o primeiro dia.
 
-### DUV-CON-002 (CON-003) — O vasilhame dado como perdido que reaparece
+### DUV-CON-002 (CON-003) — **RESOLVIDA em 2026-08-18 por delegação do mantenedor**
 
-**A pergunta.** Um keg declarado perdido volta seis meses depois — o bar reabriu, o cliente achou no
-depósito. Hoje não há caminho: o empréstimo está encerrado e o contêiner, baixado.
+**A pergunta era:** um keg declarado perdido volta seis meses depois — o bar reabriu, o cliente achou no
+depósito. Não havia caminho, e a volta envolve dinheiro que já mudou de mãos.
 
-**Por que não foi inventado.** A volta envolve **dinheiro que já mudou de mãos**: a caução foi retida, e
-possivelmente cobrada. Desfazer isso é estorno, e decidir se ele acontece, quem autoriza e o que acontece
-com o vasilhame (volta ao inventário? entra como novo?) é decisão de negócio com efeito financeiro. Inventar
-aqui seria decidir sozinho sobre dinheiro do cliente.
+**A decisão.** O vasilhame volta ao inventário por **ato explícito**, com motivo, e a caução gera uma
+**decisão de estorno** (`TO_REFUND`) em vez de mover dinheiro — o mesmo princípio que já valia para a
+devolução normal: aqui se registra o que a operação decidiu, e o financeiro executa.
 
-**O que já está pronto para qualquer resposta.** A baixa carrega o motivo (`"perdido: …"`), então a
-distinção entre keg descartado e keg perdido sobrevive; e o empréstimo guarda a caução e o desfecho, então
-o que precisaria ser estornado está registrado.
+**A perda não é apagada.** Ela aconteceu, a caução foi retida por causa dela, e reescrever o registro faria
+sumir o motivo pelo qual o cliente foi cobrado. A volta é fato **novo**, com data e motivo próprios, e o
+empréstimo passa a contar a história inteira: sumiu, cobrou-se, voltou.
+
+**Volta como `RETURNED`, e não disponível.** O vasilhame passou meses fora de vista: tratá-lo como pronto
+para encher seria confiar num keg que ninguém olhou. Alguém higieniza e libera, como no que volta do
+cliente.
+
+**Só volta o que saiu por perda.** Descarte por avaria não reaparece — permitir isso faria "descartei"
+virar reversível, que é justamente a distinção que a CON-003 construiu. `Container.recover` verifica o
+motivo da baixa, e não só o estado.
+
+**O índice de empréstimo aberto passou a ignorar o recuperado**, senão a volta devolveria o keg ao
+inventário e o deixaria impossível de emprestar de novo.
+
+**Entregue:** `V137`, `ContainerLoan.recovered`, `Container.recover`, um endpoint com alçada crítica (a
+mesma da perda — mexer no que já foi cobrado não é rotina), 1 caminho no OpenAPI, e a fila de perdidos na
+tela. **8 testes de domínio, 4 de integração e 2 de store.**
 
 ### DEB-CON-001 (CON-002) — **RESOLVIDO em 2026-08-18**: o dublê deixou de existir
 

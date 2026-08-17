@@ -173,6 +173,9 @@ export interface ContainerLoan {
   returnedLate: boolean;
   lostAt: string | null;
   lossReason: string | null;
+  /** O perdido que reapareceu. A perda continua registrada ao lado — ela aconteceu. */
+  recoveredAt: string | null;
+  recoveryReason: string | null;
 }
 
 export interface ContainerSanitation {
@@ -188,4 +191,6 @@ export const LOAN_REFUSAL_REASONS: Record<string, string> = {
   already_lent:
     'Este vasilhame já está emprestado. O mesmo keg com dois clientes contabilizaria duas cauções.',
   no_open_loan: 'Não há empréstimo aberto para este vasilhame.',
+  no_lost_loan:
+    'Este vasilhame não está dado como perdido. Só volta ao inventário o que saiu por perda — descarte não se desfaz.',
 };

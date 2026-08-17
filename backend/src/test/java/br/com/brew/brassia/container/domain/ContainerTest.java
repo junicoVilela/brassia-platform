@@ -196,4 +196,43 @@ class ContainerTest {
                 ContainerKind.KEG, BigDecimal.ZERO, Ownership.OWN))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("capacidade");
     }
+
+    // --- a volta do perdido (DUV-CON-002) ---
+
+    @Test
+    void oPerdidoVoltaSujoENaoDisponivel() {
+        // Ele passou meses fora de vista: tratá-lo como pronto para encher seria confiar num vasilhame
+        // que ninguém olhou.
+        var c = kegInspecionado();
+        c.declareLost("o bar fechou", HOJE);
+
+        c.recover("o bar reabriu e devolveu", HOJE);
+
+        assertThat(c.state()).isEqualTo(ContainerState.RETURNED);
+        assertThat(c.isRetired()).isFalse();
+        assertThat(c.fillableAt(HOJE)).isFalse();
+        // E o motivo da baixa sai: um contêiner ativo com motivo de baixa mente sobre o próprio estado.
+        assertThat(c.retirementReason()).isEmpty();
+    }
+
+    @Test
+    void oDescartadoNaoReaparece() {
+        // "Descartei" não pode virar reversível — é justamente a distinção que a CON-003 construiu entre
+        // o keg que sumiu e o que foi para o ferro-velho.
+        var c = kegInspecionado();
+        c.retire("furo na costura, sem recuperação", HOJE);
+
+        assertThatThrownBy(() -> c.recover("achei", HOJE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("saiu por perda");
+    }
+
+    @Test
+    void aVoltaPrecisaDeMotivo() {
+        var c = kegInspecionado();
+        c.declareLost("sumiu", HOJE);
+
+        assertThatThrownBy(() -> c.recover("   ", HOJE))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("motivo");
+    }
 }

@@ -77,6 +77,11 @@ export class ContainersPageComponent implements OnInit {
 
   protected readonly lending = signal<Container | null>(null);
   protected readonly losing = signal<ContainerLoan | null>(null);
+  protected readonly recovering = signal<ContainerLoan | null>(null);
+
+  protected readonly recoveryForm = this.fb.nonNullable.group({
+    reason: ['', [Validators.required, Validators.maxLength(500)]],
+  });
   protected readonly sanitizing = signal<Container | null>(null);
 
   protected readonly lendForm = this.fb.nonNullable.group({
@@ -174,6 +179,21 @@ export class ContainersPageComponent implements OnInit {
     }
     this.store.declareLoss(loan, this.lossForm.getRawValue().reason);
     this.losing.set(null);
+  }
+
+  protected openRecovery(loan: ContainerLoan): void {
+    this.recoveryForm.reset({ reason: '' });
+    this.recovering.set(loan);
+  }
+
+  protected submitRecovery(): void {
+    const loan = this.recovering();
+    if (!loan || this.recoveryForm.invalid) {
+      this.recoveryForm.markAllAsTouched();
+      return;
+    }
+    this.store.recoverLoan(loan, this.recoveryForm.getRawValue().reason);
+    this.recovering.set(null);
   }
 
   protected openSanitation(container: Container): void {

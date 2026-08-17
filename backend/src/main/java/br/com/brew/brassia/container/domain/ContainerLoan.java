@@ -40,6 +40,8 @@ public final class ContainerLoan {
     private Instant returnedAt;
     private Instant lostAt;
     private String lossReason;
+    private Instant recoveredAt;
+    private String recoveryReason;
 
     private ContainerLoan(UUID id, UUID breweryId, UUID containerId, UUID customerId,
             String customerName, Instant lentAt, LocalDate dueOn, Money deposit,
@@ -75,9 +77,13 @@ public final class ContainerLoan {
 
     public static ContainerLoan reconstitute(UUID id, UUID breweryId, UUID containerId,
             UUID customerId, String customerName, Instant lentAt, LocalDate dueOn,
-            Money deposit, Instant returnedAt, Instant lostAt, String lossReason) {
-        return new ContainerLoan(id, breweryId, containerId, customerId, customerName, lentAt, dueOn,
+            Money deposit, Instant returnedAt, Instant lostAt, String lossReason, Instant recoveredAt,
+            String recoveryReason) {
+        var loan = new ContainerLoan(id, breweryId, containerId, customerId, customerName, lentAt, dueOn,
                 deposit, returnedAt, lostAt, lossReason);
+        loan.recoveredAt = recoveredAt;
+        loan.recoveryReason = recoveryReason;
+        return loan;
     }
 
     /** O vasilhame voltou. A caução passa a ser devida ao cliente — devolvê-la é ato do financeiro. */
@@ -87,6 +93,51 @@ public final class ContainerLoan {
             throw new IllegalArgumentException("a devolução não pode ser anterior à saída");
         }
         this.returnedAt = at;
+    }
+
+    /**
+     * O vasilhame reapareceu (DUV-CON-002).
+     *
+     * <p><strong>A perda não é apagada</strong>: ela aconteceu, alguém foi cobrado por ela, e reescrevê-la
+     * faria sumir o motivo pelo qual a caução foi retida. O reaparecimento é um fato NOVO, com data e
+     * motivo próprios, e o registro passa a contar a história inteira — sumiu, cobrou-se, voltou.
+     *
+     * <p><strong>A caução volta a ser devida ao cliente, e isso é decisão — não dinheiro.</strong> Se o
+     * estorno acontece, quando e por qual meio é do financeiro; aqui fica escrito que ele passou a ser
+     * devido. Fingir o contrário faria o sistema afirmar um pagamento que ninguém fez, exatamente como na
+     * devolução normal.
+     */
+    public void recovered(Instant at, String reason) {
+        if (lostAt == null) {
+            // Só se recupera o que se deu por perdido: chamar isto num empréstimo aberto seria registrar
+            // a volta de um vasilhame que nunca sumiu.
+            throw new IllegalStateException("este empréstimo não foi dado como perdido");
+        }
+        if (recoveredAt != null) {
+            throw new IllegalStateException("este vasilhame já foi recuperado");
+        }
+        if (reason == null || reason.isBlank()) {
+            // "Apareceu" não basta: quem lê seis meses depois precisa saber se o bar reabriu, se estava
+            // no depósito do cliente ou se voltou por engano de outra rota.
+            throw new IllegalArgumentException("a recuperação precisa de motivo");
+        }
+        if (at.isBefore(lostAt)) {
+            throw new IllegalArgumentException("a recuperação não pode ser anterior à perda");
+        }
+        this.recoveredAt = at;
+        this.recoveryReason = reason.trim();
+    }
+
+    public boolean isRecovered() {
+        return recoveredAt != null;
+    }
+
+    public Optional<Instant> recoveredAt() {
+        return Optional.ofNullable(recoveredAt);
+    }
+
+    public Optional<String> recoveryReason() {
+        return Optional.ofNullable(recoveryReason);
     }
 
     /**
@@ -137,6 +188,11 @@ public final class ContainerLoan {
     // --- caução ---
 
     public DepositOutcome depositOutcome() {
+        if (recoveredAt != null) {
+            // Voltou: a caução deixa de ser da casa. O estorno é lançamento financeiro — aqui fica a
+            // decisão, e não o dinheiro.
+            return DepositOutcome.TO_REFUND;
+        }
         if (lostAt != null) {
             return DepositOutcome.RETAINED;
         }

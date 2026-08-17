@@ -82,6 +82,23 @@ public class LoanHandlers {
         containerHandlers.declareLost(breweryId, containerId, reason);
     }
 
+    /**
+     * O vasilhame perdido reapareceu (DUV-CON-002).
+     *
+     * <p>Duas coisas acontecem, e nenhuma delas é apagar: o empréstimo ganha o fato novo — com a caução
+     * voltando a ser <strong>devida</strong> ao cliente, decisão que o financeiro executa — e o contêiner
+     * volta ao inventário como {@code RETURNED}. Sujo, porque passou meses fora de vista: tratá-lo como
+     * pronto para encher seria confiar num vasilhame que ninguém olhou.
+     */
+    @Transactional
+    public void recovered(UUID breweryId, UUID containerId, String reason) {
+        var loan = loans.lostLoanOf(breweryId, containerId)
+                .orElseThrow(LoanNotAllowedException::noLostLoan);
+        loan.recovered(Instant.now(), reason);
+        loans.close(loan);
+        containerHandlers.recover(breweryId, containerId, reason);
+    }
+
     @Transactional
     public UUID sanitize(UUID breweryId, UUID containerId, UUID actor, String method, String note) {
         containers.find(breweryId, containerId)

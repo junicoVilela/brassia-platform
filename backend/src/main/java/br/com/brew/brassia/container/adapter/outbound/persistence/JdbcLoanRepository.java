@@ -21,7 +21,8 @@ class JdbcLoanRepository implements LoanRepository {
 
     private static final String COLUMNS = """
             id, brewery_id, container_id, customer_id, customer_name, lent_at, due_on,
-            deposit_amount, deposit_currency, returned_at, lost_at, loss_reason
+            deposit_amount, deposit_currency, returned_at, lost_at, loss_reason, recovered_at,
+            recovery_reason
             """;
 
     private final JdbcClient jdbc;
@@ -61,14 +62,30 @@ class JdbcLoanRepository implements LoanRepository {
     public void close(ContainerLoan loan) {
         jdbc.sql("""
                 UPDATE container_loan SET returned_at = :returnedAt, lost_at = :lostAt,
-                    loss_reason = :reason
+                    loss_reason = :reason, recovered_at = :recoveredAt,
+                    recovery_reason = :recoveryReason
                 WHERE id = :id AND brewery_id = :brewery
                 """)
                 .param("returnedAt", loan.returnedAt().map(Timestamp::from).orElse(null))
                 .param("lostAt", loan.lostAt().map(Timestamp::from).orElse(null))
                 .param("reason", loan.lossReason().orElse(null))
+                .param("recoveredAt", loan.recoveredAt().map(Timestamp::from).orElse(null))
+                .param("recoveryReason", loan.recoveryReason().orElse(null))
                 .param("id", loan.id()).param("brewery", loan.breweryId())
                 .update();
+    }
+
+    /** O empréstimo perdido e ainda não recuperado deste vasilhame — o que a volta reabre. */
+    @Override
+    public Optional<ContainerLoan> lostLoanOf(UUID breweryId, UUID containerId) {
+        return jdbc.sql("SELECT " + COLUMNS + """
+                 FROM container_loan
+                WHERE brewery_id = :brewery AND container_id = :container
+                  AND lost_at IS NOT NULL AND recovered_at IS NULL
+                ORDER BY lost_at DESC LIMIT 1
+                """)
+                .param("brewery", breweryId).param("container", containerId)
+                .query(JdbcLoanRepository::map).optional();
     }
 
     @Override
@@ -149,12 +166,14 @@ class JdbcLoanRepository implements LoanRepository {
         var amount = rs.getBigDecimal("deposit_amount");
         var returned = rs.getTimestamp("returned_at");
         var lost = rs.getTimestamp("lost_at");
+        var recovered = rs.getTimestamp("recovered_at");
         return ContainerLoan.reconstitute(rs.getObject("id", UUID.class),
                 rs.getObject("brewery_id", UUID.class), rs.getObject("container_id", UUID.class),
                 rs.getObject("customer_id", UUID.class), rs.getString("customer_name"),
                 rs.getTimestamp("lent_at").toInstant(), rs.getObject("due_on", LocalDate.class),
                 amount == null ? null : new Money(amount, rs.getString("deposit_currency")),
                 returned == null ? null : returned.toInstant(),
-                lost == null ? null : lost.toInstant(), rs.getString("loss_reason"));
+                lost == null ? null : lost.toInstant(), rs.getString("loss_reason"),
+                recovered == null ? null : recovered.toInstant(), rs.getString("recovery_reason"));
     }
 }

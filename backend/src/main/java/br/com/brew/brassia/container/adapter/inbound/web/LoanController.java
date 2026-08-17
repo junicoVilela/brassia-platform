@@ -117,6 +117,26 @@ final class LoanController {
                 "container", id.toString(), Map.of("reason", request.reason())));
     }
 
+    /**
+     * O vasilhame dado como perdido reapareceu (DUV-CON-002).
+     *
+     * <p>Alçada crítica, a mesma da perda: a volta **desfaz a retenção da caução**, e mexer no que já foi
+     * cobrado do cliente não é operação de rotina.
+     *
+     * <p><strong>Nada é apagado.</strong> A perda continua no registro, com data e motivo; a volta entra
+     * ao lado. E o vasilhame retorna ao inventário como <em>sujo</em> — passou meses fora de vista.
+     */
+    @PostMapping("/{id}/loans/recovery")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void recovered(@AuthenticationPrincipal SecurityPrincipal principal, @PathVariable UUID id,
+            @Valid @RequestBody RecoveryRequest request) {
+        principal.requirePermission("container.loan.write_off");
+        var brewery = principal.requireBrewery();
+        handlers.recovered(brewery, id, request.reason());
+        audit.record(AuditEvent.success(brewery, principal.userId(), "container.loan.recovery",
+                "container", id.toString(), Map.of("reason", request.reason())));
+    }
+
     /** A higienização, com quem, quando e <strong>o quê</strong>: "higienizado" sozinho é carimbo. */
     @PostMapping("/{id}/sanitations")
     @ResponseStatus(HttpStatus.CREATED)
@@ -155,6 +175,8 @@ final class LoanController {
 
     record LossRequest(@NotBlank @Size(max = 500) String reason) {}
 
+    record RecoveryRequest(@NotBlank @Size(max = 500) String reason) {}
+
     record SanitationRequest(@NotBlank @Size(max = 200) String method,
             @Size(max = 500) String note) {}
 
@@ -167,7 +189,7 @@ final class LoanController {
     record LoanView(UUID id, UUID containerId, UUID customerId, String customerName, Instant lentAt,
             LocalDate dueOn, boolean overdue, long daysLate, BigDecimal depositAmount,
             String depositCurrency, String depositOutcome, Instant returnedAt, boolean returnedLate,
-            Instant lostAt, String lossReason) {
+            Instant lostAt, String lossReason, Instant recoveredAt, String recoveryReason) {
 
         static LoanView of(ContainerLoan l, LocalDate today) {
             var caucao = l.deposit().orElse(null);
@@ -176,7 +198,8 @@ final class LoanController {
                     caucao == null ? null : caucao.amount(),
                     caucao == null ? null : caucao.currency(), l.depositOutcome().name(),
                     l.returnedAt().orElse(null), l.returnedLate(), l.lostAt().orElse(null),
-                    l.lossReason().orElse(null));
+                    l.lossReason().orElse(null), l.recoveredAt().orElse(null),
+                    l.recoveryReason().orElse(null));
         }
     }
 

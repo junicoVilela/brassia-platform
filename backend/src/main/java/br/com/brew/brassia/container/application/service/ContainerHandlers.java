@@ -112,6 +112,12 @@ public class ContainerHandlers {
         apply(breweryId, containerId, Container::condemn);
     }
 
+    /** A volta do vasilhame dado como perdido: entra como sujo, e não como disponível (DUV-CON-002). */
+    @Transactional
+    public void recover(UUID breweryId, UUID containerId, String reason) {
+        apply(breweryId, containerId, c -> c.recover(reason, Instant.now()));
+    }
+
     /** Baixa por perda: sai do inventário onde quer que estivesse, com o motivo junto. */
     @Transactional
     public void declareLost(UUID breweryId, UUID containerId, String reason) {

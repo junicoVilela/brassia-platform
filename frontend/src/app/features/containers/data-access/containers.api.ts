@@ -122,6 +122,11 @@ export class ContainersApi {
     return this.http.post<void>(`${this.baseUrl}/${id}/loans/loss`, { reason });
   }
 
+  /** O perdido que reapareceu: a perda fica, e a volta entra ao lado. */
+  recoverLoan(id: string, reason: string): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/${id}/loans/recovery`, { reason });
+  }
+
   sanitations(id: string): Observable<ContainerSanitation[]> {
     return this.http.get<ContainerSanitation[]>(`${this.baseUrl}/${id}/sanitations`);
   }

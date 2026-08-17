@@ -9297,6 +9297,62 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /containers/{id}/loans/recovery:
+    post:
+      tags: [Contêineres]
+      summary: O vasilhame perdido reapareceu (alçada crítica)
+      description: >-
+        Um keg dado como perdido volta seis meses depois — o bar reabriu, o cliente achou no depósito.
+
+
+        **Nada é apagado.** A perda aconteceu, a caução foi retida por causa dela, e reescrever o registro
+        faria sumir o motivo pelo qual o cliente foi cobrado. A volta é fato **novo**, com data e motivo
+        próprios, e o empréstimo passa a contar a história inteira: sumiu, cobrou-se, voltou.
+
+
+        **A caução volta a ser devida** (`TO_REFUND`) — decisão, e não dinheiro: o estorno é lançamento
+        financeiro, e afirmá-lo aqui faria o sistema dizer que houve um pagamento que ninguém fez.
+
+
+        **O vasilhame volta como `RETURNED`, e não disponível.** Ele passou meses fora de vista: tratá-lo
+        como pronto para encher seria confiar num vasilhame que ninguém olhou. Alguém higieniza e libera,
+        como no que volta do cliente.
+
+
+        **Só volta o que saiu por perda.** Descarte por avaria não reaparece — permitir isso faria
+        "descartei" virar reversível, que é justamente a distinção que a CON-003 construiu.
+
+
+        Alçada `container.loan.write_off`, a mesma da perda: mexer no que já foi cobrado do cliente não é
+        operação de rotina.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: >-
+                    "Apareceu" não basta: quem lê seis meses depois precisa saber se o bar reabriu, se
+                    estava no depósito do cliente, ou se voltou por engano de outra rota.
+      responses:
+        '204': {description: Recuperado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`loan_not_allowed` com `reasonCode`: `no_lost_loan`.'
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
   /containers/{id}/sanitations:
     get:
       tags: [Contêineres]
@@ -10220,6 +10276,14 @@ components:
         returnedLate: {type: boolean, description: 'Voltou, mas depois do prazo — histórico, e não dívida.'}
         lostAt: {type: string, format: date-time, nullable: true}
         lossReason: {type: string, nullable: true}
+        recoveredAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Quando o vasilhame dado como perdido reapareceu. A perda **continua** registrada ao lado —
+            ela aconteceu, e a caução foi retida por causa dela.
+        recoveryReason: {type: string, nullable: true}
     ContainerSanitation:
       type: object
       properties:

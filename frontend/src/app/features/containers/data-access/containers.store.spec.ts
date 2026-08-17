@@ -40,6 +40,8 @@ function emprestimo(over: Partial<ContainerLoan> = {}): ContainerLoan {
     returnedLate: false,
     lostAt: null,
     lossReason: null,
+    recoveredAt: null,
+    recoveryReason: null,
     ...over,
   };
 }
@@ -294,5 +296,39 @@ describe('ContainersStore', () => {
     expect(toast.error).toHaveBeenCalledWith(
       'Este vasilhame já está emprestado. O mesmo keg com dois clientes contabilizaria duas cauções.',
     );
+  });
+
+  it('a volta do perdido fala em inventário e caução, e nunca em perda desfeita', () => {
+    // A perda aconteceu, e o registro dela continua. Dizer o contrário faria a tela prometer um
+    // apagamento que não houve.
+    const { store, toast } = setup({ recoverLoan: () => of(undefined) } as Partial<ContainersApi>);
+
+    store.recoverLoan(emprestimo({ lostAt: '2026-09-01T10:00:00Z', lossReason: 'sumiu' }), 'reabriu');
+
+    expect(toast.success).toHaveBeenCalledWith(
+      'Vasilhame de volta ao inventário, para lavar. A caução volta a ser devida ao cliente.',
+    );
+  });
+
+  it('a fila de perdidos ignora o que já voltou', () => {
+    // Senão o mesmo keg apareceria para recuperar duas vezes.
+    const { store } = setup({
+      loans: () =>
+        of([
+          emprestimo({ id: 'l1', lostAt: '2026-09-01T10:00:00Z', lossReason: 'sumiu' }),
+          emprestimo({
+            id: 'l2',
+            lostAt: '2026-09-01T10:00:00Z',
+            lossReason: 'sumiu',
+            recoveredAt: '2027-03-01T10:00:00Z',
+            recoveryReason: 'voltou',
+          }),
+        ]),
+    } as Partial<ContainersApi>);
+
+    store.loadLoans();
+
+    expect(store.lost()).toHaveLength(1);
+    expect(store.lost()[0].id).toBe('l1');
   });
 });

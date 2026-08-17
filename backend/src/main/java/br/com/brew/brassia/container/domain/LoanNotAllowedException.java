@@ -21,6 +21,12 @@ public class LoanNotAllowedException extends RuntimeException {
                 "Não há empréstimo aberto para este vasilhame.");
     }
 
+    public static LoanNotAllowedException noLostLoan() {
+        return new LoanNotAllowedException("no_lost_loan",
+                "Este vasilhame não está dado como perdido. Só volta ao inventário o que saiu por perda "
+                        + "— descarte não se desfaz.");
+    }
+
     public String reasonCode() {
         return reasonCode;
     }

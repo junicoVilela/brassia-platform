@@ -364,6 +364,27 @@ export class ContainersStore {
       });
   }
 
+  /** Os perdidos que ainda podem voltar — a fila que a tela oferece para recuperar. */
+  readonly lost = computed(() => this.loans().filter(l => l.lostAt !== null && !l.recoveredAt));
+
+  recoverLoan(loan: ContainerLoan, reason: string): void {
+    this.api
+      .recoverLoan(loan.containerId, reason)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          // "Voltou ao inventário, sujo" — e não "perda desfeita": a perda aconteceu, e o registro dela
+          // continua. Dizer o contrário faria a tela prometer um apagamento que não houve.
+          this.toast.success(
+            'Vasilhame de volta ao inventário, para lavar. A caução volta a ser devida ao cliente.',
+          );
+          this.loadLoans();
+          this.load();
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível recuperar.')),
+      });
+  }
+
   loadSanitations(container: Container): void {
     this.api
       .sanitations(container.id)

@@ -267,6 +267,82 @@ class ContainerLoanIT {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void oVasilhamePerdidoQueReaparaceVoltaAoInventarioSujo() throws Exception {
+        // DUV-CON-002. Nada é apagado: a perda continua no registro, e a volta entra ao lado. O keg
+        // passou meses fora de vista, então volta como sujo — não como pronto para encher.
+        var session = login();
+        var keg = registra(session);
+        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), "120.00");
+        mockMvc.perform(post(BASE + "/" + keg + "/loans/loss").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"reason\":\"o bar fechou e não devolveu\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post(BASE + "/" + keg + "/loans/recovery").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"reason\":\"o bar reabriu e devolveu\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get(BASE + "/" + keg).session(session))
+                .andExpect(jsonPath("$.state", is("RETURNED")))
+                .andExpect(jsonPath("$.fillable", is(false)))
+                .andExpect(jsonPath("$.retirementReason").doesNotExist());
+
+        // A história inteira: sumiu, cobrou-se, voltou — e a caução volta a ser devida ao cliente.
+        mockMvc.perform(get(BASE + "/" + keg + "/loans").session(session))
+                .andExpect(jsonPath("$[0].lossReason", is("o bar fechou e não devolveu")))
+                .andExpect(jsonPath("$[0].recoveryReason", is("o bar reabriu e devolveu")))
+                .andExpect(jsonPath("$[0].depositOutcome", is("TO_REFUND")));
+    }
+
+    @Test
+    void oVasilhameRecuperadoPodeSerEmprestadoDeNovo() throws Exception {
+        // Sem isto a recuperação devolveria o keg ao inventário e o deixaria impossível de emprestar: o
+        // índice de empréstimo aberto precisa ignorar o recuperado.
+        var session = login();
+        var keg = registra(session);
+        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), null);
+        mockMvc.perform(post(BASE + "/" + keg + "/loans/loss").session(session).with(csrf())
+                        .contentType("application/json").content("{\"reason\":\"sumiu\"}"))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(post(BASE + "/" + keg + "/loans/recovery").session(session).with(csrf())
+                        .contentType("application/json").content("{\"reason\":\"apareceu\"}"))
+                .andExpect(status().isNoContent());
+
+        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), null);
+    }
+
+    @Test
+    void oDescartadoNaoReaparece() throws Exception {
+        // "Descartei" não pode virar reversível.
+        var session = login();
+        var keg = registra(session);
+
+        mockMvc.perform(post(BASE + "/" + keg + "/loans/recovery").session(session).with(csrf())
+                        .contentType("application/json").content("{\"reason\":\"achei\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.reasonCode", is("no_lost_loan")));
+    }
+
+    @Test
+    void aVoltaTemAlcadaCritica() throws Exception {
+        // Ela desfaz a retenção da caução: mexer no que já foi cobrado não é operação de rotina.
+        var session = login();
+        var keg = registra(session);
+        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), null);
+        mockMvc.perform(post(BASE + "/" + keg + "/loans/loss").session(session).with(csrf())
+                        .contentType("application/json").content("{\"reason\":\"sumiu\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post(BASE + "/" + keg + "/loans/recovery")
+                        .with(authentication(principal(breweryOf(keg),
+                                Set.of("container.read", "container.loan.manage"))))
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"reason\":\"achei\"}"))
+                .andExpect(status().isForbidden());
+    }
+
     // --- ações ---
 
     private void empresta(MockHttpSession session, String keg, String cliente, LocalDate prazo,

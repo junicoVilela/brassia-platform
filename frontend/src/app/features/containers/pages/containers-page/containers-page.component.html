@@ -697,6 +697,73 @@
   </div>
 }
 
+@if (store.lost().length > 0 && canWriteOff) {
+  <div class="card mt-3">
+    <div class="card-header">
+      <h2 class="h6 mb-0">Dados como perdidos</h2>
+      <!--
+        Nada é apagado quando um deles volta: a perda aconteceu, e a caução foi retida por causa dela.
+        A volta entra ao lado, com data e motivo próprios.
+      -->
+      <p class="text-muted small mb-0 mt-1">
+        Se um reaparecer, ele volta ao inventário para lavar — e a caução volta a ser devida ao cliente.
+      </p>
+    </div>
+    <div class="card-body p-0">
+      <ul class="list-group list-group-flush">
+        @for (l of store.lost(); track l.id) {
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span class="small">
+              <strong>{{ l.customerName }}</strong>
+              <br />
+              <span class="text-muted">
+                {{ l.lostAt | date: 'dd/MM/yyyy' }} · {{ l.lossReason }}
+              </span>
+            </span>
+            <button type="button" class="btn btn-sm btn-outline-success"
+                    (click)="openRecovery(l)">
+              Reapareceu
+            </button>
+          </li>
+        }
+      </ul>
+    </div>
+  </div>
+}
+
+@if (recovering(); as loan) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="h6 modal-title mb-0">Reapareceu · {{ loan.customerName }}</h3>
+          <button type="button" class="btn-close" (click)="recovering.set(null)"></button>
+        </div>
+        <div class="modal-body">
+          <!--
+            A perda continua no registro. O vasilhame volta SUJO: passou meses fora de vista, e tratá-lo
+            como pronto para encher seria confiar num keg que ninguém olhou.
+          -->
+          <p class="small text-muted">
+            A perda de {{ loan.lostAt | date: 'dd/MM/yyyy' }} <strong>continua registrada</strong>. O
+            vasilhame volta para lavar, e a caução passa a ser devida ao cliente.
+          </p>
+          <form [formGroup]="recoveryForm" (ngSubmit)="submitRecovery()" class="row g-2">
+            <div class="col-12">
+              <label class="form-label small mb-1" for="motivoVolta">Como reapareceu</label>
+              <input id="motivoVolta" class="form-control form-control-sm" formControlName="reason"
+                     placeholder="o bar reabriu e devolveu" />
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-sm btn-success">Registrar a volta</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
 @if (losing(); as loan) {
   <div class="modal d-block" tabindex="-1" role="dialog">
     <div class="modal-dialog">

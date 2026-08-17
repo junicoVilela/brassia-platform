@@ -210,6 +210,34 @@ public final class Container {
         this.retirementReason = "perdido: " + reason.trim();
     }
 
+    /**
+     * O vasilhame dado como perdido reapareceu e volta ao inventário (DUV-CON-002).
+     *
+     * <p><strong>Volta como {@code RETURNED}, e não disponível.</strong> Ele passou meses fora de vista:
+     * tratá-lo como pronto para encher seria confiar num vasilhame que ninguém olhou. Alguém precisa
+     * higienizá-lo e liberá-lo, exatamente como o que volta do cliente.
+     *
+     * <p><strong>Só volta o que saiu por perda.</strong> Um contêiner descartado por avaria não
+     * reaparece — ele foi para o ferro-velho, e permitir a volta faria "descartei" virar reversível, que
+     * é justamente a distinção que a CON-003 construiu.
+     */
+    public void recover(String reason, Instant at) {
+        if (state != ContainerState.RETIRED || retirementReason == null
+                || !retirementReason.startsWith("perdido:")) {
+            throw new IllegalStateException(
+                    "só volta ao inventário o vasilhame que saiu por perda");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("a volta precisa de motivo");
+        }
+        this.state = ContainerState.RETURNED;
+        this.retiredAt = null;
+        // O motivo da baixa é preservado no histórico do empréstimo; aqui ele sai porque o vasilhame
+        // deixou de estar baixado, e um contêiner ativo com motivo de baixa mente sobre o próprio estado.
+        this.retirementReason = null;
+        this.condition = ContainerCondition.GOOD;
+    }
+
     public boolean isRetired() {
         return state == ContainerState.RETIRED;
     }

@@ -15,6 +15,9 @@ public interface LoanRepository {
 
     Optional<ContainerLoan> openLoanOf(UUID breweryId, UUID containerId);
 
+    /** O empréstimo dado como perdido e ainda não recuperado — o que a volta do vasilhame reabre. */
+    Optional<ContainerLoan> lostLoanOf(UUID breweryId, UUID containerId);
+
     Optional<ContainerLoan> find(UUID breweryId, UUID loanId);
 
     /** Os empréstimos em aberto, opcionalmente só os vencidos até uma data — a fila do dia. */

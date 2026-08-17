@@ -174,4 +174,70 @@ class ContainerLoanTest {
         assertThatThrownBy(() -> new SanitationRecord(UUID.randomUUID(), KEG, SAIDA, null,
                 "soda 2%", null)).isInstanceOf(NullPointerException.class);
     }
+
+    // --- o vasilhame que reaparece (DUV-CON-002) ---
+
+    @Test
+    void oPerdidoQueVoltaNaoApagaAPerda() {
+        // Ela aconteceu, e a caução foi retida por causa dela. Reescrever o registro faria sumir o motivo
+        // pelo qual o cliente foi cobrado — e a história vira "sempre esteve tudo bem".
+        var e = emprestimo(Money.of("120.00", "BRL"));
+        var quandoSumiu = Instant.parse("2026-09-01T10:00:00Z");
+        e.lost(quandoSumiu, "o bar fechou e não devolveu");
+
+        e.recovered(Instant.parse("2027-03-01T10:00:00Z"), "o bar reabriu e devolveu");
+
+        assertThat(e.lostAt()).contains(quandoSumiu);
+        assertThat(e.lossReason()).contains("o bar fechou e não devolveu");
+        assertThat(e.isRecovered()).isTrue();
+        assertThat(e.recoveryReason()).contains("o bar reabriu e devolveu");
+    }
+
+    @Test
+    void aVoltaTornaACaucaoDevidaDeNovo() {
+        // Decisão, e não dinheiro: o estorno é lançamento financeiro, e afirmá-lo aqui faria o sistema
+        // dizer que houve um pagamento que ninguém fez.
+        var e = emprestimo(Money.of("120.00", "BRL"));
+        e.lost(Instant.parse("2026-09-01T10:00:00Z"), "sumiu");
+        assertThat(e.depositOutcome()).isEqualTo(DepositOutcome.RETAINED);
+
+        e.recovered(Instant.parse("2027-03-01T10:00:00Z"), "apareceu no depósito do cliente");
+
+        assertThat(e.depositOutcome()).isEqualTo(DepositOutcome.TO_REFUND);
+    }
+
+    @Test
+    void soVoltaOQueFoiDadoComoPerdido() {
+        // Um empréstimo aberto não "volta": ele se devolve. Confundir os dois registraria o retorno de um
+        // vasilhame que nunca sumiu.
+        var aberto = emprestimo(null);
+        assertThatThrownBy(() -> aberto.recovered(Instant.now(), "apareceu"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("não foi dado como perdido");
+    }
+
+    @Test
+    void aVoltaPrecisaDeMotivoENaoAntecedeAPerda() {
+        // "Apareceu" não basta: quem lê seis meses depois precisa saber se o bar reabriu, se estava no
+        // depósito do cliente, ou se voltou por engano de outra rota.
+        var e = emprestimo(null);
+        var sumiu = Instant.parse("2026-09-01T10:00:00Z");
+        e.lost(sumiu, "sumiu");
+
+        assertThatThrownBy(() -> e.recovered(Instant.parse("2027-01-01T10:00:00Z"), "  "))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("motivo");
+        assertThatThrownBy(() -> e.recovered(sumiu.minusSeconds(1), "voltou antes de sumir"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("anterior à perda");
+    }
+
+    @Test
+    void naoSeRecuperaDuasVezes() {
+        // A segunda chamada reescreveria a data que o estorno usou.
+        var e = emprestimo(null);
+        e.lost(Instant.parse("2026-09-01T10:00:00Z"), "sumiu");
+        e.recovered(Instant.parse("2027-03-01T10:00:00Z"), "voltou");
+
+        assertThatThrownBy(() -> e.recovered(Instant.parse("2027-04-01T10:00:00Z"), "de novo"))
+                .isInstanceOf(IllegalStateException.class);
+    }
 }

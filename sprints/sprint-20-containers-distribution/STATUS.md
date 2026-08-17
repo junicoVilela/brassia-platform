@@ -1,6 +1,6 @@
 # Status — Sprint 20
 
-Estado: **ATIVA desde 2026-08-16** — CON-001, CON-002, LOG-001 e LOG-002 entregues.
+Estado: **ATIVA desde 2026-08-16** — CON-001, CON-002, LOG-001, LOG-002 e CON-003 entregues.
 
 | História | Estado | Evidência |
 |---|---|---|
@@ -8,7 +8,7 @@ Estado: **ATIVA desde 2026-08-16** — CON-001, CON-002, LOG-001 e LOG-002 entre
 | CON-002 | Entregue | `V131` · conteúdo e posição append-only · 11 de domínio e 11 de integração |
 | LOG-001 | Entregue | `V132` · carga, roteiro e conferência por outra pessoa · 16 de domínio e 12 de integração |
 | LOG-002 | Entregue | `V133` · prova append-only, consentimento e coordenada minimizada · 17 de domínio e 14 de integração |
-| CON-003 | A fazer | — |
+| CON-003 | Entregue | `V134` · prazo, caução, atraso, perda e higienização · 14 de domínio e 11 de integração |
 | MOB-001 | A fazer | — |
 
 ## Decisões e bloqueios
@@ -183,6 +183,67 @@ com a LOG-002, que é quem move o estado na saída.
 `ContainerShippingLookup` só aceita quem está `FILLED` no depósito. O próprio ciclo do contêiner virou a
 barreira. A checagem no caso de uso continua — agora para dar mensagem boa antes da saída, e não para
 garantir.
+
+### DEC-CON-004 (CON-003) — Perda não é baixa, e a caução registra a decisão em vez do dinheiro
+
+**O escopo real da história.** Avaria, manutenção e baixa já vinham da CON-001; o que faltava era o
+vasilhame que está **fora de casa**. A CON-002 já sabe que o keg está no cliente — faltava o compromisso:
+até quando deveria voltar, quanto ficou retido, e o que fazer quando o prazo passa. Sem isso, "no cliente
+há dois dias" e "no cliente há sete meses" são a mesma linha na tela.
+
+**Atrasado é o que ainda não voltou depois do prazo** — e não o que voltou tarde. São duas listas que
+servem a decisões diferentes: uma é dívida em aberto, a outra é histórico de quem devolve tarde. Misturar
+faria a cobrança do dia ligar para quem já devolveu. E o atraso **nunca é negativo**: "faltam três dias" é
+outra pergunta, e somá-la com atrasos daria zero sem nenhum keg no lugar.
+
+**A caução registra a DECISÃO, e não o dinheiro.** `TO_REFUND` e `RETAINED` dizem o que a operação
+decidiu; o estorno é lançamento financeiro e mora onde o dinheiro mora. Afirmá-lo aqui faria o sistema
+dizer que houve um pagamento que ninguém fez. E ausência de caução é **nulo, não zero** — zero somaria no
+relatório de valores retidos como se houvesse dinheiro parado.
+
+**Perda não é baixa, e agora existe o caminho que faltava.** A CON-001 recusa dar baixa no que está com o
+cliente, de propósito: "sumiu" e "descartei" não podem virar a mesma linha no inventário. A CON-003 abre a
+exceção deliberada — `Container.declareLost` — que só é alcançável a partir de um empréstimo aberto, com
+motivo obrigatório e alçada crítica, e que **carrega o motivo para dentro do registro da baixa**
+(`"perdido: …"`). O inventário nunca precisa adivinhar qual dos dois aconteceu.
+
+**Um empréstimo aberto por vasilhame**, por índice único parcial: o mesmo keg com dois clientes ao mesmo
+tempo é impossível no mundo e contabilizaria duas cauções — e a checagem prévia não sobrevive a duas telas
+registrando saídas na mesma manhã. É o sétimo caso da família.
+
+**A higienização deu lastro ao ato explícito da CON-001.** Lá, liberar o keg que voltou era um ato sem
+registro; aqui ele ganha nome, data e **método**. "Higienizado" sem dizer como é um carimbo, e um carimbo
+não se audita — a pergunta real chega três meses depois, quando alguém quer saber se aquele keg foi lavado
+antes da cerveja que o cliente reclamou.
+
+**A devolução não move o vasilhame.** Quem move é a coleta (LOG-002) ou a operação manual; duplicar a
+transição aqui produziria dois caminhos para o mesmo fato, e eles divergiriam na primeira regra nova.
+
+**Entregue:** `V134`, `ContainerLoan`, `DepositAmount`, `SanitationRecord`, porta, caso de uso, seis
+endpoints, 6 caminhos e 2 schemas no OpenAPI, e a fila de atrasados na tela. **14 testes de domínio, 11 de
+integração e 5 de store.**
+
+### DEB-CON-002 (CON-003) — `DepositAmount` duplica a regra do `Money` de vendas
+
+O `Money` da SAL-001 vive dentro do domínio de `sales` — não é porta publicada —, e importá-lo de
+`container` furaria a fronteira do módulo para economizar vinte linhas. Copiar a regra é o preço normal de
+manter os módulos separados, mas a duplicação é real: **duas definições de "dinheiro com moeda explícita"
+podem divergir**, e a segunda a mudar não avisa a primeira. Promover `Money` a tipo compartilhado é decisão
+de arquitetura que merece história própria — e ela fica mais fácil de tomar agora que existem dois usos.
+
+### DUV-CON-002 (CON-003) — O vasilhame dado como perdido que reaparece
+
+**A pergunta.** Um keg declarado perdido volta seis meses depois — o bar reabriu, o cliente achou no
+depósito. Hoje não há caminho: o empréstimo está encerrado e o contêiner, baixado.
+
+**Por que não foi inventado.** A volta envolve **dinheiro que já mudou de mãos**: a caução foi retida, e
+possivelmente cobrada. Desfazer isso é estorno, e decidir se ele acontece, quem autoriza e o que acontece
+com o vasilhame (volta ao inventário? entra como novo?) é decisão de negócio com efeito financeiro. Inventar
+aqui seria decidir sozinho sobre dinheiro do cliente.
+
+**O que já está pronto para qualquer resposta.** A baixa carrega o motivo (`"perdido: …"`), então a
+distinção entre keg descartado e keg perdido sobrevive; e o empréstimo guarda a caução e o desfecho, então
+o que precisaria ser estornado está registrado.
 
 ### DEB-CON-001 (CON-002) — O dublê de lote acabado nos testes de contêiner
 

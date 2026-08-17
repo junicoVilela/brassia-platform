@@ -137,3 +137,55 @@ export const FILL_REFUSAL_REASONS: Record<string, string> = {
   quarantined: 'O lote está em quarentena.',
   quarantine_suspected: 'O lote está sob suspeita de quarentena.',
 };
+
+/** O que acontece com a caução quando o empréstimo termina (CON-003). */
+export type DepositOutcome = 'HELD' | 'TO_REFUND' | 'RETAINED';
+
+export const DEPOSIT_OUTCOME_LABELS: Record<DepositOutcome, string> = {
+  HELD: 'Retida (empréstimo aberto)',
+  TO_REFUND: 'A devolver ao cliente',
+  RETAINED: 'Retida pela casa (perda)',
+};
+
+/**
+ * O vasilhame que está fora de casa, com prazo e caução.
+ *
+ * Sem prazo, "no cliente há dois dias" e "no cliente há sete meses" seriam a mesma linha na tela.
+ */
+export interface ContainerLoan {
+  id: string;
+  containerId: string;
+  customerId: string;
+  /** Congelado: renomear o cliente não reescreve o comprovante que ele tem na mão. */
+  customerName: string;
+  lentAt: string;
+  dueOn: string;
+  /** Ainda não voltou, e o prazo passou. */
+  overdue: boolean;
+  /** Zero quando está no prazo — nunca negativo. */
+  daysLate: number;
+  depositAmount: number | null;
+  depositCurrency: string | null;
+  /** A decisão sobre a caução, e não o dinheiro: o estorno é lançamento financeiro. */
+  depositOutcome: DepositOutcome;
+  returnedAt: string | null;
+  /** Voltou, mas depois do prazo — histórico, e não dívida em aberto. */
+  returnedLate: boolean;
+  lostAt: string | null;
+  lossReason: string | null;
+}
+
+export interface ContainerSanitation {
+  id: string;
+  performedAt: string;
+  performedBy: string;
+  /** "Higienizado" sem dizer como é um carimbo, e um carimbo não se audita. */
+  method: string;
+  note: string | null;
+}
+
+export const LOAN_REFUSAL_REASONS: Record<string, string> = {
+  already_lent:
+    'Este vasilhame já está emprestado. O mesmo keg com dois clientes contabilizaria duas cauções.',
+  no_open_loan: 'Não há empréstimo aberto para este vasilhame.',
+};

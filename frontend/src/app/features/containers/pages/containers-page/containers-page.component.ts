@@ -10,6 +10,8 @@ import {
   CONDITION_LABELS,
   Container,
   ContainerIdentifier,
+  ContainerLoan,
+  DEPOSIT_OUTCOME_LABELS,
   ContainerState,
   LOCATION_LABELS,
   LocationKind,
@@ -68,6 +70,30 @@ export class ContainersPageComponent implements OnInit {
 
   protected readonly canManage = this.auth.hasPermission('container.manage');
   protected readonly canInspect = this.auth.hasPermission('container.inspect');
+  protected readonly canLoan = this.auth.hasPermission('container.loan.manage');
+  protected readonly canWriteOff = this.auth.hasPermission('container.loan.write_off');
+
+  protected readonly depositLabels = DEPOSIT_OUTCOME_LABELS;
+
+  protected readonly lending = signal<Container | null>(null);
+  protected readonly losing = signal<ContainerLoan | null>(null);
+  protected readonly sanitizing = signal<Container | null>(null);
+
+  protected readonly lendForm = this.fb.nonNullable.group({
+    customerId: ['', Validators.required],
+    customerName: ['', [Validators.required, Validators.maxLength(160)]],
+    dueOn: ['', Validators.required],
+    depositAmount: [0],
+  });
+
+  protected readonly lossForm = this.fb.nonNullable.group({
+    reason: ['', [Validators.required, Validators.maxLength(500)]],
+  });
+
+  protected readonly sanitationForm = this.fb.nonNullable.group({
+    method: ['', [Validators.required, Validators.maxLength(200)]],
+    note: ['', Validators.maxLength(500)],
+  });
 
   protected readonly showForm = signal(false);
 
@@ -112,6 +138,59 @@ export class ContainersPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.load();
+    this.store.loadLoans();
+  }
+
+  protected openLend(container: Container): void {
+    this.lendForm.reset({ customerId: '', customerName: '', dueOn: '', depositAmount: 0 });
+    this.lending.set(container);
+  }
+
+  protected submitLend(): void {
+    const container = this.lending();
+    if (!container || this.lendForm.invalid) {
+      this.lendForm.markAllAsTouched();
+      return;
+    }
+    const v = this.lendForm.getRawValue();
+    this.store.lend(container, v.customerId, v.customerName, v.dueOn, v.depositAmount);
+    this.lending.set(null);
+  }
+
+  protected returnLoan(loan: ContainerLoan): void {
+    this.store.returnLoan(loan);
+  }
+
+  protected openLoss(loan: ContainerLoan): void {
+    this.lossForm.reset({ reason: '' });
+    this.losing.set(loan);
+  }
+
+  protected submitLoss(): void {
+    const loan = this.losing();
+    if (!loan || this.lossForm.invalid) {
+      this.lossForm.markAllAsTouched();
+      return;
+    }
+    this.store.declareLoss(loan, this.lossForm.getRawValue().reason);
+    this.losing.set(null);
+  }
+
+  protected openSanitation(container: Container): void {
+    this.sanitationForm.reset({ method: '', note: '' });
+    this.sanitizing.set(container);
+    this.store.loadSanitations(container);
+  }
+
+  protected submitSanitation(): void {
+    const container = this.sanitizing();
+    if (!container || this.sanitationForm.invalid) {
+      this.sanitationForm.markAllAsTouched();
+      return;
+    }
+    const v = this.sanitationForm.getRawValue();
+    this.store.sanitize(container, v.method, v.note || null);
+    this.sanitationForm.reset({ method: '', note: '' });
   }
 
   protected submit(): void {

@@ -192,6 +192,24 @@ public final class Container {
         this.retirementReason = reason.trim();
     }
 
+    /**
+     * Baixa por PERDA: o vasilhame não volta mais, e sai do inventário onde quer que estivesse.
+     *
+     * <p>É a exceção deliberada à recusa de {@link #retire}, e existe pelo mesmo motivo que a recusa:
+     * "sumiu" e "descartei" não podem ser o mesmo botão. Este <strong>é</strong> o botão do "sumiu" —
+     * vem de um empréstimo aberto, com motivo e alçada crítica, e o motivo viaja junto para que o
+     * inventário nunca precise adivinhar qual dos dois aconteceu.
+     */
+    public void declareLost(String reason, Instant at) {
+        requireAlive();
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("a perda precisa de motivo");
+        }
+        this.state = ContainerState.RETIRED;
+        this.retiredAt = Objects.requireNonNull(at);
+        this.retirementReason = "perdido: " + reason.trim();
+    }
+
     public boolean isRetired() {
         return state == ContainerState.RETIRED;
     }

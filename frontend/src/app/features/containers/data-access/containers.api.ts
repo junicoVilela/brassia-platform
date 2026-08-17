@@ -5,6 +5,8 @@ import {
   Container,
   ContainerFill,
   ContainerIdentifier,
+  ContainerLoan,
+  ContainerSanitation,
   ContainerKind,
   ContainerLocation,
   ContainerState,
@@ -86,6 +88,46 @@ export class ContainersApi {
 
   locate(id: string, body: { kind: LocationKind; place: string | null }): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/${id}/locations`, body);
+  }
+
+  /** Empréstimos em aberto; com `overdueOn`, só a fila de atrasados. */
+  loans(overdueOn: string | null): Observable<ContainerLoan[]> {
+    const params = overdueOn ? new HttpParams().set('overdueOn', overdueOn) : new HttpParams();
+    return this.http.get<ContainerLoan[]>(`${this.baseUrl}/loans`, { params });
+  }
+
+  loansOf(id: string): Observable<ContainerLoan[]> {
+    return this.http.get<ContainerLoan[]>(`${this.baseUrl}/${id}/loans`);
+  }
+
+  lend(
+    id: string,
+    body: {
+      customerId: string;
+      customerName: string;
+      dueOn: string;
+      depositAmount: number | null;
+      depositCurrency: string | null;
+    },
+  ): Observable<{ id: string }> {
+    return this.http.post<{ id: string }>(`${this.baseUrl}/${id}/loans`, body);
+  }
+
+  returnLoan(id: string): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/${id}/loans/return`, {});
+  }
+
+  /** Perda: encerra o empréstimo, retém a caução e baixa o vasilhame. */
+  declareLoss(id: string, reason: string): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/${id}/loans/loss`, { reason });
+  }
+
+  sanitations(id: string): Observable<ContainerSanitation[]> {
+    return this.http.get<ContainerSanitation[]>(`${this.baseUrl}/${id}/sanitations`);
+  }
+
+  sanitize(id: string, body: { method: string; note: string | null }): Observable<{ id: string }> {
+    return this.http.post<{ id: string }>(`${this.baseUrl}/${id}/sanitations`, body);
   }
 
   condition(id: string, condemned: boolean): Observable<void> {

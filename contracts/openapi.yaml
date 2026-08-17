@@ -9133,6 +9133,218 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
+  /containers/loans:
+    get:
+      tags: [Contêineres]
+      summary: Empréstimos em aberto, e a fila de atrasados (CON-003)
+      description: >-
+        **Atrasado é o que ainda não voltou depois do prazo** — quem devolveu tarde já é história, e
+        misturar os dois faria a cobrança do dia ligar para quem já devolveu. Com `overdueOn`, só os
+        vencidos.
+
+
+        Sem prazo, "no cliente há dois dias" e "no cliente há sete meses" seriam a mesma linha na tela.
+      parameters:
+        - name: overdueOn
+          in: query
+          required: false
+          schema: {type: string, format: date}
+          description: Só empréstimos vencidos antes desta data.
+      responses:
+        '200':
+          description: Empréstimos
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ContainerLoan'}}
+        '403': {$ref: '#/components/responses/Problem'}
+  /containers/{id}/loans:
+    get:
+      tags: [Contêineres]
+      summary: O histórico de empréstimos do vasilhame
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Empréstimos
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ContainerLoan'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Contêineres]
+      summary: Emprestar ao cliente, com prazo e caução
+      description: >-
+        **Um empréstimo aberto por vasilhame**, garantido por índice único parcial: o mesmo keg com dois
+        clientes ao mesmo tempo é impossível no mundo e contabilizaria duas cauções — e a checagem prévia
+        não sobrevive a duas telas registrando saídas na mesma manhã.
+
+
+        **A caução é opcional**: nem toda casa cobra, e obrigar um valor faria alguém digitar 1 real para
+        poder seguir. Quando existe, tem moeda explícita — um número solto não é dinheiro. E ausência de
+        caução é **nulo, não zero**: zero somaria no relatório de valores retidos como se houvesse
+        dinheiro parado.
+
+
+        **O prazo não nasce vencido**: um prazo anterior à saída viraria cobrança errada, e o operador só
+        descobriria depois.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerId, customerName, dueOn]
+              properties:
+                customerId: {type: string, format: uuid}
+                customerName:
+                  type: string
+                  maxLength: 160
+                  description: 'Congelado: renomear o cliente não reescreve o comprovante de caução que ele tem na mão.'
+                dueOn: {type: string, format: date}
+                depositAmount: {type: number, format: double, nullable: true}
+                depositCurrency: {type: string, minLength: 3, maxLength: 3, nullable: true}
+      responses:
+        '201':
+          description: Emprestado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`loan_not_allowed` com `reasonCode`: `already_lent`.'
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /containers/{id}/loans/return:
+    post:
+      tags: [Contêineres]
+      summary: O vasilhame voltou
+      description: >-
+        Encerra o empréstimo, e a caução passa a ser **devida ao cliente**. Isto é a *decisão*, e não o
+        dinheiro: devolver a caução é lançamento financeiro, e afirmá-lo aqui seria afirmar um pagamento
+        que ninguém fez.
+
+
+        **Não move o vasilhame** — quem move é a coleta (LOG-002) ou a operação manual. Duplicar a
+        transição aqui produziria dois caminhos para o mesmo fato, e eles divergiriam na primeira regra
+        nova.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Encerrado}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`loan_not_allowed` com `reasonCode`: `no_open_loan`.'
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /containers/{id}/loans/loss:
+    post:
+      tags: [Contêineres]
+      summary: Declarar perda (alçada crítica)
+      description: >-
+        Encerra o empréstimo, **retém a caução** e **baixa o vasilhame**.
+
+
+        **Perda não é baixa comum.** A CON-001 recusa dar baixa no que está com o cliente exatamente para
+        que "sumiu" e "descartei" não virem a mesma linha no inventário — e este é o caminho do "sumiu".
+        Ele exige empréstimo aberto, motivo e alçada própria, e o motivo viaja junto no registro da baixa
+        para que ninguém precise adivinhar qual dos dois aconteceu.
+
+
+        **O motivo é obrigatório**: "perdido" sozinho não distingue o bar que fechou do keg roubado do
+        caminhão, e as duas coisas terminam em conversas diferentes com o cliente.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, maxLength: 500}
+      responses:
+        '204': {description: Perda registrada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /containers/{id}/sanitations:
+    get:
+      tags: [Contêineres]
+      summary: As higienizações do vasilhame (CON-003)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Higienizações
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ContainerSanitation'}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Contêineres]
+      summary: Registrar higienização
+      description: >-
+        É o que a CON-001 chamava de "alguém diz que está limpo" — lá o ato era explícito e sem lastro,
+        aqui ele ganha nome, data e **método**. "Higienizado" sem dizer como é um carimbo, e um carimbo
+        não se audita: a pergunta real chega três meses depois, quando alguém quer saber se aquele keg foi
+        lavado antes da cerveja que o cliente reclamou.
+
+
+        `method` é texto livre de propósito: padronizar isso é assunto de sanitização (CLN), e inventar
+        uma lista aqui obrigaria o operador a escolher a opção menos errada.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [method]
+              properties:
+                method: {type: string, maxLength: 200, example: 'soda 2% a 60 °C'}
+                note: {type: string, maxLength: 500, nullable: true}
+      responses:
+        '201':
+          description: Registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
   /containers/{id}/condition:
     post:
       tags: [Contêineres]
@@ -9827,6 +10039,41 @@ components:
         kind: {type: string, enum: [WAREHOUSE, IN_TRANSIT, CUSTOMER, THIRD_PARTY]}
         place: {type: string, nullable: true}
         recordedAt: {type: string, format: date-time}
+    ContainerLoan:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        containerId: {type: string, format: uuid}
+        customerId: {type: string, format: uuid}
+        customerName: {type: string}
+        lentAt: {type: string, format: date-time}
+        dueOn: {type: string, format: date}
+        overdue: {type: boolean, description: 'Ainda não voltou, e o prazo passou.'}
+        daysLate:
+          type: integer
+          description: >-
+            Zero quando está no prazo — **nunca negativo**. "Faltam três dias" é outra pergunta, e
+            somá-la com atrasos daria zero sem nenhum keg no lugar.
+        depositAmount: {type: number, format: double, nullable: true}
+        depositCurrency: {type: string, nullable: true}
+        depositOutcome:
+          type: string
+          enum: [HELD, TO_REFUND, RETAINED]
+          description: >-
+            A **decisão** sobre a caução, e não o dinheiro: o estorno é lançamento financeiro, e afirmá-lo
+            aqui seria afirmar um pagamento que ninguém fez.
+        returnedAt: {type: string, format: date-time, nullable: true}
+        returnedLate: {type: boolean, description: 'Voltou, mas depois do prazo — histórico, e não dívida.'}
+        lostAt: {type: string, format: date-time, nullable: true}
+        lossReason: {type: string, nullable: true}
+    ContainerSanitation:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        performedAt: {type: string, format: date-time}
+        performedBy: {type: string, format: uuid}
+        method: {type: string, description: 'O que foi feito, na língua da casa.'}
+        note: {type: string, nullable: true}
     ContainerIdentifier:
       type: object
       description: >-

@@ -33,6 +33,22 @@
   <div class="col-md-4">
     <div class="card h-100">
       <div class="card-body">
+        <p class="text-muted small mb-1">Atrasados no cliente</p>
+        <p class="h4 mb-0">{{ store.overdueCount() }}</p>
+        <!--
+          Atrasado é o que ainda NÃO voltou depois do prazo: quem devolveu tarde já é história, e contar
+          os dois juntos faria a cobrança do dia ligar para quem já devolveu.
+        -->
+        <p class="form-text mb-0">Ainda não voltaram, e o prazo já passou.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
         <h2 class="h6 mb-1">Ler etiqueta</h2>
         <!--
           Ler um código IDENTIFICA, e não autoriza: quem escaneou continua precisando de alçada para
@@ -242,6 +258,18 @@
                                 (click)="openHistory(c)">
                           Histórico
                         </button>
+                        @if (canLoan) {
+                          @if (c.state === 'AT_CUSTOMER' || c.state === 'IN_TRANSIT') {
+                            <button type="button" class="btn btn-outline-secondary"
+                                    (click)="openLend(c)">
+                              Emprestar
+                            </button>
+                          }
+                          <button type="button" class="btn btn-outline-secondary"
+                                  (click)="openSanitation(c)">
+                            Higienizar
+                          </button>
+                        }
                         @if (canManage) {
                         }
                         @if (canInspect) {
@@ -536,6 +564,216 @@
                 <button type="submit" class="btn btn-sm btn-outline-primary w-100">Registrar</button>
               </div>
             </form>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<div class="card mt-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <div>
+      <h2 class="h6 mb-0">Vasilhames com clientes</h2>
+      <!--
+        Sem prazo, "no cliente há dois dias" e "no cliente há sete meses" seriam a mesma linha na tela.
+      -->
+      <p class="text-muted small mb-0 mt-1">Cada um com prazo, caução e dias de atraso.</p>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="soAtrasados"
+             (change)="store.toggleOverdue($any($event.target).checked)" />
+      <label class="form-check-label small" for="soAtrasados">Só atrasados</label>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    @if (store.loans().length === 0) {
+      <app-empty-state message="Nenhum vasilhame com cliente"
+                       hint="Os empréstimos abertos aparecem aqui." />
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Saiu</th>
+              <th>Prazo</th>
+              <th>Caução</th>
+              <th class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (l of store.loans(); track l.id) {
+              <tr [class.table-warning]="l.overdue">
+                <td class="small"><strong>{{ l.customerName }}</strong></td>
+                <td class="small">{{ l.lentAt | date: 'dd/MM/yyyy' }}</td>
+                <td class="small">
+                  {{ l.dueOn | date: 'dd/MM/yyyy' }}
+                  @if (l.overdue) {
+                    <br /><span class="text-danger">{{ l.daysLate }} dia(s) de atraso</span>
+                  }
+                </td>
+                <td class="small">
+                  @if (l.depositAmount) {
+                    {{ l.depositAmount | number: '1.2-2' }} {{ l.depositCurrency }}
+                    <br />
+                    <!--
+                      A DECISÃO sobre a caução, e não o dinheiro: o estorno é lançamento financeiro.
+                    -->
+                    <small class="text-muted">{{ depositLabels[l.depositOutcome] }}</small>
+                  } @else {
+                    <span class="text-muted">sem caução</span>
+                  }
+                </td>
+                <td class="text-end">
+                  <div class="btn-group btn-group-sm">
+                    @if (canLoan) {
+                      <button type="button" class="btn btn-outline-success"
+                              (click)="returnLoan(l)">
+                        Voltou
+                      </button>
+                    }
+                    @if (canWriteOff) {
+                      <!--
+                        Perda não é descarte: é o único caminho pelo qual um keg que está na rua sai do
+                        inventário, e ele exige motivo.
+                      -->
+                      <button type="button" class="btn btn-outline-danger" (click)="openLoss(l)">
+                        Perdido
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
+
+@if (lending(); as c) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="h6 modal-title mb-0">Emprestar · {{ c.code }}</h3>
+          <button type="button" class="btn-close" (click)="lending.set(null)"></button>
+        </div>
+        <div class="modal-body">
+          <form [formGroup]="lendForm" (ngSubmit)="submitLend()" class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label small mb-1" for="cli">Cliente (id)</label>
+              <input id="cli" class="form-control form-control-sm" formControlName="customerId" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small mb-1" for="cliNome">Nome</label>
+              <input id="cliNome" class="form-control form-control-sm"
+                     formControlName="customerName" />
+              <div class="form-text">Congelado no empréstimo, como no comprovante.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small mb-1" for="prazo">Devolver até</label>
+              <input id="prazo" type="date" class="form-control form-control-sm"
+                     formControlName="dueOn" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small mb-1" for="caucao">Caução (BRL)</label>
+              <input id="caucao" type="number" step="0.01" class="form-control form-control-sm"
+                     formControlName="depositAmount" />
+              <!-- Nem toda casa cobra: zero vira ausência, e não um valor retido de mentira. -->
+              <div class="form-text">Zero ou vazio: sem caução.</div>
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
+                Emprestar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (losing(); as loan) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="h6 modal-title mb-0">Perda · {{ loan.customerName }}</h3>
+          <button type="button" class="btn-close" (click)="losing.set(null)"></button>
+        </div>
+        <div class="modal-body">
+          <!--
+            Perda encerra o empréstimo, retém a caução e baixa o vasilhame — e não é o mesmo que
+            descartar um keg furado.
+          -->
+          <p class="small text-muted">
+            O vasilhame sai do inventário e a caução fica com a casa. Isto não é descarte: o motivo
+            entra no registro da baixa.
+          </p>
+          <form [formGroup]="lossForm" (ngSubmit)="submitLoss()" class="row g-2">
+            <div class="col-12">
+              <label class="form-label small mb-1" for="motivo">O que aconteceu</label>
+              <input id="motivo" class="form-control form-control-sm" formControlName="reason"
+                     placeholder="o bar fechou e não devolveu" />
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-sm btn-danger">Registrar perda</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (sanitizing(); as c) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="h6 modal-title mb-0">Higienização · {{ c.code }}</h3>
+          <button type="button" class="btn-close" (click)="sanitizing.set(null)"></button>
+        </div>
+        <div class="modal-body">
+          <!--
+            "Higienizado" sem dizer como é um carimbo, e um carimbo não se audita. A pergunta chega três
+            meses depois: aquele keg foi lavado antes da cerveja que o cliente reclamou?
+          -->
+          <p class="small text-muted">Diga o que foi feito — é o que torna o registro auditável.</p>
+          <form [formGroup]="sanitationForm" (ngSubmit)="submitSanitation()" class="row g-2 mb-3">
+            <div class="col-md-7">
+              <input class="form-control form-control-sm" formControlName="method"
+                     placeholder="soda 2% a 60 °C" />
+            </div>
+            <div class="col-md-3">
+              <input class="form-control form-control-sm" formControlName="note"
+                     placeholder="observação" />
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-sm btn-primary w-100">Registrar</button>
+            </div>
+          </form>
+
+          @if (store.sanitations().length === 0) {
+            <p class="small mb-0">Nenhuma higienização registrada.</p>
+          } @else {
+            <ul class="list-group list-group-flush">
+              @for (h of store.sanitations(); track h.id) {
+                <li class="list-group-item px-0 d-flex justify-content-between">
+                  <span class="small">
+                    {{ h.method }}
+                    @if (h.note) {
+                      · {{ h.note }}
+                    }
+                  </span>
+                  <small class="text-muted">{{ h.performedAt | date: 'dd/MM/yyyy HH:mm' }}</small>
+                </li>
+              }
+            </ul>
           }
         </div>
       </div>

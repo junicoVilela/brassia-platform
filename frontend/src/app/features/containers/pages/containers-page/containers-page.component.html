@@ -316,6 +316,18 @@
             Informe até quando a inspeção vale. O sistema não arbitra o prazo — ele vem da norma e do
             tipo do vasilhame.
           </p>
+          @if (store.suggestedValidUntil(); as sugerida) {
+            <!--
+              Sugestão, e não autoridade: a inspeção que encontra um problema encurta o prazo, e por isso
+              o botão preenche o campo em vez de decidir por quem inspeciona.
+            -->
+            <div class="alert alert-secondary small py-2" role="status">
+              A periodicidade cadastrada sugere <strong>{{ sugerida | date: 'dd/MM/yyyy' }}</strong>.
+              <button type="button" class="btn btn-link btn-sm p-0 ms-1" (click)="useSuggestion()">
+                usar esta data
+              </button>
+            </div>
+          }
           <form [formGroup]="inspectionForm" (ngSubmit)="submitInspection()" class="row g-2">
             <div class="col-12">
               <label class="form-label small mb-1" for="validUntil">Válida até</label>
@@ -652,6 +664,60 @@
     }
   </div>
 </div>
+
+@if (canInspect) {
+  <div class="card mt-3">
+    <div class="card-header">
+      <h2 class="h6 mb-0">Periodicidade de inspeção</h2>
+      <!--
+        O sistema não traz número de fábrica: um padrão embutido faria a plataforma afirmar conformidade
+        que ninguém verificou, num equipamento cuja falha é física.
+      -->
+      <p class="text-muted small mb-0 mt-1">
+        Quem define é a casa, a partir da norma que segue. Sem isto o sistema apenas não sugere — a
+        inspeção continua obrigatória para encher.
+      </p>
+    </div>
+    <div class="card-body">
+      <form [formGroup]="policyForm" (ngSubmit)="submitPolicy()" class="row g-2 mb-3">
+        <div class="col-md-3">
+          <select class="form-select form-select-sm" formControlName="kind">
+            <option value="KEG">Keg</option>
+            <option value="CASK">Barril</option>
+            <option value="GROWLER">Growler</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <input type="number" min="1" class="form-control form-control-sm"
+                 formControlName="intervalMonths" />
+          <div class="form-text">meses entre inspeções</div>
+        </div>
+        <div class="col-md-4">
+          <input class="form-control form-control-sm" formControlName="note"
+                 placeholder="norma ou observação" />
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-sm btn-primary w-100">Definir</button>
+        </div>
+      </form>
+
+      @if (store.policies().length === 0) {
+        <p class="small mb-0">Nenhuma periodicidade cadastrada.</p>
+      } @else {
+        <ul class="list-group list-group-flush">
+          @for (p of store.policies(); track p.id) {
+            <li class="list-group-item px-0 d-flex justify-content-between">
+              <span class="small">{{ p.kind }} · a cada {{ p.intervalMonths }} meses</span>
+              @if (p.note) {
+                <small class="text-muted">{{ p.note }}</small>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </div>
+}
 
 @if (lending(); as c) {
   <div class="modal d-block" tabindex="-1" role="dialog">

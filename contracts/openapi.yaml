@@ -9330,6 +9330,34 @@ paths:
           in: path
           required: true
           schema: {type: string, format: uuid}
+  /containers/inspection-policies:
+    get:
+      tags: [Contêineres]
+      summary: A periodicidade de inspeção por tipo (DUV-CON-001)
+      responses:
+        '200':
+          description: Políticas cadastradas — lista vazia é o estado inicial, e é legítimo.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/InspectionPolicy'}}
+        '403': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Contêineres]
+      summary: Definir a periodicidade de um tipo (alçada crítica)
+      description: >-
+        **O sistema não traz número nenhum de fábrica, e essa é a decisão.** A periodicidade de inspeção de
+        vaso de pressão vem de norma e do tipo do contêiner; um padrão embutido faria a plataforma
+        **afirmar conformidade que ninguém verificou**, num equipamento cuja falha é física. Prazo errado
+        por excesso é risco; por falta, é frota parada sem motivo — nos dois casos o sistema teria
+        inventado a resposta.
+
+
+        **Uma política por tipo.** Keg de pressão e growler não seguem o mesmo prazo, e uma política única
+        obrigaria a casa a adotar o menor dos dois para todos.
+
+
+        **Sem política nada afrouxa**: o vasilhame continua exigindo inspeção válida para ser enchido, e a
+        data continua vindo de quem inspeciona. A ausência só deixa de sugerir.
       requestBody:
         required: true
         content:
@@ -9353,6 +9381,58 @@ paths:
           content:
             application/problem+json:
               schema: {$ref: '#/components/schemas/Problem'}
+              required: [kind, intervalMonths]
+              properties:
+                kind: {type: string, enum: [KEG, CASK, GROWLER]}
+                intervalMonths:
+                  type: integer
+                  minimum: 1
+                  description: >-
+                    Zero seria "inspecionar sempre", que na prática é não ter política — e a ausência já se
+                    representa não cadastrando.
+                note: {type: string, maxLength: 300, nullable: true}
+      responses:
+        '201':
+          description: Definida
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /containers/{id}/inspections/suggestion:
+    get:
+      tags: [Contêineres]
+      summary: A validade que a política sugere
+      description: >-
+        **Sugestão, e não autoridade.** A inspeção que encontra um problema pode encurtar o prazo, e a
+        validade continua sendo o que o inspetor informar.
+
+
+        Os meses são somados à data da **inspeção**, e não à de hoje: uma inspeção lançada com atraso vale a
+        partir de quando aconteceu, senão registrar tarde estenderia o prazo de graça.
+
+
+        **Corpo vazio quando não há política** para o tipo do vasilhame.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: A sugestão, ou vazio
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  performedAt: {type: string, format: date-time}
+                  validUntil: {type: string, format: date-time}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
   /containers/{id}/sanitations:
     get:
       tags: [Contêineres]
@@ -10284,6 +10364,16 @@ components:
             Quando o vasilhame dado como perdido reapareceu. A perda **continua** registrada ao lado —
             ela aconteceu, e a caução foi retida por causa dela.
         recoveryReason: {type: string, nullable: true}
+    InspectionPolicy:
+      type: object
+      description: >-
+        De quanto em quanto tempo a casa inspeciona aquele tipo. Cadastrada pela cervejaria — o sistema
+        não propõe intervalo nenhum.
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [KEG, CASK, GROWLER]}
+        intervalMonths: {type: integer}
+        note: {type: string, nullable: true}
     ContainerSanitation:
       type: object
       properties:

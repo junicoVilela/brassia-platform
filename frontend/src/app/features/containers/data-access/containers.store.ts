@@ -8,6 +8,7 @@ import {
   ContainerIdentifier,
   ContainerLoan,
   ContainerSanitation,
+  InspectionPolicy,
   ContainerKind,
   ContainerLocation,
   ContainerState,
@@ -383,6 +384,39 @@ export class ContainersStore {
         },
         error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível recuperar.')),
       });
+  }
+
+  readonly policies = signal<InspectionPolicy[]>([]);
+
+  /** A validade sugerida pela política, quando há uma. Nula não afrouxa nada — só não sugere. */
+  readonly suggestedValidUntil = signal<string | null>(null);
+
+  loadPolicies(): void {
+    this.api
+      .inspectionPolicies()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: list => this.policies.set(list) });
+  }
+
+  definePolicy(kind: Container['kind'], intervalMonths: number, note: string | null): void {
+    this.api
+      .defineInspectionPolicy({ kind, intervalMonths, note })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success('Periodicidade definida.');
+          this.loadPolicies();
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível definir.')),
+      });
+  }
+
+  loadSuggestion(container: Container): void {
+    this.suggestedValidUntil.set(null);
+    this.api
+      .inspectionSuggestion(container.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: r => this.suggestedValidUntil.set(r?.validUntil ?? null) });
   }
 
   loadSanitations(container: Container): void {

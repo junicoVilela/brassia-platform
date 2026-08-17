@@ -1,6 +1,8 @@
 package br.com.brew.brassia.container.application.port.outbound;
 
+import br.com.brew.brassia.container.domain.ContainerKind;
 import br.com.brew.brassia.container.domain.ContainerLoan;
+import br.com.brew.brassia.container.domain.InspectionPolicy;
 import br.com.brew.brassia.container.domain.SanitationRecord;
 import java.time.LocalDate;
 import java.util.List;
@@ -24,6 +26,13 @@ public interface LoanRepository {
     List<ContainerLoan> open(UUID breweryId, LocalDate overdueOn);
 
     List<ContainerLoan> ofContainer(UUID breweryId, UUID containerId);
+
+    void savePolicy(InspectionPolicy policy);
+
+    /** A política do tipo, quando a casa cadastrou uma. Vazio é estado legítimo e comum. */
+    Optional<InspectionPolicy> policyOf(UUID breweryId, ContainerKind kind);
+
+    List<InspectionPolicy> policies(UUID breweryId);
 
     void record(SanitationRecord record);
 

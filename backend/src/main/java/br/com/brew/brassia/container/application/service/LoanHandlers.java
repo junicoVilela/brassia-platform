@@ -1,5 +1,8 @@
 package br.com.brew.brassia.container.application.service;
 
+import java.util.Optional;
+import br.com.brew.brassia.container.domain.InspectionPolicy;
+import br.com.brew.brassia.container.domain.ContainerKind;
 import br.com.brew.brassia.shared.money.Money;
 import br.com.brew.brassia.container.application.port.outbound.ContainerRepository;
 import br.com.brew.brassia.container.application.port.outbound.LoanRepository;
@@ -97,6 +100,35 @@ public class LoanHandlers {
         loan.recovered(Instant.now(), reason);
         loans.close(loan);
         containerHandlers.recover(breweryId, containerId, reason);
+    }
+
+    /** A casa define a periodicidade; o sistema nunca a inventa (DUV-CON-001). */
+    @Transactional
+    public UUID definePolicy(UUID breweryId, ContainerKind kind, int intervalMonths, String note,
+            UUID actor) {
+        var policy = new InspectionPolicy(UUID.randomUUID(), breweryId, kind, intervalMonths, note,
+                actor);
+        loans.savePolicy(policy);
+        return policy.id();
+    }
+
+    @Transactional(readOnly = true)
+    public List<InspectionPolicy> policies(UUID breweryId) {
+        return loans.policies(breweryId);
+    }
+
+    /**
+     * A validade sugerida para uma inspeção feita agora, quando há política.
+     *
+     * <p>Vazio quando a casa não cadastrou: a ausência não afrouxa nada — o vasilhame continua exigindo
+     * inspeção válida —, ela só deixa de sugerir.
+     */
+    @Transactional(readOnly = true)
+    public Optional<Instant> suggestValidUntil(UUID breweryId, UUID containerId, Instant performedAt) {
+        var container = containers.find(breweryId, containerId)
+                .orElseThrow(() -> new UnknownContainerException(containerId));
+        return loans.policyOf(breweryId, container.kind())
+                .map(p -> p.suggestedValidUntil(performedAt));
     }
 
     @Transactional

@@ -7,6 +7,7 @@ import {
   ContainerIdentifier,
   ContainerLoan,
   ContainerSanitation,
+  InspectionPolicy,
   ContainerKind,
   ContainerLocation,
   ContainerState,
@@ -125,6 +126,25 @@ export class ContainersApi {
   /** O perdido que reapareceu: a perda fica, e a volta entra ao lado. */
   recoverLoan(id: string, reason: string): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/${id}/loans/recovery`, { reason });
+  }
+
+  inspectionPolicies(): Observable<InspectionPolicy[]> {
+    return this.http.get<InspectionPolicy[]>(`${this.baseUrl}/inspection-policies`);
+  }
+
+  defineInspectionPolicy(body: {
+    kind: ContainerKind;
+    intervalMonths: number;
+    note: string | null;
+  }): Observable<{ id: string }> {
+    return this.http.put<{ id: string }>(`${this.baseUrl}/inspection-policies`, body);
+  }
+
+  /** Sugestão, e não autoridade: o inspetor pode encurtar o prazo. */
+  inspectionSuggestion(id: string): Observable<{ performedAt?: string; validUntil?: string }> {
+    return this.http.get<{ performedAt?: string; validUntil?: string }>(
+      `${this.baseUrl}/${id}/inspections/suggestion`,
+    );
   }
 
   sanitations(id: string): Observable<ContainerSanitation[]> {

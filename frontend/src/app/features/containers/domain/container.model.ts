@@ -194,3 +194,16 @@ export const LOAN_REFUSAL_REASONS: Record<string, string> = {
   no_lost_loan:
     'Este vasilhame não está dado como perdido. Só volta ao inventário o que saiu por perda — descarte não se desfaz.',
 };
+
+/**
+ * De quanto em quanto tempo a casa inspeciona aquele tipo (DUV-CON-001).
+ *
+ * O sistema não propõe intervalo nenhum: a periodicidade vem de norma, e um padrão embutido faria a
+ * plataforma afirmar conformidade que ninguém verificou.
+ */
+export interface InspectionPolicy {
+  id: string;
+  kind: ContainerKind;
+  intervalMonths: number;
+  note: string | null;
+}

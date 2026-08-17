@@ -8,6 +8,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup;
@@ -340,6 +341,82 @@ class ContainerLoanIT {
                                 Set.of("container.read", "container.loan.manage"))))
                         .with(csrf()).contentType("application/json")
                         .content("{\"reason\":\"achei\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void aPeriodicidadeEDaCasaEOSistemaNaoTrazNumero() throws Exception {
+        // DUV-CON-001. Um padrão embutido faria a plataforma afirmar conformidade de vaso de pressão que
+        // ninguém verificou.
+        var session = login();
+
+        mockMvc.perform(get(BASE + "/inspection-policies").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()", is(0)));
+
+        mockMvc.perform(put(BASE + "/inspection-policies").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"kind\":\"KEG\",\"intervalMonths\":60,\"note\":\"norma da casa\"}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get(BASE + "/inspection-policies").session(session))
+                .andExpect(jsonPath("$[0].kind", is("KEG")))
+                .andExpect(jsonPath("$[0].intervalMonths", is(60)));
+    }
+
+    @Test
+    void aPoliticaSugereAValidadeSemImpor() throws Exception {
+        var session = login();
+        var keg = registra(session);
+        mockMvc.perform(put(BASE + "/inspection-policies").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"kind\":\"KEG\",\"intervalMonths\":12}"))
+                .andExpect(status().isCreated());
+
+        // Sugere a partir de agora…
+        mockMvc.perform(get(BASE + "/" + keg + "/inspections/suggestion").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.validUntil").exists());
+
+        // …e continua aceitando outra data: a inspeção que encontra um problema encurta o prazo.
+        var agora = Instant.now();
+        mockMvc.perform(post(BASE + "/" + keg + "/inspections").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("""
+                                {"performedAt":"%s","validUntil":"%s",
+                                 "note":"válvula com folga: revisar em um mês"}
+                                """.formatted(agora, agora.plus(Duration.ofDays(30)))))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get(BASE + "/" + keg).session(session))
+                .andExpect(jsonPath("$.fillable", is(true)));
+    }
+
+    @Test
+    void semPoliticaNaoHaSugestaoENadaAfrouxa() throws Exception {
+        // A ausência não muda regra nenhuma: o vasilhame continua exigindo inspeção válida para encher.
+        var session = login();
+        var keg = registra(session);
+
+        mockMvc.perform(get(BASE + "/" + keg + "/inspections/suggestion").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.validUntil").doesNotExist());
+
+        mockMvc.perform(get(BASE + "/" + keg).session(session))
+                .andExpect(jsonPath("$.fillable", is(false)));
+    }
+
+    @Test
+    void definirPeriodicidadeTemAlcadaCritica() throws Exception {
+        // O prazo de inspeção de vaso de pressão não é ajuste de tela.
+        var session = login();
+        var keg = registra(session);
+
+        mockMvc.perform(put(BASE + "/inspection-policies")
+                        .with(authentication(principal(breweryOf(keg),
+                                Set.of("container.read", "container.loan.manage"))))
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"kind\":\"KEG\",\"intervalMonths\":60}"))
                 .andExpect(status().isForbidden());
     }
 

@@ -54,6 +54,7 @@ function setup(api: Partial<ContainersApi>) {
   api.locations ??= () => of([]);
   api.loans ??= () => of([]);
   api.sanitations ??= () => of([]);
+  api.inspectionPolicies ??= () => of([]);
   TestBed.configureTestingModule({
     providers: [
       ContainersStore,
@@ -330,5 +331,24 @@ describe('ContainersStore', () => {
 
     expect(store.lost()).toHaveLength(1);
     expect(store.lost()[0].id).toBe('l1');
+  });
+
+  it('sem política cadastrada não há sugestão, e nada afrouxa', () => {
+    // A ausência não muda regra nenhuma: o vasilhame continua exigindo inspeção válida para encher.
+    const { store } = setup({ inspectionSuggestion: () => of({}) } as Partial<ContainersApi>);
+
+    store.loadSuggestion(keg());
+
+    expect(store.suggestedValidUntil()).toBeNull();
+  });
+
+  it('a sugestão chega da política, e é só sugestão', () => {
+    const { store } = setup({
+      inspectionSuggestion: () => of({ performedAt: '2026-08-18T10:00:00Z', validUntil: '2031-08-18T10:00:00Z' }),
+    } as Partial<ContainersApi>);
+
+    store.loadSuggestion(keg());
+
+    expect(store.suggestedValidUntil()).toBe('2031-08-18T10:00:00Z');
   });
 });

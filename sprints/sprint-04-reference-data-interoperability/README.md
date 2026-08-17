@@ -44,7 +44,7 @@ Sprints 02 e 03 concluídas
 ## Restrições
 
 - Não alterar as Sprints 00–03 para simular que o trabalho ainda será feito.
-- Não copiar bases globais do Brewfather, Brewer's Friend, Grainfather, BeerTools ou Breww.
+- Não copiar bases globais de softwares cervejeiros de terceiros.
 - Não publicar texto integral BJCP/BA sem permissão compatível.
 - Não consultar API externa durante cálculo, abertura de receita ou execução de lote.
 - Não usar IA como fonte de valores técnicos.
@@ -68,4 +68,4 @@ Sprints 02 e 03 concluídas
 
 ## Fora do escopo
 
-Sincronização Brewfather/Brewer's Friend, sensores, comunidade, vendas, CRM, logística, controle remoto de equipamento e catálogo proprietário de terceiros.
+Sincronização com softwares de terceiros, sensores, comunidade, vendas, CRM, logística, controle remoto de equipamento e catálogo proprietário de terceiros.

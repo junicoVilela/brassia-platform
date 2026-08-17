@@ -1,57 +1,33 @@
 # Sprint 21 — Conectores externos
 
-## Objetivo
+**Estado: SUSPENSA** por decisão do mantenedor em 2026-08-18 (`DEC-INT-002`, registrada em `STATUS.md`).
 
-Importar dados de serviços cervejeiros de terceiros sob credencial e escopo explícitos do usuário, com
-sincronização observável e conflito resolvido por decisão humana.
+## O que era
 
-## Módulos
+Importar receitas de softwares cervejeiros de terceiros mediante credencial e escopo explícitos do
+usuário, com sincronização observável e conflito resolvido por decisão humana. Três histórias — dois
+conectores de conta (INT-004 e INT-005) e a central de sincronização que os exibiria (INT-007).
 
-integration
+## Por que não foi feita
 
-## Dependências
+Duas razões, em ordem:
 
-Sprint 04 (pipeline canônico BeerJSON/BeerXML), Sprint 15 (inbox/idempotency, outbox e assinatura HMAC),
-Sprint 17 publicada.
+1. **Não era verificável** (`BLQ-INT-001`). Os critérios de aceite eram sobre comportamento de fronteira —
+   paginação, rate limit, backoff, timeout, revogação — e isso exige exercitar a API real. Um dublê
+   exercita o código que escrevemos contra o contrato que *supomos*, e é a suposição que falha em
+   integração com terceiro. Por isso as histórias saíram da Sprint 15 em vez de entrarem com dublê
+   (`DEC-INT-001`).
+2. **O mantenedor decidiu não integrar** com esses provedores por enquanto (`DEC-INT-002`). Isso é decisão
+   de produto, e não de execução.
 
-## Histórias
+## O que existe hoje
 
-- `INT-004` — Conector Brewfather API v2
-- `INT-005` — Conector Brewer's Friend API v1
-- `INT-007` — Central de sincronização e conflitos
+**Nada de código.** Nenhuma dependência, nenhum cliente HTTP, nenhum campo de credencial, nada no
+`openapi.yaml`. A contenção da `DEC-INT-001` — não escrever o que não se pode verificar — é o que tornou a
+suspensão barata.
 
-## Origem
+## Se a necessidade voltar
 
-As três histórias nasceram na Sprint 15 e foram movidas para cá por decisão registrada em
-`sprints/sprint-15-integrations-pwa/STATUS.md` (DEC-INT-001). O motivo é de verificabilidade, não de
-prioridade: os critérios de aceite de INT-004 e INT-005 exigem exercitar paginação, rate limit, backoff,
-timeout e revogação contra a API real, e isso depende de credencial de terceiro que o projeto não possui.
-Implementá-las só contra dublê marcaria a história como concluída sem que o critério tivesse sido cumprido.
-
-INT-007 acompanha porque existe para exibir execuções, cursores, falhas, rate limit e conflitos **desses**
-conectores — sem eles, é uma tela sem conteúdo.
-
-## Entregáveis técnicos
-
-- Cofre de credencial por cervejaria, com mascaramento na leitura
-- Cursor de sincronização retomável
-- Modelo de prévia: criar, atualizar, ignorar, conflitar
-- Backoff com respeito a rate limit e revogação
-
-## Riscos que precisam de teste
-
-- credencial vazando em log, evento ou exportação
-- retry perdendo ou repetindo o cursor
-- campo externo desconhecido truncado em silêncio
-- conflito sobrescrevendo receita local
-- rate limit do provedor tratado como falha permanente
-
-## Pré-condição de execução
-
-Não iniciar sem credencial de teste válida dos provedores. Sem ela, os critérios de paginação, rate limit,
-backoff, timeout e revogação não são verificáveis e a sprint não pode ser aceita.
-
-## Fora do escopo
-
-Escrita nos provedores externos, importação de sessões antes de contrato documentado e testes de conflito,
-e qualquer conector que não seja Brewfather ou Brewer's Friend.
+Trazer receita de fora **não depende de API de terceiro**: a Sprint 04 já entrega o pipeline canônico
+BeerJSON/BeerXML, e importação por arquivo não precisa de credencial de ninguém. Um conector de conta
+seria história nova, e a pergunta de qual provedor voltaria a ser aberta.

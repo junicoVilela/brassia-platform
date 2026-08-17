@@ -12,8 +12,6 @@ Data da revisão: 2026-07-23.
 |---|---|---|
 | BJCP | Estilos, impressão geral, atributos sensoriais e estatísticas vitais | Catálogo de padrões versionado, comparação de receita e avaliação sensorial |
 | BeerJSON | Intercâmbio moderno de receitas, ingredientes, processos, equipamentos e água | Formato canônico de importação e exportação |
-| Brewfather | Designer de receitas, água, estoque, lotes, dispositivos, notificações e API v2 | Inspiração de fluxo e conector opcional de dados do usuário |
-| Brewer's Friend | Calculadoras, água, sessões, inventário, shopping list, receitas e API | Calculadoras independentes e importação opcional |
 | Grainfather | Criação guiada, escala inteligente, brew day móvel, alertas, sensores e ampla coleção de calculadoras | Assistente passo a passo, PWA, alertas e catálogo de calculadoras |
 | BeerTools | Formulação, comparação com estilo, ingredientes, equipamento e automação de cálculos | Editor técnico com explicação de cada resultado |
 | Breww | Produção, QA, estoque rastreável, CRM, contêineres, distribuição e relatórios | Extensão comercial pós-release, isolada do núcleo cervejeiro |
@@ -66,8 +64,6 @@ Data da revisão: 2026-07-23.
 - https://www.bjcp.org/faq/i-want-to-use-your-style-guidelines-can-i/
 - https://beerjson.github.io/beerjson/
 - https://github.com/beerjson/beerjson
-- https://docs.brewfather.app/
-- https://docs.brewersfriend.com/api/recipes
 - https://uk.grainfather.com/pages/app-showcase
 - https://www.beertools.com/store/product.php?prodid=prod_Rnk2Cs6XXpZnGg
 - https://breww.com/features/

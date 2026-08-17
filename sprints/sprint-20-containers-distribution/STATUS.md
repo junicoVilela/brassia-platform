@@ -311,7 +311,7 @@ condições de venda em vez do contrato que supúnhamos.
 
 **Quarentena virou real:** aberta pelo mesmo endpoint que a operação usa.
 
-### DEB-CON-001 (CON-002) — o texto original
+**Como estava registrado quando foi aberto:**
 
 Os testes de integração do vasilhame usam um `SellableLotLookup` roteirizado. A composição real das três
 condições de venda é exercida de ponta a ponta pelo `PackagingRunIT`; reproduzir mil linhas de cenário de

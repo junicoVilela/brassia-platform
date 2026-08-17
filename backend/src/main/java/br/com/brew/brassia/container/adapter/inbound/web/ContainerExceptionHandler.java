@@ -5,6 +5,7 @@ import br.com.brew.brassia.container.domain.ContainerRetiredException;
 import br.com.brew.brassia.container.domain.DuplicateIdentifierException;
 import br.com.brew.brassia.container.domain.FillNotAllowedException;
 import br.com.brew.brassia.container.domain.IllegalContainerTransitionException;
+import br.com.brew.brassia.container.domain.LoanNotAllowedException;
 import br.com.brew.brassia.container.domain.UnknownContainerException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import org.springframework.core.annotation.Order;
@@ -52,6 +53,14 @@ class ContainerExceptionHandler {
     @ExceptionHandler(FillNotAllowedException.class)
     ProblemDetail handleFill(FillNotAllowedException ex) {
         var problem = ProblemDetails.of(HttpStatus.CONFLICT, "fill_not_allowed", ex.getMessage());
+        problem.setProperty("reasonCode", ex.reasonCode());
+        return problem;
+    }
+
+    /** 409: o mesmo keg com dois clientes ao mesmo tempo contabilizaria duas cauções. */
+    @ExceptionHandler(LoanNotAllowedException.class)
+    ProblemDetail handleLoan(LoanNotAllowedException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "loan_not_allowed", ex.getMessage());
         problem.setProperty("reasonCode", ex.reasonCode());
         return problem;
     }

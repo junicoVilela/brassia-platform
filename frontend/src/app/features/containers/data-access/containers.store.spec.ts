@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { Container } from '../domain/container.model';
+import { Container, ContainerLoan } from '../domain/container.model';
 import { ContainersApi } from './containers.api';
 import { ContainersStore } from './containers.store';
 
@@ -23,12 +23,35 @@ function keg(over: Partial<Container> = {}): Container {
   };
 }
 
+function emprestimo(over: Partial<ContainerLoan> = {}): ContainerLoan {
+  return {
+    id: 'l1',
+    containerId: 'c1',
+    customerId: 'cli1',
+    customerName: 'Bar do Bruno',
+    lentAt: '2026-08-01T10:00:00Z',
+    dueOn: '2026-08-31',
+    overdue: false,
+    daysLate: 0,
+    depositAmount: 120,
+    depositCurrency: 'BRL',
+    depositOutcome: 'HELD',
+    returnedAt: null,
+    returnedLate: false,
+    lostAt: null,
+    lossReason: null,
+    ...over,
+  };
+}
+
 function setup(api: Partial<ContainersApi>) {
   const toast = { success: vi.fn(), error: vi.fn() };
   api.list ??= () => of([keg()]);
   api.identifiers ??= () => of([]);
   api.fills ??= () => of([]);
   api.locations ??= () => of([]);
+  api.loans ??= () => of([]);
+  api.sanitations ??= () => of([]);
   TestBed.configureTestingModule({
     providers: [
       ContainersStore,
@@ -192,5 +215,84 @@ describe('ContainersStore', () => {
     store.fill(keg(), 'lote-1', 60);
 
     expect(toast.error).toHaveBeenCalledWith('O volume informado não cabe no vasilhame.');
+  });
+
+  it('conta atrasados, e não quem devolveu tarde', () => {
+    // Contar os dois juntos faria a cobrança do dia ligar para quem já devolveu.
+    const { store } = setup({
+      loans: () =>
+        of([
+          emprestimo({ id: 'l1', overdue: true, daysLate: 5 }),
+          emprestimo({ id: 'l2', overdue: false, daysLate: 0 }),
+          emprestimo({
+            id: 'l3',
+            overdue: false,
+            daysLate: 0,
+            returnedAt: '2026-08-20T10:00:00Z',
+            returnedLate: true,
+            depositOutcome: 'TO_REFUND',
+          }),
+        ]),
+    } as Partial<ContainersApi>);
+
+    store.loadLoans();
+
+    expect(store.overdueCount()).toBe(1);
+  });
+
+  it('a devolução fala em caução A DEVOLVER, e nunca em devolvida', () => {
+    // O estorno é lançamento financeiro: dizer o contrário faria a tela afirmar um pagamento que
+    // ninguém fez.
+    const { store, toast } = setup({ returnLoan: () => of(undefined) } as Partial<ContainersApi>);
+
+    store.returnLoan(emprestimo({}));
+
+    expect(toast.success).toHaveBeenCalledWith(
+      'Devolução registrada. A caução fica a devolver ao cliente.',
+    );
+  });
+
+  it('a perda diz que o vasilhame saiu do inventário e a caução ficou', () => {
+    // Perda não é descarte, e a frase é o que impede as duas coisas de virarem a mesma linha.
+    const { store, toast } = setup({ declareLoss: () => of(undefined) } as Partial<ContainersApi>);
+
+    store.declareLoss(emprestimo({}), 'o bar fechou');
+
+    expect(toast.success).toHaveBeenCalledWith(
+      'Perda registrada. O vasilhame saiu do inventário e a caução fica retida.',
+    );
+  });
+
+  it('caução zero vira ausência, e não um valor retido de mentira', () => {
+    // Zero somaria no relatório de valores retidos como se houvesse dinheiro parado.
+    const lend = vi.fn().mockReturnValue(of({ id: 'l1' }));
+    const { store } = setup({ lend } as Partial<ContainersApi>);
+
+    store.lend(keg(), 'c1', 'Bar do Bruno', '2026-09-30', 0);
+
+    expect(lend.mock.calls[0][1].depositAmount).toBeNull();
+    expect(lend.mock.calls[0][1].depositCurrency).toBeNull();
+
+    store.lend(keg(), 'c1', 'Bar do Bruno', '2026-09-30', 120);
+
+    expect(lend.mock.calls[1][1].depositAmount).toBe(120);
+    expect(lend.mock.calls[1][1].depositCurrency).toBe('BRL');
+  });
+
+  it('o vasilhame já emprestado é recusado com a frase de quem opera', () => {
+    // O mesmo keg com dois clientes contabilizaria duas cauções.
+    const { store, toast } = setup({
+      lend: () =>
+        throwError(() => ({
+          status: 409,
+          error: { code: 'loan_not_allowed', detail: 'x', reasonCode: 'already_lent' },
+        })),
+    } as Partial<ContainersApi>);
+
+    store.lend(keg(), 'c1', 'Bar', '2026-09-30', null);
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'Este vasilhame já está emprestado. O mesmo keg com dois clientes contabilizaria duas cauções.',
+    );
   });
 });

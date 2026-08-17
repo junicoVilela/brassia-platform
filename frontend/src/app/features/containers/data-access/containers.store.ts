@@ -6,9 +6,12 @@ import {
   Container,
   ContainerFill,
   ContainerIdentifier,
+  ContainerLoan,
+  ContainerSanitation,
   ContainerKind,
   ContainerLocation,
   ContainerState,
+  LOAN_REFUSAL_REASONS,
   FILL_REFUSAL_REASONS,
   IdentifierTechnology,
   LocationKind,
@@ -48,6 +51,19 @@ export class ContainersStore {
   readonly fills = signal<ContainerFill[]>([]);
   readonly locations = signal<ContainerLocation[]>([]);
   readonly historyOf = signal<Container | null>(null);
+
+  /** Os empréstimos em aberto — e, filtrada, a fila de atrasados. */
+  readonly loans = signal<ContainerLoan[]>([]);
+  readonly onlyOverdue = signal(false);
+  readonly sanitations = signal<ContainerSanitation[]>([]);
+
+  /**
+   * Quantos vasilhames estão atrasados.
+   *
+   * <p>Atrasado é o que ainda não voltou depois do prazo — quem devolveu tarde já é história, e contar
+   * os dois juntos faria a cobrança do dia ligar para quem já devolveu.
+   */
+  readonly overdueCount = computed(() => this.loans().filter(l => l.overdue).length);
 
   /** O que a leitura de um código encontrou — e só isso: ler não autoriza nada. */
   readonly scanned = signal<Container | null>(null);
@@ -277,6 +293,97 @@ export class ContainersStore {
     this.scanned.set(null);
   }
 
+  loadLoans(): void {
+    const hoje = new Date().toISOString().slice(0, 10);
+    this.api
+      .loans(this.onlyOverdue() ? hoje : null)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: list => this.loans.set(list) });
+  }
+
+  toggleOverdue(only: boolean): void {
+    this.onlyOverdue.set(only);
+    this.loadLoans();
+  }
+
+  lend(container: Container, customerId: string, customerName: string, dueOn: string,
+    depositAmount: number | null): void {
+    this.saving.set(true);
+    this.api
+      .lend(container.id, {
+        customerId,
+        customerName,
+        dueOn,
+        // Ausência de caução é NULO, e não zero: zero somaria no relatório de valores retidos como se
+        // houvesse dinheiro parado.
+        depositAmount: depositAmount && depositAmount > 0 ? depositAmount : null,
+        depositCurrency: depositAmount && depositAmount > 0 ? 'BRL' : null,
+      })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.saving.set(false)),
+      )
+      .subscribe({
+        next: () => {
+          this.toast.success('Empréstimo registrado.');
+          this.loadLoans();
+          this.load();
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível emprestar.')),
+      });
+  }
+
+  returnLoan(loan: ContainerLoan): void {
+    this.api
+      .returnLoan(loan.containerId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          // "A devolver", e não "devolvida": o estorno é lançamento financeiro, e dizer o contrário
+          // faria a tela afirmar um pagamento que ninguém fez.
+          this.toast.success('Devolução registrada. A caução fica a devolver ao cliente.');
+          this.loadLoans();
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível encerrar.')),
+      });
+  }
+
+  declareLoss(loan: ContainerLoan, reason: string): void {
+    this.api
+      .declareLoss(loan.containerId, reason)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          // Perda não é descarte: dizer isso aqui é o que impede as duas coisas de virarem a mesma
+          // linha no inventário.
+          this.toast.success('Perda registrada. O vasilhame saiu do inventário e a caução fica retida.');
+          this.loadLoans();
+          this.load();
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível registrar a perda.')),
+      });
+  }
+
+  loadSanitations(container: Container): void {
+    this.api
+      .sanitations(container.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: list => this.sanitations.set(list) });
+  }
+
+  sanitize(container: Container, method: string, note: string | null): void {
+    this.api
+      .sanitize(container.id, { method, note })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success('Higienização registrada.');
+          this.loadSanitations(container);
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível registrar.')),
+      });
+  }
+
   private reloadIdentifiers(containerId: string): void {
     this.api
       .identifiers(containerId)
@@ -295,7 +402,8 @@ export class ContainersStore {
     if (reason) {
       // Duas famílias de motivo: o vasilhame e o líquido. Misturá-las daria ao operador uma mensagem
       // que não diz o que trocar.
-      const frase = NOT_FILLABLE_REASONS[reason] ?? FILL_REFUSAL_REASONS[reason];
+      const frase =
+        NOT_FILLABLE_REASONS[reason] ?? FILL_REFUSAL_REASONS[reason] ?? LOAN_REFUSAL_REASONS[reason];
       if (frase) {
         return frase;
       }

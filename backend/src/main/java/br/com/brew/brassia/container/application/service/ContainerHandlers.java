@@ -112,6 +112,12 @@ public class ContainerHandlers {
         apply(breweryId, containerId, Container::condemn);
     }
 
+    /** Baixa por perda: sai do inventário onde quer que estivesse, com o motivo junto. */
+    @Transactional
+    public void declareLost(UUID breweryId, UUID containerId, String reason) {
+        apply(breweryId, containerId, c -> c.declareLost(reason, Instant.now()));
+    }
+
     @Transactional
     public void retire(UUID breweryId, UUID containerId, String reason) {
         apply(breweryId, containerId, c -> c.retire(reason, Instant.now()));

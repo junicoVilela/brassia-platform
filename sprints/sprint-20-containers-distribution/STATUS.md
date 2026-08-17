@@ -294,7 +294,24 @@ aqui seria decidir sozinho sobre dinheiro do cliente.
 distinção entre keg descartado e keg perdido sobrevive; e o empréstimo guarda a caução e o desfecho, então
 o que precisaria ser estornado está registrado.
 
-### DEB-CON-001 (CON-002) — O dublê de lote acabado nos testes de contêiner
+### DEB-CON-001 (CON-002) — **RESOLVIDO em 2026-08-18**: o dublê deixou de existir
+
+Ele existia por um motivo econômico: montar um lote de produto acabado de verdade custava as mil linhas do
+`PackagingRunIT`. Com a fixture compartilhada da `DEB-SAL-003`, o custo caiu para uma linha —
+`cenario.finishedLot(session)` — e os testes de contêiner passaram a exercitar a **composição real** das
+condições de venda em vez do contrato que supúnhamos.
+
+**Dois casos exigiram mais que trocar a chamada**, e os dois ensinaram algo:
+
+- **Vencido:** a validade que vale é o `override_best_before`, que é data absoluta — envelhecer a data de
+  envase não mexeria nela. Mesma lição do link de compartilhamento: envelhecer o campo certo.
+- **A ordem dos impedimentos importa.** Um lote envelhecido mas **não liberado** devolve `not_released`,
+  que o enchimento aceita de propósito. Sem liberar antes, o teste mediria outra coisa e passaria
+  acreditando que testou validade.
+
+**Quarentena virou real:** aberta pelo mesmo endpoint que a operação usa.
+
+### DEB-CON-001 (CON-002) — o texto original
 
 Os testes de integração do vasilhame usam um `SellableLotLookup` roteirizado. A composição real das três
 condições de venda é exercida de ponta a ponta pelo `PackagingRunIT`; reproduzir mil linhas de cenário de

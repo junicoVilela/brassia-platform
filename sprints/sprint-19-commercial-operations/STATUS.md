@@ -351,7 +351,34 @@ Está escrito no domínio, na migration, no contrato e num teste que existe só 
 **Critério de remoção:** existir baixa de pagamento por pedido, e o comprometido passar a considerar o
 que foi entregue e não pago. É história própria — provavelmente da INT-008, que traz as portas fiscais.
 
-### DEB-SAL-003 — O `PackagingRunIT` virou a casa de todos os cenários
+### DEB-SAL-003 — **RESOLVIDO EM PARTE em 2026-08-18**: a fixture existe; o arquivo ainda não foi repartido
+
+**O que foi feito.** A máquina que constrói um lote de cerveja saiu para `support.BrewScenario`: login,
+equipamento, ingrediente, ordem liberada, brassa iniciada, transferência, embalagem recebida, linha limpa,
+plano com checklist e reserva, execução, frescor e liberação. Quem precisa de um lote acabado agora escreve
+uma linha.
+
+**Ela é construída por API, e não por SQL.** Inserir as linhas direto no banco seria mais curto e produziria
+um lote que nenhum caminho do sistema consegue produzir — a fixture pararia de quebrar quando uma regra
+mudasse, que é exatamente quando ela precisa quebrar.
+
+**E ela tem teste próprio** (`BrewScenarioIT`). Uma fixture que constrói errado faz dezenas de testes
+mentirem juntos, e todos passam: este é o único lugar onde o que ela produz é verificado como resultado, e
+não usado como pressuposto.
+
+**O `PackagingRunIT` passou a delegar**, e não a duplicar: os construtores viraram chamadas de uma linha à
+fixture, e o arquivo caiu de **1.219 para 1.087 linhas**. Isso importa mais que o tamanho — duas cópias do
+mesmo cenário divergem na primeira regra nova, e a segunda a mudar não avisa a primeira. Agora o cenário
+tem **um dono**.
+
+**O primeiro uso externo já pagou:** o `DEB-CON-001` foi fechado com ela, e o dublê de lote acabado deixou
+de existir.
+
+**O que NÃO foi feito, e continua aberto:** repartir o `PackagingRunIT` por assunto. Ele continua grande, e
+separá-lo em envase, frescor, liberação e venda é movimento próprio — fazê-lo no mesmo passo misturaria
+"extraí o cenário" com "mudei onde cada teste mora", e um diff assim não se revisa.
+
+### DEB-SAL-003 — o texto original
 
 Ele tem **1.100 linhas** porque é onde mora a máquina que constrói um lote acabado de verdade — plano,
 checklist, limpeza, reserva, execução —, e as histórias de venda precisam dela: liberação, lote vendável,

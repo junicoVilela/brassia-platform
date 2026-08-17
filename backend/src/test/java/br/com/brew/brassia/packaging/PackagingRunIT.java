@@ -1,5 +1,6 @@
 package br.com.brew.brassia.packaging;
 
+import br.com.brew.brassia.support.BrewScenario;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -64,9 +65,18 @@ class PackagingRunIT {
     @Autowired org.springframework.jdbc.core.simple.JdbcClient jdbc;
     MockMvc mockMvc;
 
+    /**
+     * A máquina de construir cerveja mora fora daqui (DEB-SAL-003).
+     *
+     * <p>Os métodos abaixo viraram delegação de uma linha: o cenário é o mesmo, e agora ele tem UM dono.
+     * Duas cópias divergem na primeira regra nova, e a segunda a mudar não avisa a primeira.
+     */
+    BrewScenario cenario;
+
     @BeforeEach
     void setUp() {
         mockMvc = webAppContextSetup(context).apply(springSecurity()).build();
+        cenario = new BrewScenario(mockMvc);
     }
 
     @Test
@@ -288,16 +298,9 @@ class PackagingRunIT {
         assertThat(lote.get("volumeLiters").asDouble()).isEqualTo(276.9);
     }
 
-    private JsonNode finishedLotOf(MockHttpSession session, String batchId, String code) throws Exception {
-        var body = mockMvc.perform(get("/api/v1/packaging/finished-lots").param("batchId", batchId)
-                        .session(session))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        for (JsonNode lot : JSON.readTree(body)) {
-            if (lot.get("code").asText().equals(code)) {
-                return lot;
-            }
-        }
-        throw new AssertionError("lote de produto acabado ausente: " + code);
+    private JsonNode finishedLotOf(MockHttpSession session, String batchId, String code)
+            throws Exception {
+        return cenario.finishedLotOf(session, batchId, code);
     }
 
     @Test
@@ -365,33 +368,14 @@ class PackagingRunIT {
         return new Scene(plan(session, batchId, containerId, createEquipment(session), 800), lotId);
     }
 
-    /** Plano criado, checklist confirmado, linha limpa e embalagem reservada. */
     private String reserveFor(MockHttpSession session, String batchId, String containerId, int units)
             throws Exception {
-        var lineId = createEquipment(session);
-        releaseCleaning(session, lineId);
-        var planId = plan(session, batchId, containerId, lineId, units);
-        for (var item : new String[] {"CONTAINER_INSPECTED", "SEAL_TEST", "GAS_SUPPLY"}) {
-            mockMvc.perform(post(PLANS + "/" + planId + "/checklist").session(session).with(csrf())
-                            .contentType("application/json").content("{\"item\":\"" + item + "\"}"))
-                    .andExpect(status().isOk());
-        }
-        mockMvc.perform(post(PLANS + "/" + planId + "/reserve").session(session).with(csrf()))
-                .andExpect(status().isOk());
-        return planId;
+        return cenario.reservedPlan(session, batchId, containerId, units);
     }
 
-    private String plan(MockHttpSession session, String batchId, String containerId, String lineId, int units)
-            throws Exception {
-        var sfx = UUID.randomUUID().toString().substring(0, 8);
-        var content = """
-                {"code":"ENV-%s","batchId":"%s","containerId":"%s","plannedUnits":%d,"lineEquipmentId":"%s",
-                 "plannedStart":"%s","plannedEnd":"%s"}
-                """.formatted(sfx, batchId, containerId, units, lineId, PLANNED_START, PLANNED_END);
-        var body = mockMvc.perform(post(PLANS).session(session).with(csrf()).contentType("application/json")
-                        .content(content))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        return JSON.readTree(body).get("id").asText();
+    private String plan(MockHttpSession session, String batchId, String containerId, String lineId,
+            int units) throws Exception {
+        return cenario.plan(session, batchId, containerId, lineId, units);
     }
 
     // --- helpers ---
@@ -408,126 +392,33 @@ class PackagingRunIT {
     }
 
     private void releaseCleaning(MockHttpSession session, String equipmentId) throws Exception {
-        var code = "CIP-" + UUID.randomUUID().toString().substring(0, 8);
-        var step = "{\"sequence\":1,\"method\":\"CIP\",\"product\":\"soda\",\"concentrationMinPct\":1.0,"
-                + "\"concentrationMaxPct\":3.0,\"tempMinC\":50,\"tempMaxC\":70,\"timeMinutes\":15,"
-                + "\"evidenceRequired\":false}";
-        var procedureId = idOf(mockMvc.perform(post("/api/v1/sanitation/procedures").session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("{\"code\":\"" + code + "\",\"name\":\"CIP linha\",\"steps\":[" + step + "]}"))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
-        mockMvc.perform(post("/api/v1/sanitation/procedures/" + procedureId + "/publish").session(session)
-                        .with(csrf()))
-                .andExpect(status().isOk());
-        var cycleId = idOf(mockMvc.perform(post("/api/v1/sanitation/cycles").session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("{\"procedureCode\":\"" + code + "\",\"equipmentId\":\"" + equipmentId + "\"}"))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
-        mockMvc.perform(post("/api/v1/sanitation/cycles/" + cycleId + "/steps").session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("{\"sequence\":1,\"measuredConcentrationPct\":2.0,\"measuredTempC\":60,"
-                                + "\"measuredTimeMinutes\":20}"))
-                .andExpect(status().isNoContent());
-        mockMvc.perform(post("/api/v1/sanitation/cycles/" + cycleId + "/complete").session(session).with(csrf()))
-                .andExpect(status().isNoContent());
-        mockMvc.perform(post("/api/v1/sanitation/cycles/" + cycleId + "/verification").session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("{\"rinseOk\":true,\"visualOk\":true,\"atpRlu\":40,\"atpThreshold\":100,"
-                                + "\"microOk\":true}"))
-                .andExpect(status().isNoContent());
-        mockMvc.perform(post("/api/v1/sanitation/cycles/" + cycleId + "/release").session(session).with(csrf()))
-                .andExpect(status().isNoContent());
+        cenario.releaseCleaning(session, equipmentId);
     }
 
-    private String receiveContainers(MockHttpSession session, String containerId, int quantity) throws Exception {
-        var sfx = UUID.randomUUID().toString().substring(0, 8);
-        var supplierId = idOf(mockMvc.perform(post("/api/v1/suppliers").session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("{\"name\":\"Sup " + sfx + "\",\"code\":\"S-" + sfx + "\"}"))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
-        return idOf(mockMvc.perform(post("/api/v1/inventory/lots").session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("{\"ingredientId\":\"" + containerId + "\",\"supplierId\":\"" + supplierId
-                                + "\",\"quantity\":" + quantity + ",\"unit\":\"UNIT\",\"unitCost\":0.9,"
-                                + "\"expiryDate\":\"2028-01-01\",\"inspection\":\"APPROVED\"}"))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+    private String receiveContainers(MockHttpSession session, String containerId, int quantity)
+            throws Exception {
+        return cenario.receiveContainers(session, containerId, quantity);
     }
 
     private String fermentingBatch(MockHttpSession session) throws Exception {
-        var batchId = startedBatch(session);
-        var fermenter = createEquipment(session);
-        mockMvc.perform(post("/api/v1/production/batches/" + batchId + "/transfer").session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("{\"destinationEquipmentId\":\"" + fermenter + "\",\"volumeLiters\":390,"
-                                + "\"ogSg\":1.052,\"lossesLiters\":8}"))
-                .andExpect(status().isCreated());
-        return batchId;
+        return cenario.fermentingBatch(session);
     }
 
     private String startedBatch(MockHttpSession session) throws Exception {
-        var orderId = releasedOrder(session);
-        mockMvc.perform(post("/api/v1/brew-orders/" + orderId + "/start").session(session).with(csrf()))
-                .andExpect(status().isOk());
-        var listBody = mockMvc.perform(get("/api/v1/production/batches").session(session))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        for (JsonNode node : JSON.readTree(listBody).get("content")) {
-            if (node.get("orderId").asText().equals(orderId)) {
-                return node.get("id").asText();
-            }
-        }
-        throw new AssertionError("lote não encontrado para a ordem " + orderId);
+        return cenario.startedBatch(session);
     }
 
     private String releasedOrder(MockHttpSession session) throws Exception {
-        var sfx = UUID.randomUUID().toString().substring(0, 8);
-        var equipmentId = createEquipment(session);
-        var maltId = createIngredient(session, "MALT", "KG", "{\"potentialSg\":\"1.037\",\"colorEbc\":\"4\"}");
-        var hopId = createIngredient(session, "HOP", "G", "{\"alphaAcid\":\"12\"}");
-        var yeastId = createIngredient(session, "YEAST", "UNIT", "{\"attenuation\":\"78\"}");
-        var content = """
-                {"name":"Run %s","equipmentId":"%s","batchVolumeLiters":400,"boilTimeMinutes":60,"targetIbu":30,
-                 "items":[{"ingredientId":"%s","stage":"MASH","quantity":20,"unit":"KG"},
-                          {"ingredientId":"%s","stage":"BOIL","quantity":60,"unit":"G","timingMinutes":60},
-                          {"ingredientId":"%s","stage":"FERMENTATION","quantity":1,"unit":"UNIT"}]}
-                """.formatted(sfx, equipmentId, maltId, hopId, yeastId);
-        var recipeId = idOf(mockMvc.perform(post("/api/v1/recipes").session(session).with(csrf())
-                        .contentType("application/json").content(content))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
-        mockMvc.perform(post("/api/v1/recipes/" + recipeId + "/metrics").session(session).with(csrf()))
-                .andExpect(status().isOk());
-        mockMvc.perform(post("/api/v1/recipes/" + recipeId + "/publish").session(session).with(csrf()))
-                .andExpect(status().isOk());
-        var orderId = idOf(mockMvc.perform(post("/api/v1/brew-orders").session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("{\"recipeId\":\"" + recipeId + "\",\"volumeLiters\":400}"))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
-        mockMvc.perform(post("/api/v1/brew-orders/" + orderId + "/release").session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("{\"assignedUserId\":\"" + UUID.randomUUID() + "\"}"))
-                .andExpect(status().isOk());
-        return orderId;
+        return cenario.releasedOrder(session);
     }
 
     private String createEquipment(MockHttpSession session) throws Exception {
-        var code = "EQ-" + UUID.randomUUID().toString().substring(0, 8);
-        return idOf(mockMvc.perform(post("/api/v1/equipment").session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("{\"code\":\"" + code + "\",\"name\":\"Linha\",\"capacityLiters\":500,"
-                                + "\"deadSpaceLiters\":20,\"mashEfficiencyPercent\":72,"
-                                + "\"boilOffLitersPerHour\":8}"))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        return cenario.equipment(session);
     }
 
-    private String createIngredient(MockHttpSession session, String type, String unit, String attributes)
+    private String createIngredient(MockHttpSession session, String type, String unit, String attrs)
             throws Exception {
-        var code = type.toLowerCase(java.util.Locale.ROOT).charAt(0) + "-"
-                + UUID.randomUUID().toString().substring(0, 8);
-        return idOf(mockMvc.perform(post("/api/v1/catalog/ingredients").session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("{\"type\":\"" + type + "\",\"code\":\"" + code + "\",\"name\":\"" + code
-                                + "\",\"useUnit\":\"" + unit + "\",\"purchaseUnit\":\"" + unit
-                                + "\",\"attributes\":" + attributes + "}"))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        return cenario.ingredient(session, type, unit, attrs);
     }
 
     private static String idOf(String json) throws Exception {
@@ -535,12 +426,7 @@ class PackagingRunIT {
     }
 
     private MockHttpSession login() throws Exception {
-        var result = mockMvc.perform(post("/api/v1/security/login").with(csrf())
-                        .contentType("application/json")
-                        .content("{\"email\":\"admin@brassia.local\",\"password\":\"admin-local-123\"}"))
-                .andExpect(status().isOk())
-                .andReturn();
-        return (MockHttpSession) result.getRequest().getSession(false);
+        return cenario.login();
     }
 
     private Authentication principal(UUID breweryId, Set<String> permissions) {
@@ -651,26 +537,8 @@ class PackagingRunIT {
         return finishedLotOf(session, batchOfPlan(session, planId), code).get("id").asText();
     }
 
-    /**
-     * Evidência de oxigênio e a validade que sai dela (FSL-001).
-     *
-     * <p>Sem política de vida útil cadastrada não há recomendação, e a validade passa a ser decisão
-     * humana registrada — que é o override. Os dois passos existem porque o sistema recusa inventar
-     * prazo: ou há política que sustente, ou alguém assume por escrito.
-     */
     private void registraFrescor(MockHttpSession session, String planId) throws Exception {
-        mockMvc.perform(put(PLANS + "/" + planId + "/freshness").session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("""
-                                {"dissolvedOxygenPpb":30,"totalPackageOxygenPpb":50,
-                                 "purgeMethod":"CO2 counter-pressure","purgeVerified":true,
-                                 "sealCheckMethod":"torque","sealCheckPassed":true}
-                                """))
-                .andExpect(status().is2xxSuccessful());
-        mockMvc.perform(post(PLANS + "/" + planId + "/freshness/override").session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("{\"shelfLifeDays\":180,\"reason\":\"validade definida no teste\"}"))
-                .andExpect(status().is2xxSuccessful());
+        cenario.recordFreshness(session, planId);
     }
 
     private String receitaDoLote(MockHttpSession session, String batchId) throws Exception {

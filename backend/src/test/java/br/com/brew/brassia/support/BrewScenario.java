@@ -368,9 +368,21 @@ public final class BrewScenario {
      * e sem poder trocar o canal não há como exercitar a recusa.
      */
     public String orderBody(SalesScene scene, String channelId, int quantity, LocalDate promisedFor) {
+        return orderBody(scene, channelId, quantity, promisedFor, null);
+    }
+
+    /**
+     * O mesmo pedido, com a justificativa de quem autoriza passar do teto de crédito (SAL-004).
+     *
+     * <p>Nulo é o normal — e sem ela o pedido acima do teto é recusado, como no portal.
+     */
+    public String orderBody(SalesScene scene, String channelId, int quantity, LocalDate promisedFor,
+            String creditOverrideReason) {
         return "{\"code\":\"PED-" + suffix() + "\",\"customerId\":\"" + scene.customerId() + "\","
                 + "\"channelId\":\"" + channelId + "\","
                 + (promisedFor == null ? "" : "\"promisedFor\":\"" + promisedFor + "\",")
+                + (creditOverrideReason == null ? ""
+                        : "\"creditOverrideReason\":\"" + creditOverrideReason + "\",")
                 + "\"items\":[{\"productId\":\"" + scene.productId() + "\",\"quantity\":"
                 + quantity + "}]}";
     }

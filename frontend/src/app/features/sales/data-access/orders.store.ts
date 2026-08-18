@@ -14,6 +14,10 @@ interface ApiError {
     available?: number;
     earliestBestBefore?: string;
     lotCode?: string;
+    ceiling?: number;
+    committed?: number;
+    requested?: number;
+    currency?: string;
   };
 }
 
@@ -47,6 +51,20 @@ export class OrdersStore {
    */
   readonly payments = signal<Record<string, OrderPayments>>({});
 
+  /**
+   * O pedido recusado por crédito não é um erro qualquer (SAL-004).
+   *
+   * <p>Ele é o único que o vendedor pode resolver ali mesmo, se tiver a permissão: por isso a recusa fica
+   * guardada em vez de virar só um toast que some. Um toast que some faria o vendedor repetir o pedido
+   * para ler o número de novo.
+   */
+  readonly creditRefusal = signal<{
+    ceiling: number;
+    committed: number;
+    requested: number;
+    currency: string;
+  } | null>(null);
+
   load(): void {
     this.loading.set(true);
     this.error.set(null);
@@ -62,13 +80,23 @@ export class OrdersStore {
       });
   }
 
-  place(body: {
-    code: string;
-    customerId: string;
-    channelId: string;
-    promisedFor: string | null;
-    items: { productId: string; quantity: number }[];
-  }): void {
+  /**
+   * @param onPlaced roda só quando o pedido entrou. É o que mantém o formulário aberto na recusa por
+   *                 crédito: fechá-lo no envio esconderia os números que explicam a recusa antes mesmo
+   *                 de a resposta chegar, e o vendedor repetiria o pedido só para lê-los de novo.
+   */
+  place(
+    body: {
+      code: string;
+      customerId: string;
+      channelId: string;
+      promisedFor: string | null;
+      items: { productId: string; quantity: number }[];
+      creditOverrideReason?: string | null;
+    },
+    onPlaced?: () => void,
+  ): void {
+    this.creditRefusal.set(null);
     this.saving.set(true);
     this.api
       .placeOrder(body, crypto.randomUUID())
@@ -79,9 +107,20 @@ export class OrdersStore {
       .subscribe({
         next: () => {
           this.toast.success('Pedido registrado.');
+          onPlaced?.();
           this.load();
         },
-        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível registrar o pedido.')),
+        error: (e: ApiError) => {
+          if (e?.error?.code === 'credit_limit_exceeded') {
+            this.creditRefusal.set({
+              ceiling: e.error.ceiling ?? 0,
+              committed: e.error.committed ?? 0,
+              requested: e.error.requested ?? 0,
+              currency: e.error.currency ?? '',
+            });
+          }
+          this.toast.error(this.message(e, 'Não foi possível registrar o pedido.'));
+        },
       });
   }
 

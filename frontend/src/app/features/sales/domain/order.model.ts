@@ -38,6 +38,14 @@ export interface SalesOrder {
   /** Arredondado a duas casas no total, e não por linha. */
   total: number;
   currency: string;
+  /**
+   * Nulo é o normal: o pedido coube no teto, ou não havia teto (SAL-004).
+   *
+   * Preenchido, é o motivo pelo qual alguém autorizou passar dele — e um pedido acima do limite precisa
+   * dizer isso na tela onde alguém o lê, e não só na trilha de auditoria.
+   */
+  creditOverrideReason: string | null;
+  creditOverrideBy: string | null;
   lines: OrderLine[];
 }
 

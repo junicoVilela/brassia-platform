@@ -388,15 +388,22 @@ data — e não muda o modelo.
   dar**.
 - **Contratos atualizados:** `contracts/openapi.yaml` — **337 caminhos**, 36 a mais que no encerramento da
   Sprint 18, sem `$ref` órfã nem chave duplicada.
-- **Riscos remanescentes:**
+- **Riscos remanescentes** (retrato do encerramento; o que fechou depois está anotado ao lado, e não
+  reescrito — um risco apagado some junto com a razão de ele ter existido):
   - **A premissa de produção**, a mesma desde a Sprint 19: enquanto REL-001 e o ciclo da REL-005 seguirem
-    abertos, isto é software que funciona e não opera.
+    abertos, isto é software que funciona e não opera. **Continua aberto — é o único desta lista.**
   - **`DUV-CON-001`** — a periodicidade da inspeção de vaso de pressão. Hoje a validade é informada por
     quem inspeciona; inventar um intervalo faria o sistema afirmar conformidade que ninguém verificou.
+    **Resolvida em 2026-08-18:** a casa declara a política, o sistema calcula o vencimento, e a ausência
+    de política é "não sei" — nunca "em dia" (`V138`).
   - **`DUV-CON-002`** — o vasilhame dado como perdido que reaparece. Envolve dinheiro que já mudou de mãos.
+    **Resolvida em 2026-08-18:** a recuperação é evento, e a devolução da caução é decisão separada
+    (`V137`).
   - **`DEB-CON-001`** e **`DEB-CON-002`** — o dublê de lote acabado nos testes de contêiner, e a
-    duplicação da regra de dinheiro entre `DepositAmount` e o `Money` de vendas.
-  - **A moderação de comunidade continua sem executor** (`DUV-COM-001`, Sprint 18).
+    duplicação da regra de dinheiro entre `DepositAmount` e o `Money` de vendas. **Ambas resolvidas em
+    2026-08-18:** o dublê deu lugar à `BrewScenario`, e o `Money` subiu para `shared`.
+  - **A moderação de comunidade continua sem executor** (`DUV-COM-001`, Sprint 18). **Resolvida em
+    2026-08-18** por delegação do mantenedor.
 - **Aceite:** pendente de validação manual. Junto com os aceites das Sprints 09, 16, 17, 18 e 19.
 
 ### O que esta sprint ensinou, e que vale carregar

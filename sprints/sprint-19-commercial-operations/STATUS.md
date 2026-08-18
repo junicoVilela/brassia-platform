@@ -636,15 +636,18 @@ corpo não leva dado pessoal*. Sem migration: o outbox e as assinaturas já exis
   `sales_lot_availability` (reserva) são **as garantias que o código não consegue dar**.
 - **Contratos atualizados:** `contracts/openapi.yaml` — **284 caminhos**, 28 a mais que no encerramento da
   Sprint 17, sem `$ref` órfã nem chave duplicada.
-- **Riscos remanescentes:**
+- **Riscos remanescentes** (retrato do encerramento; o que fechou depois está anotado ao lado):
   - **A premissa de produção.** Toda a sprint pressupõe que alguém vai validar o release. Enquanto
-    REL-001 e o ciclo da REL-005 seguirem abertos, isto é software que funciona e não opera.
+    REL-001 e o ciclo da REL-005 seguirem abertos, isto é software que funciona e não opera. **Continua
+    aberto — é o único desta lista.**
   - **`DEB-SAL-001`** — o custeio guarda `BigDecimal` sem moeda. Não quebra enquanto a cervejaria opera
-    numa moeda só.
+    numa moeda só. **Resolvido em 2026-08-18** (`V136`, e o `Money` em `shared`).
   - **`DEB-SAL-003`** — o `PackagingRunIT` chegou a ~1.200 linhas por ser a casa do cenário de lote
-    acabado, que quatro histórias precisaram.
+    acabado, que quatro histórias precisaram. **Resolvido em 2026-08-18** (`BrewScenario`, e o arquivo
+    repartido em cinco).
   - **`DUV-CRM-001`** e **`DUV-FCST-001`** — duas perguntas do mantenedor que travam trabalho concreto: a
-    varredura de retenção e a metade "capacidade" da previsão.
+    varredura de retenção e a metade "capacidade" da previsão. **Ambas resolvidas em 2026-08-18 por
+    delegação do mantenedor.**
 - **Aceite:** pendente de validação manual. Junto com os aceites das Sprints 09, 16 e 17.
 
 ### O que esta sprint ensinou, e que vale carregar

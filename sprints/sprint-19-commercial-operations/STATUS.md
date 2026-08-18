@@ -15,7 +15,7 @@ ser validado. Ver DEC-SPR-019.
 | SAL-001-B | Concluída | PR #231 · `packaging/SellableLotLookup`, `V121` · 4 IT |
 | SAL-002 | Concluída | PR #232 · `sales/*`, `V122` · 15 unitários + 8 IT |
 | SAL-003 | Concluída | PR #233 · `sales/adapter/inbound/portal`, `V123` · 6 unitários + 8 IT |
-| FCST-001 | **Parcial** — demanda entregue, capacidade não | PR #234 · `forecast/*`, `V124` · 11 unitários + 6 IT. Ver DUV-FCST-001 |
+| FCST-001 | Concluída | PR #234 (demanda) + a capacidade em 2026-08-18 · `forecast/*`, `V124`, `V139` · Ver DUV-FCST-001 |
 | INT-008 | Concluída | PR #235 · `integration/*`, `sales/SalesOrder*` · 4 IT |
 
 **A SAL-001-B não estava no backlog.** Ela nasceu da `DUV-SAL-001` — "o que torna um lote vendável" —, que
@@ -385,7 +385,7 @@ Está escrito no domínio, na migration, no contrato e num teste que existe só 
 **Critério de remoção:** existir baixa de pagamento por pedido, e o comprometido passar a considerar o
 que foi entregue e não pago. É história própria — provavelmente da INT-008, que traz as portas fiscais.
 
-### DEB-SAL-003 — **RESOLVIDO EM PARTE em 2026-08-18**: a fixture existe; o arquivo ainda não foi repartido
+### DEB-SAL-003 — **RESOLVIDO em 2026-08-18**
 
 **O que foi feito.** A máquina que constrói um lote de cerveja saiu para `support.BrewScenario`: login,
 equipamento, ingrediente, ordem liberada, brassa iniciada, transferência, embalagem recebida, linha limpa,
@@ -408,9 +408,20 @@ tem **um dono**.
 **O primeiro uso externo já pagou:** o `DEB-CON-001` foi fechado com ela, e o dublê de lote acabado deixou
 de existir.
 
-**O que NÃO foi feito, e continua aberto:** repartir o `PackagingRunIT` por assunto. Ele continua grande, e
-separá-lo em envase, frescor, liberação e venda é movimento próprio — fazê-lo no mesmo passo misturaria
-"extraí o cenário" com "mudei onde cada teste mora", e um diff assim não se revisa.
+**A repartição veio depois, em passo próprio** — misturá-la com a extração faria um diff que não se
+revisa. O arquivo caiu de **1.087 para 436 linhas**, e cada assunto passou a morar onde alguém vai
+procurá-lo: `LotReleaseIT` (SAL-001-B), `SalesOrderIT` (SAL-002), `CustomerPortalIT` (SAL-003),
+`CommercialOutboxIT` (INT-008).
+
+**A base compartilhada evitou trocar um problema por outro.** Repartir sem extrair o cenário comercial
+teria virado quatro cópias do mesmo cenário — e cópias divergem na primeira regra nova, que é exatamente a
+dívida que a `DEB-CON-002` custou a fechar. `CommercialTestSupport` guarda o que os quatro compartilham;
+`BrewScenario` ganhou a cena comercial (produto, canal, preço, cliente).
+
+**Um teste pegou uma regressão da própria repartição.** A reescrita mecânica engoliu um parâmetro: o teste
+"sem preço no canal o pedido é recusado" passava *outro* canal, e a substituição fez ele usar o canal da
+cena — que tem preço. O pedido passou, e o teste falhou dizendo isso. É o argumento a favor de repartir com
+a suíte inteira verde do lado.
 
 **Como estava registrado quando foi aberto:**
 
@@ -469,7 +480,34 @@ domínio (`mayDriveProductionAlone()`, sempre falso) com teste próprio, em vez 
 (consulta publicada, direção padrão do ADR-0016), serviço, endpoint e tela. **11 testes de domínio e 6 de
 integração.**
 
-### DUV-FCST-001 (FCST-001) — A metade "capacidade" não foi feita
+### DUV-FCST-001 (FCST-001) — **RESOLVIDA em 2026-08-18 por delegação do mantenedor**
+
+**A decisão: a casa declara o ciclo de ocupação por tanque, e o sistema multiplica.** O que faltava era
+exatamente o tempo de ciclo — inferi-lo de lotes passados daria um número que parece cálculo e é média de
+coisas diferentes, porque uma IPA e uma lager não ocupam o tanque pelo mesmo tempo.
+
+**Sem tanque declarado, a resposta é "não sei" — e não zero.** Zero diria que a cervejaria não consegue
+produzir nada, e alguém planejaria em cima disso. Mesma escolha que a previsão de demanda já fazia com
+histórico curto: `INSUFFICIENT` é a ausência do número, não um número baixo.
+
+**O lote que não termina no período não conta.** O piso na divisão é deliberado — contar pela fração
+incluiria cerveja que ainda estará fermentando quando o mês virar.
+
+**É um teto otimista, e isso muda como se lê o resultado.** Ele ignora turno, calendário, limpeza entre
+lotes e gargalo fora do fermentador — maturação a frio, linha de envase, mão de obra. **Se a demanda não
+cabe nele, certamente não cabe na fábrica; o contrário não vale.** Está dito no domínio, no contrato e na
+tela: é o que impede o número de virar promessa.
+
+**A política de ocupação dos fermentadores**, que a dúvida original citava como faltante, é justamente o
+que a casa passou a declarar. O que continua fora: tempo de ciclo **por receita** — a declaração é por
+tanque, e uma casa que varia muito de estilo verá um teto médio. Fica como limitação conhecida, e não como
+promessa.
+
+**Entregue:** `V139`, `ProductionCapacity`, porta e repositório de ciclo, `CapacityService`,
+`EquipmentSummaryLookup` publicado por `equipment`, três endpoints, 3 caminhos no OpenAPI e a capacidade ao
+lado da previsão. **7 testes de domínio, 5 de integração e 2 de store.**
+
+### DUV-FCST-001 — como estava registrada quando foi aberta
 
 O título da história é "previsão de demanda **e capacidade**". A demanda está feita; a capacidade **não**,
 e de propósito.

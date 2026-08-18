@@ -7994,6 +7994,103 @@ paths:
         '204': {description: Teto definido}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+  /forecast/tank-cycles/{equipmentId}:
+    put:
+      tags: [Previsão]
+      summary: Declarar o ciclo de ocupação de um fermentador (DUV-FCST-001)
+      description: >-
+        **O sistema não infere o ciclo.** Quantos dias uma cerveja ocupa o tanque depende do estilo, da
+        temperatura e do que a casa aceita; inferir de lotes passados daria um número que parece cálculo e é
+        média de coisas diferentes. A cervejaria declara, e o sistema multiplica.
+
+
+        O equipamento precisa existir e ter capacidade cadastrada — declarar ciclo para o que não existe
+        criaria uma linha que nunca entra na conta, e a casa acharia que declarou.
+      parameters:
+        - name: equipmentId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cycleDays]
+              properties:
+                cycleDays:
+                  type: integer
+                  minimum: 1
+                  description: >-
+                    Ciclo zero seria produção infinita, e o erro só apareceria como uma capacidade absurda
+                    que ninguém questiona porque veio do sistema.
+                note: {type: string, maxLength: 300, nullable: true}
+      responses:
+        '204': {description: Declarado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+    delete:
+      tags: [Previsão]
+      summary: Tirar o tanque da conta
+      description: >-
+        Ele saiu de operação, virou maturador. Sem isto, a única forma de corrigir seria declarar um ciclo
+        absurdo — e a capacidade mentiria em silêncio.
+      parameters:
+        - name: equipmentId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Removido}
+        '403': {$ref: '#/components/responses/Problem'}
+  /forecast/products/{productId}/capacity:
+    get:
+      tags: [Previsão]
+      summary: A capacidade do próximo mês, e se a demanda cabe
+      description: >-
+        **Sem tanque declarado a resposta é "não sei", e não zero** (`known: false`, e os demais campos
+        nulos). Zero diria que a cervejaria não consegue produzir nada, e alguém planejaria em cima disso —
+        mesma escolha que a previsão de demanda faz com histórico curto.
+
+
+        **Cada tanque rende `volume × ⌊dias do período ÷ dias de ciclo⌋`.** O piso é deliberado: um lote
+        que não termina dentro do período não conta — contá-lo pela fração faria a capacidade incluir
+        cerveja que ainda estará fermentando quando o mês virar.
+
+
+        **É um teto otimista, e isso muda como se lê o resultado.** Ele não sabe de turno, calendário,
+        limpeza entre lotes nem de gargalo fora do fermentador — maturação a frio, linha de envase, mão de
+        obra. **Se a demanda não cabe aqui, ela certamente não cabe na fábrica; o contrário não vale.**
+
+
+        `headroomLiters` é negativo quando falta — a falta é a informação que importa, porque ela diz
+        quanto precisa mudar.
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: A capacidade e o confronto com a demanda
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  known: {type: boolean}
+                  capacityLiters: {type: number, nullable: true}
+                  demandLiters: {type: number}
+                  fits: {type: boolean, nullable: true}
+                  headroomLiters: {type: number, nullable: true}
+                  utilizationPercent: {type: number, nullable: true}
+                  tanks:
+                    type: array
+                    items: {type: string}
+                    description: 'Os códigos dos tanques que entraram na conta — uma capacidade explicada por "FV-01 e FV-02" se confere.'
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
   /forecast/products/{productId}/demand:
     get:
       tags: [Previsão]

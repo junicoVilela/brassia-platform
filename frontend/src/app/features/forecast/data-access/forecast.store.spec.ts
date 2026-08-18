@@ -35,6 +35,17 @@ function forecast(over: Partial<DemandForecast> = {}): DemandForecast {
 }
 
 function setup(api: Partial<ForecastApi>) {
+  // Sem tanque declarado: é o estado inicial de qualquer casa, e o que a maioria dos testes vê.
+  api.capacity ??= () =>
+    of({
+      known: false,
+      capacityLiters: null,
+      demandLiters: 0,
+      fits: null,
+      headroomLiters: null,
+      utilizationPercent: null,
+      tanks: [],
+    });
   TestBed.configureTestingModule({
     providers: [
       ForecastStore,
@@ -108,5 +119,36 @@ describe('ForecastStore', () => {
 
     store.select({ ...product(), id: 'p2' });
     expect(store.forecast()?.expectedUnits).toBe(500);
+  });
+
+  it('sem tanque declarado a capacidade é "não sei", e não zero', () => {
+    // Zero diria que a cervejaria não consegue produzir nada, e alguém planejaria em cima disso.
+    const store = setup({} as Partial<ForecastApi>);
+
+    store.loadCapacity('p1');
+
+    expect(store.capacity()?.known).toBe(false);
+    expect(store.capacity()?.capacityLiters).toBeNull();
+    expect(store.capacity()?.fits).toBeNull();
+  });
+
+  it('a falta aparece como número negativo, porque é ela que diz quanto mudar', () => {
+    const store = setup({
+      capacity: () =>
+        of({
+          known: true,
+          capacityLiters: 2000,
+          demandLiters: 2800,
+          fits: false,
+          headroomLiters: -800,
+          utilizationPercent: 140,
+          tanks: ['FV-01'],
+        }),
+    } as Partial<ForecastApi>);
+
+    store.loadCapacity('p1');
+
+    expect(store.capacity()?.fits).toBe(false);
+    expect(store.capacity()?.headroomLiters).toBe(-800);
   });
 });

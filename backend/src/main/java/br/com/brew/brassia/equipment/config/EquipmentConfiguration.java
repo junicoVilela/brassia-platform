@@ -3,6 +3,7 @@ package br.com.brew.brassia.equipment.config;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.equipment.EquipmentAvailabilityLookup;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
+import br.com.brew.brassia.equipment.EquipmentSummaryLookup;
 import br.com.brew.brassia.equipment.EquipmentCleanlinessCommands;
 import br.com.brew.brassia.equipment.EquipmentCleanlinessLookup;
 import br.com.brew.brassia.equipment.EquipmentUsageCommands;
@@ -59,6 +60,13 @@ class EquipmentConfiguration {
     }
 
     /** Consulta publicada de capacidade, consumida por outros módulos (ex.: receitas). */
+    @Bean
+    EquipmentSummaryLookup equipmentSummaryLookup(EquipmentRepository repository) {
+        return (breweryId, equipmentId) -> repository.findById(breweryId, equipmentId)
+                .map(e -> new EquipmentSummaryLookup.Summary(e.snapshot().equipmentId(),
+                        e.snapshot().code(), e.capacityLiters()));
+    }
+
     @Bean
     EquipmentCapacityLookup equipmentCapacityLookup(EquipmentRepository repository) {
         return (breweryId, equipmentId) -> repository.findById(breweryId, equipmentId)

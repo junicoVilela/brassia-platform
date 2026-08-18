@@ -9,7 +9,6 @@ import br.com.brew.brassia.sales.application.port.outbound.PortalAccessRepositor
 import br.com.brew.brassia.sales.application.port.outbound.PriceRepository;
 import br.com.brew.brassia.sales.application.port.outbound.ProductRepository;
 import br.com.brew.brassia.sales.application.port.outbound.SalesOrderRepository;
-import br.com.brew.brassia.sales.domain.CreditLimitExceededException;
 import br.com.brew.brassia.shared.money.Money;
 import br.com.brew.brassia.sales.domain.SalesOrder;
 import br.com.brew.brassia.shared.security.ForbiddenException;
@@ -161,14 +160,15 @@ final class PortalController {
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody PortalOrderRequest request) {
         var acesso = access(principal);
-        var total = estimate(acesso, request);
-        requireWithinCredit(acesso, total);
-
+        // A CONFERÊNCIA DO TETO MORA NO CASO DE USO (SAL-004), e não mais aqui: quando ela existia nas
+        // duas pontas, a porta interna tinha uma versão da regra e o portal tinha outra — e só uma delas
+        // conferia. O caso de uso confere com o total de verdade, antes de reservar, e o portal nunca
+        // manda motivo de exceção: no portal não há vendedor por perto para autorizar nada.
         var id = orders.place(acesso.breweryId(), principal.userId(), new OrderCommands.PlaceOrder(
                 request.code(), acesso.customerId(), acesso.channelId(),
                 request.items().stream()
                         .map(i -> new OrderCommands.OrderItem(i.productId(), i.quantity())).toList(),
-                null, request.promisedFor(), idempotencyKey));
+                null, request.promisedFor(), idempotencyKey, null));
         audit.record(AuditEvent.success(acesso.breweryId(), principal.userId(), "portal.order.place",
                 "sales.order", id.toString(), Map.of("customerId", acesso.customerId().toString())));
         return Map.of("id", id);
@@ -208,39 +208,6 @@ final class PortalController {
         principal.requirePermission("portal.access");
         return portal.findAccess(principal.userId())
                 .orElseThrow(() -> new ForbiddenException("usuário sem vínculo de portal"));
-    }
-
-    /** O que o pedido vai custar, para conferir o teto antes de reservar qualquer coisa. */
-    private Money estimate(PortalAccessRepository.PortalAccess acesso, PortalOrderRequest request) {
-        var hoje = LocalDate.now();
-        Money total = null;
-        for (var item : request.items()) {
-            var product = products.find(acesso.breweryId(), item.productId())
-                    .orElseThrow(() -> new br.com.brew.brassia.sales.domain.UnknownProductException(
-                            "o produto", item.productId()));
-            var preco = prices.load(acesso.breweryId(), product.id(), acesso.channelId()).priceOn(hoje)
-                    .orElseThrow(() -> new br.com.brew.brassia.sales.domain.NoPriceForProductException(
-                            product.sku(), hoje));
-            var linha = preco.price().times(item.quantity());
-            total = total == null ? linha : total.plus(linha);
-        }
-        return total;
-    }
-
-    private void requireWithinCredit(PortalAccessRepository.PortalAccess acesso, Money total) {
-        var limite = portal.creditOf(acesso.breweryId(), acesso.customerId());
-        if (!limite.isDefined()) {
-            return;
-        }
-        var teto = limite.ceilingAmount().orElseThrow();
-        var comprometido = new Money(
-                portal.committedAmount(acesso.breweryId(), acesso.customerId(), teto.currency()),
-                teto.currency());
-        // A conferência acontece ANTES de reservar: recusar depois deixaria o estoque preso até alguém
-        // perceber, e o cliente veria "sem crédito" num lote que ele mesmo travou.
-        if (!limite.fits(comprometido, total)) {
-            throw new CreditLimitExceededException(teto, comprometido, total);
-        }
     }
 
     private static PortalOrder view(SalesOrder o) {

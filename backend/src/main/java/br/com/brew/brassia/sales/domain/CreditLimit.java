@@ -7,15 +7,16 @@ import java.util.Optional;
 /**
  * O teto de compromisso em aberto de um cliente (SAL-003).
  *
- * <p><strong>Ele mede compromisso, e não recebível — a diferença importa e está aqui por escrito.</strong>
- * Um limite de crédito de verdade compara o teto com o que o cliente <em>deve</em>, e para isso é preciso
- * saber o que foi pago. A plataforma não tem baixa de pagamento (está fora do escopo da sprint), então o
- * que dá para medir é o que foi <em>prometido e ainda não entregue</em>: a soma dos pedidos confirmados.
+ * <p><strong>Ele mede recebível desde 2026-08-18</strong> (DEB-SAL-002). Até então media só compromisso:
+ * a soma dos pedidos confirmados. Os dois erros apareciam no mesmo cliente — quem pagava continuava com o
+ * limite ocupado, e um pedido entregue e não pago saía da conta. Com a baixa de pagamento, o que ocupa o
+ * teto é <em>o que o cliente deve</em>: pedidos confirmados e atendidos, menos os recebimentos, já
+ * descontados os estornos.
  *
- * <p>A consequência prática, que ninguém deve descobrir sozinho: <strong>um pedido entregue e não pago
- * sai da conta.</strong> O controle funciona para impedir que um cliente acumule promessas além do que a
- * cervejaria aceita carregar — que é o caso real do bar pequeno pedindo mil caixas —, e não substitui
- * uma análise de crédito. Ver DEB-SAL-002.
+ * <p>O recebimento <strong>parcial conta na proporção do que entrou</strong>. Ignorá-lo faria um cliente
+ * que pagou 90% ocupar o limite inteiro, e o vendedor recusaria a venda de alguém que está em dia. O
+ * controle continua não substituindo análise de crédito: ele impede que um cliente acumule dívida além do
+ * que a cervejaria aceita carregar — o caso real do bar pequeno pedindo mil caixas.
  *
  * <p><strong>Sem limite é o padrão, e é seguro.</strong> Não recusar por falta de decisão é reversível;
  * recusar um pedido bom porque alguém chutou um teto não é — o cliente vai comprar de outro.

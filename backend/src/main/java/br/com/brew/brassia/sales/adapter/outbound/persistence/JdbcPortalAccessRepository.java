@@ -92,14 +92,29 @@ class JdbcPortalAccessRepository implements PortalAccessRepository {
 
     @Override
     public BigDecimal committedAmount(UUID breweryId, UUID customerId, String currency) {
-        // Só PLACED. Cancelado nunca contou, e entregue sai da conta — o que é a limitação declarada
-        // em DEB-SAL-002, e não um esquecimento.
+        // AGORA MEDE RECEBÍVEL (DEB-SAL-002, resolvido): pedidos confirmados E entregues, menos o que
+        // já foi recebido. Cancelado continua fora — ele nunca virou dívida.
+        //
+        // O pagamento parcial conta proporcionalmente: ignorá-lo faria um cliente que pagou 90% ocupar o
+        // limite inteiro, e ele deixaria de comprar por uma dívida que não tem.
+        //
+        // GREATEST(…, 0) por linha de pedido: um cliente que pagou a mais num pedido não ganha limite
+        // extra nos outros — o crédito a maior é assunto do financeiro, e compensá-lo aqui esconderia
+        // um erro de lançamento dentro de um número de crédito.
         return jdbc.sql("""
-                SELECT COALESCE(SUM(l.quantity * l.unit_amount), 0)
-                FROM sales_order o
-                JOIN sales_order_line l ON l.order_id = o.id AND l.brewery_id = o.brewery_id
-                WHERE o.brewery_id = :brewery AND o.customer_id = :customer
-                  AND o.status = 'PLACED' AND l.currency = :currency
+                SELECT COALESCE(SUM(GREATEST(devido - recebido, 0)), 0) FROM (
+                    SELECT o.id,
+                           COALESCE(SUM(l.quantity * l.unit_amount), 0) AS devido,
+                           COALESCE((SELECT SUM(CASE WHEN p.reverses_payment_id IS NULL
+                                                     THEN p.amount ELSE -p.amount END)
+                                     FROM sales_payment p
+                                     WHERE p.order_id = o.id AND p.currency = :currency), 0) AS recebido
+                    FROM sales_order o
+                    JOIN sales_order_line l ON l.order_id = o.id AND l.brewery_id = o.brewery_id
+                    WHERE o.brewery_id = :brewery AND o.customer_id = :customer
+                      AND o.status IN ('PLACED', 'FULFILLED') AND l.currency = :currency
+                    GROUP BY o.id
+                ) por_pedido
                 """)
                 .param("brewery", breweryId).param("customer", customerId).param("currency", currency)
                 .query(BigDecimal.class).single();

@@ -26,7 +26,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -49,9 +48,6 @@ class CustomerPortalIT extends CommercialTestSupport {
 
     @Autowired
     WebApplicationContext context;
-
-    @Autowired
-    JdbcClient jdbc;
 
     @BeforeEach
     void setUp() {
@@ -212,35 +208,5 @@ class CustomerPortalIT extends CommercialTestSupport {
         mockMvc.perform(get("/api/v1/portal/orders/" + novoId).with(authentication(portal)))
                 .andExpect(jsonPath("$.total", is(150.00)))
                 .andExpect(jsonPath("$.lines[0].quantity", is(10)));
-    }
-
-    /**
-     * Um usuário de portal: identidade real com portal.access, e o vínculo gravado.
-     *
-     * <p>O usuário precisa existir em {@code security_user} — há chave estrangeira, e ela recusou o
-     * identificador inventado da primeira versão deste teste. É a garantia funcionando: um vínculo de
-     * portal para um usuário que não existe seria uma porta aberta para ninguém.
-     */
-    private Authentication portalUser(MockHttpSession session, String clienteId, String canalId)
-            throws Exception {
-        var userId = UUID.randomUUID();
-        jdbc.sql("""
-                INSERT INTO security_user (id, email, normalized_email, display_name, status)
-                VALUES (:id, :email, :email, 'Portal', 'ACTIVE')
-                """)
-                .param("id", userId)
-                .param("email", "portal-" + userId + "@cliente.local")
-                .update();
-        mockMvc.perform(put("/api/v1/sales/portal/access/" + userId).session(session).with(csrf())
-                        .contentType("application/json")
-                        .content("{\"customerId\":\"" + clienteId + "\",\"channelId\":\"" + canalId + "\"}"))
-                .andExpect(status().isNoContent());
-        return principal(UUID.randomUUID(), Set.of("portal.access"), userId);
-    }
-
-    private String corpoPortal(BrewScenario.SalesScene cena, int quantidade) {
-        var sfx = UUID.randomUUID().toString().substring(0, 8);
-        return "{\"code\":\"POR-" + sfx + "\",\"items\":[{\"productId\":\"" + cena.productId()
-                + "\",\"quantity\":" + quantidade + "}]}";
     }
 }

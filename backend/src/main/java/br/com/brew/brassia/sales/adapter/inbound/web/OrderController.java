@@ -4,6 +4,7 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.sales.application.port.inbound.OrderCommands;
 import br.com.brew.brassia.sales.application.port.outbound.SalesOrderRepository;
+import br.com.brew.brassia.sales.domain.CreditOverride;
 import br.com.brew.brassia.sales.domain.SalesOrder;
 import br.com.brew.brassia.sales.domain.UnknownProductException;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
@@ -74,14 +75,25 @@ final class OrderController {
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody PlaceOrderRequest request) {
         principal.requirePermission("sales.order.manage");
+        if (request.creditOverrideReason() != null && !request.creditOverrideReason().isBlank()) {
+            // Permissão separada e crítica: ela deixa passar uma venda acima do que a casa decidiu
+            // carregar daquele cliente. Quem registra pedido não autoriza exceção por tabela.
+            principal.requirePermission("sales.order.credit_override");
+        }
         var brewery = principal.requireBrewery();
         var id = commands.place(brewery, principal.userId(), new OrderCommands.PlaceOrder(
                 request.code(), request.customerId(), request.channelId(),
                 request.items().stream()
                         .map(i -> new OrderCommands.OrderItem(i.productId(), i.quantity())).toList(),
-                request.placedOn(), request.promisedFor(), idempotencyKey));
+                request.placedOn(), request.promisedFor(), idempotencyKey,
+                request.creditOverrideReason()));
+        // A exceção ao teto vai na auditoria com o motivo: é o registro que permite ao dono perguntar
+        // depois por que aquele cliente passou do limite.
+        var detalhes = request.creditOverrideReason() == null || request.creditOverrideReason().isBlank()
+                ? Map.of("code", request.code())
+                : Map.of("code", request.code(), "creditOverrideReason", request.creditOverrideReason());
         audit.record(AuditEvent.success(brewery, principal.userId(), "sales.order.place", "sales.order",
-                id.toString(), Map.of("code", request.code())));
+                id.toString(), detalhes));
         return Map.of("id", id);
     }
 
@@ -111,6 +123,8 @@ final class OrderController {
         var total = o.total();
         return new OrderView(o.id(), o.code(), o.customerId(), o.channelId(), o.status().name(),
                 o.placedOn(), o.promisedFor().orElse(null), total.amount(), total.currency(),
+                o.creditOverride().map(CreditOverride::reason).orElse(null),
+                o.creditOverride().map(CreditOverride::authorizedBy).orElse(null),
                 o.lines().stream()
                         .map(l -> new OrderLineView(l.productId(), l.sku(), l.quantity(),
                                 l.unitPrice().amount(), l.unitPrice().currency(), l.taxIncluded(),
@@ -121,17 +135,25 @@ final class OrderController {
                         .toList());
     }
 
+    /**
+     * @param creditOverrideReason só é usado quando o pedido passa do teto de crédito (SAL-004); nos
+     *                             outros casos é ignorado, porque não houve teto a furar
+     */
     record PlaceOrderRequest(@NotBlank @Size(max = 40) String code, @NotNull UUID customerId,
             @NotNull UUID channelId, @NotEmpty @Valid List<ItemRequest> items, LocalDate placedOn,
-            LocalDate promisedFor) {}
+            LocalDate promisedFor, @Size(max = 500) String creditOverrideReason) {}
 
     record ItemRequest(@NotNull UUID productId, @Positive int quantity) {}
 
     record PromiseRequest(LocalDate promisedFor) {}
 
+    /**
+     * A autorização acima do teto viaja na resposta: um pedido que passou do limite precisa dizer isso
+     * na tela onde alguém o lê, e não só na trilha de auditoria (SAL-004).
+     */
     record OrderView(UUID id, String code, UUID customerId, UUID channelId, String status,
             LocalDate placedOn, LocalDate promisedFor, BigDecimal total, String currency,
-            List<OrderLineView> lines) {}
+            String creditOverrideReason, UUID creditOverrideBy, List<OrderLineView> lines) {}
 
     record OrderLineView(UUID productId, String sku, int quantity, BigDecimal unitAmount,
             String currency, boolean taxIncluded, List<ReservationView> reservations) {}

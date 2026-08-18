@@ -57,13 +57,13 @@ class CreditLimitTest {
     }
 
     @Test
-    void oQueEleMedeECompromissoENaoRecebivel() {
-        // Documentado no teste porque é a limitação que ninguém deve descobrir sozinho: sem baixa de
-        // pagamento, "em aberto" é o que foi prometido e não entregue. Um pedido entregue e não pago
-        // sai da conta. Ver DEB-SAL-002.
+    void oQueEleMedeERecebivel() {
+        // O agregado só compara dois números; quem os produz é a consulta do recebível (DEB-SAL-002):
+        // pedidos confirmados e atendidos, menos os recebimentos. O que este teste fixa é que o teto é
+        // comparado com a soma, e não com o pedido isolado. Ver PaymentIT.
         var limite = CreditLimit.of(Money.of("1000", "BRL"));
 
-        // Cliente com 900 prometidos e não entregues: só cabem mais 100.
+        // Cliente devendo 900: só cabem mais 100.
         assertThat(limite.fits(Money.of("900", "BRL"), Money.of("100", "BRL"))).isTrue();
         assertThat(limite.fits(Money.of("900", "BRL"), Money.of("200", "BRL"))).isFalse();
     }

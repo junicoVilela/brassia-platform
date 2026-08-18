@@ -5,8 +5,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup;
@@ -166,6 +168,107 @@ class DemandForecastIT {
     }
 
     // --- cenário ---
+
+    @Test
+    void semTanqueDeclaradoACapacidadeENaoSeiENaoZero() throws Exception {
+        // DUV-FCST-001. Zero diria que a cervejaria não consegue produzir nada, e alguém planejaria em
+        // cima disso — mesma escolha que a previsão faz com histórico curto.
+        var session = login();
+        var cena = produto(session);
+        // Independente de ordem: a política é da cervejaria inteira, e outro teste desta classe declara
+        // tanque. Um teste que só passa se rodar primeiro é um teste que vai falhar sozinho um dia.
+        jdbc.sql("DELETE FROM forecast_tank_cycle WHERE brewery_id = :b")
+                .param("b", cena.breweryId()).update();
+
+        mockMvc.perform(get(capacidade(cena.produtoId())).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.known", is(false)))
+                .andExpect(jsonPath("$.capacityLiters").doesNotExist())
+                .andExpect(jsonPath("$.fits").doesNotExist());
+    }
+
+    @Test
+    void aCasaDeclaraOCicloEACapacidadeAparece() throws Exception {
+        // O sistema não infere o ciclo: quantos dias uma cerveja ocupa o tanque depende do estilo, da
+        // temperatura e do que a casa aceita.
+        var session = login();
+        var cena = produto(session);
+        var tanque = criaFermentador(session, 1000);
+
+        mockMvc.perform(put("/api/v1/forecast/tank-cycles/" + tanque).session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"cycleDays\":14,\"note\":\"IPA da casa\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get(capacidade(cena.produtoId())).session(session))
+                .andExpect(jsonPath("$.known", is(true)))
+                // 30 ou 31 dias ÷ 14 = 2 ciclos inteiros × 1000 L. O lote que não termina no período não
+                // conta.
+                .andExpect(jsonPath("$.capacityLiters", is(2000.0)))
+                .andExpect(jsonPath("$.tanks[0]").exists())
+                .andExpect(jsonPath("$.fits").exists());
+    }
+
+    @Test
+    void oTanqueSaiDaContaQuandoADeclaracaoERemovida() throws Exception {
+        // Ele saiu de operação, virou maturador. Sem isto, a única forma de corrigir seria declarar um
+        // ciclo absurdo, e a capacidade mentiria em silêncio.
+        var session = login();
+        var cena = produto(session);
+        var tanque = criaFermentador(session, 800);
+        var codigoDoTanque = jdbc.sql("SELECT code FROM equipment WHERE id = :i")
+                .param("i", UUID.fromString(tanque)).query(String.class).single();
+        mockMvc.perform(put("/api/v1/forecast/tank-cycles/" + tanque).session(session).with(csrf())
+                        .contentType("application/json").content("{\"cycleDays\":10}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(delete("/api/v1/forecast/tank-cycles/" + tanque).session(session).with(csrf()))
+                .andExpect(status().isNoContent());
+
+        // O tanque removido sai da conta. Os demais desta classe podem existir, então o que se verifica é
+        // que ESTE não aparece mais.
+        var corpo = mockMvc.perform(get(capacidade(cena.produtoId())).session(session))
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(corpo).doesNotContain(codigoDoTanque);
+    }
+
+    @Test
+    void naoSeDeclaraCicloParaEquipamentoInexistente() throws Exception {
+        // Criaria uma linha que nunca entra na conta, e a casa acharia que declarou.
+        var session = login();
+
+        mockMvc.perform(put("/api/v1/forecast/tank-cycles/" + UUID.randomUUID()).session(session)
+                        .with(csrf()).contentType("application/json").content("{\"cycleDays\":14}"))
+                .andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    void declararCicloTemAlcadaPropria() throws Exception {
+        var session = login();
+        var tanque = criaFermentador(session, 1000);
+
+        mockMvc.perform(put("/api/v1/forecast/tank-cycles/" + tanque)
+                        .with(authentication(principal(UUID.randomUUID(),
+                                Set.of("forecast.demand.read"))))
+                        .with(csrf()).contentType("application/json").content("{\"cycleDays\":14}"))
+                .andExpect(status().isForbidden());
+    }
+
+    private String capacidade(String produtoId) {
+        return "/api/v1/forecast/products/" + produtoId + "/capacity";
+    }
+
+    private String criaFermentador(MockHttpSession session, int litros) throws Exception {
+        var sfx = UUID.randomUUID().toString().substring(0, 8).toUpperCase(java.util.Locale.ROOT);
+        return idOf(mockMvc.perform(post("/api/v1/equipment").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("""
+                                {"code":"FV-%s","name":"Fermentador","capacityLiters":%d,
+                                 "deadSpaceLiters":10,"mashEfficiencyPercent":72,
+                                 "boilOffLitersPerHour":8}
+                                """.formatted(sfx, litros)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+    }
 
     private record Cena(String produtoId, String clienteId, String canalId, UUID breweryId) {}
 

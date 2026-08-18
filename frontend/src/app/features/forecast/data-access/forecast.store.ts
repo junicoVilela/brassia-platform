@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { SalesApi } from '../../sales/data-access/sales.api';
 import { Product } from '../../sales/domain/product.model';
-import { DemandForecast } from '../domain/forecast.model';
+import { DemandForecast, CapacityView } from '../domain/forecast.model';
 import { ForecastApi } from './forecast.api';
 
 /**
@@ -21,6 +21,13 @@ export class ForecastStore {
   readonly products = signal<Product[]>([]);
   readonly selected = signal<Product | null>(null);
   readonly forecast = signal<DemandForecast | null>(null);
+
+  /**
+   * A capacidade do próximo mês.
+   *
+   * <p>`known: false` é "não sei", e a tela precisa dizer isso — não zero, que pareceria um número.
+   */
+  readonly capacity = signal<CapacityView | null>(null);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
 
@@ -58,5 +65,16 @@ export class ForecastStore {
         next: f => this.forecast.set(f),
         error: () => this.error.set('Não foi possível calcular a previsão.'),
       });
+    // A capacidade vem junto: o número da demanda sozinho não diz se ela cabe, e é a comparação que
+    // muda a decisão de quem lê.
+    this.loadCapacity(product.id);
+  }
+
+  loadCapacity(productId: string): void {
+    this.capacity.set(null);
+    this.api
+      .capacity(productId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: c => this.capacity.set(c) });
   }
 }

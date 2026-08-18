@@ -17,6 +17,10 @@ import { Payment } from '../../domain/payment.model';
  * Um pedido é uma promessa sobre cerveja específica, e quando um recall alcança um lote é aqui que se
  * descobre quem precisa ser avisado — não numa consulta que ninguém sabe fazer.
  *
+ * <p><strong>A recusa por crédito fica na tela, e não num toast que some</strong> (SAL-004). Ela é a
+ * única recusa que quem vende pode resolver ali mesmo — com a permissão crítica e uma justificativa —, e
+ * os três números (teto, comprometido, este pedido) são o que permite decidir sem adivinhar.
+ *
  * <p><strong>O recebimento aparece dentro do pedido</strong> (DEB-SAL-002), e não numa tela de
  * financeiro à parte: quem cobra está olhando o pedido, e o número que importa — quanto falta — só faz
  * sentido ao lado do total. O estorno pede motivo na própria linha, porque um estorno sem motivo deixa
@@ -52,6 +56,7 @@ export class OrdersPageComponent implements OnInit {
 
   protected readonly canManage = this.auth.hasPermission('sales.order.manage');
   protected readonly canPay = this.auth.hasPermission('sales.payment.record');
+  protected readonly canOverrideCredit = this.auth.hasPermission('sales.order.credit_override');
   protected readonly canReverse = this.auth.hasPermission('sales.payment.reverse');
 
   /** Qual recebimento está com o campo de motivo aberto: estornar sem motivo o servidor recusa. */
@@ -73,6 +78,8 @@ export class OrdersPageComponent implements OnInit {
     productId: ['', Validators.required],
     quantity: [1, [Validators.required, Validators.min(1)]],
     promisedFor: [''],
+    // Só viaja quando o teto recusou: mandar sempre criaria registro de exceção que não aconteceu.
+    creditOverrideReason: [''],
   });
 
   ngOnInit(): void {
@@ -93,8 +100,17 @@ export class OrdersPageComponent implements OnInit {
       // Vazio vira nulo: "a combinar" é estado legítimo, e mandar string vazia viraria data inválida.
       promisedFor: v.promisedFor || null,
       items: [{ productId: v.productId, quantity: v.quantity }],
+      creditOverrideReason: v.creditOverrideReason || null,
+    },
+    // Só fecha quando o pedido entrou. Fechar no envio esconderia a recusa por crédito antes de ela
+    // chegar, e o vendedor repetiria o pedido só para ler os números de novo.
+    () => {
+      this.showForm.set(false);
+      // O motivo morre com o pedido que ele autorizou. O formulário guarda os valores entre um pedido e
+      // outro, e um motivo esquecido no campo autorizaria em silêncio a próxima venda acima do teto —
+      // com a justificativa de uma venda que não é aquela.
+      this.form.controls.creditOverrideReason.reset('');
     });
-    this.showForm.set(false);
   }
 
   protected toggle(order: SalesOrder): void {

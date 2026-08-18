@@ -76,6 +76,40 @@
               Em branco é "a combinar". Não pode passar da validade do lote reservado.
             </div>
           </div>
+          <!--
+            A recusa por crédito fica aqui, e não num toast que some: é a única recusa que quem vende pode
+            resolver na hora, e os três números são o que permite decidir sem adivinhar.
+          -->
+          @if (store.creditRefusal(); as recusa) {
+            <div class="col-12">
+              <div class="alert alert-warning py-2 mb-0">
+                <div class="small">
+                  <strong>Acima do limite de crédito.</strong>
+                  Teto {{ recusa.ceiling | number: '1.2-2' }} {{ recusa.currency }} ·
+                  já devendo {{ recusa.committed | number: '1.2-2' }} ·
+                  este pedido {{ recusa.requested | number: '1.2-2' }}.
+                </div>
+                @if (canOverrideCredit) {
+                  <div class="mt-2">
+                    <label class="form-label small mb-1" for="creditOverrideReason">
+                      Motivo para autorizar mesmo assim
+                    </label>
+                    <input id="creditOverrideReason" class="form-control form-control-sm"
+                           formControlName="creditOverrideReason"
+                           placeholder="Ex.: boleto compensa hoje" />
+                    <div class="form-text">
+                      Fica registrado com o seu nome e a data. Sem motivo, o pedido continua recusado.
+                    </div>
+                  </div>
+                } @else {
+                  <div class="small mt-1">
+                    Autorizar um pedido acima do teto exige permissão que você não tem — quem pode é quem
+                    responde pelo crédito da casa.
+                  </div>
+                }
+              </div>
+            </div>
+          }
           <div class="col-12">
             <button type="submit" class="btn btn-sm btn-primary" [disabled]="store.saving()">
               Registrar pedido
@@ -114,9 +148,16 @@
                     {{ order.code }}
                   </button>
                 </td>
-                <td><span class="badge" [class]="badgeClass(order)">
-                  {{ statusLabels[order.status] }}
-                </span></td>
+                <td>
+                  <span class="badge" [class]="badgeClass(order)">
+                    {{ statusLabels[order.status] }}
+                  </span>
+                  <!-- Um pedido acima do limite precisa dizer isso onde alguém o lê. -->
+                  @if (order.creditOverrideReason) {
+                    <span class="badge text-bg-warning ms-1"
+                          [title]="order.creditOverrideReason">Acima do teto</span>
+                  }
+                </td>
                 <td>{{ order.placedOn | date: 'dd/MM/yyyy' }}</td>
                 <td>
                   @if (order.promisedFor) {

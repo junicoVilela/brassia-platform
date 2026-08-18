@@ -3,6 +3,7 @@ package br.com.brew.brassia.sales.adapter.outbound.persistence;
 import br.com.brew.brassia.sales.application.port.outbound.SalesOrderRepository;
 import br.com.brew.brassia.sales.domain.LotReservation;
 import br.com.brew.brassia.shared.money.Money;
+import br.com.brew.brassia.sales.domain.CreditOverride;
 import br.com.brew.brassia.sales.domain.OrderLine;
 import br.com.brew.brassia.sales.domain.OrderStatus;
 import br.com.brew.brassia.sales.domain.SalesOrder;
@@ -27,9 +28,11 @@ class JdbcSalesOrderRepository implements SalesOrderRepository {
     public void insert(SalesOrder order, UUID actorId, String idempotencyKey) {
         jdbc.sql("""
                 INSERT INTO sales_order (id, brewery_id, code, customer_id, channel_id, status, placed_on,
-                                         promised_for, idempotency_key, created_by, created_at)
+                                         promised_for, idempotency_key, created_by, created_at,
+                                         credit_override_reason, credit_override_by,
+                                         credit_override_at)
                 VALUES (:id, :brewery, :code, :customer, :channel, :status, :placed, :promised, :key,
-                        :by, :at)
+                        :by, :at, :overrideReason, :overrideBy, :overrideAt)
                 """)
                 .param("id", order.id()).param("brewery", order.breweryId())
                 .param("code", order.code()).param("customer", order.customerId())
@@ -38,6 +41,11 @@ class JdbcSalesOrderRepository implements SalesOrderRepository {
                 .param("promised", order.promisedFor().map(Date::valueOf).orElse(null))
                 .param("key", idempotencyKey)
                 .param("by", actorId).param("at", Timestamp.from(order.createdAt()))
+                .param("overrideReason", order.creditOverride().map(CreditOverride::reason).orElse(null))
+                .param("overrideBy",
+                        order.creditOverride().map(CreditOverride::authorizedBy).orElse(null))
+                .param("overrideAt", order.creditOverride()
+                        .map(o -> Timestamp.from(o.authorizedAt())).orElse(null))
                 .update();
 
         for (var line : order.lines()) {
@@ -104,7 +112,7 @@ class JdbcSalesOrderRepository implements SalesOrderRepository {
     private Optional<SalesOrder> head(UUID breweryId, String where, String param, Object value) {
         return jdbc.sql("""
                 SELECT id, brewery_id, code, customer_id, channel_id, status, placed_on, promised_for,
-                       created_at
+                       created_at, credit_override_reason, credit_override_by, credit_override_at
                 FROM sales_order WHERE brewery_id = :brewery AND
                 """ + where)
                 .param("brewery", breweryId).param(param, value)
@@ -117,9 +125,17 @@ class JdbcSalesOrderRepository implements SalesOrderRepository {
                             lines(breweryId, id), rs.getDate("placed_on").toLocalDate(),
                             promised == null ? null : promised.toLocalDate(),
                             OrderStatus.valueOf(rs.getString("status")),
-                            rs.getTimestamp("created_at").toInstant());
+                            rs.getTimestamp("created_at").toInstant(), override(rs));
                 })
                 .optional();
+    }
+
+    /** A autorização é tudo-ou-nada no banco; aqui basta olhar o motivo. */
+    private static CreditOverride override(java.sql.ResultSet rs) throws java.sql.SQLException {
+        var reason = rs.getString("credit_override_reason");
+        return reason == null ? null : new CreditOverride(reason,
+                rs.getObject("credit_override_by", UUID.class),
+                rs.getTimestamp("credit_override_at").toInstant());
     }
 
     private List<OrderLine> lines(UUID breweryId, UUID orderId) {

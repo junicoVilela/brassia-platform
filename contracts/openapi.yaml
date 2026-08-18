@@ -7627,6 +7627,18 @@ paths:
                   description: >-
                     Nulo é "a combinar", e é estado legítimo — inventar uma data para o campo não ficar
                     vazio seria prometer no lugar de quem vende.
+                creditOverrideReason:
+                  type: string
+                  maxLength: 500
+                  nullable: true
+                  description: >-
+                    **Só é usado quando o pedido passa do teto de crédito** (SAL-004); nos outros casos é
+                    ignorado, porque não houve teto a furar — guardá-lo num pedido que cabia criaria um
+                    registro de exceção que nunca aconteceu.
+
+
+                    Exige `sales.order.credit_override`, que é **permissão crítica** e separada de
+                    `sales.order.manage`: quem registra pedido não autoriza exceção por tabela.
                 items:
                   type: array
                   minItems: 1
@@ -7653,6 +7665,10 @@ paths:
             **perder a corrida** por ele: do ponto de vista de quem chamou, o estoque acabou entre olhar e
             pedir. · `promise_after_shelf_life` (extensões `promisedFor`, `earliestBestBefore`, `lotCode`)
             · `no_price_for_product` — "ainda não precificado" e "de graça" são opostos.
+            · `credit_limit_exceeded` (extensões `ceiling`, `committed`, `requested`, `currency`) — **o
+            teto vale também nesta porta desde a SAL-004**; antes disso ele só era conferido no portal, e
+            o mesmo cliente tinha dois tratamentos dependendo de por onde o pedido entrou. Quem tem
+            `sales.order.credit_override` passa mandando `creditOverrideReason`.
           content:
             application/problem+json:
               schema: {type: object}
@@ -10993,6 +11009,14 @@ components:
           type: number
           description: Arredondado a duas casas no TOTAL, e não por linha — arredondar linha a linha produz um centavo de diferença, que é o que o cliente encontra ao conferir a nota.
         currency: {type: string}
+        creditOverrideReason:
+          type: string
+          nullable: true
+          description: >-
+            Nulo é o normal — o pedido coube no teto, ou não havia teto. Preenchido, é o motivo pelo qual
+            alguém autorizou passar dele (SAL-004): um pedido acima do limite precisa dizer isso na tela
+            onde alguém o lê, e não só na trilha de auditoria.
+        creditOverrideBy: {type: string, format: uuid, nullable: true}
         lines:
           type: array
           items: {$ref: '#/components/schemas/SalesOrderLine'}

@@ -419,6 +419,37 @@ e neste STATUS.
 **O que continua fora:** o excedente pago não vira crédito do cliente — crédito é conta corrente de
 cliente, e não baixa de pedido. Quem paga a mais tem o lançamento recusado, e não um saldo escondido.
 
+### SAL-004 (adendo, 2026-08-18) — O teto de crédito vale nas duas portas
+
+**Achado ao escrever os testes da `DEB-SAL-002`, e não planejado.** O teto só era conferido no portal do
+cliente. Pela porta interna — `POST /api/v1/sales/orders`, a do vendedor — o pedido entrava sem consultar
+limite nenhum: **o mesmo cliente tinha dois tratamentos dependendo de por onde o pedido entrou**, e o
+controle que a casa acha que tem era metade do que ela pensava.
+
+**Não é recusa dura, e a razão é concreta.** No portal não há vendedor por perto, e recusar é a única
+resposta honesta. Na porta interna há uma pessoa que sabe coisas que o sistema não sabe — o pagamento que
+cai hoje, o acordo de ontem, o cliente de dez anos. Recusar duro faria essa pessoa cadastrar um teto maior
+"só por hoje" e esquecer de voltar, e aí **o limite deixa de existir para sempre, em vez de por um
+pedido** — que é como controles viram decoração.
+
+**Também não é livre.** O que passa acima do teto carrega quem autorizou, quando e por quê, com permissão
+crítica própria (`sales.order.credit_override`), separada de `sales.order.manage`: quem registra pedido
+não autoriza exceção por tabela. A justificativa vai para a auditoria e aparece na tela do pedido — um
+pedido acima do limite precisa dizer isso onde alguém o lê, e não só na trilha.
+
+**A autorização só é registrada quando foi usada.** Guardá-la num pedido que cabia no limite criaria um
+registro dizendo "liberado acima do teto" para uma venda que nunca passou de teto nenhum, e quem auditasse
+contaria exceções que não aconteceram.
+
+**A regra saiu do controlador e foi para o caso de uso.** Enquanto ela morava no `PortalController`, havia
+uma implementação da regra numa porta e nenhuma na outra. Agora é uma só, conferida com o total de verdade
+e **antes de reservar** — recusar depois deixaria o estoque preso até alguém perceber.
+
+**Entregue:** `V141` (três colunas com `CHECK` tudo-ou-nada e a permissão crítica), `CreditOverride`,
+conferência no `OrderHandlers`, a recusa com os três números na tela de pedidos. **4 testes de domínio e 6
+de integração**, entre eles o que amarra as duas histórias: o recebimento libera o teto também para o
+vendedor.
+
 ### DEB-SAL-003 — **RESOLVIDO em 2026-08-18**
 
 **O que foi feito.** A máquina que constrói um lote de cerveja saiu para `support.BrewScenario`: login,

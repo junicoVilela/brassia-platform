@@ -3,6 +3,7 @@ package br.com.brew.brassia.sales.application.service;
 import br.com.brew.brassia.packaging.SellableLotLookup;
 import br.com.brew.brassia.sales.application.port.inbound.OrderCommands;
 import br.com.brew.brassia.sales.application.port.outbound.LotAvailabilityRepository;
+import br.com.brew.brassia.sales.application.port.outbound.PortalAccessRepository;
 import br.com.brew.brassia.sales.application.port.outbound.PriceRepository;
 import br.com.brew.brassia.sales.application.port.outbound.ProductRepository;
 import br.com.brew.brassia.sales.application.port.outbound.SalesChannelRepository;
@@ -10,6 +11,8 @@ import br.com.brew.brassia.sales.SalesOrderCancelled;
 import br.com.brew.brassia.sales.SalesOrderPlaced;
 import br.com.brew.brassia.sales.application.port.outbound.SalesOrderEventPublisher;
 import br.com.brew.brassia.sales.application.port.outbound.SalesOrderRepository;
+import br.com.brew.brassia.sales.domain.CreditLimitExceededException;
+import br.com.brew.brassia.sales.domain.CreditOverride;
 import br.com.brew.brassia.sales.domain.InsufficientLotStockException;
 import br.com.brew.brassia.sales.domain.LotReservation;
 import br.com.brew.brassia.sales.domain.NoPriceForProductException;
@@ -17,6 +20,7 @@ import br.com.brew.brassia.sales.domain.OrderLine;
 import br.com.brew.brassia.sales.domain.Product;
 import br.com.brew.brassia.sales.domain.SalesOrder;
 import br.com.brew.brassia.sales.domain.UnknownProductException;
+import br.com.brew.brassia.shared.money.Money;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -35,11 +39,12 @@ public class OrderHandlers implements OrderCommands {
     private final LotAvailabilityRepository availability;
     private final SellableLotLookup sellableLots;
     private final SalesOrderEventPublisher events;
+    private final PortalAccessRepository credit;
 
     public OrderHandlers(SalesOrderRepository orders, ProductRepository products,
             SalesChannelRepository channels, PriceRepository prices,
             LotAvailabilityRepository availability, SellableLotLookup sellableLots,
-            SalesOrderEventPublisher events) {
+            SalesOrderEventPublisher events, PortalAccessRepository credit) {
         this.orders = Objects.requireNonNull(orders);
         this.products = Objects.requireNonNull(products);
         this.channels = Objects.requireNonNull(channels);
@@ -47,6 +52,7 @@ public class OrderHandlers implements OrderCommands {
         this.availability = Objects.requireNonNull(availability);
         this.sellableLots = Objects.requireNonNull(sellableLots);
         this.events = Objects.requireNonNull(events);
+        this.credit = Objects.requireNonNull(credit);
     }
 
     @Override
@@ -74,6 +80,9 @@ public class OrderHandlers implements OrderCommands {
         var order = SalesOrder.place(UUID.randomUUID(), breweryId, command.customerId(),
                 command.channelId(), command.code(), linhas, placedOn, command.promisedFor(),
                 Instant.now());
+        // O TETO VALE NAS DUAS PORTAS (SAL-004). Antes disto ele só era conferido no portal, e o mesmo
+        // cliente tinha dois tratamentos dependendo de por onde o pedido entrou.
+        conferirCredito(breweryId, actorId, command, order);
         // O agregado valida a promessa contra a validade ANTES de qualquer reserva ser gravada: recusar
         // depois de reservar deixaria o estoque preso até alguém perceber.
         orders.insert(order, actorId, command.idempotencyKey());
@@ -87,6 +96,37 @@ public class OrderHandlers implements OrderCommands {
                 order.channelId(), total.toMinorUnit(), total.currency(), order.placedOn(),
                 order.promisedFor().orElse(null), Instant.now()));
         return order.id();
+    }
+
+    /**
+     * Confere o teto antes de reservar, e registra quem autorizou passar dele.
+     *
+     * <p><strong>Antes de reservar</strong>, pela mesma razão do portal: recusar depois deixaria o estoque
+     * preso até alguém perceber.
+     *
+     * <p>A autorização <strong>só é registrada quando foi de fato usada</strong>. Guardá-la num pedido que
+     * cabia no limite criaria um registro dizendo "liberado acima do teto" para uma venda que nunca passou
+     * de teto nenhum — e quem auditasse contaria exceções que não aconteceram.
+     */
+    private void conferirCredito(UUID breweryId, UUID actorId, PlaceOrder command, SalesOrder order) {
+        var limite = credit.creditOf(breweryId, command.customerId());
+        if (!limite.isDefined()) {
+            // Sem teto tudo cabe: não recusar por falta de decisão é reversível.
+            return;
+        }
+        var teto = limite.ceilingAmount().orElseThrow();
+        var comprometido = new Money(
+                credit.committedAmount(breweryId, command.customerId(), teto.currency()),
+                teto.currency());
+        var total = order.total();
+        if (limite.fits(comprometido, total)) {
+            return;
+        }
+        if (command.creditOverrideReason() == null || command.creditOverrideReason().isBlank()) {
+            throw new CreditLimitExceededException(teto, comprometido, total);
+        }
+        order.authorizeAboveCredit(
+                new CreditOverride(command.creditOverrideReason(), actorId, Instant.now()));
     }
 
     @Override

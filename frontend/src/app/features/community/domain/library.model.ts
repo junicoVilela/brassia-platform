@@ -168,6 +168,13 @@ export interface RatingSummary {
 }
 
 /** Uma denúncia, como o autor a vê. Sem o denunciante: expô-lo seria convite à retaliação. */
+export type ReportOutcome = 'UPHELD' | 'DISMISSED';
+
+export const OUTCOME_LABELS: Record<ReportOutcome, string> = {
+  UPHELD: 'Procedente',
+  DISMISSED: 'Improcedente',
+};
+
 export interface AbuseReport {
   id: string;
   reason: ReportReason;

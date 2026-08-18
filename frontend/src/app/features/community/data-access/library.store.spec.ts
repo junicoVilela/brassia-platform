@@ -375,4 +375,19 @@ describe('LibraryStore', () => {
 
     expect(toast.success).toHaveBeenCalledWith('Denúncia registrada.');
   });
+
+  it('a decisão do autor é anunciada como registro, e nunca como remoção', () => {
+    // Julgar procedente não tira nada do ar: dizer o contrário faria a tela prometer uma remoção que não
+    // houve — a ação sobre o conteúdo é ato separado (DUV-COM-001).
+    const { store, toast } = setup({
+      reviewReport: () => of(undefined),
+      reports: () => of([]),
+    } as Partial<LibraryApi>);
+
+    store.reviewReport(owned(), 'r1', 'UPHELD', null);
+
+    expect(toast.success).toHaveBeenCalledWith(
+      'Decisão registrada. A publicação continua no ar até você despublicá-la.',
+    );
+  });
 });

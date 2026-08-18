@@ -615,10 +615,23 @@
                     <p class="small mb-1">{{ d.note }}</p>
                   }
                   @if (d.outcome) {
-                    <span class="badge text-bg-secondary">{{ d.outcome }}</span>
+                    <span class="badge text-bg-secondary">{{ outcomeLabels[d.outcome] }}</span>
                   } @else {
-                    <!-- Não há quem revise nesta fatia, e a tela não finge que há (DUV-COM-001). -->
-                    <small class="text-muted">Registrada. Ainda não revisada.</small>
+                    <!--
+                      Quem decide é o AUTOR: a plataforma não tem papel acima das cervejarias, e julgar
+                      procedente não esconde nada — despublicar é outro botão.
+                    -->
+                    <div class="d-flex gap-2 align-items-center">
+                      <small class="text-muted">Registrada. Você decide:</small>
+                      <button type="button" class="btn btn-sm btn-outline-danger"
+                              (click)="review(publicacao, d.id, 'UPHELD')">
+                        Procedente
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary"
+                              (click)="review(publicacao, d.id, 'DISMISSED')">
+                        Improcedente
+                      </button>
+                    </div>
                   }
                 </li>
               }

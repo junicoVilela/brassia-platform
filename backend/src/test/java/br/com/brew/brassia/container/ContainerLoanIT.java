@@ -72,7 +72,7 @@ class ContainerLoanIT {
         // A caução registra a DECISÃO, e não o dinheiro: devolvê-la é lançamento financeiro.
         var session = login();
         var keg = registra(session);
-        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), "120.00");
+        empresta(session, keg, cliente(session), hoje().plusDays(30), "120.00");
 
         mockMvc.perform(get(BASE + "/loans").session(session))
                 .andExpect(status().isOk())
@@ -100,17 +100,22 @@ class ContainerLoanIT {
         // devolveu.
         var session = login();
         var keg = registra(session);
-        empresta(session, keg, cliente(session), LocalDate.now(), null);
+        empresta(session, keg, cliente(session), hoje(), null);
         // O empréstimo é envelhecido no banco: a API recusa prazo anterior à saída de propósito —
         // um prazo que nasce vencido é engano de digitação, e o teste não pode pedir ao sistema que
         // aceite o que ele existe para recusar.
+        // As datas vêm do MESMO relógio que a aplicação usa (UTC). Calcular no banco com `now()` mistura
+        // dois fusos — o da sessão do Postgres e o da aplicação —, e a conta de dias erra por um.
         jdbc.sql("""
-                UPDATE container_loan SET lent_at = now() - interval '10 days',
-                    due_on = (now() - interval '5 days')::date
+                UPDATE container_loan SET lent_at = :lentAt, due_on = :dueOn
                 WHERE container_id = :c
-                """).param("c", UUID.fromString(keg)).update();
+                """)
+                .param("lentAt", java.sql.Timestamp.from(
+                        java.time.Instant.now().minus(java.time.Duration.ofDays(10))))
+                .param("dueOn", hoje().minusDays(5))
+                .param("c", UUID.fromString(keg)).update();
 
-        mockMvc.perform(get(BASE + "/loans").param("overdueOn", LocalDate.now().toString())
+        mockMvc.perform(get(BASE + "/loans").param("overdueOn", hoje().toString())
                         .session(session))
                 .andExpect(jsonPath("$[?(@.containerId == '" + keg + "')].overdue", contains(true)))
                 .andExpect(jsonPath("$[?(@.containerId == '" + keg + "')].daysLate", contains(5)));
@@ -119,7 +124,7 @@ class ContainerLoanIT {
                 .andExpect(status().isNoContent());
 
         // Devolvido tarde não é atraso em aberto — mas fica registrado.
-        mockMvc.perform(get(BASE + "/loans").param("overdueOn", LocalDate.now().toString())
+        mockMvc.perform(get(BASE + "/loans").param("overdueOn", hoje().toString())
                         .session(session))
                 .andExpect(jsonPath("$[?(@.containerId == '" + keg + "')]", empty()));
         mockMvc.perform(get(BASE + "/" + keg + "/loans").session(session))
@@ -131,11 +136,11 @@ class ContainerLoanIT {
         // Impossível no mundo, e contabilizaria duas cauções. A garantia é o índice único parcial.
         var session = login();
         var keg = registra(session);
-        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), null);
+        empresta(session, keg, cliente(session), hoje().plusDays(30), null);
 
         mockMvc.perform(post(BASE + "/" + keg + "/loans").session(session).with(csrf())
                         .contentType("application/json")
-                        .content(corpoEmprestimo(cliente(session), LocalDate.now().plusDays(30), null)))
+                        .content(corpoEmprestimo(cliente(session), hoje().plusDays(30), null)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code", is("loan_not_allowed")))
                 .andExpect(jsonPath("$.reasonCode", is("already_lent")));
@@ -147,7 +152,7 @@ class ContainerLoanIT {
         // motivo e alçada crítica.
         var session = login();
         var keg = registra(session);
-        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), "120.00");
+        empresta(session, keg, cliente(session), hoje().plusDays(30), "120.00");
 
         mockMvc.perform(post(BASE + "/" + keg + "/loans/loss").session(session).with(csrf())
                         .contentType("application/json")
@@ -170,7 +175,7 @@ class ContainerLoanIT {
         // Ela tira um ativo do inventário E retém dinheiro do cliente.
         var session = login();
         var keg = registra(session);
-        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), null);
+        empresta(session, keg, cliente(session), hoje().plusDays(30), null);
 
         mockMvc.perform(post(BASE + "/" + keg + "/loans/loss")
                         .with(authentication(principal(breweryOf(keg),
@@ -185,7 +190,7 @@ class ContainerLoanIT {
         // "Perdido" sozinho não distingue o bar que fechou do keg roubado do caminhão.
         var session = login();
         var keg = registra(session);
-        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), null);
+        empresta(session, keg, cliente(session), hoje().plusDays(30), null);
 
         mockMvc.perform(post(BASE + "/" + keg + "/loans/loss").session(session).with(csrf())
                         .contentType("application/json").content("{\"reason\":\"  \"}"))
@@ -197,7 +202,7 @@ class ContainerLoanIT {
         // Nem toda casa cobra, e obrigar um valor faria alguém digitar 1 real para poder seguir.
         var session = login();
         var keg = registra(session);
-        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), null);
+        empresta(session, keg, cliente(session), hoje().plusDays(30), null);
 
         mockMvc.perform(get(BASE + "/loans").session(session))
                 .andExpect(jsonPath("$[?(@.containerId == '" + keg + "')].depositOutcome",
@@ -215,7 +220,7 @@ class ContainerLoanIT {
 
         mockMvc.perform(post(BASE + "/" + keg + "/loans").session(session).with(csrf())
                         .contentType("application/json")
-                        .content(corpoEmprestimo(cliente(session), LocalDate.now().minusDays(1), null)))
+                        .content(corpoEmprestimo(cliente(session), hoje().minusDays(1), null)))
                 .andExpect(status().is4xxClientError());
     }
 
@@ -264,7 +269,7 @@ class ContainerLoanIT {
         mockMvc.perform(post(BASE + "/" + keg + "/loans").with(authentication(estranho)).with(csrf())
                         .contentType("application/json")
                         .content(corpoEmprestimo(UUID.randomUUID().toString(),
-                                LocalDate.now().plusDays(30), null)))
+                                hoje().plusDays(30), null)))
                 .andExpect(status().isNotFound());
     }
 
@@ -274,7 +279,7 @@ class ContainerLoanIT {
         // passou meses fora de vista, então volta como sujo — não como pronto para encher.
         var session = login();
         var keg = registra(session);
-        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), "120.00");
+        empresta(session, keg, cliente(session), hoje().plusDays(30), "120.00");
         mockMvc.perform(post(BASE + "/" + keg + "/loans/loss").session(session).with(csrf())
                         .contentType("application/json")
                         .content("{\"reason\":\"o bar fechou e não devolveu\"}"))
@@ -303,7 +308,7 @@ class ContainerLoanIT {
         // índice de empréstimo aberto precisa ignorar o recuperado.
         var session = login();
         var keg = registra(session);
-        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), null);
+        empresta(session, keg, cliente(session), hoje().plusDays(30), null);
         mockMvc.perform(post(BASE + "/" + keg + "/loans/loss").session(session).with(csrf())
                         .contentType("application/json").content("{\"reason\":\"sumiu\"}"))
                 .andExpect(status().isNoContent());
@@ -311,7 +316,7 @@ class ContainerLoanIT {
                         .contentType("application/json").content("{\"reason\":\"apareceu\"}"))
                 .andExpect(status().isNoContent());
 
-        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), null);
+        empresta(session, keg, cliente(session), hoje().plusDays(30), null);
     }
 
     @Test
@@ -331,7 +336,7 @@ class ContainerLoanIT {
         // Ela desfaz a retenção da caução: mexer no que já foi cobrado não é operação de rotina.
         var session = login();
         var keg = registra(session);
-        empresta(session, keg, cliente(session), LocalDate.now().plusDays(30), null);
+        empresta(session, keg, cliente(session), hoje().plusDays(30), null);
         mockMvc.perform(post(BASE + "/" + keg + "/loans/loss").session(session).with(csrf())
                         .contentType("application/json").content("{\"reason\":\"sumiu\"}"))
                 .andExpect(status().isNoContent());
@@ -475,5 +480,16 @@ class ContainerLoanIT {
     private Authentication principal(UUID breweryId, Set<String> permissions) {
         var p = new SecurityPrincipal(UUID.randomUUID(), breweryId, "Tester", permissions);
         return new UsernamePasswordAuthenticationToken(p, "n/a", Set.of());
+    }
+
+    /**
+     * O "hoje" do domínio, que é UTC.
+     *
+     * <p>{@code LocalDate.now()} usa o fuso da máquina: depois das 21h em UTC−3 ele já é o dia anterior
+     * ao de UTC, e um empréstimo criado com prazo "hoje" nasceria com o prazo antes da saída — 400. O
+     * teste falhava só à noite, que é o pior tipo de teste instável.
+     */
+    private static LocalDate hoje() {
+        return LocalDate.now(java.time.ZoneOffset.UTC);
     }
 }

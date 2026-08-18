@@ -273,6 +273,75 @@ class RatingIT {
 
     private UUID bruno;
 
+    @Test
+    void oAutorDecideSobreADenunciaContraSiENadaSomeQuandoEleJulga() throws Exception {
+        // DUV-COM-001. Não há moderador global: dar a alguém o poder de esconder publicação de qualquer
+        // casa é modelo de segurança. O que a plataforma tem é o dono do conteúdo.
+        var session = login();
+        var publicacao = publica(session);
+        denuncia(leitor(), publicacao, "SPAM", null, status().isCreated());
+
+        var corpo = mockMvc.perform(get(LIBRARY + "/" + publicacao + "/reports").session(session))
+                .andReturn().getResponse().getContentAsString();
+        var denunciaId = JSON.readTree(corpo).get(0).get("id").asText();
+
+        mockMvc.perform(post(LIBRARY + "/" + publicacao + "/reports/" + denunciaId + "/review")
+                        .session(session).with(csrf()).contentType("application/json")
+                        .content("{\"outcome\":\"DISMISSED\",\"note\":\"a receita é minha mesmo\"}"))
+                .andExpect(status().isNoContent());
+
+        // A denúncia improcedente NÃO é apagada: o mesmo caso voltaria do zero, e quem revisa precisa
+        // poder ser revisado.
+        mockMvc.perform(get(LIBRARY + "/" + publicacao + "/reports").session(session))
+                .andExpect(jsonPath("$.length()", is(1)))
+                .andExpect(jsonPath("$[0].outcome", is("DISMISSED")))
+                .andExpect(jsonPath("$[0].reviewedAt").exists());
+
+        // E a publicação continua no ar: julgar não esconde — a ação sobre o conteúdo é ato separado.
+        mockMvc.perform(get(LIBRARY + "/" + publicacao).session(session))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void oDesfechoNaoSeReescreve() throws Exception {
+        var session = login();
+        var publicacao = publica(session);
+        denuncia(leitor(), publicacao, "ABUSE", "texto ofensivo", status().isCreated());
+        var corpo = mockMvc.perform(get(LIBRARY + "/" + publicacao + "/reports").session(session))
+                .andReturn().getResponse().getContentAsString();
+        var denunciaId = JSON.readTree(corpo).get(0).get("id").asText();
+
+        mockMvc.perform(post(LIBRARY + "/" + publicacao + "/reports/" + denunciaId + "/review")
+                        .session(session).with(csrf()).contentType("application/json")
+                        .content("{\"outcome\":\"UPHELD\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post(LIBRARY + "/" + publicacao + "/reports/" + denunciaId + "/review")
+                        .session(session).with(csrf()).contentType("application/json")
+                        .content("{\"outcome\":\"DISMISSED\",\"note\":\"mudei de ideia\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("already_reviewed")));
+    }
+
+    @Test
+    void outraCervejariaNaoJulgaADenunciaAlheia() throws Exception {
+        // A alçada é de quem publicou: ler as denúncias do concorrente já era inteligência competitiva,
+        // e julgá-las seria moderar a casa dele.
+        var session = login();
+        var publicacao = publica(session);
+        denuncia(leitor(), publicacao, "SPAM", null, status().isCreated());
+        var corpo = mockMvc.perform(get(LIBRARY + "/" + publicacao + "/reports").session(session))
+                .andReturn().getResponse().getContentAsString();
+        var denunciaId = JSON.readTree(corpo).get(0).get("id").asText();
+
+        mockMvc.perform(post(LIBRARY + "/" + publicacao + "/reports/" + denunciaId + "/review")
+                        .with(authentication(principal(UUID.randomUUID(), UUID.randomUUID(),
+                                Set.of("community.recipe.publish"))))
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"outcome\":\"DISMISSED\"}"))
+                .andExpect(status().isNotFound());
+    }
+
     // --- cenário ---
 
     private String escreve(MockHttpSession session, String publicacao, String kind, String body,

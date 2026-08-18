@@ -163,6 +163,102 @@
                         </ul>
                       </div>
                     }
+
+                    <!--
+                      Os recebimentos moram aqui, e não numa tela de financeiro à parte: quem cobra está
+                      olhando o pedido, e "quanto falta" só faz sentido ao lado do total.
+                    -->
+                    @let conta = store.payments()[order.id];
+                    @if (conta) {
+                      <hr class="my-2" />
+                      <div class="d-flex flex-wrap gap-3 small mb-2">
+                        <span>Total <strong>{{ conta.total | number: '1.2-2' }} {{ conta.currency }}</strong></span>
+                        <span>Recebido <strong>{{ conta.received | number: '1.2-2' }}</strong></span>
+                        <span [class.text-success]="conta.outstanding <= 0">
+                          Em aberto <strong>{{ conta.outstanding | number: '1.2-2' }}</strong>
+                        </span>
+                      </div>
+
+                      @if (conta.payments.length) {
+                        <ul class="list-unstyled small mb-2">
+                          @for (p of conta.payments; track p.id) {
+                            <li class="mb-1">
+                              <!-- O estorno é lançamento, e não sumiço: os dois ficam na lista. -->
+                              @if (p.reversal) {
+                                <span class="badge text-bg-warning">Estorno</span>
+                                −{{ p.amount | number: '1.2-2' }} {{ p.currency }}
+                              } @else {
+                                +{{ p.amount | number: '1.2-2' }} {{ p.currency }}
+                              }
+                              · {{ p.method }} · {{ p.receivedOn | date: 'dd/MM/yyyy' }}
+                              @if (p.note) {
+                                <span class="text-muted">— {{ p.note }}</span>
+                              }
+                              @if (canReverse && !p.reversal && !isReversed(order.id, p)) {
+                                <button type="button" class="btn btn-sm btn-link p-0 ms-2"
+                                        (click)="startReversal(p)">
+                                  Estornar
+                                </button>
+                              }
+                              @if (reversing() === p.id) {
+                                <div class="input-group input-group-sm mt-1" style="max-width: 32rem">
+                                  <input type="text" class="form-control" [formControl]="reversalReason"
+                                         placeholder="Motivo do estorno (obrigatório)"
+                                         aria-label="Motivo do estorno" />
+                                  <button type="button" class="btn btn-outline-danger"
+                                          (click)="confirmReversal(order, p)">
+                                    Confirmar estorno
+                                  </button>
+                                  <button type="button" class="btn btn-outline-secondary"
+                                          (click)="reversing.set(null)">
+                                    Cancelar
+                                  </button>
+                                </div>
+                              }
+                            </li>
+                          }
+                        </ul>
+                      } @else {
+                        <p class="small text-muted mb-2">Nenhum recebimento lançado.</p>
+                      }
+
+                      @if (canPay && conta.outstanding > 0 && order.status !== 'CANCELLED') {
+                        <form [formGroup]="paymentForm" (ngSubmit)="pay(order)" class="row g-2">
+                          <div class="col-auto">
+                            <label class="form-label small mb-0" [for]="'valor-' + order.id">Valor</label>
+                            <input [id]="'valor-' + order.id" type="number" step="0.01" min="0.01"
+                                   class="form-control form-control-sm" formControlName="amount" />
+                          </div>
+                          <div class="col-auto">
+                            <label class="form-label small mb-0" [for]="'meio-' + order.id">Meio</label>
+                            <input [id]="'meio-' + order.id" type="text"
+                                   class="form-control form-control-sm" formControlName="method"
+                                   placeholder="PIX, boleto…" />
+                          </div>
+                          <div class="col-auto">
+                            <!-- A data do extrato é a que concilia: o depósito de sexta é lançado na segunda. -->
+                            <label class="form-label small mb-0" [for]="'data-' + order.id">
+                              Recebido em
+                            </label>
+                            <input [id]="'data-' + order.id" type="date"
+                                   class="form-control form-control-sm" formControlName="receivedOn" />
+                          </div>
+                          <div class="col">
+                            <label class="form-label small mb-0" [for]="'obs-' + order.id">
+                              Observação
+                            </label>
+                            <input [id]="'obs-' + order.id" type="text"
+                                   class="form-control form-control-sm" formControlName="note" />
+                          </div>
+                          <div class="col-auto align-self-end">
+                            <button type="submit" class="btn btn-sm btn-primary"
+                                    [disabled]="store.saving()">
+                              Lançar recebimento
+                            </button>
+                          </div>
+                        </form>
+                      }
+                    }
                   </td>
                 </tr>
               }

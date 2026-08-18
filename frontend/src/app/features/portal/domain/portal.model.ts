@@ -33,8 +33,8 @@ export interface PortalOrder {
 /**
  * O teto e o que já está comprometido.
  *
- * Mede compromisso, e não recebível: sem baixa de pagamento, um pedido entregue e não pago sai da
- * conta. `ceiling` nulo é "sem teto", e sem teto tudo cabe.
+ * `committed` é o que o cliente **deve**: pedidos confirmados e atendidos, menos os recebimentos, já
+ * descontados os estornos (DEB-SAL-002). `ceiling` nulo é "sem teto", e sem teto tudo cabe.
  */
 export interface CreditSituation {
   ceiling: number | null;

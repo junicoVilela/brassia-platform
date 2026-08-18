@@ -369,21 +369,55 @@ o cliente veria "sem crédito" num lote que ele mesmo travou.
 crédito), `PortalAdminController` (conceder acesso, definir teto); 7 caminhos e 3 schemas no OpenAPI;
 tela do portal. **6 testes de domínio e 8 de integração.**
 
-### DEB-SAL-002 — O limite mede compromisso, e não recebível
+### DEB-SAL-002 — **RESOLVIDO em 2026-08-18**
 
-**Limitação declarada, e não descuido.** O mantenedor escolheu limite de crédito em dinheiro sabendo do
-problema, que estava escrito na própria opção: um limite de crédito de verdade compara o teto com o que o
-cliente **deve**, e isso exige baixa de pagamento — que a plataforma não tem (fora do escopo da sprint).
+**O que era.** O comprometido somava pedidos confirmados. Os dois erros apareciam no mesmo cliente: quem
+pagava continuava com o limite ocupado, e **um pedido entregue e não pago saía da conta**. A limitação
+estava declarada no domínio, na migration, no contrato e num teste que existia só para documentá-la.
+Faltava a baixa de pagamento.
 
-O que dá para medir é a soma dos pedidos **confirmados e ainda não entregues**. A consequência, que
-ninguém deve descobrir sozinho: **um pedido entregue e não pago sai da conta**. O controle funciona para
-impedir que um cliente acumule promessas além do que a cervejaria aceita carregar — o caso real do bar
-pequeno pedindo mil caixas — e **não substitui análise de crédito**.
+**O recebimento é evento, e não saldo.** Um campo "valor pago" no pedido responderia "quanto falta" e
+perderia "quem pagou o quê, e quando" — que é a pergunta de qualquer conferência com o financeiro. E um
+saldo que se sobrescreve não se audita.
 
-Está escrito no domínio, na migration, no contrato e num teste que existe só para documentar isso.
+**O parcial conta na proporção do que entrou.** Metade na entrega e metade em trinta dias é como boa parte
+do comércio funciona. Ignorar o parcial faria um cliente que pagou 90% ocupar o limite inteiro — e o
+vendedor recusaria a venda de alguém que está em dia. Exigir o valor cheio faria o operador lançar o que
+não recebeu para o sistema parar de reclamar.
 
-**Critério de remoção:** existir baixa de pagamento por pedido, e o comprometido passar a considerar o
-que foi entregue e não pago. É história própria — provavelmente da INT-008, que traz as portas fiscais.
+**Estorno é evento compensatório, e não edição.** Recebimento lançado errado não se apaga: registra-se o
+estorno, e os dois ficam. Mesmo princípio da prova de entrega da LOG-002, e pela mesma razão — o registro
+que se reescreve parece original e diz outra coisa. O estorno vai pelo **valor cheio** (estornar parte
+seria corrigir o valor, e correção se faz estornando inteiro e lançando de novo) e **exige motivo**: sem
+ele, quem confere seis meses depois não sabe se foi engano de digitação, cheque devolvido ou pedido
+cancelado, e as três levam a conversas diferentes.
+
+**Um estorno por recebimento, garantido pelo índice único parcial** (`ux_payment_reversal`). Estornar duas
+vezes o mesmo lançamento tiraria da conta um dinheiro que só entrou uma vez, e o cliente ganharia limite
+que não tem. É a décima vez nesta base que a invariante que atravessa linhas mora no banco.
+
+**Não se recebe mais do que o pedido deve.** É o que pega o zero a mais: 1.200,00 num pedido de 120,00 é
+digitação, e não pagamento. A recusa devolve o saldo de verdade, porque é o número que resolve. E o
+`GREATEST(devido − recebido, 0)` é **por pedido**: sem ele, pagar a mais num pedido geraria crédito nos
+outros.
+
+**A conciliação é manual nesta fatia.** O meio de pagamento é obrigatório porque sem ele a conferência com
+o extrato vira adivinhação — "R$ 1.200 no dia 12" existe três vezes num extrato movimentado. Integração
+bancária inventaria contrato de terceiro, que é a mesma razão que suspendeu a Sprint 21 (DEC-INT-002).
+
+**Entregue:** `V140__sales_payment.sql` (tabela append-only, `CHECK` de valor positivo, `CHECK` de "estorno
+exige motivo", índice único do estorno, duas permissões — `sales.payment.reverse` é **crítica**, porque
+tira dinheiro da conta e devolve limite ao cliente); `Payment`, `PaymentHandlers`, `PaymentController`
+(lançar, estornar, listar com saldo); `committedAmount` reescrito para medir recebível (`PLACED` +
+`FULFILLED` menos os recebimentos); 2 caminhos e 2 schemas no OpenAPI; os recebimentos dentro do pedido na
+tela de vendas. **8 testes de domínio, 8 de integração e 4 de store.**
+
+**A `V123` continua com o comentário antigo, e é de propósito:** mudar texto de migration já aplicada
+muda o checksum e quebra o `validate` de quem já subiu. A correção mora na `V140`, no domínio, no contrato
+e neste STATUS.
+
+**O que continua fora:** o excedente pago não vira crédito do cliente — crédito é conta corrente de
+cliente, e não baixa de pedido. Quem paga a mais tem o lançamento recusado, e não um saldo escondido.
 
 ### DEB-SAL-003 — **RESOLVIDO em 2026-08-18**
 
@@ -574,8 +608,6 @@ corpo não leva dado pessoal*. Sem migration: o outbox e as assinaturas já exis
 - **Riscos remanescentes:**
   - **A premissa de produção.** Toda a sprint pressupõe que alguém vai validar o release. Enquanto
     REL-001 e o ciclo da REL-005 seguirem abertos, isto é software que funciona e não opera.
-  - **`DEB-SAL-002`** — o limite de crédito mede **compromisso, não recebível**: sem baixa de pagamento,
-    um pedido entregue e não pago sai da conta. Escolhido com o problema à vista.
   - **`DEB-SAL-001`** — o custeio guarda `BigDecimal` sem moeda. Não quebra enquanto a cervejaria opera
     numa moeda só.
   - **`DEB-SAL-003`** — o `PackagingRunIT` chegou a ~1.200 linhas por ser a casa do cenário de lote

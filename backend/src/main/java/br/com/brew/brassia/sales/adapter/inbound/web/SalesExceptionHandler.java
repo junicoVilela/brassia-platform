@@ -5,7 +5,9 @@ import br.com.brew.brassia.shared.money.CurrencyMismatchException;
 import br.com.brew.brassia.sales.domain.DuplicateSkuException;
 import br.com.brew.brassia.sales.domain.InsufficientLotStockException;
 import br.com.brew.brassia.sales.domain.NoPriceForProductException;
+import br.com.brew.brassia.sales.domain.AlreadyReversedException;
 import br.com.brew.brassia.sales.domain.OrderNotChangeableException;
+import br.com.brew.brassia.sales.domain.PaymentExceedsBalanceException;
 import br.com.brew.brassia.sales.domain.PromiseAfterShelfLifeException;
 import br.com.brew.brassia.sales.domain.UnreservedQuantityException;
 import br.com.brew.brassia.sales.domain.OverlappingPriceException;
@@ -123,5 +125,27 @@ class SalesExceptionHandler {
     @ExceptionHandler(CurrencyMismatchException.class)
     ProblemDetail handleCurrency(CurrencyMismatchException ex) {
         return ProblemDetails.of(HttpStatus.CONFLICT, "sales_currency_mismatch", ex.getMessage());
+    }
+
+    /**
+     * O recebimento passa do que o pedido deve (DEB-SAL-002).
+     *
+     * <p>O saldo vai na resposta porque é o que resolve: quem digitou um zero a mais precisa ver o
+     * número certo, e quem lançou no pedido errado descobre isso ao ler que aquele pedido deve outra
+     * coisa.
+     */
+    @ExceptionHandler(PaymentExceedsBalanceException.class)
+    ProblemDetail handleExceeds(PaymentExceedsBalanceException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "payment_exceeds_balance", ex.getMessage());
+        problem.setProperty("outstanding", ex.outstanding());
+        problem.setProperty("requested", ex.requested());
+        problem.setProperty("currency", ex.currency());
+        return problem;
+    }
+
+    /** 409: o recebimento existe, e já foi estornado. Estornar de novo tiraria dinheiro duas vezes. */
+    @ExceptionHandler(AlreadyReversedException.class)
+    ProblemDetail handleAlreadyReversed(AlreadyReversedException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, "payment_already_reversed", ex.getMessage());
     }
 }

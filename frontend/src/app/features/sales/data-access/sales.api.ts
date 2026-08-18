@@ -82,6 +82,7 @@ export class SalesApi {
       channelId: string;
       promisedFor: string | null;
       items: { productId: string; quantity: number }[];
+      creditOverrideReason?: string | null;
     },
     idempotencyKey: string,
   ): Observable<{ id: string }> {

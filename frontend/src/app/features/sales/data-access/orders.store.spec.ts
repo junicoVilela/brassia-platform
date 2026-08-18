@@ -18,6 +18,8 @@ function order(over: Partial<SalesOrder> = {}): SalesOrder {
     promisedFor: null,
     total: 120,
     currency: 'BRL',
+    creditOverrideReason: null,
+    creditOverrideBy: null,
     lines: [
       {
         productId: 'p1',
@@ -229,5 +231,72 @@ describe('OrdersStore', () => {
       'Estorno registrado. O recebimento original continua no histórico.',
     );
     expect(payments).toHaveBeenCalledWith('o1');
+  });
+
+  it('guarda a recusa por crédito com os três números, em vez de só um toast', () => {
+    // É a única recusa que quem vende pode resolver ali mesmo; um toast que some faria o vendedor
+    // repetir o pedido só para ler o número de novo (SAL-004).
+    const { store, toast } = setup({
+      placeOrder: () =>
+        throwError(() => ({
+          status: 409,
+          error: {
+            code: 'credit_limit_exceeded',
+            detail: 'o pedido passa do limite de crédito do cliente',
+            ceiling: 200,
+            committed: 120,
+            requested: 120,
+            currency: 'BRL',
+          },
+        })),
+    } as Partial<SalesApi>);
+
+    store.place(CORPO);
+
+    expect(store.creditRefusal()).toEqual({
+      ceiling: 200,
+      committed: 120,
+      requested: 120,
+      currency: 'BRL',
+    });
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('a recusa some na tentativa seguinte, e as outras recusas não viram recusa de crédito', () => {
+    // Deixá-la na tela depois de o pedido passar faria o vendedor achar que ainda está travado.
+    const { store } = setup({
+      placeOrder: () =>
+        throwError(() => ({ status: 409, error: { code: 'insufficient_lot_stock', available: 3 } })),
+    } as Partial<SalesApi>);
+
+    store.place(CORPO);
+
+    expect(store.creditRefusal()).toBeNull();
+  });
+
+  it('não avisa que o pedido entrou quando o crédito recusou', () => {
+    // É esse aviso que fecha o formulário. Fechá-lo no envio esconderia a recusa antes de ela chegar,
+    // e os três números que explicam a recusa nunca chegariam à tela (SAL-004).
+    const { store } = setup({
+      placeOrder: () =>
+        throwError(() => ({ status: 409, error: { code: 'credit_limit_exceeded', ceiling: 200 } })),
+    } as Partial<SalesApi>);
+    const naRecusa = vi.fn();
+
+    store.place(CORPO, naRecusa);
+
+    expect(naRecusa).not.toHaveBeenCalled();
+  });
+
+  it('avisa que o pedido entrou quando ele entrou', () => {
+    const { store } = setup({
+      placeOrder: () => of({ id: 'o9' }),
+      orders: () => of([]),
+    } as Partial<SalesApi>);
+    const noSucesso = vi.fn();
+
+    store.place(CORPO, noSucesso);
+
+    expect(noSucesso).toHaveBeenCalled();
   });
 });

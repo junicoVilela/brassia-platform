@@ -41,3 +41,22 @@ export const CONFIDENCE_ADVICE: Record<ForecastConfidence, string> = {
   MODERATE: 'Já diz alguma coisa, e ainda se mexe quando chega mês novo.',
   HIGH: 'Um ciclo anual de histórico: a sazonalidade está no dado, e não adivinhada.',
 };
+
+/**
+ * A capacidade do próximo mês (DUV-FCST-001).
+ *
+ * `known: false` é "não sei" — e não zero. Zero diria que a cervejaria não produz nada, e alguém
+ * planejaria em cima disso.
+ */
+export interface CapacityView {
+  known: boolean;
+  capacityLiters: number | null;
+  demandLiters: number;
+  /** Nulo quando a capacidade é desconhecida: responder "cabe" sem saber seria pior que não responder. */
+  fits: boolean | null;
+  /** Negativo quando falta — a falta é a informação que importa. */
+  headroomLiters: number | null;
+  utilizationPercent: number | null;
+  /** Os tanques que entraram na conta, pelo código: uma capacidade explicada se confere. */
+  tanks: string[];
+}

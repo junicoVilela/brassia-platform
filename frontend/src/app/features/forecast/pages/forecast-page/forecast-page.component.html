@@ -126,3 +126,47 @@
     </div>
   </div>
 }
+
+@if (store.capacity(); as c) {
+  <div class="card mt-3">
+    <div class="card-header">
+      <h2 class="h6 mb-0">Cabe na fábrica?</h2>
+    </div>
+    <div class="card-body">
+      @if (!c.known) {
+        <!--
+          "Não sei" é a resposta honesta: zero diria que a cervejaria não produz nada, e alguém
+          planejaria em cima disso.
+        -->
+        <p class="mb-1"><strong>Não dá para dizer.</strong></p>
+        <p class="small text-muted mb-0">
+          Nenhum fermentador tem ciclo declarado. Sem saber quantos dias um lote ocupa o tanque, qualquer
+          capacidade seria chute — e um chute aqui vira plano de produção.
+        </p>
+      } @else {
+        <p class="mb-1">
+          <strong>{{ c.capacityLiters | number: '1.0-0' }} L</strong> de teto no mês
+          <span class="text-muted">({{ c.tanks.join(', ') }})</span>
+        </p>
+        @if (c.fits) {
+          <p class="mb-1 text-success">
+            A demanda prevista cabe — ocupa {{ c.utilizationPercent | number: '1.0-1' }}% do teto.
+          </p>
+        } @else {
+          <!-- A falta é a informação que importa: ela diz quanto precisa mudar. -->
+          <p class="mb-1 text-danger">
+            Faltam {{ -(c.headroomLiters ?? 0) | number: '1.0-0' }} L para a demanda prevista caber.
+          </p>
+        }
+        <!--
+          O teto é otimista: se a demanda não cabe nele, certamente não cabe na fábrica — o contrário
+          não vale.
+        -->
+        <p class="form-text mb-0">
+          Este teto ignora turno, calendário, limpeza entre lotes e gargalo fora do fermentador. Se não
+          cabe aqui, não cabe na fábrica; caber aqui não garante que caiba.
+        </p>
+      }
+    </div>
+  </div>
+}

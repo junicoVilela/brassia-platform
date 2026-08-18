@@ -3,6 +3,7 @@ import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { ToastService } from '../../../core/notifications/toast.service';
 import { SalesOrder } from '../domain/order.model';
+import { OrderPayments } from '../domain/payment.model';
 import { OrdersStore } from './orders.store';
 import { SalesApi } from './sales.api';
 
@@ -135,5 +136,98 @@ describe('OrdersStore', () => {
     expect(cancelOrder).toHaveBeenCalledWith('o1');
     expect(toast.success).toHaveBeenCalledWith('Pedido cancelado e estoque devolvido.');
     expect(orders).toHaveBeenCalled();
+  });
+
+  it('guarda os recebimentos por pedido, e só do pedido aberto', () => {
+    // Buscar de todos na listagem faria uma consulta por linha para algo que quase ninguém abre.
+    const conta: OrderPayments = {
+      orderId: 'o1',
+      total: 120,
+      received: 60,
+      outstanding: 60,
+      currency: 'BRL',
+      payments: [
+        {
+          id: 'pg1',
+          amount: 60,
+          currency: 'BRL',
+          receivedOn: '2026-08-16',
+          method: 'PIX',
+          note: null,
+          recordedBy: 'u1',
+          recordedAt: '2026-08-16T12:00:00Z',
+          reversal: false,
+          reversesPaymentId: null,
+        },
+      ],
+    };
+    const payments = vi.fn().mockReturnValue(of(conta));
+    const { store } = setup({ payments } as Partial<SalesApi>);
+
+    store.loadPayments('o1');
+
+    expect(payments).toHaveBeenCalledWith('o1');
+    expect(store.payments()['o1'].outstanding).toBe(60);
+    expect(store.payments()['o2']).toBeUndefined();
+  });
+
+  it('recarrega a conta do pedido ao lançar o recebimento', () => {
+    // O saldo é a resposta que a tela dá; deixá-lo velho faria o operador lançar o mesmo valor de novo.
+    const payments = vi.fn().mockReturnValue(of({ payments: [] } as unknown as OrderPayments));
+    const recordPayment = vi.fn().mockReturnValue(of({ id: 'pg1' }));
+    const { store, toast } = setup({ payments, recordPayment } as Partial<SalesApi>);
+
+    store.pay('o1', {
+      amount: 60,
+      currency: 'BRL',
+      receivedOn: null,
+      method: 'PIX',
+      note: null,
+    });
+
+    expect(recordPayment).toHaveBeenCalledWith('o1', expect.objectContaining({ amount: 60 }));
+    expect(toast.success).toHaveBeenCalledWith('Recebimento registrado.');
+    expect(payments).toHaveBeenCalledWith('o1');
+  });
+
+  it('mostra o saldo de verdade quando o recebimento passa do que o pedido deve', () => {
+    // É o que corrige o zero a mais sem o operador ficar tentando números.
+    const { store, toast } = setup({
+      recordPayment: () =>
+        throwError(() => ({
+          status: 409,
+          error: {
+            code: 'payment_exceeds_balance',
+            detail: 'o pedido deve 120.00 BRL, e o recebimento lançado é de 1200.00 BRL',
+          },
+        })),
+    } as Partial<SalesApi>);
+
+    store.pay('o1', {
+      amount: 1200,
+      currency: 'BRL',
+      receivedOn: null,
+      method: 'PIX',
+      note: null,
+    });
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'o pedido deve 120.00 BRL, e o recebimento lançado é de 1200.00 BRL',
+    );
+  });
+
+  it('o estorno avisa que o original continua no histórico', () => {
+    // Estorno é evento compensatório, e não edição: quem lê o aviso não vai procurar a linha apagada.
+    const payments = vi.fn().mockReturnValue(of({ payments: [] } as unknown as OrderPayments));
+    const reversePayment = vi.fn().mockReturnValue(of({ id: 'pg2' }));
+    const { store, toast } = setup({ payments, reversePayment } as Partial<SalesApi>);
+
+    store.reversePayment('o1', 'pg1', 'cheque devolvido');
+
+    expect(reversePayment).toHaveBeenCalledWith('pg1', 'cheque devolvido');
+    expect(toast.success).toHaveBeenCalledWith(
+      'Estorno registrado. O recebimento original continua no histórico.',
+    );
+    expect(payments).toHaveBeenCalledWith('o1');
   });
 });

@@ -8,6 +8,7 @@ import { PageHeaderComponent } from '../../../../shared/ui/page-header.component
 import { OrdersStore } from '../../data-access/orders.store';
 import { SalesStore } from '../../data-access/sales.store';
 import { ORDER_STATUS_LABELS, SalesOrder } from '../../domain/order.model';
+import { Payment } from '../../domain/payment.model';
 
 /**
  * Pedidos (SAL-002).
@@ -15,6 +16,11 @@ import { ORDER_STATUS_LABELS, SalesOrder } from '../../domain/order.model';
  * <p>A responsabilidade da tela que não é registrar: <strong>mostrar de quais lotes o pedido é feito</strong>.
  * Um pedido é uma promessa sobre cerveja específica, e quando um recall alcança um lote é aqui que se
  * descobre quem precisa ser avisado — não numa consulta que ninguém sabe fazer.
+ *
+ * <p><strong>O recebimento aparece dentro do pedido</strong> (DEB-SAL-002), e não numa tela de
+ * financeiro à parte: quem cobra está olhando o pedido, e o número que importa — quanto falta — só faz
+ * sentido ao lado do total. O estorno pede motivo na própria linha, porque um estorno sem motivo deixa
+ * quem confere seis meses depois sem saber se foi engano de digitação ou cheque devolvido.
  *
  * <p><strong>A promessa de entrega tem limite visível.</strong> A data mais distante que dá para prometer
  * é a validade do lote que vence primeiro, e o servidor recusa o resto. Mostrar a validade ao lado da
@@ -45,6 +51,20 @@ export class OrdersPageComponent implements OnInit {
   protected readonly expanded = signal<string | null>(null);
 
   protected readonly canManage = this.auth.hasPermission('sales.order.manage');
+  protected readonly canPay = this.auth.hasPermission('sales.payment.record');
+  protected readonly canReverse = this.auth.hasPermission('sales.payment.reverse');
+
+  /** Qual recebimento está com o campo de motivo aberto: estornar sem motivo o servidor recusa. */
+  protected readonly reversing = signal<string | null>(null);
+
+  protected readonly paymentForm = this.fb.nonNullable.group({
+    amount: [0, [Validators.required, Validators.min(0.01)]],
+    receivedOn: [''],
+    method: ['', [Validators.required, Validators.maxLength(40)]],
+    note: [''],
+  });
+
+  protected readonly reversalReason = this.fb.nonNullable.control('', Validators.required);
 
   protected readonly form = this.fb.nonNullable.group({
     code: ['', [Validators.required, Validators.maxLength(40)]],
@@ -78,7 +98,50 @@ export class OrdersPageComponent implements OnInit {
   }
 
   protected toggle(order: SalesOrder): void {
-    this.expanded.set(this.expanded() === order.id ? null : order.id);
+    const abrindo = this.expanded() !== order.id;
+    this.expanded.set(abrindo ? order.id : null);
+    if (abrindo) {
+      this.store.loadPayments(order.id);
+    }
+  }
+
+  protected pay(order: SalesOrder): void {
+    if (this.paymentForm.invalid) {
+      this.paymentForm.markAllAsTouched();
+      return;
+    }
+    const v = this.paymentForm.getRawValue();
+    this.store.pay(order.id, {
+      amount: v.amount,
+      // A moeda é a do pedido: escolher outra não seria recebimento parcial, seria outra conversa.
+      currency: order.currency,
+      // Vazio vira nulo, que o servidor lê como hoje.
+      receivedOn: v.receivedOn || null,
+      method: v.method,
+      note: v.note || null,
+    });
+    this.paymentForm.reset({ amount: 0, receivedOn: '', method: '', note: '' });
+  }
+
+  protected startReversal(payment: Payment): void {
+    this.reversing.set(payment.id);
+    this.reversalReason.reset('');
+  }
+
+  protected confirmReversal(order: SalesOrder, payment: Payment): void {
+    if (this.reversalReason.invalid) {
+      this.reversalReason.markAsTouched();
+      return;
+    }
+    this.store.reversePayment(order.id, payment.id, this.reversalReason.value);
+    this.reversing.set(null);
+  }
+
+  /** Já estornado: o índice único do banco recusa o segundo, e a tela não oferece o botão. */
+  protected isReversed(orderId: string, payment: Payment): boolean {
+    return (this.store.payments()[orderId]?.payments ?? []).some(
+      p => p.reversesPaymentId === payment.id,
+    );
   }
 
   protected badgeClass(order: SalesOrder): string {

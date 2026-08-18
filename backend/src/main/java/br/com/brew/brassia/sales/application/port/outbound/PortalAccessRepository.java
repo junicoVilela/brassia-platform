@@ -25,10 +25,10 @@ public interface PortalAccessRepository {
             UUID actorId);
 
     /**
-     * O que o cliente tem prometido e ainda não entregue.
+     * O que o cliente deve: recebível (DEB-SAL-002).
      *
-     * <p>Soma dos pedidos {@code PLACED}. Não é recebível — sem baixa de pagamento, entregue e não pago
-     * sai da conta (DEB-SAL-002).
+     * <p>Pedidos {@code PLACED} e {@code FULFILLED} menos os recebimentos, já descontados os estornos, e
+     * <strong>por pedido</strong>: pagar a mais num pedido não pode gerar crédito nos outros.
      */
     java.math.BigDecimal committedAmount(UUID breweryId, UUID customerId, String currency);
 

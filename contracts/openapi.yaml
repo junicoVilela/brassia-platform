@@ -7733,6 +7733,143 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /sales/orders/{orderId}/payments:
+    get:
+      tags: [Vendas]
+      summary: Recebimentos do pedido, com o saldo em aberto (DEB-SAL-002)
+      description: >-
+        O saldo vem calculado porque é a pergunta que a tela faz: "quanto falta". Deixar a soma para o
+        cliente faria cada tela decidir sozinha o que fazer com os estornos.
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Total, recebido, saldo e os lançamentos na ordem em que entraram
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderPayments'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Vendas]
+      summary: Registrar recebimento (baixa de pagamento)
+      description: >-
+        **O recebimento é evento, e não saldo.** Um campo "valor pago" no pedido responderia "quanto
+        falta" e perderia "quem pagou o quê, e quando" — que é a pergunta de qualquer conferência com o
+        financeiro. E um saldo que se sobrescreve não se audita.
+
+
+        **Recebimento parcial é normal**: metade na entrega e metade em trinta dias é como boa parte do
+        comércio funciona. O que entrou libera o limite de crédito **na proporção do que entrou** —
+        ignorar o parcial faria um cliente que pagou 90% ocupar o limite inteiro.
+
+
+        **Não se recebe mais do que o pedido deve.** É o que pega o zero a mais: 1.200,00 num pedido de
+        120,00 é digitação, e não pagamento. Não há PUT nem DELETE — lançamento errado se estorna.
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, currency, method]
+              properties:
+                amount: {type: number, format: double, minimum: 0, exclusiveMinimum: true}
+                currency: {type: string, minLength: 3, maxLength: 3, example: BRL}
+                receivedOn:
+                  type: string
+                  format: date
+                  nullable: true
+                  description: >-
+                    Nulo é hoje. Existe explícito porque o depósito de sexta costuma ser lançado na
+                    segunda, e a data do extrato é a que concilia.
+                method:
+                  type: string
+                  maxLength: 40
+                  description: >-
+                    Sem o meio, a conciliação com o extrato vira adivinhação: "R$ 1.200 no dia 12"
+                    existe três vezes num extrato movimentado.
+                note: {type: string, maxLength: 500, nullable: true}
+      responses:
+        '201':
+          description: Recebimento registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `payment_exceeds_balance` (com `outstanding`, `requested` e `currency`),
+            `order_not_changeable` (pedido cancelado) ou `sales_currency_mismatch`
+          content:
+            application/problem+json:
+              schema: {type: object}
+  /sales/payments/{id}/reversal:
+    post:
+      tags: [Vendas]
+      summary: Estornar um recebimento lançado errado
+      description: >-
+        **Estorno é evento compensatório, e não edição.** O original continua de pé, e o estorno explica
+        o que mudou: o registro que se reescreve parece original e diz outra coisa. Mesmo princípio da
+        prova de entrega.
+
+
+        Vai pelo **valor cheio** do original — estornar parte seria corrigir o valor, e correção de valor
+        se faz estornando inteiro e lançando de novo. **Um estorno por recebimento**: estornar duas vezes
+        tiraria da conta um dinheiro que só entrou uma vez, e o cliente ganharia limite que não tem.
+
+
+        Permissão **crítica**: tira dinheiro da conta e devolve limite ao cliente.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: >-
+                    Obrigatório: sem ele, quem confere seis meses depois não sabe se foi engano de
+                    digitação, cheque devolvido ou pedido cancelado — e as três levam a conversas
+                    diferentes.
+      responses:
+        '201':
+          description: Estorno registrado (o identificador é o do lançamento novo)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`payment_already_reversed`'
+          content:
+            application/problem+json:
+              schema: {type: object}
   /portal/catalog:
     get:
       tags: [Portal do cliente]
@@ -7898,14 +8035,9 @@ paths:
       tags: [Portal do cliente]
       summary: O teto e o que já está comprometido
       description: >-
-        **Mede compromisso, e não recebível — limitação declarada, não descuido.** Um limite de crédito
-        de verdade compara o teto com o que o cliente *deve*, e isso exige baixa de pagamento, que a
-        plataforma não tem (fora do escopo da sprint). O que dá para medir é a soma dos pedidos
-        **confirmados e ainda não entregues**.
-
-
-        A consequência, que ninguém deve descobrir sozinho: **um pedido entregue e não pago sai da
-        conta**. Ver `DEB-SAL-002`.
+        **`committed` é recebível: o que o cliente deve** (DEB-SAL-002). Pedidos confirmados e atendidos,
+        menos os recebimentos, já descontados os estornos. O recebimento **parcial conta na proporção do
+        que entrou** — ignorá-lo faria um cliente que pagou 90% ocupar o limite inteiro.
 
 
         `ceiling` nulo significa **sem teto**, e sem teto tudo cabe — não recusar por falta de decisão é
@@ -15000,6 +15132,44 @@ components:
                        regulator_unknown, regulator_inactive, manifold_unknown, manifold_inactive,
                        point_of_use_occupied, working_pressure_above_network]
               message: {type: string}
+    OrderPayments:
+      type: object
+      description: >-
+        Os recebimentos do pedido e o saldo em aberto (DEB-SAL-002). Os valores vêm em centavos — duas
+        casas —, e não nas quatro do armazenamento: quem lê um total espera o valor da nota.
+      properties:
+        orderId: {type: string, format: uuid}
+        total: {type: number, format: double}
+        received:
+          type: number
+          format: double
+          description: O que entrou, já descontados os estornos. Pode ser zero, e nunca é negativo.
+        outstanding: {type: number, format: double, description: O que o pedido ainda deve.}
+        currency: {type: string, example: BRL}
+        payments:
+          type: array
+          items: {$ref: '#/components/schemas/Payment'}
+    Payment:
+      type: object
+      description: >-
+        Um lançamento. O estorno é outro lançamento, com `reversal` verdadeiro e `reversesPaymentId`
+        apontando para o original — os dois ficam, e a soma explica a si mesma.
+      properties:
+        id: {type: string, format: uuid}
+        amount:
+          type: number
+          format: double
+          description: >-
+            Sempre positivo, inclusive no estorno. O sinal vem da existência do estorno, e não do
+            número: valor negativo seria estorno disfarçado de recebimento.
+        currency: {type: string, example: BRL}
+        receivedOn: {type: string, format: date}
+        method: {type: string, example: PIX}
+        note: {type: string, nullable: true, description: No estorno, é o motivo, e é obrigatório.}
+        recordedBy: {type: string, format: uuid}
+        recordedAt: {type: string, format: date-time}
+        reversal: {type: boolean}
+        reversesPaymentId: {type: string, format: uuid, nullable: true}
   responses:
     Problem:
       description: Problem Details

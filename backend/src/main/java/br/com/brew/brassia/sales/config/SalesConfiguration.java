@@ -2,7 +2,9 @@ package br.com.brew.brassia.sales.config;
 
 import br.com.brew.brassia.packaging.SellableLotLookup;
 import br.com.brew.brassia.sales.application.port.inbound.OrderCommands;
+import br.com.brew.brassia.sales.application.port.inbound.PaymentCommands;
 import br.com.brew.brassia.sales.application.port.inbound.ProductCommands;
+import br.com.brew.brassia.sales.application.port.outbound.PaymentRepository;
 import br.com.brew.brassia.sales.application.port.outbound.PriceRepository;
 import br.com.brew.brassia.sales.application.port.outbound.ProductRepository;
 import br.com.brew.brassia.sales.application.port.outbound.SalesChannelRepository;
@@ -10,6 +12,7 @@ import br.com.brew.brassia.sales.application.port.outbound.LotAvailabilityReposi
 import br.com.brew.brassia.sales.application.port.outbound.SalesOrderEventPublisher;
 import br.com.brew.brassia.sales.application.port.outbound.SalesOrderRepository;
 import br.com.brew.brassia.sales.application.service.OrderHandlers;
+import br.com.brew.brassia.sales.application.service.PaymentHandlers;
 import br.com.brew.brassia.sales.application.service.ProductHandlers;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,5 +32,10 @@ class SalesConfiguration {
             LotAvailabilityRepository availability, SellableLotLookup sellableLots,
             SalesOrderEventPublisher events) {
         return new OrderHandlers(orders, products, channels, prices, availability, sellableLots, events);
+    }
+
+    @Bean
+    PaymentCommands paymentCommands(PaymentRepository payments, SalesOrderRepository orders) {
+        return new PaymentHandlers(payments, orders);
     }
 }

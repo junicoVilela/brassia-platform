@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { SalesOrder } from '../domain/order.model';
+import { OrderPayments } from '../domain/payment.model';
 import { PriceSchedule, Product, SalesChannel, SellableLot } from '../domain/product.model';
 
 @Injectable({ providedIn: 'root' })
@@ -91,5 +92,35 @@ export class SalesApi {
 
   cancelOrder(id: string): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/orders/${id}/cancel`, {});
+  }
+
+  payments(orderId: string): Observable<OrderPayments> {
+    return this.http.get<OrderPayments>(`${this.baseUrl}/orders/${orderId}/payments`);
+  }
+
+  /**
+   * Registra o recebimento.
+   *
+   * `receivedOn` é data pura: a data do extrato é a que concilia, e o depósito de sexta costuma ser
+   * lançado na segunda.
+   */
+  recordPayment(
+    orderId: string,
+    body: {
+      amount: number;
+      currency: string;
+      receivedOn: string | null;
+      method: string;
+      note: string | null;
+    },
+  ): Observable<{ id: string }> {
+    return this.http.post<{ id: string }>(`${this.baseUrl}/orders/${orderId}/payments`, body);
+  }
+
+  /** O estorno é POST, e não DELETE: ele cria um lançamento, e não apaga o original. */
+  reversePayment(paymentId: string, reason: string): Observable<{ id: string }> {
+    return this.http.post<{ id: string }>(`${this.baseUrl}/payments/${paymentId}/reversal`, {
+      reason,
+    });
   }
 }

@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
 import { SalesOrder } from '../domain/order.model';
+import { OrderPayments } from '../domain/payment.model';
 import { SalesApi } from './sales.api';
 
 interface ApiError {
@@ -37,6 +38,14 @@ export class OrdersStore {
   readonly saving = signal(false);
 
   readonly open = computed(() => this.orders().filter(o => o.status === 'PLACED'));
+
+  /**
+   * Os recebimentos, por pedido (DEB-SAL-002).
+   *
+   * <p>Carregados sob demanda, quando o pedido é aberto: buscar de todos na listagem faria uma consulta
+   * por linha para uma informação que quase sempre ninguém abre.
+   */
+  readonly payments = signal<Record<string, OrderPayments>>({});
 
   load(): void {
     this.loading.set(true);
@@ -97,5 +106,59 @@ export class OrdersStore {
    */
   private message(e: ApiError, fallback: string): string {
     return e?.error?.detail ?? fallback;
+  }
+
+  loadPayments(orderId: string): void {
+    this.api
+      .payments(orderId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: p => this.payments.update(atual => ({ ...atual, [orderId]: p })),
+        error: (e: ApiError) =>
+          this.toast.error(this.message(e, 'Não foi possível carregar os recebimentos.')),
+      });
+  }
+
+  pay(
+    orderId: string,
+    body: {
+      amount: number;
+      currency: string;
+      receivedOn: string | null;
+      method: string;
+      note: string | null;
+    },
+  ): void {
+    this.saving.set(true);
+    this.api
+      .recordPayment(orderId, body)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.saving.set(false)),
+      )
+      .subscribe({
+        next: () => {
+          this.toast.success('Recebimento registrado.');
+          this.loadPayments(orderId);
+        },
+        error: (e: ApiError) =>
+          // Em `payment_exceeds_balance` vem o saldo de verdade; é o que corrige o zero a mais sem o
+          // operador ficar tentando números.
+          this.toast.error(this.message(e, 'Não foi possível registrar o recebimento.')),
+      });
+  }
+
+  reversePayment(orderId: string, paymentId: string, reason: string): void {
+    this.api
+      .reversePayment(paymentId, reason)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success('Estorno registrado. O recebimento original continua no histórico.');
+          this.loadPayments(orderId);
+        },
+        error: (e: ApiError) =>
+          this.toast.error(this.message(e, 'Não foi possível estornar o recebimento.')),
+      });
   }
 }

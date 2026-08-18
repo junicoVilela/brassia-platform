@@ -109,7 +109,41 @@ número — que é pior que campo vazio, porque parece preenchido.
 Se um dia a emissão fiscal entrar (INT-008), a validação nasce **lá**, onde o formato realmente importa e
 onde o provedor homologado já a exige. Validar aqui seria antecipar uma regra da nota para o cadastro.
 
-### DUV-CRM-001 (CRM-001) — Três perguntas que não invento, registradas em vez de decididas
+### DUV-CRM-001 (CRM-001) — **RESOLVIDA em 2026-08-18 por delegação do mantenedor**
+
+**1. Piso mínimo de retenção: não existe no código.** Se houver, é da casa ou da lei — e quem souber
+cadastra. O `RetentionPolicy` já recusava prazo não positivo e não embute padrão nenhum; a decisão foi
+manter assim, pelo mesmo motivo da periodicidade de inspeção: um número embutido seria o código
+respondendo por uma pergunta que ele não tem como responder.
+
+**2. "Último relacionamento" é o mais recente entre pedido, entrega e consentimento.** Cada um sozinho
+erra: só pedido ignora o bar que recebe entrega de contrato antigo; só entrega ignora quem comprou e ainda
+não recebeu; só consentimento marcaria como inativo quem nunca precisou reassinar nada. As datas vêm de
+consultas **publicadas** por `sales` e `distribution` (ADR-0016, direção padrão) — o CRM não lê tabela dos
+outros.
+
+**As duas consultas escolhem lados opostos de propósito.** O `OrderHistoryLookup` da previsão **exclui**
+pedido cancelado, porque lá a pergunta é "quanto se vendeu". O `CustomerActivityLookup` da retenção
+**inclui**, porque aqui a pergunta é "houve relacionamento" — apagar o dado pessoal de quem falou com a
+casa mês passado porque a venda não fechou seria confundir "não comprou" com "sumiu". O mesmo vale para
+entrega: recusa e ausência contam, porque o caminhão foi até lá.
+
+**3. Anonimização continua ato humano — e ganhou a metade que faltava.** Apagar dado pessoal é
+irreversível, e uma varredura automática com um bug de data apagaria contatos de clientes ativos. Mas
+exigir revisão manual sem dizer **quem** venceu faz a fila crescer até ninguém olhar. Agora existe a fila,
+e **cada linha diz de onde veio a data**: "vence em março" sem dizer que a conta partiu de uma entrega de
+2024 é um número que ninguém consegue conferir, e conferir é o ponto.
+
+**Contato sem relacionamento nenhum não entra na fila.** Cadastro que nunca foi usado não é cliente
+vencido: tratar a ausência de evidência como evidência de ausência anonimizaria justamente quem acabou de
+ser cadastrado.
+
+**Entregue:** `CustomerActivityLookup` (sales), `CustomerDeliveryLookup` (distribution),
+`LastRelationship`, `RetentionQueueService`, um endpoint com alçada de anonimizar, 1 caminho no OpenAPI e a
+fila na tela. **Sem migration** — os dados já existiam, faltava compô-los. **5 testes de domínio, 2 de
+integração e 1 de store.**
+
+### DUV-CRM-001 — como estava registrada quando foi aberta
 
 Conforme o rito do projeto, ambiguidade que altera regra de negócio vira pergunta e não invenção:
 

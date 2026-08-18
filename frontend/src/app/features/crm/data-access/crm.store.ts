@@ -2,7 +2,7 @@ import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { Contact, ContactPurpose, Customer } from '../domain/customer.model';
+import { Contact, ContactPurpose, Customer, DueContact } from '../domain/customer.model';
 import { CrmApi } from './crm.api';
 
 interface ApiError {
@@ -25,6 +25,13 @@ export class CrmStore {
 
   readonly customers = signal<Customer[]>([]);
   readonly loading = signal(false);
+
+  /**
+   * Contatos que passaram do prazo de retenção.
+   *
+   * <p>A lista existe para ser conferida: anonimizar é irreversível, e o número sozinho não se confere.
+   */
+  readonly retentionQueue = signal<DueContact[]>([]);
   readonly error = signal<string | null>(null);
   readonly onlyActive = signal(true);
 
@@ -177,6 +184,13 @@ export class CrmStore {
   }
 
   /** A mensagem do servidor vence a genérica: ela diz qual documento colidiu, ou por que a recusa. */
+  loadRetentionQueue(): void {
+    this.api
+      .retentionQueue()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: list => this.retentionQueue.set(list) });
+  }
+
   private message(e: ApiError, fallback: string): string {
     return e?.error?.detail ?? fallback;
   }

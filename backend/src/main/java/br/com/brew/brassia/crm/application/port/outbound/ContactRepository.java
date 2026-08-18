@@ -29,4 +29,19 @@ public interface ContactRepository {
 
     /** Grava o apagamento: limpa os campos pessoais e marca quando foi. */
     void anonymize(Contact contact);
+
+    /**
+     * Contatos ainda não anonimizados, com a data do consentimento mais recente de cada um.
+     *
+     * <p>Só os vivos: um contato já anonimizado não volta para a fila, e listá-lo faria a operação
+     * reabrir uma decisão que já foi tomada e não se desfaz.
+     */
+    List<ContactRelationship> liveContacts(UUID breweryId);
+
+    /**
+     * @param lastConsentOn nulo quando o contato nunca teve consentimento registrado — e nulo aqui não
+     *                      significa "sem relacionamento": quem pergunta compõe com pedido e entrega
+     */
+    record ContactRelationship(UUID contactId, UUID customerId, String name,
+            java.time.LocalDate lastConsentOn) {}
 }

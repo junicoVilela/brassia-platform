@@ -90,6 +90,7 @@ export class CustomersPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.load();
+    this.store.loadRetentionQueue();
   }
 
   protected select(customer: Customer): void {

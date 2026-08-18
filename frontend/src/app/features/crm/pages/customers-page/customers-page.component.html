@@ -1,3 +1,27 @@
+@if (store.retentionQueue().length > 0) {
+  <!--
+    A fila existe para ser CONFERIDA antes de um ato irreversível: por isso cada linha diz de onde veio a
+    data, e não só quando venceu. E nada é apagado aqui — anonimizar continua sendo decisão de gente.
+  -->
+  <div class="alert alert-warning" role="alert">
+    <strong>{{ store.retentionQueue().length }} contato(s) passaram do prazo de retenção.</strong>
+    <p class="small mb-2 mt-1">
+      Nada foi apagado. Confira a origem da data antes de anonimizar — o dado não volta.
+    </p>
+    <ul class="list-unstyled small mb-0">
+      @for (d of store.retentionQueue(); track d.contactId) {
+        <li>
+          <strong>{{ d.name }}</strong> · vencido desde
+          {{ d.dueSince | date: 'dd/MM/yyyy' }}
+          <span class="text-muted">
+            ({{ d.source }} em {{ d.lastRelationship | date: 'dd/MM/yyyy' }})
+          </span>
+        </li>
+      }
+    </ul>
+  </div>
+}
+
 <app-page-header
   title="Clientes"
   subtitle="Quem compra, com quem se fala — e sob qual base legal."

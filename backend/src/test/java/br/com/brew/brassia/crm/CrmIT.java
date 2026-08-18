@@ -1,5 +1,8 @@
 package br.com.brew.brassia.crm;
 
+import org.springframework.jdbc.core.simple.JdbcClient;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -51,6 +54,9 @@ class CrmIT {
 
     @Autowired
     WebApplicationContext context;
+
+    @Autowired
+    JdbcClient jdbc;
 
     MockMvc mockMvc;
 
@@ -234,6 +240,68 @@ class CrmIT {
     }
 
     @Test
+    void aFilaDeRetencaoListaQuemVenceuEDizDeOndeVeioADataConta() throws Exception {
+        // DUV-CRM-001. A anonimização continua ato humano; o que faltava era dizer QUEM venceu — sem
+        // isso, exigir revisão manual faz a fila crescer até ninguém olhar.
+        var session = login();
+        var customerId = criaCliente(session, "Bar Antigo Ltda", null, cnpj());
+        var contactId = criaContato(session, customerId, "Bruno", "bruno@bar.com.br");
+
+        // Sem política, nada vence: mostrar fila baseada num prazo que ninguém escolheu convidaria a
+        // anonimizar por engano.
+        mockMvc.perform(get("/api/v1/crm/customers/contacts/retention-queue").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()", is(0)));
+
+        // A política é da cervejaria inteira, e o teste a devolve como encontrou no fim: mexer nela pelo
+        // endpoint deixaria o estado sujo para quem rodar depois.
+        var brewery = breweryOfContact(contactId);
+        jdbc.sql("""
+                INSERT INTO crm_retention_policy (brewery_id, days_after_last_interaction, updated_by,
+                                                  updated_at)
+                VALUES (:brewery, 30, :by, now())
+                ON CONFLICT (brewery_id) DO UPDATE SET days_after_last_interaction = 30
+                """)
+                .param("brewery", brewery).param("by", usuarioAdmin()).update();
+
+        // Um contato recém-cadastrado, sem pedido, entrega ou consentimento, NÃO vence: cadastro que
+        // nunca foi usado não é cliente vencido.
+        mockMvc.perform(get("/api/v1/crm/customers/contacts/retention-queue").session(session))
+                .andExpect(jsonPath("$[?(@.contactId == '" + contactId + "')]", empty()));
+
+        // Com um consentimento antigo, o relógio anda — e a fila diz de onde veio a conta.
+        jdbc.sql("""
+                INSERT INTO crm_consent_entry (id, brewery_id, contact_id, purpose, decision,
+                                               decided_at, source, recorded_by, recorded_at)
+                VALUES (:id, :brewery, :contact, 'MARKETING', 'GRANTED',
+                        now() - interval '400 days', 'formulário do site', :by, now())
+                """)
+                .param("id", UUID.randomUUID()).param("brewery", brewery)
+                .param("contact", contactId)
+                .param("by", usuarioAdmin())
+                .update();
+
+        mockMvc.perform(get("/api/v1/crm/customers/contacts/retention-queue").session(session))
+                .andExpect(jsonPath("$[?(@.contactId == '" + contactId + "')].source",
+                        contains("último consentimento")))
+                .andExpect(jsonPath("$[?(@.contactId == '" + contactId + "')].dueSince",
+                        org.hamcrest.Matchers.notNullValue()));
+
+        jdbc.sql("DELETE FROM crm_retention_policy WHERE brewery_id = :b").param("b", brewery).update();
+    }
+
+    @Test
+    void aFilaDeRetencaoTemAlcadaDeAnonimizar() throws Exception {
+        // Ver quem está prestes a ser anonimizado é ver dado pessoal com o relógio correndo: quem não
+        // pode anonimizar não precisa da lista.
+        var session = login();
+
+        mockMvc.perform(get("/api/v1/crm/customers/contacts/retention-queue")
+                        .with(authentication(principal(UUID.randomUUID(), Set.of("crm.customer.read")))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void prazoDeRetencaoNaoPositivoERecusado() throws Exception {
         var session = login();
 
@@ -321,5 +389,15 @@ class CrmIT {
     private Authentication principal(UUID breweryId, Set<String> permissions) {
         var p = new SecurityPrincipal(UUID.randomUUID(), breweryId, "Tester", permissions);
         return new UsernamePasswordAuthenticationToken(p, "n/a", Set.of());
+    }
+
+    private UUID breweryOfContact(UUID contactId) {
+        return jdbc.sql("SELECT brewery_id FROM crm_contact WHERE id = :i")
+                .param("i", contactId).query(UUID.class).single();
+    }
+
+    private UUID usuarioAdmin() {
+        return jdbc.sql("SELECT id FROM security_user WHERE normalized_email = 'admin@brassia.local'")
+                .query(UUID.class).single();
     }
 }

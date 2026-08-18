@@ -11,6 +11,7 @@ import {
   OwnedPublication,
   RatingSummary,
   RecipeLicense,
+  ReportOutcome,
   ReportReason,
   SharePermission,
   ShareLink,
@@ -148,6 +149,22 @@ export class LibraryStore {
           this.toast.success('Denúncia registrada.');
         },
         error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível denunciar.')),
+      });
+  }
+
+  reviewReport(publication: OwnedPublication, reportId: string, outcome: ReportOutcome,
+    note: string | null): void {
+    this.api
+      .reviewReport(publication.id, reportId, { outcome, note })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          // "Decisão registrada", e não "denúncia resolvida": julgar procedente não tira nada do ar, e
+          // dizer o contrário faria a tela prometer uma remoção que não houve.
+          this.toast.success('Decisão registrada. A publicação continua no ar até você despublicá-la.');
+          this.openReports(publication);
+        },
+        error: (e: ApiError) => this.toast.error(this.message(e, 'Não foi possível decidir.')),
       });
   }
 

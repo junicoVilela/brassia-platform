@@ -11,7 +11,9 @@ import {
   ContributionKind,
   LibraryPublication,
   OwnedPublication,
+  OUTCOME_LABELS,
   REPORT_REASON_LABELS,
+  ReportOutcome,
   ReportReason,
   SharePermission,
   ShareLink,
@@ -64,6 +66,7 @@ export class LibraryPageComponent implements OnInit {
   protected readonly canRate = this.auth.hasPermission('community.rating.write');
 
   protected readonly reportLabels = REPORT_REASON_LABELS;
+  protected readonly outcomeLabels = OUTCOME_LABELS;
   protected readonly reportReasons: ReportReason[] = ['ABUSE', 'PLAGIARISM', 'SPAM', 'OTHER'];
 
   /** As notas possíveis. Zero não está aqui: ele seria "não avaliou", que é a ausência de nota. */
@@ -174,6 +177,11 @@ export class LibraryPageComponent implements OnInit {
 
   protected openReports(publication: OwnedPublication): void {
     this.store.openReports(publication);
+  }
+
+  /** O autor decide. Julgar procedente não esconde nada — despublicar é outro botão. */
+  protected review(publication: OwnedPublication, reportId: string, outcome: ReportOutcome): void {
+    this.store.reviewReport(publication, reportId, outcome, null);
   }
 
   protected submitFork(publication: LibraryPublication): void {

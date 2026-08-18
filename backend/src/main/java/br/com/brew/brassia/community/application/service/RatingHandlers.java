@@ -1,5 +1,6 @@
 package br.com.brew.brassia.community.application.service;
 
+import br.com.brew.brassia.community.domain.ReportOutcome;
 import br.com.brew.brassia.community.application.port.outbound.PublishedRecipeRepository;
 import br.com.brew.brassia.community.application.port.outbound.RatingRepository;
 import br.com.brew.brassia.community.domain.AbuseReport;
@@ -37,6 +38,33 @@ public class RatingHandlers {
             throw new SelfRatingException("avaliar");
         }
         ratings.rate(new Rating(publicationId, actorId, value, Instant.now()));
+    }
+
+    /**
+     * O autor decide sobre a denúncia contra a própria publicação (DUV-COM-001).
+     *
+     * <p><strong>Não há moderador global, e a ausência é a decisão.</strong> Dar a alguém o poder de
+     * esconder publicação de qualquer cervejaria é modelo de segurança, não detalhe de implementação — e
+     * a plataforma não tem papel acima das casas. O que ela tem é o dono do conteúdo, que já responde por
+     * ele lá fora.
+     *
+     * <p><strong>O óbvio contra-argumento, e por que ele não vence aqui:</strong> o autor julga causa
+     * própria. Vence em parte — por isso julgar procedente <em>não</em> esconde nada sozinho, a denúncia
+     * fica registrada com o desfecho, e quem denunciou continua vendo que ela existiu. O que se ganha é
+     * que a acusação para de morrer no silêncio: hoje ela ficava aberta para sempre porque não havia
+     * ninguém com autoridade para fechá-la.
+     */
+    @Transactional
+    public void review(UUID breweryId, UUID publicationId, UUID reportId, UUID actor,
+            ReportOutcome outcome, String note) {
+        library.findOwned(breweryId, publicationId)
+                .orElseThrow(() -> new UnknownPublicationException(publicationId));
+        var report = ratings.findReport(publicationId, reportId)
+                .orElseThrow(() -> new UnknownPublicationException(reportId));
+        report.review(actor, Instant.now(), outcome, note);
+        // Julgar procedente NÃO esconde: a ação sobre o conteúdo é ato separado, e encadear automático
+        // faria a moderação executar antes de alguém decidir o que fazer (DEC-COM-007).
+        ratings.review(report);
     }
 
     @Transactional

@@ -3,6 +3,7 @@ package br.com.brew.brassia.community.adapter.inbound.web;
 import br.com.brew.brassia.community.domain.AlreadyDecidedException;
 import br.com.brew.brassia.community.domain.AlreadyPublishedException;
 import br.com.brew.brassia.community.domain.AlreadyReportedException;
+import br.com.brew.brassia.community.domain.AlreadyReviewedException;
 import br.com.brew.brassia.community.domain.NotDecidableException;
 import br.com.brew.brassia.community.domain.SelfRatingException;
 import br.com.brew.brassia.community.domain.ForkNotAllowedException;
@@ -75,6 +76,12 @@ class CommunityExceptionHandler {
     @ExceptionHandler(AlreadyDecidedException.class)
     ProblemDetail handleAlreadyDecided(AlreadyDecidedException ex) {
         return ProblemDetails.of(HttpStatus.CONFLICT, "already_decided", ex.getMessage());
+    }
+
+    /** 409: o desfecho não se reescreve — quem revisa também precisa poder ser revisado. */
+    @ExceptionHandler(AlreadyReviewedException.class)
+    ProblemDetail handleAlreadyReviewed(AlreadyReviewedException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, "already_reviewed", ex.getMessage());
     }
 
     /** 409: a contagem de denúncias é sinal, e repetir mediria a insistência em vez da comunidade. */

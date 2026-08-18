@@ -1,5 +1,6 @@
 package br.com.brew.brassia.community.adapter.inbound.web;
 
+import br.com.brew.brassia.community.domain.ReportOutcome;
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.community.application.port.outbound.PublishedRecipeRepository;
@@ -125,6 +126,37 @@ final class RatingController {
                         r.outcome().map(Enum::name).orElse(null)))
                 .toList();
     }
+
+    /**
+     * O autor decide sobre a denúncia contra a própria publicação (DUV-COM-001).
+     *
+     * <p><strong>Não há moderador global</strong> — dar a alguém o poder de esconder publicação de
+     * qualquer casa é decisão de modelo de segurança, e a plataforma não tem papel acima das cervejarias.
+     * O que ela tem é o dono do conteúdo, que já responde por ele lá fora. Alçada
+     * `community.recipe.publish`: quem publica é quem decide o que dizem sobre o que publicou.
+     *
+     * <p><strong>Julgar procedente não esconde nada sozinho.</strong> A ação sobre o conteúdo é ato
+     * separado — despublicar tem endpoint próprio —, e encadear automático faria a moderação executar
+     * antes de alguém decidir o que fazer.
+     *
+     * <p><strong>O desfecho não se reescreve</strong>: revisar duas vezes é recusado, e a denúncia
+     * improcedente continua registrada. Quem revisa também precisa poder ser revisado.
+     */
+    @PostMapping("/reports/{reportId}/review")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void review(@AuthenticationPrincipal SecurityPrincipal principal,
+            @PathVariable UUID publicationId, @PathVariable UUID reportId,
+            @Valid @RequestBody ReviewRequest request) {
+        principal.requirePermission("community.recipe.publish");
+        var brewery = principal.requireBrewery();
+        handlers.review(brewery, publicationId, reportId, principal.userId(), request.outcome(),
+                request.note());
+        audit.record(AuditEvent.success(brewery, principal.userId(), "community.report.review",
+                "community.report", reportId.toString(),
+                Map.of("outcome", request.outcome().name())));
+    }
+
+    record ReviewRequest(@NotNull ReportOutcome outcome, @Size(max = 1000) String note) {}
 
     record RateRequest(@NotNull @Min(1) @Max(5) Integer value) {}
 

@@ -228,7 +228,31 @@ ele quer tirar a publicação do ar, o botão é despublicar.
 endpoints, 2 caminhos e 2 schemas no OpenAPI, e a avaliação na tela. **11 testes de domínio, 12 de
 integração e 4 de store.**
 
-### DUV-COM-001 (COM-005) — Quem revisa uma denúncia?
+### DUV-COM-001 (COM-005) — **RESOLVIDA em 2026-08-18 por delegação do mantenedor**
+
+**A decisão: o autor decide sobre a denúncia contra a própria publicação. Não há moderador global.**
+
+Das três saídas registradas quando a dúvida foi aberta, esta é a segunda — e o contra-argumento dela
+estava escrito lá: *o autor julga a denúncia contra si, que é o que a moderação existe para evitar*. Ele
+vence **em parte**, e por isso três coisas ficam de pé:
+
+- **Julgar procedente não esconde nada.** A ação sobre o conteúdo é ato separado (despublicar tem endpoint
+  próprio), como a `DEC-COM-007` já tinha fixado.
+- **A denúncia improcedente continua registrada**, com o desfecho — apagá-la faria o mesmo caso voltar do
+  zero, e quem revisa precisa poder ser revisado.
+- **Quem denunciou continua sabendo que ela existiu.**
+
+**O que se ganha:** a acusação para de morrer no silêncio. Antes ela ficava aberta para sempre, porque não
+havia ninguém com autoridade para fechá-la — e era exatamente isso que esta dúvida travava.
+
+**O que continua não existindo:** o papel acima das cervejarias. Dar a alguém o poder de esconder
+publicação de qualquer casa segue sendo decisão de modelo de segurança, e não foi tomada aqui.
+
+**Entregue sem migration** — o agregado já sabia ser revisado desde a COM-005; faltavam a autoridade e o
+caminho. Um endpoint com alçada `community.recipe.publish`, 1 caminho no OpenAPI, e a decisão na tela.
+**3 testes de integração e 1 de store.**
+
+### DUV-COM-001 — como estava registrada quando foi aberta
 
 **A pergunta.** O agregado `AbuseReport` já sabe ser revisado — registra quem, quando e o desfecho, recusa
 revisão dupla e não apaga a denúncia improcedente, tudo coberto por teste. O que não existe é **quem pode

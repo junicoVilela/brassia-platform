@@ -11,6 +11,7 @@ import {
   OwnedPublication,
   RatingSummary,
   RecipeLicense,
+  ReportOutcome,
   ReportReason,
   SharePermission,
   ShareLink,
@@ -105,6 +106,22 @@ export class LibraryApi {
 
   reports(publicationId: string): Observable<AbuseReport[]> {
     return this.http.get<AbuseReport[]>(`${this.baseUrl}/${publicationId}/reports`);
+  }
+
+  /**
+   * O autor decide sobre a denúncia contra a própria publicação.
+   *
+   * Julgar procedente não esconde nada: despublicar é ato separado.
+   */
+  reviewReport(
+    publicationId: string,
+    reportId: string,
+    body: { outcome: ReportOutcome; note: string | null },
+  ): Observable<void> {
+    return this.http.post<void>(
+      `${this.baseUrl}/${publicationId}/reports/${reportId}/review`,
+      body,
+    );
   }
 
   fork(

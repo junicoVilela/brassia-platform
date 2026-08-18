@@ -111,4 +111,32 @@ class JdbcRatingRepository implements RatingRepository {
                 rs.getObject("reviewed_by", UUID.class),
                 outcome == null ? null : ReportOutcome.valueOf(outcome), rs.getString("outcome_note"));
     }
+
+    @Override
+    public Optional<AbuseReport> findReport(UUID publicationId, UUID reportId) {
+        return jdbc.sql("""
+                SELECT id, publication_id, reporter_user_id, reason, note, reported_at, reviewed_at,
+                       reviewed_by, outcome, outcome_note
+                FROM community_report WHERE id = :id AND publication_id = :publication
+                """)
+                .param("id", reportId).param("publication", publicationId)
+                .query(JdbcRatingRepository::map).optional();
+    }
+
+    @Override
+    public void review(AbuseReport report) {
+        // Só o desfecho muda: o motivo, o denunciante e a data da denúncia são imutáveis — reescrevê-los
+        // faria a revisão poder alterar a acusação que ela julga.
+        jdbc.sql("""
+                UPDATE community_report
+                SET reviewed_at = :at, reviewed_by = :by, outcome = :outcome, outcome_note = :note
+                WHERE id = :id
+                """)
+                .param("at", report.reviewedAt().map(Timestamp::from).orElse(null))
+                .param("by", report.reviewedBy().orElse(null))
+                .param("outcome", report.outcome().map(Enum::name).orElse(null))
+                .param("note", report.outcomeNote().orElse(null))
+                .param("id", report.id())
+                .update();
+    }
 }

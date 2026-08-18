@@ -25,4 +25,10 @@ public interface RatingRepository {
 
     /** As denúncias contra uma publicação — a lista que o autor vê sobre o próprio conteúdo. */
     List<AbuseReport> reportsOf(UUID publicationId);
+
+    /** Uma denúncia específica, buscada pela publicação a que pertence — o escopo é do dono. */
+    java.util.Optional<AbuseReport> findReport(UUID publicationId, UUID reportId);
+
+    /** Grava o desfecho da revisão. Só isso muda: a denúncia em si é imutável. */
+    void review(AbuseReport report);
 }

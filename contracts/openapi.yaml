@@ -8626,6 +8626,59 @@ paths:
         '204': {description: Escondido}
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
+  /community/library/{publicationId}/reports/{reportId}/review:
+    post:
+      tags: [Comunidade]
+      summary: O autor decide sobre a denúncia contra a própria publicação (DUV-COM-001)
+      description: >-
+        **Não há moderador global, e a ausência é a decisão.** Dar a alguém o poder de esconder publicação
+        de qualquer cervejaria é modelo de segurança, não detalhe de implementação — e a plataforma não tem
+        papel acima das casas. O que ela tem é o dono do conteúdo, que já responde por ele lá fora.
+
+
+        **O contra-argumento óbvio — o autor julga causa própria — vence em parte, e por isso:** julgar
+        procedente **não esconde nada sozinho**, a denúncia fica registrada com o desfecho, e quem
+        denunciou continua sabendo que ela existiu. O que se ganha é que a acusação para de morrer no
+        silêncio: antes ela ficava aberta para sempre, porque não havia ninguém com autoridade para
+        fechá-la.
+
+
+        **A ação sobre o conteúdo é ato separado** — despublicar tem endpoint próprio. Encadear automático
+        faria a moderação executar antes de alguém decidir o que fazer.
+
+
+        **O desfecho não se reescreve**: revisar duas vezes é recusado (`already_reviewed`), e a denúncia
+        improcedente continua registrada — apagá-la faria o mesmo caso voltar do zero, e quem revisa
+        precisa poder ser revisado.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: reportId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome]
+              properties:
+                outcome: {type: string, enum: [UPHELD, DISMISSED]}
+                note: {type: string, maxLength: 1000, nullable: true}
+      responses:
+        '204': {description: Revisada}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`already_reviewed` — o desfecho não se reescreve.'
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
   /community/library/{publicationId}/rating:
     get:
       tags: [Comunidade]

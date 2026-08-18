@@ -385,7 +385,7 @@ Está escrito no domínio, na migration, no contrato e num teste que existe só 
 **Critério de remoção:** existir baixa de pagamento por pedido, e o comprometido passar a considerar o
 que foi entregue e não pago. É história própria — provavelmente da INT-008, que traz as portas fiscais.
 
-### DEB-SAL-003 — **RESOLVIDO EM PARTE em 2026-08-18**: a fixture existe; o arquivo ainda não foi repartido
+### DEB-SAL-003 — **RESOLVIDO em 2026-08-18**
 
 **O que foi feito.** A máquina que constrói um lote de cerveja saiu para `support.BrewScenario`: login,
 equipamento, ingrediente, ordem liberada, brassa iniciada, transferência, embalagem recebida, linha limpa,
@@ -408,9 +408,20 @@ tem **um dono**.
 **O primeiro uso externo já pagou:** o `DEB-CON-001` foi fechado com ela, e o dublê de lote acabado deixou
 de existir.
 
-**O que NÃO foi feito, e continua aberto:** repartir o `PackagingRunIT` por assunto. Ele continua grande, e
-separá-lo em envase, frescor, liberação e venda é movimento próprio — fazê-lo no mesmo passo misturaria
-"extraí o cenário" com "mudei onde cada teste mora", e um diff assim não se revisa.
+**A repartição veio depois, em passo próprio** — misturá-la com a extração faria um diff que não se
+revisa. O arquivo caiu de **1.087 para 436 linhas**, e cada assunto passou a morar onde alguém vai
+procurá-lo: `LotReleaseIT` (SAL-001-B), `SalesOrderIT` (SAL-002), `CustomerPortalIT` (SAL-003),
+`CommercialOutboxIT` (INT-008).
+
+**A base compartilhada evitou trocar um problema por outro.** Repartir sem extrair o cenário comercial
+teria virado quatro cópias do mesmo cenário — e cópias divergem na primeira regra nova, que é exatamente a
+dívida que a `DEB-CON-002` custou a fechar. `CommercialTestSupport` guarda o que os quatro compartilham;
+`BrewScenario` ganhou a cena comercial (produto, canal, preço, cliente).
+
+**Um teste pegou uma regressão da própria repartição.** A reescrita mecânica engoliu um parâmetro: o teste
+"sem preço no canal o pedido é recusado" passava *outro* canal, e a substituição fez ele usar o canal da
+cena — que tem preço. O pedido passou, e o teste falhou dizendo isso. É o argumento a favor de repartir com
+a suíte inteira verde do lado.
 
 **Como estava registrado quando foi aberto:**
 

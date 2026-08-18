@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.mock.web.MockHttpSession;
@@ -300,6 +301,83 @@ public final class BrewScenario {
     public static String suffix() {
         return UUID.randomUUID().toString().substring(0, 8);
     }
+
+    /**
+     * A cena comercial completa: lote vendável, produto, canal e preço.
+     *
+     * <p>Ela mora aqui pelo mesmo motivo do lote acabado: montar um produto vendável exige envase,
+     * liberação, validade, catálogo e lista de preço — e quatro classes de teste precisavam disso.
+     */
+    public SalesScene sellableProduct(MockHttpSession session) throws Exception {
+        var lot = sellableLot(session);
+        var recipeId = recipeOfBatch(session, lot.batchId());
+        var productId = product(session, recipeId, lot.containerId());
+        var channelId = channel(session);
+        mockMvc.perform(post("/api/v1/sales/products/" + productId + "/prices").session(session)
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"channelId\":\"" + channelId + "\",\"amount\":12.00,"
+                                + "\"currency\":\"BRL\",\"taxIncluded\":false,"
+                                + "\"validFrom\":\"" + LocalDate.now().minusDays(1) + "\"}"))
+                .andExpect(status().isNoContent());
+        return new SalesScene(productId, channelId, customer(session), lot.code(), lot.id(),
+                lot.batchId(), lot.planId());
+    }
+
+    public String recipeOfBatch(MockHttpSession session, String batchId) throws Exception {
+        var body = mockMvc.perform(get("/api/v1/production/batches/" + batchId).session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return JSON.readTree(body).get("recipeId").asText();
+    }
+
+    public String product(MockHttpSession session, String recipeId, String containerId)
+            throws Exception {
+        var body = mockMvc.perform(post("/api/v1/sales/products").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"sku\":\"SKU-" + suffix() + "\",\"name\":\"Produto de teste\","
+                                + "\"recipeId\":\"" + recipeId + "\","
+                                + "\"containerId\":\"" + containerId + "\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return JSON.readTree(body).get("id").asText();
+    }
+
+    public String channel(MockHttpSession session) throws Exception {
+        var body = mockMvc.perform(post("/api/v1/sales/channels").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"code\":\"CH-" + suffix() + "\",\"name\":\"Canal de teste\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return JSON.readTree(body).get("id").asText();
+    }
+
+    public String customer(MockHttpSession session) throws Exception {
+        var body = mockMvc.perform(post("/api/v1/crm/customers").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"legalName\":\"Cliente de teste\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return JSON.readTree(body).get("id").asText();
+    }
+
+    /** O corpo de um pedido daquela cena — a forma que quatro classes repetiam. */
+    public String orderBody(SalesScene scene, int quantity, LocalDate promisedFor) {
+        return orderBody(scene, scene.channelId(), quantity, promisedFor);
+    }
+
+    /**
+     * O mesmo pedido, num canal <strong>diferente</strong> do da cena.
+     *
+     * <p>Existe para o teste do canal sem preço: "ainda não precificado" e "de graça" são coisas opostas,
+     * e sem poder trocar o canal não há como exercitar a recusa.
+     */
+    public String orderBody(SalesScene scene, String channelId, int quantity, LocalDate promisedFor) {
+        return "{\"code\":\"PED-" + suffix() + "\",\"customerId\":\"" + scene.customerId() + "\","
+                + "\"channelId\":\"" + channelId + "\","
+                + (promisedFor == null ? "" : "\"promisedFor\":\"" + promisedFor + "\",")
+                + "\"items\":[{\"productId\":\"" + scene.productId() + "\",\"quantity\":"
+                + quantity + "}]}";
+    }
+
+    /** @param lotCode o código do lote vendável, que aparece na reserva e no webhook */
+    public record SalesScene(String productId, String channelId, String customerId, String lotCode,
+            String finishedLotId, String batchId, String planId) {}
 
     /**
      * @param planId serve para registrar frescor e liberar; guardá-lo evita quem usa a fixture ter de

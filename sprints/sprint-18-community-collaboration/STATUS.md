@@ -252,7 +252,7 @@ publicação de qualquer casa segue sendo decisão de modelo de segurança, e n�
 caminho. Um endpoint com alçada `community.recipe.publish`, 1 caminho no OpenAPI, e a decisão na tela.
 **3 testes de integração e 1 de store.**
 
-### DUV-COM-001 — como estava registrada quando foi aberta
+**Como estava registrada quando foi aberta:**
 
 **A pergunta.** O agregado `AbuseReport` já sabe ser revisado — registra quem, quando e o desfecho, recusa
 revisão dupla e não apaga a denúncia improcedente, tudo coberto por teste. O que não existe é **quem pode

@@ -22,9 +22,14 @@ public interface OrderCommands {
     /**
      * @param placedOn    nulo é hoje; existe explícito para regularizar pedido tomado por telefone ontem
      * @param promisedFor nulo é "a combinar", e é estado legítimo
+     * @param creditOverrideReason quando o pedido passa do teto de crédito, o motivo pelo qual alguém
+     *                             autorizou mesmo assim (SAL-004). Nulo é o normal — e sem ele o pedido
+     *                             acima do teto é recusado, como no portal. Exige
+     *                             {@code sales.order.credit_override}, que é permissão crítica.
      */
     record PlaceOrder(String code, UUID customerId, UUID channelId, List<OrderItem> items,
-            LocalDate placedOn, LocalDate promisedFor, String idempotencyKey) {}
+            LocalDate placedOn, LocalDate promisedFor, String idempotencyKey,
+            String creditOverrideReason) {}
 
     record OrderItem(UUID productId, int quantity) {}
 }

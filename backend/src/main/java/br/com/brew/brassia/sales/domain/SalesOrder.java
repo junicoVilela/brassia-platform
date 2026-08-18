@@ -42,6 +42,8 @@ public final class SalesOrder {
     private LocalDate promisedFor;
     private OrderStatus status;
     private final Instant createdAt;
+    /** Nulo é o normal: o pedido coube no teto, ou não havia teto (SAL-004). */
+    private CreditOverride creditOverride;
 
     private SalesOrder(UUID id, UUID breweryId, UUID customerId, UUID channelId, String code,
             List<OrderLine> lines, LocalDate placedOn, LocalDate promisedFor, OrderStatus status,
@@ -76,9 +78,32 @@ public final class SalesOrder {
 
     public static SalesOrder reconstitute(UUID id, UUID breweryId, UUID customerId, UUID channelId,
             String code, List<OrderLine> lines, LocalDate placedOn, LocalDate promisedFor,
-            OrderStatus status, Instant createdAt) {
-        return new SalesOrder(id, breweryId, customerId, channelId, code, lines, placedOn, promisedFor,
-                status, createdAt);
+            OrderStatus status, Instant createdAt, CreditOverride creditOverride) {
+        var order = new SalesOrder(id, breweryId, customerId, channelId, code, lines, placedOn,
+                promisedFor, status, createdAt);
+        order.creditOverride = creditOverride;
+        return order;
+    }
+
+    /**
+     * Registra que alguém autorizou este pedido acima do teto de crédito (SAL-004).
+     *
+     * <p><strong>Só se registra o que foi de fato usado.</strong> Guardar a justificativa num pedido que
+     * cabia no limite criaria um registro dizendo "liberado acima do teto" para uma venda que nunca
+     * passou de teto nenhum — e quem auditasse contaria exceções que não aconteceram.
+     *
+     * <p>Autorizar duas vezes o mesmo pedido reescreveria quem autorizou, e é esse nome que responde a
+     * pergunta do dono seis meses depois.
+     */
+    public void authorizeAboveCredit(CreditOverride override) {
+        if (this.creditOverride != null) {
+            throw new IllegalStateException("este pedido já tem autorização acima do teto");
+        }
+        this.creditOverride = Objects.requireNonNull(override, "autorização");
+    }
+
+    public Optional<CreditOverride> creditOverride() {
+        return Optional.ofNullable(creditOverride);
     }
 
     /**

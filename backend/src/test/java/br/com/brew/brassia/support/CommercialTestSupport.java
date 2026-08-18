@@ -1,7 +1,9 @@
 package br.com.brew.brassia.support;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
@@ -9,6 +11,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -34,6 +38,9 @@ public abstract class CommercialTestSupport {
 
     protected MockMvc mockMvc;
     protected BrewScenario scenario;
+
+    @Autowired
+    protected JdbcClient jdbc;
 
     protected MockHttpSession login() throws Exception {
         return scenario.login();
@@ -122,5 +129,45 @@ public abstract class CommercialTestSupport {
 
     protected static String idOf(String json) throws Exception {
         return JSON.readTree(json).get("id").asText();
+    }
+
+    /**
+     * Um usuário de portal: identidade real com {@code portal.access}, e o vínculo gravado.
+     *
+     * <p>O usuário precisa existir em {@code security_user} — há chave estrangeira, e ela recusou o
+     * identificador inventado da primeira versão do teste do portal. É a garantia funcionando: um
+     * vínculo de portal para um usuário que não existe seria uma porta aberta para ninguém.
+     *
+     * <p>Mora aqui porque o limite de crédito só é cobrado no caminho do portal, e quem testa baixa de
+     * pagamento (DEB-SAL-002) precisa exatamente do mesmo cliente entrando pela mesma porta.
+     */
+    protected Authentication portalUser(MockHttpSession session, String clienteId, String canalId)
+            throws Exception {
+        var userId = UUID.randomUUID();
+        jdbc.sql("""
+                INSERT INTO security_user (id, email, normalized_email, display_name, status)
+                VALUES (:id, :email, :email, 'Portal', 'ACTIVE')
+                """)
+                .param("id", userId)
+                .param("email", "portal-" + userId + "@cliente.local")
+                .update();
+        mockMvc.perform(put("/api/v1/sales/portal/access/" + userId).session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"customerId\":\"" + clienteId + "\",\"channelId\":\"" + canalId + "\"}"))
+                .andExpect(status().isNoContent());
+        return principal(UUID.randomUUID(), Set.of("portal.access"), userId);
+    }
+
+    protected String corpoPortal(BrewScenario.SalesScene cena, int quantidade) {
+        var sfx = UUID.randomUUID().toString().substring(0, 8);
+        return "{\"code\":\"POR-" + sfx + "\",\"items\":[{\"productId\":\"" + cena.productId()
+                + "\",\"quantity\":" + quantidade + "}]}";
+    }
+
+    /** O pedido pela porta do cliente — a única em que o teto de crédito é cobrado. */
+    protected ResultActions pedidoPortal(Authentication portal, BrewScenario.SalesScene cena,
+            int quantidade) throws Exception {
+        return mockMvc.perform(post("/api/v1/portal/orders").with(authentication(portal)).with(csrf())
+                .contentType("application/json").content(corpoPortal(cena, quantidade)));
     }
 }

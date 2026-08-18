@@ -214,11 +214,9 @@ describe('LibraryStore', () => {
       fork: () =>
         throwError(() => ({
           status: 409,
-          error: {
-            code: 'unmapped_ingredients',
-            detail: 'faltam ingredientes no seu catálogo: Lúpulo Citra',
-            missing: ['Lúpulo Citra'],
-          },
+          code: 'unmapped_ingredients',
+          detail: 'faltam ingredientes no seu catálogo: Lúpulo Citra',
+          missing: ['Lúpulo Citra'],
         })),
     } as Partial<LibraryApi>);
 
@@ -315,10 +313,8 @@ describe('LibraryStore', () => {
       publish: () =>
         throwError(() => ({
           status: 409,
-          error: {
-            code: 'version_already_published',
-            detail: 'a versão 3 desta receita já está publicada',
-          },
+          code: 'version_already_published',
+          detail: 'a versão 3 desta receita já está publicada',
         })),
     } as Partial<LibraryApi>);
 

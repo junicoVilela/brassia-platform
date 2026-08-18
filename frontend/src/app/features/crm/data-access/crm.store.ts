@@ -7,7 +7,8 @@ import { CrmApi } from './crm.api';
 
 interface ApiError {
   status?: number;
-  error?: { code?: string; detail?: string };
+  code?: string;
+  detail?: string;
 }
 
 /**
@@ -192,6 +193,6 @@ export class CrmStore {
   }
 
   private message(e: ApiError, fallback: string): string {
-    return e?.error?.detail ?? fallback;
+    return e?.detail ?? fallback;
   }
 }

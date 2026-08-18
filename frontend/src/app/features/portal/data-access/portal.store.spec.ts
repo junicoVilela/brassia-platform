@@ -95,12 +95,10 @@ describe('PortalStore', () => {
       place: () =>
         throwError(() => ({
           status: 409,
-          error: {
-            code: 'credit_limit_exceeded',
-            detail: 'o pedido de 120.0000 BRL passa do limite de 200.00 BRL, com 120.0000 BRL já comprometido',
-            ceiling: 200,
-            committed: 120,
-          },
+          code: 'credit_limit_exceeded',
+          detail: 'o pedido de 120.0000 BRL passa do limite de 200.00 BRL, com 120.0000 BRL já comprometido',
+          ceiling: 200,
+          committed: 120,
         })),
     } as Partial<PortalApi>);
 

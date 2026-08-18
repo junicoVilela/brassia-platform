@@ -21,7 +21,9 @@ import { LibraryApi } from './library.api';
 
 interface ApiError {
   status?: number;
-  error?: { code?: string; detail?: string; missing?: string[] };
+  code?: string;
+  detail?: string;
+  missing?: string[];
 }
 
 /**
@@ -286,7 +288,7 @@ export class LibraryStore {
         error: (e: ApiError) => {
           // A lista do que falta fica na tela, e não só no toast: o operador precisa dela na mão para
           // cadastrar os ingredientes, e um toast some antes disso.
-          this.missingIngredients.set(e?.error?.missing ?? []);
+          this.missingIngredients.set(e?.missing ?? []);
           this.toast.error(this.message(e, 'Não foi possível copiar a receita.'));
         },
       });
@@ -351,6 +353,6 @@ export class LibraryStore {
   }
 
   private message(e: ApiError, fallback: string): string {
-    return e?.error?.detail ?? fallback;
+    return e?.detail ?? fallback;
   }
 }

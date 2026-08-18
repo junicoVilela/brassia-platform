@@ -7,7 +7,10 @@ import { PortalApi } from './portal.api';
 
 interface ApiError {
   status?: number;
-  error?: { code?: string; detail?: string; ceiling?: number; committed?: number };
+  code?: string;
+  detail?: string;
+  ceiling?: number;
+  committed?: number;
 }
 
 /**
@@ -95,6 +98,6 @@ export class PortalStore {
 
   /** A mensagem do servidor traz teto, comprometido e pedido — os três que resolvem a recusa. */
   private message(e: ApiError, fallback: string): string {
-    return e?.error?.detail ?? fallback;
+    return e?.detail ?? fallback;
   }
 }

@@ -282,12 +282,14 @@ chamar isso**: nenhum papel da plataforma está acima das cervejarias.
   único da denúncia e o `CHECK` de revisão tudo-ou-nada.
 - **Contratos atualizados:** `contracts/openapi.yaml` — **301 caminhos**, 17 a mais que no encerramento da
   Sprint 19, sem `$ref` órfã nem chave duplicada.
-- **Riscos remanescentes:**
+- **Riscos remanescentes** (o texto abaixo é o retrato do encerramento; o que fechou depois está anotado
+  ao lado, e não reescrito — um risco apagado some junto com a razão de ele ter existido):
   - **A premissa de produção**, a mesma da Sprint 19: enquanto REL-001 e o ciclo da REL-005 seguirem
-    abertos, isto é software que funciona e não opera.
+    abertos, isto é software que funciona e não opera. **Continua aberto.**
   - **`DUV-COM-001`** — não há quem revise uma denúncia. A denúncia é registrada, o autor a vê, o agregado
     sabe ser revisado e a tabela tem os campos; falta decidir **quem pode**, e essa decisão é de modelo de
-    segurança. Enquanto isso, a moderação é registro e não ação.
+    segurança. Enquanto isso, a moderação é registro e não ação. **Resolvida em 2026-08-18 por delegação
+    do mantenedor** (ver a seção da `DUV-COM-001` acima).
   - **A remoção de conteúdo é ato manual do autor.** Julgar procedente não esconde nada por conta própria
     — encadear automático faria a moderação executar antes de alguém decidir o que fazer.
 - **Aceite:** pendente de validação manual. Junto com os aceites das Sprints 09, 16, 17 e 19.

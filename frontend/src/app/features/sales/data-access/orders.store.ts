@@ -6,19 +6,26 @@ import { SalesOrder } from '../domain/order.model';
 import { OrderPayments } from '../domain/payment.model';
 import { SalesApi } from './sales.api';
 
+/**
+ * O que chega ao `error:` do subscribe é o **Problem Details desembrulhado** pelo
+ * `problemDetailsInterceptor`: `code`, `detail` e as extensões vêm no **primeiro nível**.
+ *
+ * <p>Estava escrito como `error: { code }` aqui, e o efeito era silencioso: `e.error?.code` devolve
+ * `undefined` sem erro de compilação, a tela cai calada na mensagem genérica, e o teste de unidade
+ * concorda porque simulava o erro na forma errada. É o mesmo engano que a TRC-001 já tinha corrigido em
+ * sete stores — e de novo quem pegou foi o E2E, contra a stack real.
+ */
 interface ApiError {
   status?: number;
-  error?: {
-    code?: string;
-    detail?: string;
-    available?: number;
-    earliestBestBefore?: string;
-    lotCode?: string;
-    ceiling?: number;
-    committed?: number;
-    requested?: number;
-    currency?: string;
-  };
+  code?: string;
+  detail?: string;
+  available?: number;
+  earliestBestBefore?: string;
+  lotCode?: string;
+  ceiling?: number;
+  committed?: number;
+  requested?: number;
+  currency?: string;
 }
 
 /**
@@ -111,12 +118,12 @@ export class OrdersStore {
           this.load();
         },
         error: (e: ApiError) => {
-          if (e?.error?.code === 'credit_limit_exceeded') {
+          if (e?.code === 'credit_limit_exceeded') {
             this.creditRefusal.set({
-              ceiling: e.error.ceiling ?? 0,
-              committed: e.error.committed ?? 0,
-              requested: e.error.requested ?? 0,
-              currency: e.error.currency ?? '',
+              ceiling: e.ceiling ?? 0,
+              committed: e.committed ?? 0,
+              requested: e.requested ?? 0,
+              currency: e.currency ?? '',
             });
           }
           this.toast.error(this.message(e, 'Não foi possível registrar o pedido.'));
@@ -144,7 +151,7 @@ export class OrdersStore {
    * para prometer e qual lote limita. Sem isso, o operador fica tentando números e datas até um passar.
    */
   private message(e: ApiError, fallback: string): string {
-    return e?.error?.detail ?? fallback;
+    return e?.detail ?? fallback;
   }
 
   loadPayments(orderId: string): void {

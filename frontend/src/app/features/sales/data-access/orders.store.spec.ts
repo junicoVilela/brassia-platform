@@ -91,11 +91,9 @@ describe('OrdersStore', () => {
       placeOrder: () =>
         throwError(() => ({
           status: 409,
-          error: {
-            code: 'insufficient_lot_stock',
-            detail: 'o lote LOTE-100/1 tem 80 unidade(s) livre(s) e foram pedidas 700',
-            available: 80,
-          },
+          code: 'insufficient_lot_stock',
+          detail: 'o lote LOTE-100/1 tem 80 unidade(s) livre(s) e foram pedidas 700',
+          available: 80,
         })),
     } as Partial<SalesApi>);
 
@@ -112,12 +110,10 @@ describe('OrdersStore', () => {
       placeOrder: () =>
         throwError(() => ({
           status: 409,
-          error: {
-            code: 'promise_after_shelf_life',
-            detail: 'a entrega foi prometida para 2028-01-01, depois de o lote LOTE-100/1 vencer em 2027-01-10',
-            earliestBestBefore: '2027-01-10',
-            lotCode: 'LOTE-100/1',
-          },
+          code: 'promise_after_shelf_life',
+          detail: 'a entrega foi prometida para 2028-01-01, depois de o lote LOTE-100/1 vencer em 2027-01-10',
+          earliestBestBefore: '2027-01-10',
+          lotCode: 'LOTE-100/1',
         })),
     } as Partial<SalesApi>);
 
@@ -198,10 +194,8 @@ describe('OrdersStore', () => {
       recordPayment: () =>
         throwError(() => ({
           status: 409,
-          error: {
-            code: 'payment_exceeds_balance',
-            detail: 'o pedido deve 120.00 BRL, e o recebimento lançado é de 1200.00 BRL',
-          },
+          code: 'payment_exceeds_balance',
+          detail: 'o pedido deve 120.00 BRL, e o recebimento lançado é de 1200.00 BRL',
         })),
     } as Partial<SalesApi>);
 
@@ -240,14 +234,12 @@ describe('OrdersStore', () => {
       placeOrder: () =>
         throwError(() => ({
           status: 409,
-          error: {
-            code: 'credit_limit_exceeded',
-            detail: 'o pedido passa do limite de crédito do cliente',
-            ceiling: 200,
-            committed: 120,
-            requested: 120,
-            currency: 'BRL',
-          },
+          code: 'credit_limit_exceeded',
+          detail: 'o pedido passa do limite de crédito do cliente',
+          ceiling: 200,
+          committed: 120,
+          requested: 120,
+          currency: 'BRL',
         })),
     } as Partial<SalesApi>);
 
@@ -266,7 +258,7 @@ describe('OrdersStore', () => {
     // Deixá-la na tela depois de o pedido passar faria o vendedor achar que ainda está travado.
     const { store } = setup({
       placeOrder: () =>
-        throwError(() => ({ status: 409, error: { code: 'insufficient_lot_stock', available: 3 } })),
+        throwError(() => ({ status: 409, code: 'insufficient_lot_stock', available: 3 })),
     } as Partial<SalesApi>);
 
     store.place(CORPO);
@@ -279,7 +271,7 @@ describe('OrdersStore', () => {
     // e os três números que explicam a recusa nunca chegariam à tela (SAL-004).
     const { store } = setup({
       placeOrder: () =>
-        throwError(() => ({ status: 409, error: { code: 'credit_limit_exceeded', ceiling: 200 } })),
+        throwError(() => ({ status: 409, code: 'credit_limit_exceeded', ceiling: 200 })),
     } as Partial<SalesApi>);
     const naRecusa = vi.fn();
 

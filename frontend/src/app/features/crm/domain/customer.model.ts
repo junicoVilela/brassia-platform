@@ -54,3 +54,19 @@ export const BASIS_LABELS: Record<LegalBasis, string> = {
   CONTRACT: 'Base contratual',
   CONSENT: 'Depende de consentimento',
 };
+
+/**
+ * Um contato que passou do prazo de retenção (DUV-CRM-001).
+ *
+ * A lista existe para ser conferida antes de um ato irreversível: por isso `source` diz de onde veio a
+ * data, e não só quando ela venceu.
+ */
+export interface DueContact {
+  contactId: string;
+  customerId: string;
+  name: string;
+  lastRelationship: string;
+  /** "último pedido", "última entrega" ou "último consentimento". */
+  source: string;
+  dueSince: string;
+}

@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Contact, ContactPurpose, Customer } from '../domain/customer.model';
+import { Contact, ContactPurpose, Customer, DueContact } from '../domain/customer.model';
 
 @Injectable({ providedIn: 'root' })
 export class CrmApi {
@@ -52,6 +52,11 @@ export class CrmApi {
 
   anonymize(contactId: string): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/customers/contacts/${contactId}/anonymize`, {});
+  }
+
+  /** A fila de quem venceu. Lista, e não apaga: anonimizar continua ato humano. */
+  retentionQueue(): Observable<DueContact[]> {
+    return this.http.get<DueContact[]>(`${this.baseUrl}/customers/contacts/retention-queue`);
   }
 
   retentionPolicy(): Observable<{ daysAfterLastInteraction: number | null }> {

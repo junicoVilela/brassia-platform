@@ -7072,6 +7072,59 @@ paths:
           content:
             application/problem+json:
               schema: {type: object}
+  /crm/customers/contacts/retention-queue:
+    get:
+      tags: [CRM]
+      summary: Contatos que passaram do prazo de retenção (DUV-CRM-001)
+      description: >-
+        **Lista, e não apaga.** A anonimização continua ato humano: apagar dado pessoal é irreversível, e
+        uma varredura automática com um bug de data apagaria contatos de clientes ativos. Mas exigir
+        revisão manual sem dizer *quem* venceu faz a fila crescer até ninguém olhar — era essa metade que
+        faltava.
+
+
+        **"Último relacionamento" é o mais recente entre pedido, entrega e consentimento.** Cada um sozinho
+        erra: só pedido ignora o bar que recebe entrega de contrato antigo; só entrega ignora quem comprou
+        e ainda não recebeu; só consentimento marcaria como inativo quem nunca precisou reassinar nada. As
+        datas de pedido e entrega vêm de consultas publicadas por `sales` e `distribution` — o CRM não lê
+        tabela dos outros.
+
+
+        **Cada linha diz de onde veio a data** (`source`). "Vence em março" sem dizer que a conta partiu de
+        uma entrega de 2024 é um número que ninguém consegue conferir — e conferir é o ponto, porque o ato
+        seguinte é irreversível.
+
+
+        **Contato sem relacionamento nenhum não entra.** Cadastro que nunca foi usado não é cliente
+        vencido: tratar a ausência de evidência como evidência de ausência anonimizaria justamente quem
+        acabou de ser cadastrado.
+
+
+        **Vazia quando não há política de retenção** — sem prazo definido nada vence, e mostrar uma fila
+        baseada num prazo que ninguém escolheu convidaria a anonimizar por engano.
+
+
+        Alçada `crm.contact.anonymize`: ver quem está prestes a ser anonimizado é ver dado pessoal com o
+        relógio correndo, e quem não pode anonimizar não precisa da lista.
+      responses:
+        '200':
+          description: A fila
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    contactId: {type: string, format: uuid}
+                    customerId: {type: string, format: uuid}
+                    name: {type: string}
+                    lastRelationship: {type: string, format: date}
+                    source:
+                      type: string
+                      description: '`último pedido`, `última entrega` ou `último consentimento`.'
+                    dueSince: {type: string, format: date}
+        '403': {$ref: '#/components/responses/Problem'}
   /crm/customers/contacts/{contactId}/anonymize:
     post:
       tags: [CRM]

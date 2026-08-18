@@ -128,4 +128,25 @@ class JdbcContactRepository implements ContactRepository {
                 rs.getString("phone"), rs.getString("role"),
                 anonymizedAt == null ? null : anonymizedAt.toInstant(), consents);
     }
+
+    @Override
+    public List<ContactRelationship> liveContacts(UUID breweryId) {
+        // O consentimento mais recente por contato vem numa junção lateral: um SELECT por contato seria
+        // o N+1 que a REL-002 já custou uma vez.
+        return jdbc.sql("""
+                SELECT c.id, c.customer_id, c.name, ultimo.decided_at::date AS last_consent_on
+                FROM crm_contact c
+                LEFT JOIN LATERAL (
+                    SELECT e.decided_at FROM crm_consent_entry e
+                    WHERE e.contact_id = c.id ORDER BY e.decided_at DESC LIMIT 1
+                ) ultimo ON TRUE
+                WHERE c.brewery_id = :brewery AND c.anonymized_at IS NULL
+                ORDER BY c.created_at
+                """)
+                .param("brewery", breweryId)
+                .query((rs, row) -> new ContactRelationship(rs.getObject("id", UUID.class),
+                        rs.getObject("customer_id", UUID.class), rs.getString("name"),
+                        rs.getObject("last_consent_on", java.time.LocalDate.class)))
+                .list();
+    }
 }

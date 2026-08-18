@@ -39,6 +39,7 @@ function contact(over: Partial<Contact> = {}): Contact {
 }
 
 function setup(api: Partial<CrmApi>) {
+  api.retentionQueue ??= () => of([]);
   const toast = { success: vi.fn(), error: vi.fn() };
   TestBed.configureTestingModule({
     providers: [
@@ -135,5 +136,28 @@ describe('CrmStore', () => {
 
     expect(anonymize).toHaveBeenCalledWith('k1');
     expect(store.contacts()[0].anonymized).toBe(true);
+  });
+
+  it('a fila de retenção traz a origem da data, e não só o vencimento', () => {
+    // Anonimizar é irreversível: "vence em março" sem dizer que a conta partiu de uma entrega de 2024 é
+    // um número que ninguém consegue conferir — e conferir é o ponto.
+    const { store } = setup({
+      retentionQueue: () =>
+        of([
+          {
+            contactId: 'c1',
+            customerId: 'cli1',
+            name: 'Bruno',
+            lastRelationship: '2024-06-20',
+            source: 'última entrega',
+            dueSince: '2025-06-20',
+          },
+        ]),
+    } as Partial<CrmApi>);
+
+    store.loadRetentionQueue();
+
+    expect(store.retentionQueue()).toHaveLength(1);
+    expect(store.retentionQueue()[0].source).toBe('última entrega');
   });
 });

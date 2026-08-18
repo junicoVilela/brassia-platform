@@ -1,5 +1,7 @@
 package br.com.brew.brassia.crm.adapter.inbound.web;
 
+import java.time.LocalDate;
+import br.com.brew.brassia.crm.application.service.RetentionQueueService;
 import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.crm.adapter.inbound.web.dto.CrmDtos.ConsentEntryView;
@@ -52,13 +54,15 @@ final class CustomerController {
     private final CustomerCommands commands;
     private final CustomerRepository customers;
     private final ContactRepository contacts;
+    private final RetentionQueueService retention;
     private final AuditTrail audit;
 
-    CustomerController(CustomerCommands commands, CustomerRepository customers, ContactRepository contacts,
-            AuditTrail audit) {
+    CustomerController(CustomerCommands commands, CustomerRepository customers,
+            ContactRepository contacts, RetentionQueueService retention, AuditTrail audit) {
         this.commands = Objects.requireNonNull(commands);
         this.customers = Objects.requireNonNull(customers);
         this.contacts = Objects.requireNonNull(contacts);
+        this.retention = Objects.requireNonNull(retention);
         this.audit = Objects.requireNonNull(audit);
     }
 
@@ -146,6 +150,33 @@ final class CustomerController {
                 Map.of("purpose", request.purpose().name(), "granted", String.valueOf(request.granted()),
                         "decidedAt", request.decidedAt().toString(), "source", request.source())));
     }
+
+    /**
+     * Quem já passou do prazo de retenção (DUV-CRM-001).
+     *
+     * <p><strong>Lista, e não apaga.</strong> A anonimização continua ato humano — apagar dado pessoal é
+     * irreversível, e uma varredura automática com um bug de data apagaria contatos de clientes ativos.
+     * Mas exigir revisão manual sem dizer <em>quem</em> venceu faz a fila crescer até ninguém olhar.
+     *
+     * <p>Cada linha traz <strong>de onde veio a data</strong>: "vence em março" sem dizer que a conta
+     * partiu de uma entrega de 2024 é um número que ninguém consegue conferir — e conferir é o ponto.
+     *
+     * <p>Vazia quando não há política de retenção: sem prazo definido nada vence, e mostrar uma fila
+     * baseada num prazo que ninguém escolheu convidaria a anonimizar por engano.
+     */
+    @GetMapping("/contacts/retention-queue")
+    List<DueContactView> retentionQueue(@AuthenticationPrincipal SecurityPrincipal principal) {
+        principal.requirePermission("crm.contact.anonymize");
+        return retention.due(principal.requireBrewery(), LocalDate.now(java.time.ZoneOffset.UTC))
+                .stream()
+                .map(d -> new DueContactView(d.contactId(), d.customerId(), d.name(),
+                        d.lastRelationship(), d.source(), d.dueSince()))
+                .toList();
+    }
+
+    /** @param source de onde veio a data — é o que permite conferir antes de um ato irreversível */
+    record DueContactView(UUID contactId, UUID customerId, String name, LocalDate lastRelationship,
+            String source, LocalDate dueSince) {}
 
     @PostMapping("/contacts/{contactId}/anonymize")
     @ResponseStatus(HttpStatus.NO_CONTENT)

@@ -143,7 +143,7 @@ ser cadastrado.
 fila na tela. **Sem migration** — os dados já existiam, faltava compô-los. **5 testes de domínio, 2 de
 integração e 1 de store.**
 
-### DUV-CRM-001 — como estava registrada quando foi aberta
+**Como estava registrada quando foi aberta:**
 
 Conforme o rito do projeto, ambiguidade que altera regra de negócio vira pergunta e não invenção:
 

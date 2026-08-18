@@ -359,7 +359,7 @@ nenhuma**, de propósito.
 prazo de inspeção de vaso de pressão não é ajuste de tela), 2 caminhos e 1 schema no OpenAPI, e a
 periodicidade na tela. **5 testes de domínio, 4 de integração e 2 de store.**
 
-### DUV-CON-001 — como estava registrada quando foi aberta
+**Como estava registrada quando foi aberta:**
 
 **A pergunta.** A validade da inspeção é **informada por quem inspeciona**, e não calculada a partir de um
 intervalo. Falta saber se a casa segue uma norma com prazo fixo, se ele varia por tipo de vasilhame, e se

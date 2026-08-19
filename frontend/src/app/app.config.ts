@@ -1,20 +1,35 @@
 import {
   ApplicationConfig,
+  LOCALE_ID,
   isDevMode,
   provideBrowserGlobalErrorListeners,
   provideZonelessChangeDetection,
 } from '@angular/core';
+import { registerLocaleData } from '@angular/common';
+import localePt from '@angular/common/locales/pt';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { provideServiceWorker } from '@angular/service-worker';
 import { routes } from './app.routes';
 import { problemDetailsInterceptor } from './core/http/problem-details.interceptor';
 
+/**
+ * O locale é registrado uma vez, no carregamento do módulo.
+ *
+ * <p><strong>Sem isto, todo `| number` e todo `| date` sem formato caem no `en-US` padrão do Angular</strong>
+ * — e o sistema mostrava `200.00` onde a casa lê `200,00`. Num sistema que fala de dinheiro, litro e
+ * densidade o tempo inteiro, ponto e vírgula trocados não são estética: `1.234` é mil e duzentos para o
+ * servidor e um e pouco para quem lê, e é o operador que decide com base no que está na tela.
+ */
+registerLocaleData(localePt);
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideZonelessChangeDetection(),
     provideRouter(routes),
+    // A aplicação já declarava `pt-BR` no `index.html` e no E2E; o que faltava era dizer ao Angular.
+    { provide: LOCALE_ID, useValue: 'pt-BR' },
     provideHttpClient(withInterceptors([problemDetailsInterceptor])),
     /**
      * Service worker (PWA-001).

@@ -406,6 +406,38 @@ data — e não muda o modelo.
     2026-08-18** por delegação do mantenedor.
 - **Aceite:** pendente de validação manual. Junto com os aceites das Sprints 09, 16, 17, 18 e 19.
 
+### DEB-LOG-002 (adendo, 2026-08-19) — **RESOLVIDO**: o E2E do ciclo faltava, e faltava por falta de uma pessoa
+
+**O que estava aberto sem estar registrado.** O `TEST_PLAN.md` desta sprint pede "E2E encher → carregar →
+entregar → coletar → higienizar". Ele não foi escrito, e a sprint foi encerrada como **seis histórias
+entregues** sem que a ausência aparecesse aqui. É o mesmo buraco da `DEB-SAL-004` na Sprint 19, encontrado
+no mesmo dia e pela mesma revisão.
+
+**A razão técnica era real, e é o que torna o registro útil.** A carga é planejada por alguém e **liberada
+por outra pessoa** (`DEC-LOG-001`), e o ambiente de desenvolvimento tinha **um único usuário**. Com ele, a
+jornada alcançava a recusa — a mesma pessoa não libera o que montou — e parava ali. Todo o caminho depois
+da conferência (partida, entrega, coleta, higienização) ficava sem prova de ponta a ponta.
+
+**Não havia porta pública para a segunda conta, e as duas portas estão certas.** O convite entrega a senha
+por token que só sai pela notificação; o SCIM exige credencial de serviço e não define senha. Nenhuma das
+duas deve mudar — era o ambiente local que precisava de porta própria, como já precisara para o primeiro
+administrador. Entra o `bootstrap-checker`, ao lado do `bootstrap-admin`, com a mesma advertência:
+credenciais descartáveis, que nunca valem fora da máquina de desenvolvimento.
+
+**Ele entra no mesmo grupo `ADMINISTRATORS`, e isso é deliberado.** A regra que se quer provar é a de
+**pessoas diferentes**, e não a de permissões diferentes — é a recusa que sobrevive a quem tem todas as
+alçadas que precisa de prova, porque é ela que a `DEC-LOG-001` diz existir em três camadas.
+
+**Duas coisas que a jornada ensinou ao ser escrita.** Uma carga só de coleta **não sai** — "uma carga sem
+nada dentro não sai" é regra do agregado, então o caminhão vai com cheios e volta com vazios, que é a
+operação real. E os stores de `containers` e `distribution` estavam com o engano descrito na
+`DEB-SAL-004`: liam o corpo do erro no nível errado, e por isso o `reasonCode` — o que diz **qual** das
+três condições faltou — nunca chegava à tela. A `DEC-CON-002` existe para o operador não tentar outro keg
+até um passar, e era exatamente isso que acontecia.
+
+**Entregue:** `e2e/tests/distribution-journey.spec.ts`, o `bootstrap-checker`, e os dois stores corrigidos.
+Ver PR #267.
+
 ### O que esta sprint ensinou, e que vale carregar
 
 **A identidade é do objeto, e a etiqueta é só como se acha ele.** O keg reetiquetado continua o mesmo keg.

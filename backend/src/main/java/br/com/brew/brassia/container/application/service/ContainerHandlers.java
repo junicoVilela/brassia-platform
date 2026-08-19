@@ -7,6 +7,7 @@ import br.com.brew.brassia.container.domain.ContainerIdentifier;
 import br.com.brew.brassia.container.domain.ContainerInspection;
 import br.com.brew.brassia.container.domain.ContainerKind;
 import br.com.brew.brassia.container.domain.ContainerLocation;
+import br.com.brew.brassia.container.domain.ContainerModifiedException;
 import br.com.brew.brassia.container.domain.ContainerRetiredException;
 import br.com.brew.brassia.container.domain.ContainerState;
 import br.com.brew.brassia.container.domain.FillNotAllowedException;
@@ -160,7 +161,12 @@ public class ContainerHandlers {
     private void apply(UUID breweryId, UUID containerId, Consumer<Container> acao) {
         var container = require(breweryId, containerId);
         acao.accept(container);
-        containers.update(container);
+        if (!containers.update(container)) {
+            // Alguém alterou o mesmo vasilhame entre a leitura e agora. Recusar é o certo: não há como
+            // saber qual das duas intenções vale — quem condenou viu uma avaria, quem despachou viu a
+            // carga sair —, e escolher uma em silêncio é o que fazia a outra sumir (DEB-CON-003).
+            throw new ContainerModifiedException(containerId);
+        }
         // A posição acompanha o ciclo sem ninguém digitar: o registro que depende de alguém lembrar é o
         // registro que falta justamente no dia em que o keg some.
         posicaoDe(container.state()).ifPresent(kind ->

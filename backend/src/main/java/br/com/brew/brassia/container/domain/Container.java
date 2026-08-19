@@ -32,17 +32,27 @@ public final class Container {
     private ContainerInspection inspection;
     private Instant retiredAt;
     private String retirementReason;
+    /**
+     * A versão com que este vasilhame foi lido do banco (DEB-CON-003).
+     *
+     * <p><strong>Não é dado de negócio</strong>, e por isso não tem regra: é o que permite à escrita
+     * recusar gravar por cima de quem alterou o mesmo keg no meio do caminho. A coluna já existia e era
+     * incrementada, mas nunca conferida — condenar e despachar ao mesmo tempo devolvia ao depósito um
+     * vasilhame que estava no caminhão, sem erro nenhum.
+     */
+    private final long version;
 
     private Container(UUID id, UUID breweryId, String code, ContainerKind kind,
             BigDecimal nominalCapacityLiters, Ownership ownership, ContainerCondition condition,
             ContainerState state, ContainerInspection inspection, Instant retiredAt,
-            String retirementReason) {
+            String retirementReason, long version) {
         this.id = Objects.requireNonNull(id);
         this.breweryId = Objects.requireNonNull(breweryId);
         this.code = requireCode(code);
         this.kind = Objects.requireNonNull(kind, "tipo");
         this.nominalCapacityLiters = requirePositive(nominalCapacityLiters);
         this.ownership = Objects.requireNonNull(ownership, "propriedade");
+        this.version = version;
         this.condition = Objects.requireNonNull(condition);
         this.state = Objects.requireNonNull(state);
         this.inspection = inspection;
@@ -54,15 +64,15 @@ public final class Container {
     public static Container register(UUID id, UUID breweryId, String code, ContainerKind kind,
             BigDecimal nominalCapacityLiters, Ownership ownership) {
         return new Container(id, breweryId, code, kind, nominalCapacityLiters, ownership,
-                ContainerCondition.GOOD, ContainerState.EMPTY, null, null, null);
+                ContainerCondition.GOOD, ContainerState.EMPTY, null, null, null, 0L);
     }
 
     public static Container reconstitute(UUID id, UUID breweryId, String code, ContainerKind kind,
             BigDecimal nominalCapacityLiters, Ownership ownership, ContainerCondition condition,
             ContainerState state, ContainerInspection inspection, Instant retiredAt,
-            String retirementReason) {
+            String retirementReason, long version) {
         return new Container(id, breweryId, code, kind, nominalCapacityLiters, ownership, condition,
-                state, inspection, retiredAt, retirementReason);
+                state, inspection, retiredAt, retirementReason, version);
     }
 
     // --- inspeção ---
@@ -236,6 +246,11 @@ public final class Container {
         // deixou de estar baixado, e um contêiner ativo com motivo de baixa mente sobre o próprio estado.
         this.retirementReason = null;
         this.condition = ContainerCondition.GOOD;
+    }
+
+    /** A versão lida — o que a escrita confere para não gravar por cima de outra operação. */
+    public long version() {
+        return version;
     }
 
     public boolean isRetired() {

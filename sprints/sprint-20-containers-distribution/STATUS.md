@@ -467,7 +467,7 @@ distingue "consertado" de "quebrado para todo lado".
 
 | # | O que | Efeito |
 |---|---|---|
-| 1 | `JdbcContainerRepository` incrementa `version` mas nunca o confere no `WHERE` | Atualização perdida em silêncio: condenar e despachar ao mesmo tempo devolve um keg que está no caminhão para "no depósito". Todo outro módulo do repo usa `AND version = :version` |
+| 1 | ~~`version` incrementado e nunca conferido~~ | **RESOLVIDO em 2026-08-19** — ver abaixo |
 | 2 | `empty` fecha o período mas não move o estado | Keg esvaziado na fábrica fica preso em `FILLED`: não pode ser enchido nem liberado. O `ContainerFillIT` contorna forjando uma viagem inteira ao cliente, o que também fabrica histórico de posição |
 | 3 | `recover()` zera a condição para `GOOD` | Um keg avariado, perdido e reaparecido volta como bom — ninguém consertou nada, e a `DEC-CON-004` diz que quem volta é o que "ninguém olhou" |
 | 4 | `definePolicy` devolve `UUID` novo, mas o `ON CONFLICT` mantém o id existente | O segundo `PUT` responde `201` com um id que não existe, e a auditoria de uma permissão **crítica** aponta para linha nenhuma |
@@ -476,8 +476,26 @@ distingue "consertado" de "quebrado para todo lado".
 | 7 | Lote desconhecido no `fill` vira `container_not_found` | Diz ao operador que o keg na mão dele não existe, quando o problema é o lote — as duas exceções existem justamente para não confundir isso |
 | 8 | Caução abaixo de um centavo | `0.004` passa no `isPositive()` de `Money` (4 casas) e estoura o `CHECK` da coluna `NUMERIC(12,2)`: **500** em vez de 400, e `0.006` grava caução diferente da cotada |
 
-**Critério de remoção comum:** cada um fecha com um teste que exercite o caminho descrito. O #1 é o mais
-urgente dos oito — é perda silenciosa de escrita, e o padrão correto já existe em cinco outros módulos.
+**Critério de remoção comum:** cada um fecha com um teste que exercite o caminho descrito. O #1 era o
+mais urgente dos oito — perda silenciosa de escrita — e **foi resolvido**; os sete restantes seguem
+abertos.
+
+**#1, RESOLVIDO (2026-08-19).** O agregado não carregava versão nenhuma: a coluna existia e era
+incrementada, mas nunca chegava ao domínio nem ao `WHERE`. Agora `Container` carrega a versão com que foi
+lido, `update` devolve `false` quando ela mudou, e o caso de uso traduz isso em
+`409 container_modified` — a recusa que o manual mínimo **já prometia** ao operador ("recarregue e
+refaça: a versão otimista está protegendo a edição da outra pessoa") e que valia para todo módulo do
+sistema menos este.
+
+O teste vive no repositório, e não na API: pela porta HTTP o caso de uso relê o vasilhame antes de
+gravar, então envelhecer a linha por fora não simula concorrência nenhuma. O que se reproduz é a única
+coisa que importa — alguém escreveu **entre** a leitura desta operação e a escrita dela. Verificado
+contra o código sem a guarda antes de entrar.
+
+**Uma armadilha de build que custou tempo e vale registrada:** restaurar um arquivo com `mv` de um backup
+preserva a data antiga, e o Maven não recompila o que parece mais velho que o `.class`. O teste passou a
+falhar contra uma classe compilada sem a correção, e a fonte estava certa o tempo todo. **Só
+`clean test-compile` diz a verdade** depois de mexer em arquivo por fora do editor.
 
 ### O que esta sprint ensinou, e que vale carregar
 

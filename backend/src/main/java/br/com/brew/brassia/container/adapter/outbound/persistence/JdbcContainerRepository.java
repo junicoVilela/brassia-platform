@@ -27,7 +27,7 @@ class JdbcContainerRepository implements ContainerRepository {
     private static final String COLUMNS = """
             id, brewery_id, code, kind, nominal_capacity_liters, ownership, condition, state,
             inspected_at, inspection_valid_until, inspected_by, inspection_note, retired_at,
-            retirement_reason
+            retirement_reason, version
             """;
 
     private final JdbcClient jdbc;
@@ -51,16 +51,16 @@ class JdbcContainerRepository implements ContainerRepository {
     }
 
     @Override
-    public void update(Container c) {
+    public boolean update(Container c) {
         // O filtro por cervejaria vive no SQL, e não no chamador: é a barreira que o TenantIsolationTest
         // existe para cobrar, e a única que sobrevive a um handler distraído.
         var inspection = c.inspection().orElse(null);
-        jdbc.sql("""
+        return jdbc.sql("""
                 UPDATE container SET ownership = :ownership, condition = :condition, state = :state,
                     inspected_at = :inspectedAt, inspection_valid_until = :validUntil,
                     inspected_by = :inspectedBy, inspection_note = :note, retired_at = :retiredAt,
                     retirement_reason = :reason, version = version + 1
-                WHERE id = :id AND brewery_id = :brewery
+                WHERE id = :id AND brewery_id = :brewery AND version = :version
                 """)
                 .param("ownership", c.ownership().name()).param("condition", c.condition().name())
                 .param("state", c.state().name())
@@ -71,7 +71,11 @@ class JdbcContainerRepository implements ContainerRepository {
                 .param("retiredAt", c.retiredAt().map(Timestamp::from).orElse(null))
                 .param("reason", c.retirementReason().orElse(null))
                 .param("id", c.id()).param("brewery", c.breweryId())
-                .update();
+                .param("version", c.version())
+                // Zero linhas significa que alguém alterou este vasilhame entre a leitura e agora. A
+                // coluna já era incrementada antes desta correção, mas nunca conferida: a escrita
+                // passava por cima em silêncio (DEB-CON-003).
+                .update() == 1;
     }
 
     @Override
@@ -171,6 +175,6 @@ class JdbcContainerRepository implements ContainerRepository {
                                 rs.getObject("inspected_by", UUID.class),
                                 rs.getString("inspection_note")),
                 retiredAt == null ? null : retiredAt.toInstant(),
-                rs.getString("retirement_reason"));
+                rs.getString("retirement_reason"), rs.getLong("version"));
     }
 }

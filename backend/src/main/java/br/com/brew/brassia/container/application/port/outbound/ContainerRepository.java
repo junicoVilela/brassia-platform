@@ -10,7 +10,15 @@ public interface ContainerRepository {
 
     void save(Container container);
 
-    void update(Container container);
+    /**
+     * Grava as mudanças, conferindo a versão lida.
+     *
+     * @return {@code false} quando outra operação alterou o mesmo vasilhame no meio do caminho. Quem
+     *         chama decide — e não pode ignorar: antes da `DEB-CON-003` a escrita passava por cima em
+     *         silêncio, e condenar e despachar ao mesmo tempo devolvia ao depósito um keg que estava no
+     *         caminhão.
+     */
+    boolean update(Container container);
 
     Optional<Container> find(UUID breweryId, UUID id);
 

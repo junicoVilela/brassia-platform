@@ -164,14 +164,15 @@ final class PortalController {
         // duas pontas, a porta interna tinha uma versão da regra e o portal tinha outra — e só uma delas
         // conferia. O caso de uso confere com o total de verdade, antes de reservar, e o portal nunca
         // manda motivo de exceção: no portal não há vendedor por perto para autorizar nada.
-        var id = orders.place(acesso.breweryId(), principal.userId(), new OrderCommands.PlaceOrder(
+        var placed = orders.place(acesso.breweryId(), principal.userId(), new OrderCommands.PlaceOrder(
                 request.code(), acesso.customerId(), acesso.channelId(),
                 request.items().stream()
                         .map(i -> new OrderCommands.OrderItem(i.productId(), i.quantity())).toList(),
                 null, request.promisedFor(), idempotencyKey, null));
         audit.record(AuditEvent.success(acesso.breweryId(), principal.userId(), "portal.order.place",
-                "sales.order", id.toString(), Map.of("customerId", acesso.customerId().toString())));
-        return Map.of("id", id);
+                "sales.order", placed.id().toString(),
+                Map.of("customerId", acesso.customerId().toString())));
+        return Map.of("id", placed.id());
     }
 
     /**

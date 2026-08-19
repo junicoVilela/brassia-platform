@@ -12,6 +12,7 @@ import br.com.brew.brassia.sales.SalesOrderPlaced;
 import br.com.brew.brassia.sales.application.port.outbound.SalesOrderEventPublisher;
 import br.com.brew.brassia.sales.application.port.outbound.SalesOrderRepository;
 import br.com.brew.brassia.sales.domain.CreditLimitExceededException;
+import br.com.brew.brassia.sales.domain.CreditLimitCurrencyMismatchException;
 import br.com.brew.brassia.sales.domain.CreditOverride;
 import br.com.brew.brassia.sales.domain.InsufficientLotStockException;
 import br.com.brew.brassia.sales.domain.LotReservation;
@@ -26,6 +27,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,7 +59,7 @@ public class OrderHandlers implements OrderCommands {
 
     @Override
     @Transactional
-    public UUID place(UUID breweryId, UUID actorId, PlaceOrder command) {
+    public PlacedOrder place(UUID breweryId, UUID actorId, PlaceOrder command) {
         // IDEMPOTÊNCIA ANTES DE TUDO. Um duplo clique ou um retry de rede não pode criar um segundo
         // pedido que reserva o mesmo estoque — o segundo tiraria do próximo comprador uma cerveja que
         // ninguém vai levar. A garantia de verdade é o índice único; esta consulta é o caminho feliz,
@@ -65,67 +67,99 @@ public class OrderHandlers implements OrderCommands {
         if (command.idempotencyKey() != null) {
             var existente = orders.findByIdempotencyKey(breweryId, command.idempotencyKey());
             if (existente.isPresent()) {
-                return existente.get().id();
+                // O reenvio devolve o pedido que já existe, e diz se ELE carrega autorização — não se
+                // esta requisição mandou motivo. O retry de rede não pode inventar uma exceção na
+                // trilha nem apagar a que ficou registrada da primeira vez.
+                return new PlacedOrder(existente.get().id(),
+                        existente.get().creditOverride().isPresent());
             }
         }
         channels.find(breweryId, command.channelId())
                 .orElseThrow(() -> new UnknownProductException("o canal", command.channelId()));
 
         var placedOn = command.placedOn() == null ? LocalDate.now() : command.placedOn();
-        var linhas = new ArrayList<OrderLine>();
+
+        // PRECIFICAR ANTES DE RESERVAR. O preço resolve produto e lista sem tocar em disponibilidade, e
+        // é ele que dá o total de que a conferência do teto precisa. Montar a linha aqui seria reservar
+        // aqui — `OrderLine` exige que as reservas fechem com a quantidade —, e reservar antes de saber
+        // se o pedido pode existir prende a linha mais disputada do estoque até o rollback.
+        var precificados = new ArrayList<ItemPrecificado>();
         for (var item : command.items()) {
-            linhas.add(montarLinha(breweryId, command.channelId(), item, placedOn));
+            precificados.add(precificar(breweryId, command.channelId(), item, placedOn));
+        }
+        var total = SalesOrder.totalOf(precificados.stream().map(ItemPrecificado::total).toList());
+
+        // O TETO VALE NAS DUAS PORTAS (SAL-004). Antes disto ele só era conferido no portal, e o mesmo
+        // cliente tinha dois tratamentos dependendo de por onde o pedido entrou.
+        var override = conferirCredito(breweryId, actorId, command, total);
+
+        // Só agora o estoque é tocado. A ordem também decide qual recusa o operador vê quando as duas
+        // valem: um pedido acima do teto E sem lote livre é recusado pelo CRÉDITO, que é a decisão
+        // comercial — mandar procurar estoque para um pedido que a casa não vai aceitar é perder o
+        // tempo de quem vende.
+        var linhas = new ArrayList<OrderLine>();
+        for (var p : precificados) {
+            linhas.add(new OrderLine(p.product().id(), p.product().sku(), p.quantity(), p.unitPrice(),
+                    p.taxIncluded(), reservar(breweryId, p.product(), p.quantity(), placedOn)));
         }
 
         var order = SalesOrder.place(UUID.randomUUID(), breweryId, command.customerId(),
                 command.channelId(), command.code(), linhas, placedOn, command.promisedFor(),
                 Instant.now());
-        // O TETO VALE NAS DUAS PORTAS (SAL-004). Antes disto ele só era conferido no portal, e o mesmo
-        // cliente tinha dois tratamentos dependendo de por onde o pedido entrou.
-        conferirCredito(breweryId, actorId, command, order);
+        override.ifPresent(order::authorizeAboveCredit);
         // O agregado valida a promessa contra a validade ANTES de qualquer reserva ser gravada: recusar
         // depois de reservar deixaria o estoque preso até alguém perceber.
         orders.insert(order, actorId, command.idempotencyKey());
         // Publicado DENTRO da transação: o outbox grava a intenção de entregar no mesmo commit do
         // pedido. Se a transação reverter, o webhook "pedido confirmado" não sai para um pedido que
         // não existe — e um webhook não se desmanda.
-        var total = order.total();
+        //
         // O total vai em centavos, e não nas quatro casas do armazenamento: quem integra espera o
         // valor da nota, e "120.0000" faz o consumidor adivinhar se é precisão ou descuido.
         events.publish(new SalesOrderPlaced(breweryId, order.id(), order.code(), order.customerId(),
                 order.channelId(), total.toMinorUnit(), total.currency(), order.placedOn(),
                 order.promisedFor().orElse(null), Instant.now()));
-        return order.id();
+        return new PlacedOrder(order.id(), override.isPresent());
     }
 
     /**
-     * Confere o teto antes de reservar, e registra quem autorizou passar dele.
+     * Confere o teto <strong>antes de qualquer reserva</strong>, e devolve a autorização quando ela foi
+     * de fato necessária.
      *
-     * <p><strong>Antes de reservar</strong>, pela mesma razão do portal: recusar depois deixaria o estoque
-     * preso até alguém perceber.
+     * <p><strong>Antes de reservar</strong>, pela mesma razão que o portal já tinha: recusar depois
+     * deixaria o estoque preso até a transação desfazer, e prenderia justamente a linha de lote mais
+     * disputada para um pedido que a casa não vai aceitar.
      *
-     * <p>A autorização <strong>só é registrada quando foi de fato usada</strong>. Guardá-la num pedido que
-     * cabia no limite criaria um registro dizendo "liberado acima do teto" para uma venda que nunca passou
-     * de teto nenhum — e quem auditasse contaria exceções que não aconteceram.
+     * <p><strong>Devolve em vez de aplicar</strong> porque o pedido ainda não existe aqui — e é essa a
+     * ordem correta. Quem chama aplica a autorização no agregado depois de montá-lo, e o
+     * {@code Optional} vazio é a resposta que diz "coube": a autorização só é registrada quando foi
+     * usada. Guardá-la num pedido que cabia criaria um registro dizendo "liberado acima do teto" para
+     * uma venda que nunca passou de teto nenhum — e quem auditasse contaria exceções que não
+     * aconteceram.
      */
-    private void conferirCredito(UUID breweryId, UUID actorId, PlaceOrder command, SalesOrder order) {
+    private Optional<CreditOverride> conferirCredito(UUID breweryId, UUID actorId, PlaceOrder command,
+            Money total) {
         var limite = credit.creditOf(breweryId, command.customerId());
         if (!limite.isDefined()) {
             // Sem teto tudo cabe: não recusar por falta de decisão é reversível.
-            return;
+            return Optional.empty();
         }
         var teto = limite.ceilingAmount().orElseThrow();
+        if (!teto.currency().equals(total.currency())) {
+            // Teto numa moeda e pedido em outra: sem taxa de câmbio não há conferência possível, e
+            // deixar passar apagaria o limite justamente para o cliente cuja configuração está errada.
+            throw new CreditLimitCurrencyMismatchException(teto.currency(), total.currency());
+        }
         var comprometido = new Money(
                 credit.committedAmount(breweryId, command.customerId(), teto.currency()),
                 teto.currency());
-        var total = order.total();
         if (limite.fits(comprometido, total)) {
-            return;
+            return Optional.empty();
         }
         if (command.creditOverrideReason() == null || command.creditOverrideReason().isBlank()) {
             throw new CreditLimitExceededException(teto, comprometido, total);
         }
-        order.authorizeAboveCredit(
+        return Optional.of(
                 new CreditOverride(command.creditOverrideReason(), actorId, Instant.now()));
     }
 
@@ -153,17 +187,29 @@ public class OrderHandlers implements OrderCommands {
         orders.updateStatusAndPromise(order);
     }
 
-    private OrderLine montarLinha(UUID breweryId, UUID channelId, OrderItem item, LocalDate placedOn) {
+    /**
+     * O item com produto e preço resolvidos, e <strong>sem nada reservado ainda</strong>.
+     *
+     * <p>Ele existe porque `OrderLine` não pode: o agregado exige que as reservas fechem com a
+     * quantidade, então montar a linha é reservar. Entre precificar e reservar há uma decisão a tomar —
+     * o teto de crédito —, e é preciso um lugar para o pedido esperar por ela.
+     */
+    private record ItemPrecificado(Product product, int quantity, Money unitPrice, boolean taxIncluded) {
+
+        Money total() {
+            return unitPrice.times(quantity);
+        }
+    }
+
+    private ItemPrecificado precificar(UUID breweryId, UUID channelId, OrderItem item,
+            LocalDate placedOn) {
         var product = products.find(breweryId, item.productId())
                 .orElseThrow(() -> new UnknownProductException("o produto", item.productId()));
         var preco = prices.load(breweryId, product.id(), channelId).priceOn(placedOn)
                 .orElseThrow(() -> new NoPriceForProductException(product.sku(), placedOn));
-
-        var reservas = reservar(breweryId, product, item.quantity(), placedOn);
         // O preço é congelado aqui: a lista muda, e um pedido de março precisa continuar explicável em
         // dezembro.
-        return new OrderLine(product.id(), product.sku(), item.quantity(), preco.price(),
-                preco.taxIncluded(), reservas);
+        return new ItemPrecificado(product, item.quantity(), preco.price(), preco.taxIncluded());
     }
 
     /**

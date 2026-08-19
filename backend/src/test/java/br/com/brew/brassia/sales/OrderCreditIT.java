@@ -145,6 +145,80 @@ class OrderCreditIT extends CommercialTestSupport {
         pedido(session, cena, 10, null).andExpect(status().isCreated());
     }
 
+    @Test
+    void oCreditoRecusaAntesDeReservarEstoque() throws Exception {
+        // A ORDEM É A REGRA. O pedido acima do teto é recusado pelo CRÉDITO mesmo quando também não há
+        // lote livre — reservar antes de conferir prenderia a linha mais disputada do estoque para um
+        // pedido que a casa não vai aceitar, e o operador veria a recusa errada: `insufficient_lot_stock`
+        // manda procurar cerveja para uma venda que já estava recusada por decisão comercial.
+        var session = login();
+        var cena = cenaVendavel(session);
+        teto(session, cena, "50.00");
+
+        // 700 unidades passam do teto (8.400,00) E do que o lote tem livre.
+        pedido(session, cena, 700, null).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("credit_limit_exceeded")));
+
+        // A prova de que nada foi reservado: com o teto tirado do caminho, o mesmo pedido entra. Se a
+        // tentativa anterior tivesse consumido disponibilidade, este aqui não caberia.
+        teto(session, cena, "99999.00");
+        pedido(session, cena, 700, null).andExpect(status().isCreated());
+    }
+
+    @Test
+    void tetoEmOutraMoedaRecusaDizendoQueOProblemaEDeCadastro() throws Exception {
+        // Sem taxa de câmbio não há conferência possível. Deixar passar apagaria o teto justamente para
+        // o cliente cuja configuração está errada — o controle viraria decoração no caso que mais
+        // precisa dele. E o erro precisa apontar o CADASTRO: antes disto a soma estourava dentro do
+        // domínio de dinheiro e devolvia um `sales_currency_mismatch` que mandava procurar no pedido.
+        var session = login();
+        var cena = cenaVendavel(session);
+        mockMvc.perform(put("/api/v1/sales/portal/credit/" + cena.customerId()).session(session)
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"ceiling\":200.00,\"currency\":\"USD\"}"))
+                .andExpect(status().isNoContent());
+
+        pedido(session, cena, 1, null).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("credit_limit_currency_mismatch")))
+                .andExpect(jsonPath("$.ceilingCurrency", is("USD")))
+                .andExpect(jsonPath("$.orderCurrency", is("BRL")));
+    }
+
+    @Test
+    void aAuditoriaRegistraAExcecaoQueACONTECEU() throws Exception {
+        // A trilha lê o desfecho, e não o pedido da requisição. Um motivo enviado num pedido que coube
+        // no teto não vira exceção em lugar nenhum — nem no pedido, nem na auditoria. Ler a presença do
+        // campo faria quem audita contar exceções que nunca houve.
+        var session = login();
+        var cena = cenaVendavel(session);
+        teto(session, cena, "200.00");
+
+        // Cabe no teto, mas manda motivo: a auditoria não pode registrar autorização.
+        pedidoComMotivo(session, cena, 10, "mandei por precaução").andExpect(status().isCreated());
+        assertQueAuditoriaNaoTem("mandei por precaução");
+
+        // Agora fura de verdade: aí sim a auditoria carrega o motivo.
+        pedidoComMotivo(session, cena, 10, "boleto compensa hoje").andExpect(status().isCreated());
+        assertQueAuditoriaTem("boleto compensa hoje");
+    }
+
+    private void assertQueAuditoriaTem(String motivo) {
+        var achou = jdbc.sql("SELECT count(*) FROM audit_event WHERE action = 'sales.order.place'"
+                        + " AND change_summary::text LIKE '%' || :motivo || '%'")
+                .param("motivo", motivo).query(Integer.class).single();
+        org.assertj.core.api.Assertions.assertThat(achou)
+                .as("a auditoria precisa registrar a exceção que aconteceu").isEqualTo(1);
+    }
+
+    private void assertQueAuditoriaNaoTem(String motivo) {
+        var achou = jdbc.sql("SELECT count(*) FROM audit_event WHERE action = 'sales.order.place'"
+                        + " AND change_summary::text LIKE '%' || :motivo || '%'")
+                .param("motivo", motivo).query(Integer.class).single();
+        org.assertj.core.api.Assertions.assertThat(achou)
+                .as("motivo enviado num pedido que coube não é exceção, e não pode virar registro")
+                .isZero();
+    }
+
     private void teto(MockHttpSession session, BrewScenario.SalesScene cena, String valor)
             throws Exception {
         mockMvc.perform(put("/api/v1/sales/portal/credit/" + cena.customerId()).session(session)

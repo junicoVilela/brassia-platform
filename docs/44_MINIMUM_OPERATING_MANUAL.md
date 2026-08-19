@@ -249,8 +249,10 @@ mostra. Para 403 e isolamento, o corpo da resposta — é ele que prova qual reg
 ## 5. O que este manual não cobre, deliberadamente
 
 - **Operação da infraestrutura** — deploy, migration e retorno estão em `infra/runbooks/deploy-rollback.md`.
-- **Restauração de backup** — não há ensaio no repositório (ver `DEC-REL-008` na Sprint 17). Enquanto não
-  houver, **não há RPO nem RTO de dados medidos** — e isso é informação operacional, não detalhe.
+- **Restauração de backup** — o ensaio está em `infra/runbooks/restore-drill.md`, com a execução mais
+  recente registrada no fim. **O RTO está medido; o RPO não** — a janela de perda depende de política de
+  backup, que ainda não existe. E o ensaio rodou em máquina de desenvolvimento com dados semeados, não em
+  cópia de produção. Isso é informação operacional para quem for entrar em produção, não detalhe.
 - **Módulos que não estão no caminho do primeiro lote** — água, sensorial, metrologia, gases, IA, sensores,
   webhooks, previsão de demanda e os módulos de inteligência têm tela própria e não são pré-requisito do
   ciclo. Entram quando a operação básica estiver de pé.

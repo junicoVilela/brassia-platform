@@ -53,10 +53,22 @@ public class ContainerShippingService implements ContainerShippingLookup {
                                 "O vasilhame está em " + container.state() + " — só sai o que está "
                                         + "cheio e no depósito.")));
             }
+            // LOTE QUE NÃO RESOLVE É BLOQUEIO, E NÃO SILÊNCIO. Antes disto o `orElse(null)` deixava o
+            // bloqueio nulo, e `shippable = blocker == null` devolvia **true** sem motivo nenhum: um
+            // vasilhame cujo lote sumiu de `packaging` era embarcado justamente pelo método que existe
+            // para cobrar a assinatura da qualidade. `FillHandlers` já tratava o mesmo status ausente
+            // como erro — as duas pontas discordavam, e a que errava era a da saída.
             var status = lots.statusOf(breweryId, conteudo.finishedLotId(),
-                    LocalDate.now(ZoneOffset.UTC)).orElse(null);
-            var blocker = status == null ? null
-                    : status.blocker().map(b -> new Blocker(b.code(), b.message())).orElse(null);
+                    LocalDate.now(ZoneOffset.UTC));
+            if (status.isEmpty()) {
+                return new ShippableContainer(containerId, container.code(), conteudo.lotCode(),
+                        conteudo.volumeLiters(), false,
+                        Optional.of(new Blocker("lot_not_found",
+                                "O lote que está dentro deste vasilhame não foi encontrado. Sem ele "
+                                        + "não há como saber se a qualidade liberou.")));
+            }
+            var blocker = status.orElseThrow().blocker()
+                    .map(b -> new Blocker(b.code(), b.message())).orElse(null);
             return new ShippableContainer(containerId, container.code(), conteudo.lotCode(),
                     conteudo.volumeLiters(), blocker == null, Optional.ofNullable(blocker));
         });

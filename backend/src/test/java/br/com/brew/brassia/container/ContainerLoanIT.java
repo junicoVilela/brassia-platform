@@ -320,6 +320,25 @@ class ContainerLoanIT {
     }
 
     @Test
+    void oVasilhamePerdidoNaoPodeSerEmprestadoDeNovoSemRecuperacao() throws Exception {
+        // A perda encerra o empréstimo E baixa o vasilhame. Como o empréstimo fica fechado, a checagem
+        // de "já emprestado" não pega nada — e sem uma guarda contra a baixa o keg voltava a circular
+        // pela porta dos fundos, cobrando uma SEGUNDA caução por um bem que a casa declarou perdido.
+        // O caminho legítimo é a recuperação, que é ato explícito e está no teste acima.
+        var session = login();
+        var keg = registra(session);
+        empresta(session, keg, cliente(session), hoje().plusDays(30), null);
+        mockMvc.perform(post(BASE + "/" + keg + "/loans/loss").session(session).with(csrf())
+                        .contentType("application/json").content("{\"reason\":\"sumiu\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post(BASE + "/" + keg + "/loans").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content(corpoEmprestimo(cliente(session), hoje().plusDays(30), null)))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void oDescartadoNaoReaparece() throws Exception {
         // "Descartei" não pode virar reversível.
         var session = login();

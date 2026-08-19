@@ -72,13 +72,13 @@ test.describe('jornada comercial', () => {
     await expect(page.getByText('Acima do limite de crédito.')).toBeVisible();
     // Os três números, que é o que permite decidir sem adivinhar: teto, o que já se deve, e este pedido.
     //
-    // O separador decimal é ponto, e não vírgula, porque a aplicação não registra `LOCALE_ID` nem
-    // `registerLocaleData` — todo `| number` cai no `en-US` padrão do Angular. Está assertado como está
-    // para o teste descrever o que a tela faz hoje; se o locale for corrigido, é aqui que se descobre.
+    // Com vírgula, que é como a casa lê dinheiro. A asserção é sobre o separador de propósito: ela é o
+    // que segura o `LOCALE_ID` no lugar, e sem ela a aplicação volta ao `en-US` padrão do Angular sem
+    // que nenhum teste reclame — foi assim que ela ficou meses mostrando `200.00`.
     const recusa = page.locator('.alert-warning');
-    await expect(recusa).toContainText('Teto 200.00 BRL');
-    await expect(recusa).toContainText('já devendo 120.00');
-    await expect(recusa).toContainText('este pedido 120.00');
+    await expect(recusa).toContainText('Teto 200,00 BRL');
+    await expect(recusa).toContainText('já devendo 120,00');
+    await expect(recusa).toContainText('este pedido 120,00');
 
     // O formulário continua aberto: fechá-lo esconderia os números que explicam a recusa, e o vendedor
     // repetiria o pedido só para lê-los de novo.

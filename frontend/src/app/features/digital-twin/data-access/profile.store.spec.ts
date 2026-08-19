@@ -1,6 +1,7 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { problemDetailsInterceptor } from '../../../core/http/problem-details.interceptor';
 import { LearnedProfile, ProfileEstimate } from '../domain/profile.model';
 import { ProfileStore } from './profile.store';
 
@@ -52,7 +53,14 @@ describe('ProfileStore', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [ProfileStore, provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ProfileStore,
+        // O interceptor entra aqui porque ele entra na aplicação: é ele que desembrulha o Problem
+        // Details, e sem ele o teste exercita uma cadeia que não existe em lugar nenhum — foi assim
+        // que o acesso errado ao corpo do erro passou despercebido.
+        provideHttpClient(withInterceptors([problemDetailsInterceptor])),
+        provideHttpClientTesting(),
+      ],
     });
     store = TestBed.inject(ProfileStore);
     http = TestBed.inject(HttpTestingController);
@@ -133,9 +141,11 @@ describe('ProfileStore', () => {
 
   it('403 no cálculo explica que a alçada é de quem escolhe a amostra', () => {
     store.compute(RECEITA, ['b1']);
+    // O `status` vai no corpo porque é lá que ele está no Problem Details de verdade: o interceptor
+    // entrega o corpo, e não o `HttpErrorResponse` — quem lê o status lê o do documento.
     http
       .expectOne('/api/v1/digital-twin/profiles')
-      .flush({ detail: 'x' }, { status: 403, statusText: 'Forbidden' });
+      .flush({ status: 403, code: 'forbidden', detail: 'x' }, { status: 403, statusText: 'Forbidden' });
 
     expect(store.computeError()).toContain('escolhe a amostra');
   });

@@ -103,7 +103,7 @@ describe('ContainersStore', () => {
       move: () =>
         throwError(() => ({
           status: 409,
-          error: { code: 'container_not_fillable', detail: 'recusado', reasonCode: 'inspection_expired' },
+          code: 'container_not_fillable', detail: 'recusado', reasonCode: 'inspection_expired',
         })),
     } as Partial<ContainersApi>);
 
@@ -146,7 +146,7 @@ describe('ContainersStore', () => {
       assign: () =>
         throwError(() => ({
           status: 409,
-          error: { code: 'identifier_in_use', detail: 'A etiqueta QR-1 já está em uso por outro contêiner.' },
+          code: 'identifier_in_use', detail: 'A etiqueta QR-1 já está em uso por outro contêiner.',
         })),
     } as Partial<ContainersApi>);
 
@@ -211,7 +211,7 @@ describe('ContainersStore', () => {
       fill: () =>
         throwError(() => ({
           status: 409,
-          error: { code: 'fill_not_allowed', detail: 'recusado', reasonCode: 'over_capacity' },
+          code: 'fill_not_allowed', detail: 'recusado', reasonCode: 'over_capacity',
         })),
     } as Partial<ContainersApi>);
 
@@ -288,7 +288,7 @@ describe('ContainersStore', () => {
       lend: () =>
         throwError(() => ({
           status: 409,
-          error: { code: 'loan_not_allowed', detail: 'x', reasonCode: 'already_lent' },
+          code: 'loan_not_allowed', detail: 'x', reasonCode: 'already_lent',
         })),
     } as Partial<ContainersApi>);
 

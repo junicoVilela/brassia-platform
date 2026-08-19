@@ -7,7 +7,8 @@ import { ProfileApi } from './profile.api';
 
 interface ProfileError {
   status?: number;
-  error?: { code?: string; detail?: string };
+  code?: string;
+  detail?: string;
 }
 
 /**
@@ -105,9 +106,9 @@ export class ProfileStore {
   }
 
   private messageFor(e: ProfileError): string {
-    if (e.error?.code === 'empty_learning_sample') {
+    if (e?.code === 'empty_learning_sample') {
       return (
-        e.error.detail ??
+        e.detail ??
         'Nenhum dos lotes informados serve para aprender sobre esta receita.'
       );
     }
@@ -117,6 +118,6 @@ export class ProfileStore {
     if (e.status === 400) {
       return 'Informe a receita e ao menos um lote.';
     }
-    return e.error?.detail ?? 'Não foi possível calcular o perfil.';
+    return e?.detail ?? 'Não foi possível calcular o perfil.';
   }
 }

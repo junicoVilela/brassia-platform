@@ -32,6 +32,16 @@ brassia:
       email: ${BOOTSTRAP_ADMIN_EMAIL:admin@brassia.local}
       password: ${BOOTSTRAP_ADMIN_PASSWORD:admin-local-123}
       name: ${BOOTSTRAP_ADMIN_NAME:Administrador Local}
+    # A SEGUNDA PESSOA — não é um administrador a mais.
+    # A carga de distribuição é planejada por alguém e liberada por outro (LOG-001), e com um usuário
+    # só não há caminho feliz para exercitar: o E2E alcançava a recusa e parava ali. Não há porta
+    # pública para criar esta conta — o convite manda a senha por token que só sai na notificação, e o
+    # SCIM exige credencial de serviço e não define senha. Credenciais descartáveis, como as de cima.
+    bootstrap-checker:
+      enabled: ${BOOTSTRAP_CHECKER_ENABLED:true}
+      email: ${BOOTSTRAP_CHECKER_EMAIL:conferente@brassia.local}
+      password: ${BOOTSTRAP_CHECKER_PASSWORD:conferente-local-123}
+      name: ${BOOTSTRAP_CHECKER_NAME:Conferente Local}
   brewery:
     # Cervejaria default para o login já ter uma cervejaria ativa em dev.
     bootstrap:

@@ -23,7 +23,9 @@ import { ContainersApi } from './containers.api';
 
 interface ApiError {
   status?: number;
-  error?: { code?: string; detail?: string; reasonCode?: string };
+  code?: string;
+  detail?: string;
+  reasonCode?: string;
 }
 
 /**
@@ -453,7 +455,7 @@ export class ContainersStore {
    * o primeiro.
    */
   private message(e: ApiError, fallback: string): string {
-    const reason = e?.error?.reasonCode;
+    const reason = e?.reasonCode;
     if (reason) {
       // Duas famílias de motivo: o vasilhame e o líquido. Misturá-las daria ao operador uma mensagem
       // que não diz o que trocar.
@@ -463,6 +465,6 @@ export class ContainersStore {
         return frase;
       }
     }
-    return e?.error?.detail ?? fallback;
+    return e?.detail ?? fallback;
   }
 }

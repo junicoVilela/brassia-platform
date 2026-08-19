@@ -84,7 +84,7 @@ describe('CrmStore', () => {
       createCustomer: () =>
         throwError(() => ({
           status: 409,
-          error: { code: 'crm_duplicate_tax_id', detail: 'o documento 123 já está cadastrado' },
+          code: 'crm_duplicate_tax_id', detail: 'o documento 123 já está cadastrado',
         })),
     } as Partial<CrmApi>);
 

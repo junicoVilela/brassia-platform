@@ -7,7 +7,9 @@ import { SalesApi } from './sales.api';
 
 interface ApiError {
   status?: number;
-  error?: { code?: string; detail?: string; from?: string };
+  code?: string;
+  detail?: string;
+  from?: string;
 }
 
 /**
@@ -192,6 +194,6 @@ export class SalesStore {
    * sem ela, o operador fica tentando datas até uma passar.
    */
   private message(e: ApiError, fallback: string): string {
-    return e?.error?.detail ?? fallback;
+    return e?.detail ?? fallback;
   }
 }

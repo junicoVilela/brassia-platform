@@ -130,11 +130,9 @@ describe('SalesStore', () => {
       priceFrom: () =>
         throwError(() => ({
           status: 409,
-          error: {
-            code: 'sales_price_overlap',
-            detail: 'já existe preço vigente para este produto e canal em 2026-02-01',
-            from: '2026-02-01',
-          },
+          code: 'sales_price_overlap',
+          detail: 'já existe preço vigente para este produto e canal em 2026-02-01',
+          from: '2026-02-01',
         })),
     } as Partial<SalesApi>);
     store.load();

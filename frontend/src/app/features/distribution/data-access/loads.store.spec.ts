@@ -67,10 +67,8 @@ describe('LoadsStore', () => {
       release: () =>
         throwError(() => ({
           status: 409,
-          error: {
-            code: 'separation_of_duties',
-            detail: 'Quem montou a carga não pode liberá-la.',
-          },
+          code: 'separation_of_duties',
+          detail: 'Quem montou a carga não pode liberá-la.',
         })),
     } as Partial<LoadsApi>);
 
@@ -85,7 +83,7 @@ describe('LoadsStore', () => {
       loadContainer: () =>
         throwError(() => ({
           status: 409,
-          error: { code: 'container_not_shippable', detail: 'recusado', reasonCode: 'not_released' },
+          code: 'container_not_shippable', detail: 'recusado', reasonCode: 'not_released',
         })),
     } as Partial<LoadsApi>);
 
@@ -186,7 +184,7 @@ describe('LoadsStore', () => {
       recordProof: () =>
         throwError(() => ({
           status: 409,
-          error: { code: 'delivery_not_recordable', detail: 'x', reasonCode: 'load_not_on_the_road' },
+          code: 'delivery_not_recordable', detail: 'x', reasonCode: 'load_not_on_the_road',
         })),
     } as Partial<LoadsApi>);
 

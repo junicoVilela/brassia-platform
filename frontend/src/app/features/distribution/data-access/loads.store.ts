@@ -14,7 +14,9 @@ import { LoadsApi } from './loads.api';
 
 interface ApiError {
   status?: number;
-  error?: { code?: string; detail?: string; reasonCode?: string };
+  code?: string;
+  detail?: string;
+  reasonCode?: string;
 }
 
 /**
@@ -294,13 +296,13 @@ export class LoadsStore {
    * o motivo, as três viram "não deu" e o operador tenta outro keg até um passar.
    */
   private message(e: ApiError, fallback: string): string {
-    const reason = e?.error?.reasonCode;
+    const reason = e?.reasonCode;
     if (reason) {
       const frase = NOT_SHIPPABLE_REASONS[reason] ?? NOT_RECORDABLE_REASONS[reason];
       if (frase) {
         return frase;
       }
     }
-    return e?.error?.detail ?? fallback;
+    return e?.detail ?? fallback;
   }
 }

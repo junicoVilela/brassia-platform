@@ -78,10 +78,17 @@ final class OrderController {
         if (request.creditOverrideReason() != null && !request.creditOverrideReason().isBlank()) {
             // Permissão separada e crítica: ela deixa passar uma venda acima do que a casa decidiu
             // carregar daquele cliente. Quem registra pedido não autoriza exceção por tabela.
+            //
+            // A alçada é conferida pela PRESENÇA do motivo, antes de o total ser conhecido — a autorização
+            // mora na camada de aplicação, e trazer o principal para lá furaria a fronteira. O efeito é
+            // que um pedido que acabaria cabendo no teto também é recusado a quem não tem a alçada, e
+            // isso é deliberado: mandar uma justificativa é reivindicar autoridade para furar o limite,
+            // e é a reivindicação que a permissão governa. O que não acontece é o REGISTRO — pedido que
+            // coube não guarda autorização nenhuma.
             principal.requirePermission("sales.order.credit_override");
         }
         var brewery = principal.requireBrewery();
-        var id = commands.place(brewery, principal.userId(), new OrderCommands.PlaceOrder(
+        var placed = commands.place(brewery, principal.userId(), new OrderCommands.PlaceOrder(
                 request.code(), request.customerId(), request.channelId(),
                 request.items().stream()
                         .map(i -> new OrderCommands.OrderItem(i.productId(), i.quantity())).toList(),
@@ -89,12 +96,24 @@ final class OrderController {
                 request.creditOverrideReason()));
         // A exceção ao teto vai na auditoria com o motivo: é o registro que permite ao dono perguntar
         // depois por que aquele cliente passou do limite.
-        var detalhes = request.creditOverrideReason() == null || request.creditOverrideReason().isBlank()
-                ? Map.of("code", request.code())
-                : Map.of("code", request.code(), "creditOverrideReason", request.creditOverrideReason());
+        //
+        // TUDO VEM DO PEDIDO GRAVADO — a decisão E o texto —, e nada da requisição. Duas razões, e a
+        // segunda só apareceu quando o dado foi lido pela metade:
+        //
+        // 1. Um motivo enviado num pedido que acabou cabendo no teto não vira exceção em lugar nenhum.
+        //    Ler a presença do campo faria a trilha contar exceções que nunca houve — exatamente o
+        //    registro que o agregado se recusa a criar.
+        // 2. No reenvio idempotente as duas fontes divergem: o pedido carrega a autorização da primeira
+        //    vez, e a repetição pode vir sem motivo, ou com outro. Decidir pelo pedido e escrever o texto
+        //    da requisição gravaria `null` num `Map.of` — que o recusa — derrubando com 500 um reenvio
+        //    que deveria só devolver o pedido que já existe; ou gravaria na trilha uma justificativa que
+        //    ninguém autorizou.
+        var detalhes = placed.creditOverrideReason()
+                .map(motivo -> Map.of("code", request.code(), "creditOverrideReason", motivo))
+                .orElseGet(() -> Map.of("code", request.code()));
         audit.record(AuditEvent.success(brewery, principal.userId(), "sales.order.place", "sales.order",
-                id.toString(), detalhes));
-        return Map.of("id", id);
+                placed.id().toString(), detalhes));
+        return Map.of("id", placed.id());
     }
 
     @PostMapping("/{id}/cancel")

@@ -151,7 +151,23 @@ public final class SalesOrder {
      * arredondamento acontecer uma vez só, aqui.
      */
     public Money total() {
-        var soma = lines.stream().map(OrderLine::total).reduce(Money::plus).orElseThrow();
+        return totalOf(lines.stream().map(OrderLine::total).toList());
+    }
+
+    /**
+     * A mesma soma do {@link #total()}, para quem ainda não tem um pedido montado.
+     *
+     * <p><strong>Existe para o teto de crédito ser conferido antes de reservar</strong> (SAL-004): a
+     * conferência precisa do total, e o pedido só pode ser montado depois de reservar — reservar antes de
+     * saber se ele pode existir prende estoque que a transação vai devolver.
+     *
+     * <p>É estático e público em vez de a regra ser recopiada no caso de uso porque o arredondamento é a
+     * regra: <strong>duas casas no TOTAL, e não por linha</strong>. Arredondar linha a linha produz um
+     * centavo de diferença — que é justamente o que o cliente encontra ao conferir a nota, e o que uma
+     * segunda implementação passaria a produzir sozinha na primeira divergência.
+     */
+    public static Money totalOf(List<Money> valores) {
+        var soma = valores.stream().reduce(Money::plus).orElseThrow();
         return new Money(soma.amount().setScale(MONEY_SCALE, RoundingMode.HALF_UP), soma.currency());
     }
 

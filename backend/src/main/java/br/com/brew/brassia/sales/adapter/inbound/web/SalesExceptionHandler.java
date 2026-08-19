@@ -1,5 +1,6 @@
 package br.com.brew.brassia.sales.adapter.inbound.web;
 
+import br.com.brew.brassia.sales.domain.CreditLimitCurrencyMismatchException;
 import br.com.brew.brassia.sales.domain.CreditLimitExceededException;
 import br.com.brew.brassia.shared.money.CurrencyMismatchException;
 import br.com.brew.brassia.sales.domain.DuplicateSkuException;
@@ -38,6 +39,22 @@ class SalesExceptionHandler {
         problem.setProperty("committed", ex.committed());
         problem.setProperty("requested", ex.requested());
         problem.setProperty("currency", ex.currency());
+        return problem;
+    }
+
+    /**
+     * O teto está numa moeda e o pedido em outra (SAL-004).
+     *
+     * <p>Tem código próprio porque o conserto é de <strong>cadastro</strong>, não de pedido: sem isto a
+     * soma estourava dentro do domínio de dinheiro e devolvia um `sales_currency_mismatch` genérico,
+     * que mandava o vendedor procurar o erro no lugar errado.
+     */
+    @ExceptionHandler(CreditLimitCurrencyMismatchException.class)
+    ProblemDetail handleCreditCurrency(CreditLimitCurrencyMismatchException ex) {
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, "credit_limit_currency_mismatch",
+                ex.getMessage());
+        problem.setProperty("ceilingCurrency", ex.ceilingCurrency());
+        problem.setProperty("orderCurrency", ex.orderCurrency());
         return problem;
     }
 

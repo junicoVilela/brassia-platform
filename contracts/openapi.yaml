@@ -7632,13 +7632,17 @@ paths:
                   maxLength: 500
                   nullable: true
                   description: >-
-                    **Só é usado quando o pedido passa do teto de crédito** (SAL-004); nos outros casos é
-                    ignorado, porque não houve teto a furar — guardá-lo num pedido que cabia criaria um
-                    registro de exceção que nunca aconteceu.
+                    **Só é registrado quando o pedido passa do teto de crédito** (SAL-004); num pedido que
+                    coube, ele não vira autorização nem no pedido nem na trilha de auditoria — guardá-lo
+                    criaria um registro de exceção que nunca aconteceu.
 
 
-                    Exige `sales.order.credit_override`, que é **permissão crítica** e separada de
-                    `sales.order.manage`: quem registra pedido não autoriza exceção por tabela.
+                    **Enviá-lo exige `sales.order.credit_override` — permissão crítica e separada de
+                    `sales.order.manage` — mesmo num pedido que acabe cabendo no teto.** A alçada é
+                    conferida na entrada, antes de o total ser conhecido, e é deliberado que seja assim:
+                    mandar uma justificativa é reivindicar autoridade para furar o limite, e é a
+                    reivindicação que a permissão governa. Quem registra pedido não autoriza exceção por
+                    tabela.
                 items:
                   type: array
                   minItems: 1
@@ -7668,7 +7672,13 @@ paths:
             · `credit_limit_exceeded` (extensões `ceiling`, `committed`, `requested`, `currency`) — **o
             teto vale também nesta porta desde a SAL-004**; antes disso ele só era conferido no portal, e
             o mesmo cliente tinha dois tratamentos dependendo de por onde o pedido entrou. Quem tem
-            `sales.order.credit_override` passa mandando `creditOverrideReason`.
+            `sales.order.credit_override` passa mandando `creditOverrideReason`. **A conferência acontece
+            antes de qualquer reserva**, então um pedido que estoura o teto *e* o estoque é recusado pelo
+            crédito: mandar procurar cerveja para uma venda que a casa já não aceitou é perder o tempo de
+            quem vende.
+            · `credit_limit_currency_mismatch` (extensões `ceilingCurrency`, `orderCurrency`) — o teto
+            está numa moeda e o pedido em outra, e sem taxa de câmbio não há conferência possível. **O
+            conserto é de cadastro, não de pedido.**
           content:
             application/problem+json:
               schema: {type: object}

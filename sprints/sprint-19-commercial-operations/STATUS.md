@@ -445,10 +445,88 @@ contaria exceções que não aconteceram.
 uma implementação da regra numa porta e nenhuma na outra. Agora é uma só, conferida com o total de verdade
 e **antes de reservar** — recusar depois deixaria o estoque preso até alguém perceber.
 
+> **Correção (2026-08-19): esta última frase era falsa quando foi escrita.** A conferência acontecia
+> *depois* de reservar, e o portal — que antes recusava sem tocar em estoque — regrediu com a mudança.
+> Passou a ser verdade com a `DEB-SAL-005`, que inverteu a ordem. Fica registrado em vez de corrigido em
+> silêncio: quem leu este parágrafo entre 18 e 19 de agosto leu algo errado, e apagar isso esconderia o
+> tipo de engano que mais se repete — o texto que descreve a intenção, e não o código.
+
 **Entregue:** `V141` (três colunas com `CHECK` tudo-ou-nada e a permissão crítica), `CreditOverride`,
 conferência no `OrderHandlers`, a recusa com os três números na tela de pedidos. **4 testes de domínio e 6
 de integração**, entre eles o que amarra as duas histórias: o recebimento libera o teto também para o
 vendedor.
+
+### DEB-SAL-005 (SAL-004, 2026-08-19) — Cinco achados de review no que já estava mergeado
+
+**Como apareceram.** Uma passada de `/code-review` sobre `sales`. Todos os cinco estavam no código da
+SAL-004 — nenhum veio de fora, e três eram **contradições entre o que o código faz e o que eu tinha
+escrito sobre ele**. Isso é o que torna o registro útil: o texto que acompanha uma mudança é lido como
+verdade, e um comentário errado custa mais que a ausência dele.
+
+**O grave: "antes de reservar" era falso.** O adendo da SAL-004 (acima), o Javadoc do caso de uso e o
+comentário do `PortalController` diziam que o teto era conferido antes de reservar. `montarLinha` chamava
+`reservar(...)` e só então `conferirCredito` — o oposto. E era **regressão do portal**: antes da SAL-004
+ele estimava o total sem reservar e recusava sem tocar em disponibilidade. Efeitos: a recusa por estoque
+passava na frente da recusa por crédito, e um pedido acima do teto travava a linha de lote mais disputada
+até o rollback.
+
+**Corrigido invertendo a ordem, e a inversão mudou o desenho:** o caso de uso agora **precifica**,
+confere o teto e **só então reserva**. Foi preciso separar `precificar` de `montarLinha` — `OrderLine`
+exige que as reservas fechem com a quantidade, então montar a linha *é* reservar, e entre as duas coisas
+faltava um lugar para o pedido esperar pela decisão de crédito. `SalesOrder.totalOf` passou a ser público
+para que a regra de arredondamento — **duas casas no total, não por linha** — continue com uma
+implementação só.
+
+**A auditoria contava exceções que não aconteceram.** O controlador registrava `creditOverrideReason`
+sempre que o campo vinha preenchido, mas o override só é gravado quando o teto foi furado. Era exatamente
+o registro que o agregado se recusa a criar, criado uma camada acima. O caso de uso passou a devolver
+`PlacedOrder(id, creditOverrideApplied)`: a trilha lê o **desfecho**, e não o pedido da requisição.
+
+**Teto em moeda diferente da lista de preço** estourava dentro do domínio de dinheiro e devolvia
+`sales_currency_mismatch` — erro genérico que manda procurar no lugar errado. Agora é
+`credit_limit_currency_mismatch`, com as duas moedas, porque **o conserto é de cadastro**. Deixar passar
+foi descartado: apagaria o teto justamente para o cliente cuja configuração está errada.
+
+**A alçada exigida pela presença do campo** contradizia o contrato, que dizia "nos outros casos é
+ignorado". Aqui **a documentação é que estava errada, não o código**: exigir a permissão para sequer
+enviar o motivo é o desenho mais seguro, e movê-la para o caso de uso traria o principal para a camada de
+aplicação, furando a fronteira. O contrato passou a dizer o que acontece — mandar justificativa é
+reivindicar autoridade, e é a reivindicação que a permissão governa.
+
+**Entregue:** `SalesOrder.totalOf`, `ItemPrecificado`, `PlacedOrder`, `CreditLimitCurrencyMismatchException`
+e o handler, mais **3 ITs novos** — a recusa por crédito antes de qualquer reserva (provada mostrando que
+o mesmo pedido entra depois de o teto sair do caminho), a moeda incompatível, e a auditoria registrando a
+exceção que aconteceu e não a que foi pedida.
+
+### DEB-SAL-006 (SAL-004) — A conferência do teto não tem garantia no banco
+
+**O que não está garantido.** `conferirCredito` lê o comprometido e escreve o pedido sem lock nem
+`CHECK`. Sob `READ COMMITTED`, duas chamadas simultâneas para o mesmo cliente leem o comprometido antes
+de qualquer uma commitar, ambas concluem que cabe, e o cliente termina acima do teto **sem nenhum
+`credit_override` registrado** — que é pior que furar o limite com autorização, porque não deixa rastro.
+
+**Por que não foi resolvido junto.** A regra da casa é que invariante que atravessa linhas mora no banco,
+e foi aplicada seis vezes nesta sprint e sete na seguinte. Esta não cabe no mesmo formato: o teto compara
+um **agregado sobre várias linhas** — a soma dos pedidos em aberto menos os recebimentos — contra um
+valor em outra tabela. Não há índice único nem `CHECK` que expresse isso; exigiria lock explícito por
+cliente (`SELECT ... FOR UPDATE` na linha do crédito) ou uma coluna de saldo materializada.
+
+**A janela ficou MAIOR com a `DEB-SAL-005`, e isso precisa estar dito.** Mover a conferência para antes
+das reservas foi o conserto certo para o estoque, mas afastou a leitura do comprometido do `insert`: ela
+agora acontece antes de toda a ida e volta de reserva FEFO, inclusive do laço que baixa a quantidade de
+um em um. O que se ganhou em não prender estoque, pagou-se em exposição a esta corrida. Foi uma troca
+consciente — prender a linha mais disputada do inventário acontece em todo pedido recusado; a corrida
+exige simultaneidade no mesmo cliente — mas não é um empate, e registrar só a metade boa seria o mesmo
+tipo de texto que a `DEB-SAL-005` corrigiu.
+
+**Por que não é urgente.** Furar o teto exige duas vendas simultâneas para o **mesmo cliente**, na janela
+entre a leitura e o commit. O dano é comercial e recuperável — o limite existe para gerir risco de
+crédito, não para impedir fraude —, e o excesso aparece na próxima conferência.
+
+**Critério de remoção:** lock por cliente na linha de `sales_customer_credit` durante o `place`, ou saldo
+materializado com `CHECK`. Fecha quando duas requisições concorrentes para o mesmo cliente, com teto que
+comporta só uma, resultarem em uma aceita e uma recusada — com teste que exercite a concorrência de
+verdade, e não em série.
 
 ### DEB-SAL-003 — **RESOLVIDO em 2026-08-18**
 

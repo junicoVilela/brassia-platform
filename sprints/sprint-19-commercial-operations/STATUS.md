@@ -650,6 +650,39 @@ corpo não leva dado pessoal*. Sem migration: o outbox e as assinaturas já exis
     delegação do mantenedor.**
 - **Aceite:** pendente de validação manual. Junto com os aceites das Sprints 09, 16 e 17.
 
+### DEB-SAL-004 (adendo, 2026-08-19) — **RESOLVIDO**: faltava o E2E do plano, e ele achou o que faltava junto
+
+**O que estava aberto sem estar registrado.** O `TEST_PLAN.md` desta sprint pede, com todas as letras,
+"E2E cliente → pedido → reserva → produção/expedição". Ele nunca foi escrito, e a sprint foi encerrada
+como **6/6 entregues** sem que a ausência aparecesse em lugar nenhum — nem aqui, nem no aceite. Descoberto
+em 2026-08-19, ao conferir se o roteiro de homologação da REL-005 ainda cobria o que a sprint acrescentou.
+
+**Não era formalidade, e a prova é o que o E2E encontrou na primeira execução.** A recusa por limite de
+crédito **não aparecia na tela**. O `problemDetailsInterceptor` desembrulha o corpo do erro — `code`,
+`detail` e as extensões chegam ao subscribe no primeiro nível —, e o `orders.store` lia `e.error?.code`,
+que devolve `undefined` sem erro de compilação nem de teste. O painel com teto, dívida e valor do pedido
+nunca era montado, e toda mensagem do servidor caía no texto genérico do fallback.
+
+**O engano estava em oito stores**, e não num: sales, portal, CRM, contêineres, distribuição, comunidade e
+gêmeo digital, além do de pedidos. Em contêineres e distribuição some o `reasonCode`, que é quem diz
+**qual das três condições** faltou para encher o keg — sem ele as três viram "não deu", que é exatamente o
+que a `DEC-CON-002` desta família de decisões existe para evitar. Na biblioteca some a lista de
+ingredientes que faltam, que fica na tela justamente porque o toast some antes de alguém cadastrá-los.
+
+**Os testes concordavam com o código errado**, porque simulavam o erro na forma errada. O do gêmeo digital
+ia além: montava o TestBed **sem o interceptor**, exercitando uma cadeia que não existe em lugar nenhum.
+
+**A lição não é nova, e é isso que a torna grave.** A `TRC-001` já havia corrigido o mesmo engano em sete
+outros stores, e o comentário no interceptor descreve inclusive quem costuma encontrá-lo: *"quem pegou foi
+o E2E, contra a stack real"*. Foi ele de novo, três sprints depois. **Teste de unidade que monta o próprio
+TestBed não vê o que a aplicação monta** — e um mock escrito a partir da leitura do código, e não da
+resposta real, concorda com o defeito por construção.
+
+**Entregue:** `e2e/tests/sales-journey.spec.ts`, os oito stores corrigidos, os mocks refeitos na forma que
+a stack devolve, e o TestBed do gêmeo digital com o interceptor. Junto foi o `LOCALE_ID`, que faltava desde
+sempre: a tela mostrava `200.00` onde a casa lê `200,00`, e a recusa por crédito entregava no formato de
+outro país justamente os três números que existem para alguém decidir. Ver PRs #267 e #268.
+
 ### O que esta sprint ensinou, e que vale carregar
 
 **A invariante que atravessa linhas mora no banco.** Aconteceu três vezes, sempre com o mesmo formato:

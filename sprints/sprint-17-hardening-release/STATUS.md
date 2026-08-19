@@ -14,7 +14,7 @@ DEC-DEBT-001 e as decisões por módulo.
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| REL-001 | **Fora de escopo** (decisão do mantenedor) | — | — | O ensaio de restauração foi removido do repositório a pedido do mantenedor. A história **não fecha** como especificada — não há RPO/RTO medidos. Ver DEC-REL-008. |
+| REL-001 | **Parcial** — RTO medido, RPO não | Claude | `infra/runbooks/restore-drill.md` (2026-08-19) | Reaberta em 2026-08-19 no formato reduzido da `REL-001-PROPOSTA`. O ensaio rodou de ponta a ponta: dump, restauração isolada, integridade conferida em 204 tabelas, aplicação de pé contra a cópia. **Ainda não fecha como especificada** — o RPO depende de política de backup que não existe, e o RTO foi medido em máquina de desenvolvimento com dados semeados. Ver DEC-REL-008 e DEC-REL-011. |
 | REL-002 | Concluída | Claude | `infra/perf/*`, `ListBatchesUseCase`, `JdbcBatchRepository`, `PageResponse` | Gargalo medido **e corrigido**: com 3.000 lotes, p95 caiu de 319 ms para 9,8 ms. Ver DEC-REL-007. |
 | REL-003 | Concluída | Claude | `InternalAddressGuard`, `SecurityConfiguration`, `.github/workflows/ci.yml`, `frontend/package-lock.json` | Um achado ALTO (SSRF no webhook) e dois médios resolvidos; varredura de CVE passou a barrar merge. Ver DEC-REL-001/002/003. |
 | REL-004 | Concluída | Claude | `infra/runbooks/deploy-rollback.md` | Ensaio executado em 2026-08-10: bloqueio de escrita medido migration a migration (`V100` = 143 ms) e retorno do artefato anterior contra o schema novo exercitado de verdade. Ambiente local, não cópia de produção — limitação registrada. Ver DEC-REL-006/009. |
@@ -572,8 +572,8 @@ parecendo completo. Cada linha nomeia a evidência mínima, incluindo as duas qu
 serem "o fluxo": um 403 com Problem Details e a tentativa de outra cervejaria.
 
 **O que continua aberto:** o ciclo em homologação, que depende do ambiente e de quem opera. E o manual
-registra na própria seção final que, sem ensaio de restauração (`DEC-REL-008`), **não há RPO nem RTO de
-dados medidos** — isso é informação operacional para quem for entrar em produção, não nota de rodapé.
+registra na própria seção final o estado da restauração — desde a `DEC-REL-011`, **o RTO está medido e o
+RPO não** — porque isso é informação operacional para quem for entrar em produção, não nota de rodapé.
 
 ### DEC-REL-007 (REL-002) — O gargalo era N+1, não payload; corrigidos os dois
 
@@ -624,6 +624,32 @@ pelo formato que eu esperava encontrar achou exatamente o que eu esperava — e 
 
 O E2E foi a única barreira que pegou o segundo caso. Um teste que atravessa a stack real vale por isso:
 ele não sabe quantos clientes existem, só sabe que a tela ficou vazia.
+
+### DEC-REL-011 (REL-001) — **2026-08-19**: o ensaio voltou, no formato reduzido
+
+**O que mudou.** A `DEC-REL-008` removeu o ensaio e deixou registrado que o documento de retenção e o
+repositório passavam a discordar. Em 2026-08-19 o ensaio foi reexecutado no **tamanho B** da
+`REL-001-PROPOSTA` — execução única, manual, com o roteiro versionado — e essa divergência fechou.
+
+**O que o ensaio provou.** Banco de 1.586 MB com 2M eventos de auditoria e 5,5M medições: `pg_dump` em
+54,6 s produzindo 611 MB, `pg_restore` numa cópia isolada em 44,6 s, **204 de 204 tabelas conferindo
+linha a linha**, e — a prova que as anteriores não dão — a **aplicação subindo contra a cópia** em 11,3 s
+e servindo 5.000 lotes por uma listagem paginada. Linhas restauradas não são banco utilizável; só o
+arranque do Flyway e uma leitura de verdade separam "o dump abriu" de "o sistema voltaria".
+
+**As duas lições da DEC-REL-008 foram usadas, não reaprendidas:** `COUNT(*)` exato via `query_to_xml` em
+vez de `n_live_tup` (que volta zerado num banco recém-restaurado e acusaria divergência em tudo), e
+ferramentas do PostgreSQL na mesma imagem do servidor.
+
+**Por que a história ainda não fecha.** A especificação pede "RPO/RTO medidos". O **RTO está medido**, sob
+condições declaradas por escrito no runbook. O **RPO não** — ele depende de frequência de backup,
+retenção e cópia fora do ambiente, e essa política não existe. Nenhum ensaio produz um RPO a partir de
+uma política ausente, e escrever um número ali seria inventar o controle em vez de tê-lo.
+
+**A limitação que não deve ser suavizada:** máquina de desenvolvimento, dados semeados pelo
+`seed-representative-dataset.sql`, não cópia de produção — porque produção não existe. Os tempos são
+ordem de grandeza e prova de procedimento, e o runbook diz isso na própria seção de resultados, não em
+nota de rodapé.
 
 ### DEC-REL-008 (REL-001) — O ensaio de restauração foi removido a pedido do mantenedor
 

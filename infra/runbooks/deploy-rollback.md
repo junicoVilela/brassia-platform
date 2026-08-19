@@ -13,7 +13,7 @@ Procedimento operacional para colocar uma versão em produção e para voltar qu
 
 | Item | Como conferir |
 |---|---|
-| Backup restaurável **de hoje** | Restauração ensaiada nas últimas 24 h. O ensaio é manual: não há script no repositório (ver DEC-REL-008) |
+| Backup restaurável **de hoje** | Restauração ensaiada nas últimas 24 h, pelo `restore-drill.md`. O ensaio é manual, e a conferência que vale é a de integridade — dump que abre sem erro não é backup íntegro |
 | Credencial do coletor de métricas | `/actuator/prometheus` passou a exigir autenticação (REL-003). Sem isso o painel fica cego **exatamente durante o deploy** |
 | Artefato imutável promovido | O mesmo artefato que passou em homologação. Rebuild entre ambientes invalida o teste |
 | Janela e responsável pela decisão de reverter | Nome, não papel. "A equipe decide" significa que ninguém decide às 3 h |
@@ -123,11 +123,16 @@ Quando não dá para voltar:
 
 Só quando houve **perda ou corrupção de dados** que a correção não alcança.
 
-Valide o backup numa cópia isolada **antes** de apontar produção para ele. Restaurar direto sobre
-produção um backup que não se sabe íntegro troca um incidente por dois.
+Valide o backup numa cópia isolada **antes** de apontar produção para ele — o procedimento inteiro está
+em `restore-drill.md`, com a conferência de integridade que separa "o dump abriu" de "o backup está
+íntegro". Restaurar direto sobre produção um backup que não se sabe íntegro troca um incidente por dois.
 
 Custo real: tudo que entrou entre o backup e o incidente **se perde** — é a definição do RPO. Decisão de
 pessoa nomeada, nunca automática.
+
+**Ordem de grandeza do tempo** (execução de 2026-08-19, banco de 1,5 GB em máquina de desenvolvimento):
+restauração 45 s, aplicação de pé 11 s depois. Produção tem outro volume e outro disco — o número serve
+para dimensionar a decisão, não para prometer a janela.
 
 ---
 
@@ -192,8 +197,8 @@ que se observa depois dele, e evita concluir que "o rollback deixou o sistema le
 **O que este ensaio não mediu**, e continua em aberto:
 
 - **Volume e hardware de produção.** Contêiner local com dataset sintético. Os tempos escalam com a tabela,
-  e o número que vale é o da cópia restaurada — que depende do ensaio de restauração (`REL-001`,
-  fora de escopo por DEC-REL-008).
+  e o número que vale é o da cópia restaurada — o ensaio de restauração existe agora em
+  `restore-drill.md`, mas rodou sob a mesma limitação: máquina de desenvolvimento, dados semeados.
 - **Concorrência real.** A sonda é uma escrita por vez. Em produção há dezenas, e uma fila que se forma
   atrás do lock demora mais para drenar do que o lock durou.
 - **O rollback sob carga.** O artefato anterior subiu com o banco ocioso.

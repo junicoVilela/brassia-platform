@@ -1,5 +1,21 @@
 # REL-001 — proposta de reabertura em formato reduzido
 
+> **DESFECHO (2026-08-19): o tamanho B foi executado.** O ensaio rodou, o procedimento funciona de ponta
+> a ponta, e o runbook está em `infra/runbooks/restore-drill.md` com os números e as condições no fim.
+>
+> **O que mudou:** a divergência entre `docs/21_DATA_RETENTION_BACKUP.md` — que afirma que backup sem
+> teste de restauração não é controle válido — e a realidade deixou de existir. A resposta a "o
+> procedimento de restauração funciona?" passou de *ninguém nunca tentou* para *funciona; foi executado
+> em tal data, nestas condições, e leva desta ordem de grandeza*.
+>
+> **O que continua aberto, e é o motivo de a REL-001 não fechar como especificada:** o **RPO** não foi
+> medido, porque depende de política de backup que ainda não existe; e o RTO foi medido em máquina de
+> desenvolvimento com dados semeados, não em cópia de produção. A especificação pede "RPO/RTO medidos;
+> procedimento reproduzível e auditado" — o procedimento está reproduzível e auditado, o RTO está
+> medido sob condições declaradas, o RPO não está.
+>
+> O texto abaixo é o que foi decidido a partir daqui, preservado como estava.
+
 **Situação.** A história está fora de escopo desde a `DEC-REL-008`: `infra/backup/` saiu do repositório a
 pedido do mantenedor. A consequência foi registrada e não suavizada — **não há RPO nem RTO de dados
 medidos**, e `docs/21_DATA_RETENTION_BACKUP.md` continua afirmando que backup sem teste de restauração não

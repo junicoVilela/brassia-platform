@@ -8,8 +8,15 @@ expedida, na ordem em que o sistema aceita — e as portas que ele fecha quando 
 > mudança de layout. O que está aqui é a **sequência** e o **porquê de cada porta** — que é o que não se
 > descobre olhando a tela.
 
-O ciclo descrito abaixo é o mesmo exercitado de ponta a ponta por `e2e/tests/business-journey.spec.ts`.
-Quando manual e teste divergirem, o teste está certo: ele roda contra a API real a cada mudança.
+O núcleo descrito abaixo — do insumo recebido ao simulado de recall, seções 2.1 a 2.7 e 2.10 a 2.12 — é o
+mesmo exercitado de ponta a ponta por `e2e/tests/business-journey.spec.ts`. Quando manual e teste
+divergirem, o teste está certo: ele roda contra a API real a cada mudança.
+
+> **As seções 2.8 (venda) e 2.9 (retornáveis) ainda não têm esse contrapeso.** Elas estão cobertas por
+> testes de domínio, de integração e de store, mas **nenhuma jornada E2E as percorre pela tela** — e os
+> planos de teste das Sprints 19 e 20 pedem uma para cada. Enquanto isso não existir, o que está escrito
+> aqui sobre essas duas seções é descrição revisada contra o código, e não afirmação verificada a cada
+> mudança. Trate-as com mais atenção na homologação, não com menos.
 
 ---
 
@@ -27,6 +34,14 @@ frente, longe da causa.
 | 5 | `/catalog` — **Ingredientes** | Malte, lúpulo, levedura, embalagem | Com os atributos técnicos: sem potencial, cor, alfa-ácido e atenuação, a receita não calcula métrica nenhuma |
 | 6 | `/suppliers` — **Fornecedores** | Quem fornece | O recebimento exige fornecedor: é o primeiro elo da rastreabilidade, e sem ele o recall não sai da fábrica |
 | 7 | `/sanitation/procedures` — **POPs de limpeza** | O POP **publicado** | Ciclo de limpeza só executa procedimento publicado — rascunho não libera equipamento |
+
+**Se a casa vai vender pelo sistema** — e não apenas produzir —, mais três, na ordem:
+
+| # | Onde | O que | Por que antes |
+|---|---|---|---|
+| 8 | `/crm/customers` — **Clientes** | A organização compradora | Pedido pendura em cliente. O contato é a **pessoa**, e é ele que tem consentimento por finalidade e prazo de retenção — o cliente não se apaga, desativa-se, porque é o histórico de expedição que um recall percorre |
+| 9 | `/sales/catalog` — **Catálogo** | Produto, canal e **preço vigente** | Pedido sem preço no canal é recusado: "ainda não precificado" e "de graça" são opostos, e o sistema se recusa a supor qual dos dois você quis |
+| 10 | `/containers` — **Contêineres** | A frota, com etiqueta e **inspeção** | Só para quem opera keg, barril ou retornável. O vasilhame nasce **sem inspeção e não pode ser enchido** — tratar a ausência como aprovação deixaria a frota nova inteira fora de controle |
 
 ---
 
@@ -86,12 +101,65 @@ A tela mostra quantas unidades ainda estão **sem destino**. Registre a expediç
 quantidade. O que não foi expedido está na fábrica e não é objeto de recall — a distinção é o que faz o
 exercício de recall medir alguma coisa.
 
-### 2.8 Provar a cadeia — `/traceability/genealogy` (**Genealogia**)
+### 2.8 Vender — `/sales/orders` (**Pedidos**)
+
+A expedição de 2.7 é a saída física. O **pedido** é o compromisso comercial, e ele reserva lote: é por isso
+que um pedido consegue dizer, meses depois, qual cerveja foi prometida a quem — e é isso que um recall
+percorre para saber a quem avisar.
+
+O pedido recusa por motivos que **são regra, e não defeito**: produto sem preço no canal, lote sem saldo
+livre, entrega prometida para depois da validade do lote reservado, e **limite de crédito**.
+
+O teto de crédito vale nas **duas portas**, e elas se comportam de modo diferente de propósito. No portal do
+cliente (`/portal`) a recusa é definitiva — não há vendedor por perto para explicar. Na porta interna, quem
+tem `sales.order.credit_override` pode autorizar com **justificativa**, que fica registrada com nome e data
+e aparece no pedido. Não é recusa dura porque a alternativa real é pior: o vendedor cadastraria um teto
+maior "só por hoje" e esqueceria de voltar, e aí o limite deixaria de existir para sempre em vez de por um
+pedido.
+
+O **recebimento** entra no próprio pedido, e não numa tela de financeiro à parte: é o pagamento que libera o
+limite de crédito de volta. Estorno é evento compensatório com motivo, e não edição — os dois lançamentos
+ficam.
+
+### 2.9 Retornáveis — `/containers` e `/distribution/loads`
+
+**Só para quem opera keg, barril ou vasilhame retornável.** Quem envasa apenas em lata ou garrafa não
+retornável pula esta seção inteira; ela não é pré-requisito de nada acima.
+
+1. **Encher** — o vínculo com o lote é **evento, e não campo**: esvaziar fecha o período e não apaga. Um keg
+   vive anos e passa por dezenas de lotes, e é assim que a genealogia sobrevive a isso. Encher exige as três
+   coisas juntas: condição boa, estado vazio e inspeção válida.
+2. **Montar a carga** (`/distribution/loads`) — vasilhames, paradas, sequência e janela.
+3. **Liberar a carga** — **por outra pessoa**. `PLANNED` e `RELEASED` são estados diferentes porque entre um
+   e outro há alguém que não é quem montou: a conferência existe para encontrar o erro de quem montou, e
+   quem montou relê enxergando o que quis colocar. Reabrir uma carga liberada **derruba a conferência**.
+4. **Entregar e coletar** — são fatos **separados**: o motorista recolhe vazios onde não deixou nada, e às
+   vezes deixa sem recolher. A prova de entrega é append-only: corrige-se por evento compensatório que
+   aponta para o original, porque uma prova reescrita *parece* original e diz outra coisa.
+5. **Receber de volta** — o que voltou está **sujo até que alguém diga o contrário**. `RETURNED` não é
+   `EMPTY`: derivar disponibilidade da chegada encheria com cerveja um vasilhame que ninguém lavou.
+
+Assinatura e foto **não existem sem consentimento**, com finalidade escrita — e recusar assinar não trava a
+entrega. A coordenada é gravada com três casas (~100 m) porque a operação precisa saber se a entrega foi no
+lugar certo, e não montar o rastro diário de uma pessoa.
+
+Quem opera na rua usa `/scan`, que funciona **offline** e sincroniza com idempotência por aparelho. Conflito
+— o escritório já registrou aquela parada — **não se resolve sozinho**: fica numa fila que alguém olha, com
+o motivo. Último-a-escrever-ganha descartaria em silêncio o registro de quem estava lá.
+
+**Ler um código identifica, e não autoriza.** Um QR fotografado no bar não é credencial: quem escaneou
+continua precisando de alçada para mover, encher ou dar baixa.
+
+### 2.10 Provar a cadeia — `/traceability/genealogy` (**Genealogia**)
 
 Do insumo à expedição, nos dois sentidos. É a tela que responde "de onde veio" e "para onde foi" sem que
 ninguém precise montar planilha.
 
-### 2.9 Exercitar o recall — `/traceability/recall-drills` (**Simulados de recall**)
+O contêiner é **nó da genealogia**, e não atributo do lote: ele atravessa lotes, e pendurá-lo no lote
+responderia "onde este lote foi parar" sem nunca responder "o que este keg já teve dentro" — que é o
+caminho de um recall que começa numa reclamação de bar.
+
+### 2.11 Exercitar o recall — `/traceability/recall-drills` (**Simulados de recall**)
 
 Abra o simulado sobre o lote, registre quantas unidades foram localizadas, o resumo e as ações corretivas.
 O relatório devolve **percentual localizado** e o que fazer para melhorar.
@@ -99,7 +167,7 @@ O relatório devolve **percentual localizado** e o que fazer para melhorar.
 **Simulado não recolhe nada** e não abre recall de verdade. É exercício — e é o único jeito de descobrir que
 a rastreabilidade tem buraco antes do dia em que ela precisa funcionar.
 
-### 2.10 Fechar a conta — **Custo do lote**, **Planejado × real**, **Relatório do lote**
+### 2.12 Fechar a conta — **Custo do lote**, **Planejado × real**, **Relatório do lote**
 
 `/costing/batches`, `/costing/variance` e `/reporting/batches`. O custo só fecha depois do envase, porque é
 o envase que diz quantos litros viraram produto.
@@ -119,6 +187,13 @@ frequentes no primeiro ciclo:
 | Execução de envase recusada | Falta item do checklist ou a reserva | Checklist inteiro antes da reserva |
 | 403 em uma tela que existe | Permissão, não bug | `/security/users`; a permissão é do **tipo** de operação, não genérica |
 | Conflito ao salvar | Alguém alterou o mesmo registro antes | Recarregue e refaça: a versão otimista está protegendo a edição da outra pessoa |
+| Pedido recusado por preço | O produto não tem preço vigente naquele canal | `/sales/catalog`; "ainda não precificado" não é "de graça" |
+| Pedido acima do limite de crédito | O cliente já deve mais do que a casa decidiu carregar | Receba o que está em aberto, ou autorize com justificativa se tiver a alçada — a recusa traz teto, dívida e valor deste pedido |
+| Contêiner não pode ser enchido | Falta condição boa, estado vazio **ou** inspeção válida | A recusa diz qual das três; um keg que voltou está sujo até alguém higienizar e liberar |
+| Carga não libera | Quem está liberando é quem montou | Outra pessoa confere. A regra é do agregado, da alçada **e** do banco — não há caminho por fora |
+| Carga recusa um lote | O lote não foi liberado pela qualidade, ou entrou em quarentena | A saída da casa é quem cobra a assinatura; encher precede liberar, expedir não |
+| Sincronização volta `DUPLICATE` | O aparelho já tinha enviado aquilo | Não é erro: é a resposta que permite fechar o item na tela |
+| Sincronização volta em conflito | O escritório já registrou aquela parada | Alguém decide na fila de conflitos; o registro de quem estava na rua não é descartado sozinho |
 
 Todo erro traz `traceId`. Ele é o que localiza a operação no log — leve-o junto ao relatar problema.
 
@@ -138,12 +213,33 @@ muda é que **cada linha exige evidência anexada** — sem ela, "funcionou" é 
 - [ ] **Limpeza** — ciclo executado com medições e liberado
 - [ ] **Envase** — plano, checklist completo, reserva, execução; **lote de produto acabado gerado**
 - [ ] **Expedição** — com destino e quantidade; unidades sem destino conferem
+- [ ] **Pedido** — cliente, canal e preço vigente; pedido registrado com lote reservado
+- [ ] **Crédito** — um pedido acima do teto é **recusado no portal** e **autorizado com justificativa** na
+      porta interna; a justificativa aparece no pedido e na auditoria
+- [ ] **Recebimento** — pagamento registrado, e o limite de crédito volta a caber
 - [ ] **Genealogia** — cadeia visível do insumo à expedição
 - [ ] **Simulado de recall** — percentual localizado e ações corretivas registrados
 - [ ] **Custo e relatório do lote** — fecham com o que foi produzido
 - [ ] **Autorização** — uma operação tentada sem permissão retorna 403 com Problem Details
 - [ ] **Isolamento** — um usuário de outra cervejaria não enxerga este lote
 - [ ] **Bloqueadores** — nenhum aberto; o que sobrou tem identificador e critério de remoção
+
+**Só se a casa opera retornável** — pule inteiro se não houver keg, barril ou vasilhame que volta:
+
+- [ ] **Frota** — contêiner com etiqueta e inspeção válida; um vasilhame sem inspeção é recusado no
+      enchimento
+- [ ] **Enchimento** — vínculo ao lote registrado, com início do período
+- [ ] **Carga** — montada por uma pessoa e **liberada por outra**; a tentativa de liberar a própria carga é
+      recusada
+- [ ] **Entrega** — prova registrada; uma correção aponta para a original e diz o que estava errado
+- [ ] **Consentimento** — assinatura ou foto **recusada** não trava a entrega; a mídia não existe sem
+      finalidade escrita
+- [ ] **Coleta** — vasilhame recolhido volta como `RETURNED`, e só fica disponível depois de higienizado e
+      liberado
+- [ ] **Offline** — operação enviada duas vezes pelo aparelho volta `DUPLICATE` sem gravar de novo; parada
+      já registrada pelo escritório vira **conflito na fila**, e não sobrescrita
+- [ ] **Recall com contêiner** — o simulado localiza os **contêineres** do lote afetado, e não só as
+      unidades expedidas
 
 Evidência mínima por linha: identificador do objeto criado (lote, plano, simulado) e captura da tela que o
 mostra. Para 403 e isolamento, o corpo da resposta — é ele que prova qual regra recusou.
@@ -156,5 +252,8 @@ mostra. Para 403 e isolamento, o corpo da resposta — é ele que prova qual reg
 - **Restauração de backup** — não há ensaio no repositório (ver `DEC-REL-008` na Sprint 17). Enquanto não
   houver, **não há RPO nem RTO de dados medidos** — e isso é informação operacional, não detalhe.
 - **Módulos que não estão no caminho do primeiro lote** — água, sensorial, metrologia, gases, IA, sensores,
-  webhooks e os módulos de inteligência têm tela própria e não são pré-requisito do ciclo. Entram quando a
-  operação básica estiver de pé.
+  webhooks, previsão de demanda e os módulos de inteligência têm tela própria e não são pré-requisito do
+  ciclo. Entram quando a operação básica estiver de pé.
+- **Comunidade e colaboração** — biblioteca pública, link compartilhado, fork e moderação (`/community/*`)
+  ficam fora deliberadamente: eles colocam dado de cervejaria **fora** da cervejaria, e nada ali é
+  pré-requisito de produzir ou vender. Quem for habilitá-los decide isso depois, e com outra cabeça.

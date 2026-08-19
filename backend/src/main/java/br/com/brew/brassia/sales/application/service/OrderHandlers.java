@@ -71,7 +71,7 @@ public class OrderHandlers implements OrderCommands {
                 // esta requisição mandou motivo. O retry de rede não pode inventar uma exceção na
                 // trilha nem apagar a que ficou registrada da primeira vez.
                 return new PlacedOrder(existente.get().id(),
-                        existente.get().creditOverride().isPresent());
+                        existente.get().creditOverride().map(CreditOverride::reason));
             }
         }
         channels.find(breweryId, command.channelId())
@@ -119,7 +119,7 @@ public class OrderHandlers implements OrderCommands {
         events.publish(new SalesOrderPlaced(breweryId, order.id(), order.code(), order.customerId(),
                 order.channelId(), total.toMinorUnit(), total.currency(), order.placedOn(),
                 order.promisedFor().orElse(null), Instant.now()));
-        return new PlacedOrder(order.id(), override.isPresent());
+        return new PlacedOrder(order.id(), override.map(CreditOverride::reason));
     }
 
     /**

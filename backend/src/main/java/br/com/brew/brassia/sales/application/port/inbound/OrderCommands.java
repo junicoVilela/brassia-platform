@@ -2,6 +2,7 @@ package br.com.brew.brassia.sales.application.port.inbound;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /** O que se faz com pedido (SAL-002). */
@@ -18,13 +19,15 @@ public interface OrderCommands {
     /**
      * O que o pedido registrado precisa contar para fora.
      *
-     * @param creditOverrideApplied se a autorização acima do teto foi <strong>de fato usada</strong>. A
-     *                              auditoria precisa disto e não pode derivá-lo da presença do motivo na
-     *                              requisição: um pedido que cabia no limite não registra exceção
-     *                              nenhuma, e uma trilha que dissesse o contrário faria quem audita
-     *                              contar exceções que nunca aconteceram (SAL-004).
+     * @param creditOverrideReason o motivo <strong>como ficou gravado no pedido</strong>, vazio quando
+     *                             não houve exceção. A auditoria precisa dele inteiro, e não de um
+     *                             booleano acompanhado do texto da requisição: no reenvio idempotente as
+     *                             duas fontes divergem — o pedido guardado carrega a autorização, e a
+     *                             requisição repetida pode vir sem motivo nenhum ou com outro. Ler o
+     *                             texto de lá gravaria na trilha uma justificativa que ninguém autorizou,
+     *                             ou quebraria o reenvio com um nulo (SAL-004).
      */
-    record PlacedOrder(UUID id, boolean creditOverrideApplied) {}
+    record PlacedOrder(UUID id, Optional<String> creditOverrideReason) {}
 
     void cancel(UUID breweryId, UUID actorId, UUID orderId);
 

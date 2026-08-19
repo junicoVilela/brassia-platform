@@ -511,6 +511,14 @@ um **agregado sobre várias linhas** — a soma dos pedidos em aberto menos os r
 valor em outra tabela. Não há índice único nem `CHECK` que expresse isso; exigiria lock explícito por
 cliente (`SELECT ... FOR UPDATE` na linha do crédito) ou uma coluna de saldo materializada.
 
+**A janela ficou MAIOR com a `DEB-SAL-005`, e isso precisa estar dito.** Mover a conferência para antes
+das reservas foi o conserto certo para o estoque, mas afastou a leitura do comprometido do `insert`: ela
+agora acontece antes de toda a ida e volta de reserva FEFO, inclusive do laço que baixa a quantidade de
+um em um. O que se ganhou em não prender estoque, pagou-se em exposição a esta corrida. Foi uma troca
+consciente — prender a linha mais disputada do inventário acontece em todo pedido recusado; a corrida
+exige simultaneidade no mesmo cliente — mas não é um empate, e registrar só a metade boa seria o mesmo
+tipo de texto que a `DEB-SAL-005` corrigiu.
+
 **Por que não é urgente.** Furar o teto exige duas vendas simultâneas para o **mesmo cliente**, na janela
 entre a leitura e o commit. O dano é comercial e recuperável — o limite existe para gerir risco de
 crédito, não para impedir fraude —, e o excesso aparece na próxima conferência.

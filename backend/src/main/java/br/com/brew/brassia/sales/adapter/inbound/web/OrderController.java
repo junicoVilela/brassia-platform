@@ -97,13 +97,20 @@ final class OrderController {
         // A exceção ao teto vai na auditoria com o motivo: é o registro que permite ao dono perguntar
         // depois por que aquele cliente passou do limite.
         //
-        // O QUE DECIDE É O QUE ACONTECEU, e não o que a requisição pediu. Um motivo enviado num pedido
-        // que acabou cabendo no teto não vira exceção em lugar nenhum — nem no pedido, nem aqui. Ler a
-        // presença do campo faria a trilha contar exceções que nunca houve, que é exatamente o registro
-        // que o agregado se recusa a criar.
-        var detalhes = placed.creditOverrideApplied()
-                ? Map.of("code", request.code(), "creditOverrideReason", request.creditOverrideReason())
-                : Map.of("code", request.code());
+        // TUDO VEM DO PEDIDO GRAVADO — a decisão E o texto —, e nada da requisição. Duas razões, e a
+        // segunda só apareceu quando o dado foi lido pela metade:
+        //
+        // 1. Um motivo enviado num pedido que acabou cabendo no teto não vira exceção em lugar nenhum.
+        //    Ler a presença do campo faria a trilha contar exceções que nunca houve — exatamente o
+        //    registro que o agregado se recusa a criar.
+        // 2. No reenvio idempotente as duas fontes divergem: o pedido carrega a autorização da primeira
+        //    vez, e a repetição pode vir sem motivo, ou com outro. Decidir pelo pedido e escrever o texto
+        //    da requisição gravaria `null` num `Map.of` — que o recusa — derrubando com 500 um reenvio
+        //    que deveria só devolver o pedido que já existe; ou gravaria na trilha uma justificativa que
+        //    ninguém autorizou.
+        var detalhes = placed.creditOverrideReason()
+                .map(motivo -> Map.of("code", request.code(), "creditOverrideReason", motivo))
+                .orElseGet(() -> Map.of("code", request.code()));
         audit.record(AuditEvent.success(brewery, principal.userId(), "sales.order.place", "sales.order",
                 placed.id().toString(), detalhes));
         return Map.of("id", placed.id());

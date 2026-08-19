@@ -202,6 +202,46 @@ class OrderCreditIT extends CommercialTestSupport {
         assertQueAuditoriaTem("boleto compensa hoje");
     }
 
+    @Test
+    void oReenvioDoPedidoAutorizadoNaoQuebraNemReescreveATrilha() throws Exception {
+        // O reenvio devolve o pedido que já existe — e a auditoria dele lê o que ESTÁ GRAVADO. Quando a
+        // decisão vinha do pedido e o texto da requisição, um reenvio sem motivo montava um `Map.of` com
+        // `null` e derrubava com 500 o que deveria ser a resposta mais simples do sistema.
+        var session = login();
+        var cena = cenaVendavel(session);
+        teto(session, cena, "200.00");
+        pedido(session, cena, 10, null).andExpect(status().isCreated());
+
+        var chave = UUID.randomUUID().toString();
+        var corpo = scenario.orderBody(cena, cena.channelId(), 10, null, "boleto compensa hoje");
+        var primeiro = idOf(mockMvc.perform(post(ORDERS).session(session).with(csrf())
+                        .header("Idempotency-Key", chave)
+                        .contentType("application/json").content(corpo))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        // O mesmo corpo, SEM motivo, com a mesma chave: é o retry de rede.
+        var semMotivo = scenario.orderBody(cena, cena.channelId(), 10, null, null);
+        var reenviado = idOf(mockMvc.perform(post(ORDERS).session(session).with(csrf())
+                        .header("Idempotency-Key", chave)
+                        .contentType("application/json").content(semMotivo))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        org.assertj.core.api.Assertions.assertThat(reenviado)
+                .as("o reenvio devolve o mesmo pedido").isEqualTo(primeiro);
+
+        // A asserção é sobre o CONTEÚDO, e não sobre quantas vezes o reenvio audita: toda entrada deste
+        // pedido carrega o motivo que foi de fato autorizado. Uma entrada sem ele significaria que a
+        // trilha leu a requisição repetida em vez do pedido gravado.
+        var doPedido = jdbc.sql("SELECT count(*) FROM audit_event WHERE action = 'sales.order.place'"
+                        + " AND target_id = :id").param("id", primeiro).query(Integer.class).single();
+        var comMotivo = jdbc.sql("SELECT count(*) FROM audit_event WHERE action = 'sales.order.place'"
+                        + " AND target_id = :id AND change_summary::text LIKE '%boleto compensa hoje%'")
+                .param("id", primeiro).query(Integer.class).single();
+        org.assertj.core.api.Assertions.assertThat(comMotivo)
+                .as("nenhuma entrada deste pedido pode perder a autorização registrada")
+                .isEqualTo(doPedido).isPositive();
+    }
+
     private void assertQueAuditoriaTem(String motivo) {
         var achou = jdbc.sql("SELECT count(*) FROM audit_event WHERE action = 'sales.order.place'"
                         + " AND change_summary::text LIKE '%' || :motivo || '%'")

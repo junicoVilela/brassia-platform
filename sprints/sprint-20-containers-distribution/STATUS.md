@@ -437,6 +437,47 @@ até um passar, e era exatamente isso que acontecia.
 
 **Entregue:** `e2e/tests/distribution-journey.spec.ts`, o `bootstrap-checker`, e os dois stores corrigidos.
 Ver PR #267.
+### DEB-CON-003 (2026-08-19) — Dois furos altos no `container`, corrigidos; oito registrados
+
+**Como apareceram.** Uma passada de `/code-review` sobre o módulo inteiro — não sobre um diff, porque a
+sprint já estava encerrada. Dez achados. Os dois altos furavam decisões que esta sprint declara por
+escrito, o que os torna mais graves que o tamanho do código sugere.
+
+**ALTO 1 — o vasilhame baixado voltava a ser emprestado.** `lend` carregava o contêiner só para compor a
+mensagem de erro e nunca olhava `isRetired()`. A perda encerra o empréstimo *e* baixa o keg, então
+`openLoanOf` volta vazio e a checagem de "já emprestado" não pega nada: um segundo `POST /loans` passava,
+**cobrando uma segunda caução por um bem que a casa declarou perdido**. A `DEC-CON-004` diz que perda não
+é baixa e que a volta ao inventário exige ato explícito; `assignIdentifier` já guardava exatamente isso
+("etiquetar um vasilhame baixado colocaria de volta em circulação o que saiu dela") e `lend` não.
+Corrigido com a mesma guarda. O caminho legítimo continua sendo a recuperação.
+
+**ALTO 2 — lote que não resolve era embarcado.** `ContainerShippingService` fazia
+`statusOf(...).orElse(null)` e depois `shippable = blocker == null`: status ausente virava **`true` sem
+impedimento nenhum**. O método que existe para cobrar a assinatura da qualidade liberava a saída
+justamente quando não sabia se ela existia. `FillHandlers` tratava o mesmo silêncio como erro — as duas
+pontas discordavam, e a que errava era a da saída. Agora ausência é bloqueio `lot_not_found`.
+
+**O teste de contraponto pagou o próprio custo na hora.** A primeira versão do conserto usava
+`Optional.map` devolvendo `null`, que o `Optional` transforma em `empty` — então o lote **liberado**
+também caía no bloqueio. O teste que existia só para provar que o serviço não bloqueia tudo falhou, e o
+conserto virou dois ramos explícitos. Um teste que só verifica o caminho que se quer consertar não
+distingue "consertado" de "quebrado para todo lado".
+
+**Os oito restantes ficam registrados, com o que cada um custa:**
+
+| # | O que | Efeito |
+|---|---|---|
+| 1 | `JdbcContainerRepository` incrementa `version` mas nunca o confere no `WHERE` | Atualização perdida em silêncio: condenar e despachar ao mesmo tempo devolve um keg que está no caminhão para "no depósito". Todo outro módulo do repo usa `AND version = :version` |
+| 2 | `empty` fecha o período mas não move o estado | Keg esvaziado na fábrica fica preso em `FILLED`: não pode ser enchido nem liberado. O `ContainerFillIT` contorna forjando uma viagem inteira ao cliente, o que também fabrica histórico de posição |
+| 3 | `recover()` zera a condição para `GOOD` | Um keg avariado, perdido e reaparecido volta como bom — ninguém consertou nada, e a `DEC-CON-004` diz que quem volta é o que "ninguém olhou" |
+| 4 | `definePolicy` devolve `UUID` novo, mas o `ON CONFLICT` mantém o id existente | O segundo `PUT` responde `201` com um id que não existe, e a auditoria de uma permissão **crítica** aponta para linha nenhuma |
+| 5 | `apply()` grava posição em toda mutação, não só em movimento | Inspeção e avaria num keg no cliente reiniciam o relógio de permanência — que é o número da fila de atrasados da CON-003 |
+| 6 | `retireIdentifier` não confere se achou algo | Etiqueta inexistente, já aposentada ou de outra cervejaria devolve `204` e grava auditoria de sucesso |
+| 7 | Lote desconhecido no `fill` vira `container_not_found` | Diz ao operador que o keg na mão dele não existe, quando o problema é o lote — as duas exceções existem justamente para não confundir isso |
+| 8 | Caução abaixo de um centavo | `0.004` passa no `isPositive()` de `Money` (4 casas) e estoura o `CHECK` da coluna `NUMERIC(12,2)`: **500** em vez de 400, e `0.006` grava caução diferente da cotada |
+
+**Critério de remoção comum:** cada um fecha com um teste que exercite o caminho descrito. O #1 é o mais
+urgente dos oito — é perda silenciosa de escrita, e o padrão correto já existe em cinco outros módulos.
 
 ### O que esta sprint ensinou, e que vale carregar
 

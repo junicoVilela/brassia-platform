@@ -7,6 +7,7 @@ import br.com.brew.brassia.shared.money.Money;
 import br.com.brew.brassia.container.application.port.outbound.ContainerRepository;
 import br.com.brew.brassia.container.application.port.outbound.LoanRepository;
 import br.com.brew.brassia.container.domain.ContainerLoan;
+import br.com.brew.brassia.container.domain.ContainerRetiredException;
 import br.com.brew.brassia.container.domain.LoanNotAllowedException;
 import br.com.brew.brassia.container.domain.SanitationRecord;
 import br.com.brew.brassia.container.domain.UnknownContainerException;
@@ -43,6 +44,14 @@ public class LoanHandlers {
             LocalDate dueOn, Money deposit) {
         var container = containers.find(breweryId, containerId)
                 .orElseThrow(() -> new UnknownContainerException(containerId));
+        if (container.isRetired()) {
+            // Emprestar um vasilhame baixado o põe de volta em circulação pela porta dos fundos — e
+            // cobra uma SEGUNDA caução por um bem que a casa já declarou perdido ou descartado. A baixa
+            // fecha o empréstimo que existia, então `openLoanOf` volta vazio e a checagem seguinte não
+            // pega nada. O caminho legítimo de voltar a emprestar é a recuperação (CON-003), que traz o
+            // vasilhame de volta ao inventário por ato explícito.
+            throw new ContainerRetiredException();
+        }
         loans.openLoanOf(breweryId, containerId).ifPresent(aberto -> {
             throw LoanNotAllowedException.alreadyLent(container.code());
         });

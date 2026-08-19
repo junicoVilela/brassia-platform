@@ -9593,7 +9593,11 @@ paths:
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
         '409':
-          description: '`loan_not_allowed` com `reasonCode`: `already_lent`.'
+          description: >-
+            `loan_not_allowed` com `reasonCode`: `already_lent`. · `container_retired` quando o
+            vasilhame foi baixado — perdido ou descartado. Emprestá-lo o poria de volta em circulação e
+            cobraria uma segunda caução por um bem que a casa já deu como fora do inventário; o caminho
+            de volta é a recuperação, e não um empréstimo novo.
           content:
             application/problem+json:
               schema: {$ref: '#/components/schemas/Problem'}
@@ -10081,7 +10085,10 @@ paths:
         '409':
           description: >-
             `container_not_shippable` com `reasonCode`: `container_empty`, `wrong_state`,
-            `not_released`, `expired`, `quarantined`, `shelf_life_unknown` ou `already_loaded`. ·
+            `not_released`, `expired`, `quarantined`, `shelf_life_unknown`, `lot_not_found` ou
+            `already_loaded`. **`lot_not_found`** é o lote de dentro do vasilhame não resolver: sem ele
+            não há como saber se a qualidade liberou, e não saber bloqueia — a saída não pode tratar
+            silêncio como liberação. ·
             `load_capacity_exceeded`, com `excessLiters` — quanto passou, e não só que passou. ·
             `illegal_load_transition` quando a carga já está liberada.
           content:

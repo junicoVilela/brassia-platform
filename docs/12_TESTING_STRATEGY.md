@@ -31,3 +31,36 @@ A regra:
 - **Relógio injetado quando o teste precisa viajar no tempo.** `FrequencySweepIT` constrói o serviço com
   `Clock.fixed(now + 5h)` em vez de esperar cinco horas ou adulterar a data no banco — adulterar o banco
   testaria um estado que o sistema nunca produz.
+
+## Mock inventado concorda com o defeito
+
+Um dublê escrito a partir da **leitura do código** — e não da resposta que a stack devolve — não testa
+nada: ele reproduz a suposição de quem escreveu o código, e por construção concorda com ela. Quando a
+suposição está errada, o teste fica verde sobre um defeito.
+
+Já aconteceu duas vezes, com o mesmo formato. O `problemDetailsInterceptor` desembrulha o corpo do erro:
+`code`, `detail` e as extensões chegam ao `error:` do subscribe no **primeiro nível**. Ler `e.error?.code`
+devolve `undefined` sem erro de compilação, a tela cai calada na mensagem genérica, e o mock — escrito
+como `{ error: { code } }` — concorda. A `TRC-001` corrigiu sete stores assim; três sprints depois havia
+outros oito, e quem pegou foi de novo o E2E contra a stack real.
+
+A regra:
+
+- **O dublê copia a resposta real, e não o que se imagina dela.** Quando não se sabe qual é, a forma
+  barata de descobrir é uma chamada de verdade — um IT, ou o próprio E2E.
+- **O TestBed monta o que a aplicação monta.** Um spec que registra `provideHttpClient()` sem os
+  interceptors da aplicação exercita uma cadeia que não existe em lugar nenhum, e o que ele garante não
+  vale para nenhum usuário.
+- **O que só a stack real prova, prove na stack real.** Contrato de erro, formatação de locale e o que a
+  tela mostra depois de uma recusa não sobrevivem a dublê: nos três, o teste de unidade e o defeito
+  cabem confortavelmente juntos.
+
+## O plano de testes é conferido antes de encerrar
+
+Duas sprints foram declaradas entregues com um item do próprio `TEST_PLAN.md` por fazer — o E2E da
+jornada comercial (`DEB-SAL-004`) e o do ciclo de retornáveis (`DEB-LOG-002`). Nos dois casos havia
+cobertura de domínio, de integração e de store, e a ausência não apareceu em lugar nenhum: nem no
+STATUS, nem no aceite.
+
+Encerrar uma sprint inclui reler o plano de testes dela linha a linha. O que não foi feito vira débito
+com identificador, e não silêncio — porque um item que some do registro não volta por conta própria.

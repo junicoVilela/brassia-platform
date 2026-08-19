@@ -1,6 +1,7 @@
 package br.com.brew.brassia.container.adapter.inbound.web;
 
 import br.com.brew.brassia.container.domain.ContainerNotFillableException;
+import br.com.brew.brassia.container.domain.ContainerModifiedException;
 import br.com.brew.brassia.container.domain.ContainerRetiredException;
 import br.com.brew.brassia.container.domain.DuplicateIdentifierException;
 import br.com.brew.brassia.container.domain.FillNotAllowedException;
@@ -35,6 +36,18 @@ class ContainerExceptionHandler {
         var problem = ProblemDetails.of(HttpStatus.CONFLICT, "container_not_fillable", ex.getMessage());
         problem.setProperty("reasonCode", ex.reasonCode());
         return problem;
+    }
+
+    /**
+     * 409: o mesmo vasilhame foi alterado por outra operação (DEB-CON-003).
+     *
+     * <p>É a recusa que o manual mínimo já promete ao operador — "recarregue e refaça: a versão otimista
+     * está protegendo a edição da outra pessoa". Antes desta correção a escrita passava por cima em
+     * silêncio, e a promessa valia para todo módulo do sistema menos este.
+     */
+    @ExceptionHandler(ContainerModifiedException.class)
+    ProblemDetail handleModified(ContainerModifiedException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, "container_modified", ex.getMessage());
     }
 
     /** 409, e não 500: baixado é um estado legítimo do mundo, e a tela precisa poder dizer isso. */

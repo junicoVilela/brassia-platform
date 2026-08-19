@@ -108,7 +108,9 @@ class ContainerShippingServiceTest {
         public void save(Container container) {}
 
         @Override
-        public void update(Container container) {}
+        public boolean update(Container container) {
+            return true;
+        }
 
         @Override
         public List<Container> list(UUID breweryId, String state) {

@@ -9594,7 +9594,9 @@ paths:
         '404': {$ref: '#/components/responses/Problem'}
         '409':
           description: >-
-            `loan_not_allowed` com `reasonCode`: `already_lent`. · `container_retired` quando o
+            `loan_not_allowed` com `reasonCode`: `already_lent`. · `container_modified` quando outra
+            operação alterou o mesmo vasilhame entre a leitura e a escrita — recarregue e refaça. ·
+            `container_retired` quando o
             vasilhame foi baixado — perdido ou descartado. Emprestá-lo o poria de volta em circulação e
             cobraria uma segunda caução por um bem que a casa já deu como fora do inventário; o caminho
             de volta é a recuperação, e não um empréstimo novo.

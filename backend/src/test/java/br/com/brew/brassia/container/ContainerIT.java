@@ -56,6 +56,9 @@ class ContainerIT {
     @Autowired
     JdbcClient jdbc;
 
+    @Autowired
+    br.com.brew.brassia.container.application.port.outbound.ContainerRepository containers;
+
     BrewScenario cenario;
 
     MockMvc mockMvc;
@@ -345,6 +348,43 @@ class ContainerIT {
                         .content("{\"value\":\"%s\",\"technology\":\"%s\"}".formatted(valor, tech)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         return JSON.readTree(corpo).get("id").asText();
+    }
+
+    @Test
+    void aEscritaRecusaGravarPorCimaDeOutraOperacao() throws Exception {
+        // DEB-CON-003 #1. A coluna `version` já era incrementada, mas nunca conferida no WHERE: duas
+        // operações que lessem o mesmo keg gravavam uma por cima da outra em silêncio. O caso concreto
+        // é despachar e condenar ao mesmo tempo — a segunda escrita devolvia ao depósito um vasilhame
+        // que já estava no caminhão.
+        //
+        // O teste vive no repositório, e não na API, porque é lá que a garantia mora: pela porta HTTP o
+        // caso de uso relê o vasilhame antes de gravar, então envelhecer a linha por fora não simula
+        // nada. O que se reproduz aqui é a única coisa que importa — alguém escreveu ENTRE a leitura
+        // desta operação e a escrita dela.
+        var session = login();
+        var keg = registra(session);
+        var id = UUID.fromString(keg);
+        var brewery = breweryOf(keg);
+
+        // A leitura desta operação.
+        var lido = containers.find(brewery, id).orElseThrow();
+
+        // A outra operação, que passa no meio e commita primeiro.
+        var outra = containers.find(brewery, id).orElseThrow();
+        outra.markDamaged();
+        org.assertj.core.api.Assertions.assertThat(containers.update(outra))
+                .as("a primeira escrita grava normalmente").isTrue();
+
+        // Agora a nossa: a versão que ela leu não existe mais.
+        lido.sendToMaintenance();
+        org.assertj.core.api.Assertions.assertThat(containers.update(lido))
+                .as("gravar sobre uma versão que mudou tem de ser recusado, e não silencioso").isFalse();
+
+        // E o que ficou no banco é o da outra operação, inteiro — não uma mistura das duas.
+        var estado = jdbc.sql("SELECT state FROM container WHERE id = :id")
+                .param("id", id).query(String.class).single();
+        org.assertj.core.api.Assertions.assertThat(estado)
+                .as("a escrita recusada não pode ter gravado metade").isEqualTo("EMPTY");
     }
 
     private String registra(MockHttpSession session) throws Exception {

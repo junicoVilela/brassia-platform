@@ -216,6 +216,23 @@ class ContainerTest {
     }
 
     @Test
+    void oPerdidoAvariadoVoltaAVARIADO() {
+        // DEB-CON-003 #3. A volta zerava a condição para GOOD, e um keg que sumiu com uma avaria
+        // reaparecia como se alguém o tivesse consertado. Ninguém consertou nada: ele estava no depósito
+        // de um cliente esse tempo todo. Quem conserta é a oficina, e `returnFromMaintenance` é que
+        // registra isso.
+        var c = kegInspecionado();
+        c.markDamaged();
+        c.declareLost("sumiu com o bar", HOJE);
+
+        c.recover("apareceu no inventário do cliente", HOJE);
+
+        assertThat(c.condition()).isEqualTo(ContainerCondition.DAMAGED);
+        // E a consequência que importa: avariado não recebe cerveja, tenha ele sumido ou não.
+        assertThat(c.fillableAt(HOJE)).isFalse();
+    }
+
+    @Test
     void oDescartadoNaoReaparece() {
         // "Descartei" não pode virar reversível — é justamente a distinção que a CON-003 construiu entre
         // o keg que sumiu e o que foi para o ferro-velho.

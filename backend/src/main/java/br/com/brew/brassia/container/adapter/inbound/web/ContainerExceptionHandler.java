@@ -8,6 +8,7 @@ import br.com.brew.brassia.container.domain.FillNotAllowedException;
 import br.com.brew.brassia.container.domain.IllegalContainerTransitionException;
 import br.com.brew.brassia.container.domain.LoanNotAllowedException;
 import br.com.brew.brassia.container.domain.UnknownContainerException;
+import br.com.brew.brassia.container.domain.UnknownIdentifierException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -23,6 +24,12 @@ class ContainerExceptionHandler {
     @ExceptionHandler(UnknownContainerException.class)
     ProblemDetail handleUnknown(UnknownContainerException ex) {
         return ProblemDetails.of(HttpStatus.NOT_FOUND, "container_not_found", ex.getMessage());
+    }
+
+    /** 404 da ETIQUETA, que não é o mesmo 404 do vasilhame (DEB-CON-003 #6). */
+    @ExceptionHandler(UnknownIdentifierException.class)
+    ProblemDetail handleUnknownIdentifier(UnknownIdentifierException ex) {
+        return ProblemDetails.of(HttpStatus.NOT_FOUND, "identifier_not_found", ex.getMessage());
     }
 
     /**

@@ -498,9 +498,38 @@ e o handler, mais **3 ITs novos** — a recusa por crédito antes de qualquer re
 o mesmo pedido entra depois de o teto sair do caminho), a moeda incompatível, e a auditoria registrando a
 exceção que aconteceu e não a que foi pedida.
 
-### DEB-SAL-006 (SAL-004) — A conferência do teto não tem garantia no banco
+### DEB-SAL-006 (SAL-004) — **RESOLVIDO em 2026-08-22**
 
-**O que não está garantido.** `conferirCredito` lê o comprometido e escreve o pedido sem lock nem
+**O que foi feito.** `place` passou a travar a linha do cliente em `sales_customer_credit` com
+`SELECT ... FOR UPDATE` antes de ler o comprometido — `PortalAccessRepository.lockCreditOf`, ao lado do
+`creditOf` comum, que continua servindo a leitura do portal. A segunda venda para o mesmo cliente espera
+a primeira commitar e relê o comprometido já com ela dentro.
+
+**Trava o teto, e não os pedidos.** A linha de crédito é uma por cliente e quase nunca escrita, então ela
+serve de ponto de encontro barato: quem vende para clientes diferentes não espera ninguém. Travar linhas
+de pedido não resolveria — a corrida é sobre um pedido que ainda não existe, e não há o que travar. Sem
+linha de teto não há trava, e está certo: cliente sem limite cadastrado não tem invariante a proteger.
+
+**`FOR UPDATE` sem `NOWAIT`.** Recusar de imediato com "tente de novo" devolveria ao vendedor um erro que
+não é dele, num caso em que a espera é de milissegundos. A ordem das travas — crédito antes de estoque —
+é a mesma nas duas portas, então não há ciclo.
+
+**O defeito foi reproduzido antes do conserto.** Com a chamada trocada de volta para `creditOf`, o teste
+novo devolveu `["aceita", "aceita"]` — as duas vendas passaram e o cliente terminou 40% acima do teto sem
+nenhum `credit_override` registrado. Com a trava, `["aceita", "recusada"]`, e o comprometido gravado é
+exatamente 120,00. O IT roda pelo **serviço**, e não pelo MockMvc: o que precisa correr de verdade são
+duas transações, e em série o teste passaria mesmo com o defeito no lugar.
+
+**A revisão correu antes de isto ser declarado pronto**, que é o portão novo do `docs/17_SPRINT_WORKFLOW.md`
+sendo usado pela primeira vez. Ela achou três coisas, todas corrigidas aqui: `invokeAll` sem prazo, que
+faria uma regressão na trava travar o job inteiro em vez de falhar com nome; o SQL do teto duplicado entre
+`creditOf` e `lockCreditOf`, que deixaria o dia em que a tabela ganhar uma coluna passar com só um dos dois
+atualizado; e uma segunda afirmação de que o teto "só é cobrado no caminho do portal", falsa desde a
+SAL-004 e a poucas linhas da que este mesmo diff já tinha corrigido.
+
+**O que estava registrado quando o débito foi aberto** — mantido porque explica a escolha:
+
+**O que não estava garantido.** `conferirCredito` lê o comprometido e escreve o pedido sem lock nem
 `CHECK`. Sob `READ COMMITTED`, duas chamadas simultâneas para o mesmo cliente leem o comprometido antes
 de qualquer uma commitar, ambas concluem que cabe, e o cliente termina acima do teto **sem nenhum
 `credit_override` registrado** — que é pior que furar o limite com autorização, porque não deixa rastro.
@@ -526,7 +555,8 @@ crédito, não para impedir fraude —, e o excesso aparece na próxima conferê
 **Critério de remoção:** lock por cliente na linha de `sales_customer_credit` durante o `place`, ou saldo
 materializado com `CHECK`. Fecha quando duas requisições concorrentes para o mesmo cliente, com teto que
 comporta só uma, resultarem em uma aceita e uma recusada — com teste que exercite a concorrência de
-verdade, e não em série.
+verdade, e não em série. **Cumprido pelo lock; o teste é
+`OrderCreditIT#duasVendasSimultaneasParaOMesmoClienteNaoFuramOTetoJuntas`.**
 
 ### DEB-SAL-003 — **RESOLVIDO em 2026-08-18**
 

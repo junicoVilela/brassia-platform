@@ -59,14 +59,39 @@ class JdbcPortalAccessRepository implements PortalAccessRepository {
                 .optional();
     }
 
+    private static final String CREDITO = """
+            SELECT ceiling_amount, currency FROM sales_customer_credit
+            WHERE brewery_id = :brewery AND customer_id = :customer
+            """;
+
     @Override
     public CreditLimit creditOf(UUID breweryId, UUID customerId) {
-        // Ausência de linha vira CreditLimit.none(), e não vazio: "sem limite" é um estado da política,
-        // e o comportamento seguro vira o padrão em vez de uma checagem esquecível.
-        return jdbc.sql("""
-                SELECT ceiling_amount, currency FROM sales_customer_credit
-                WHERE brewery_id = :brewery AND customer_id = :customer
-                """)
+        return leTeto(CREDITO, breweryId, customerId);
+    }
+
+    @Override
+    public CreditLimit lockCreditOf(UUID breweryId, UUID customerId) {
+        // `FOR UPDATE` sem `NOWAIT`: a segunda venda para o mesmo cliente ESPERA a primeira commitar e
+        // então relê o comprometido já com ela dentro. Recusar de imediato com "tente de novo" seria
+        // devolver ao vendedor um erro que não é dele, num caso em que a espera é de milissegundos.
+        //
+        // Sem linha não há trava — e não há o que proteger: cliente sem teto cadastrado não tem limite
+        // para furar. `creditOf` devolveria o mesmo `CreditLimit.none()`.
+        return leTeto(CREDITO + "FOR UPDATE\n", breweryId, customerId);
+    }
+
+    /**
+     * A leitura do teto, uma só vez.
+     *
+     * <p>As duas versões diferem apenas pelo `FOR UPDATE`. Duplicá-las deixaria o dia em que o teto ganhar
+     * uma coluna — vigência, moeda por canal — passar com só uma delas atualizada: a tela do portal
+     * mostraria o limite novo e a conferência da venda continuaria cobrando o antigo, calada.
+     *
+     * <p>Ausência de linha vira {@link CreditLimit#none()}, e não vazio: "sem limite" é um estado da
+     * política, e o comportamento seguro vira o padrão em vez de uma checagem esquecível.
+     */
+    private CreditLimit leTeto(String sql, UUID breweryId, UUID customerId) {
+        return jdbc.sql(sql)
                 .param("brewery", breweryId).param("customer", customerId)
                 .query((rs, row) -> CreditLimit.of(
                         new Money(rs.getBigDecimal("ceiling_amount"), rs.getString("currency"))))

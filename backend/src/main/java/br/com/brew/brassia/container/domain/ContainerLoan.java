@@ -58,6 +58,15 @@ public final class ContainerLoan {
             // somaria no relatório de valores retidos como se houvesse dinheiro parado.
             throw new IllegalArgumentException("a caução deve ser positiva");
         }
+        if (deposit != null && deposit.toMinorUnit().compareTo(deposit.amount()) != 0) {
+            // CAUÇÃO SE COBRA EM CENTAVOS (DEB-CON-003 #8). `Money` guarda quatro casas — existem para o
+            // preço unitário de uma tampa não sumir no arredondamento —, mas caução é dinheiro que entra
+            // e sai do caixa, e a coluna tem duas. Sem esta guarda, 0,004 passava no `isPositive()`,
+            // virava 0,00 na gravação e estourava o CHECK da coluna: 500 no lugar de 400. Pior, 0,006
+            // gravava 0,01 — caução diferente da que foi cotada ao cliente, e ninguém saberia.
+            throw new IllegalArgumentException(
+                    "a caução se cobra em centavos: " + deposit + " tem fração de centavo");
+        }
         this.deposit = deposit;
         this.returnedAt = returnedAt;
         this.lostAt = lostAt;

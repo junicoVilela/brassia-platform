@@ -27,7 +27,14 @@ public interface LoanRepository {
 
     List<ContainerLoan> ofContainer(UUID breweryId, UUID containerId);
 
-    void savePolicy(InspectionPolicy policy);
+    /**
+     * Grava a política e devolve o id que <strong>sobreviveu</strong>.
+     *
+     * <p>A gravação é um upsert por cervejaria e tipo: quando já existe política, o id continua sendo o
+     * antigo, e o que veio no objeto é descartado. Devolver aqui é o que impede quem chama de anunciar um
+     * identificador que não existe (DEB-CON-003 #4).
+     */
+    UUID savePolicy(InspectionPolicy policy);
 
     /** A política do tipo, quando a casa cadastrou uma. Vazio é estado legítimo e comum. */
     Optional<InspectionPolicy> policyOf(UUID breweryId, ContainerKind kind);

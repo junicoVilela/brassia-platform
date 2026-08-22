@@ -130,6 +130,36 @@ public final class Container {
         this.state = ContainerState.FILLED;
     }
 
+    /**
+     * O conteúdo saiu do vasilhame (DEB-CON-003 #2).
+     *
+     * <p><strong>Esvaziar na fábrica move o keg; esvaziar na rua, não.</strong> Um keg que foi enchido e
+     * teve o conteúdo baixado sem sair daqui — descarte de lote, envase interrompido, transferência —
+     * ficava preso em {@code FILLED}: não podia ser enchido de novo (o estado não é {@code EMPTY}) nem
+     * liberado ({@code releaseToStock} exige {@code RETURNED}). O único jeito de tirá-lo de lá era forjar
+     * uma viagem inteira ao cliente, que é o que o próprio {@code ContainerFillIT} fazia — e isso fabrica
+     * histórico de posição que nunca aconteceu.
+     *
+     * <p><strong>Vai para {@code RETURNED}, e não para {@code EMPTY}.</strong> Um vasilhame que teve
+     * cerveja dentro está sujo, tenha ele viajado ou não. Mandá-lo direto para a enchedeira é exatamente
+     * o que a distinção entre os dois estados existe para impedir.
+     *
+     * <p>Nos outros estados não faz nada de propósito: o keg esvaziado no bar continua no bar, e mover o
+     * inventário por causa disso diria que ele voltou quando ninguém o buscou.
+     *
+     * <p><strong>E não recusa o baixado</strong>, ao contrário das outras mutações. Um keg pode ser
+     * baixado ou dado como perdido estando cheio — {@code retire} só barra quem está na rua, e
+     * {@code declareLost} não barra ninguém —, e o conteúdo dele continua precisando ser fechado no
+     * histórico. Recusar aqui desfaria o fechamento do período junto com a transação, e o vínculo com
+     * aquele lote ficaria aberto para sempre. O estado terminal já basta como guarda: {@code RETIRED}
+     * nunca é {@code FILLED}, então o vasilhame baixado não se move de qualquer forma.
+     */
+    public void emptyContents() {
+        if (state == ContainerState.FILLED) {
+            this.state = ContainerState.RETURNED;
+        }
+    }
+
     public void dispatch() {
         transition(ContainerState.FILLED, ContainerState.IN_TRANSIT);
     }
@@ -230,6 +260,11 @@ public final class Container {
      * <p><strong>Só volta o que saiu por perda.</strong> Um contêiner descartado por avaria não
      * reaparece — ele foi para o ferro-velho, e permitir a volta faria "descartei" virar reversível, que
      * é justamente a distinção que a CON-003 construiu.
+     *
+     * <p><strong>A condição não volta a boa</strong> (DEB-CON-003 #3). Ela zerava para {@code GOOD}, e
+     * com isso um keg avariado, perdido e reaparecido voltava como se alguém o tivesse consertado.
+     * Ninguém consertou nada: ele estava no depósito de um cliente esse tempo todo. Quem conserta é a
+     * oficina, e é {@code returnFromMaintenance} que registra isso.
      */
     public void recover(String reason, Instant at) {
         if (state != ContainerState.RETIRED || retirementReason == null
@@ -245,7 +280,6 @@ public final class Container {
         // O motivo da baixa é preservado no histórico do empréstimo; aqui ele sai porque o vasilhame
         // deixou de estar baixado, e um contêiner ativo com motivo de baixa mente sobre o próprio estado.
         this.retirementReason = null;
-        this.condition = ContainerCondition.GOOD;
     }
 
     /** A versão lida — o que a escrita confere para não gravar por cima de outra operação. */

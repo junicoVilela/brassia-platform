@@ -65,6 +65,12 @@ class ContainerLoanIT {
     @BeforeEach
     void setUp() {
         mockMvc = webAppContextSetup(context).apply(springSecurity()).build();
+        // A CASA COMEÇA SEM POLÍTICA, EM TODO TESTE. A classe inteira entra pela mesma cervejaria — o
+        // login é sempre o mesmo administrador — e o banco é um só para todos os métodos. Três testes
+        // aqui cadastram periodicidade e nenhum levava a linha embora, então a afirmação central do
+        // DUV-CON-001 ("o sistema não traz número nenhum de fábrica") só valia enquanto o JUnit
+        // resolvesse rodar os métodos numa certa ordem. Limpar aqui é o que torna cada um independente.
+        jdbc.sql("DELETE FROM container_inspection_policy").update();
     }
 
     @Test
@@ -389,6 +395,35 @@ class ContainerLoanIT {
     }
 
     @Test
+    void redefinirAPeriodicidadeDevolveOIdQueEXISTE() throws Exception {
+        // DEB-CON-003 #4. A gravação é um upsert por cervejaria e tipo: o `ON CONFLICT` MANTÉM o id que
+        // já estava lá. A resposta devolvia o identificador recém-sorteado, que não corresponde a linha
+        // nenhuma — e a auditoria de uma permissão CRÍTICA apontava para o nada, que é justamente onde
+        // ela não pode apontar.
+        var session = login();
+
+        var primeiro = idOf(mockMvc.perform(put(BASE + "/inspection-policies").session(session)
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"kind\":\"KEG\",\"intervalMonths\":60,\"note\":\"norma da casa\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        var segundo = idOf(mockMvc.perform(put(BASE + "/inspection-policies").session(session)
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"kind\":\"KEG\",\"intervalMonths\":24,\"note\":\"revisada\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        org.assertj.core.api.Assertions.assertThat(segundo)
+                .as("a política é uma por tipo: redefinir mantém a linha, e o id dela")
+                .isEqualTo(primeiro);
+
+        // E a prova de que o id devolvido é o que está gravado, e não um que ninguém encontra:
+        mockMvc.perform(get(BASE + "/inspection-policies").session(session))
+                .andExpect(jsonPath("$.length()", is(1)))
+                .andExpect(jsonPath("$[0].id", is(segundo)))
+                .andExpect(jsonPath("$[0].intervalMonths", is(24)));
+    }
+
+    @Test
     void aPoliticaSugereAValidadeSemImpor() throws Exception {
         var session = login();
         var keg = registra(session);
@@ -452,6 +487,10 @@ class ContainerLoanIT {
                         .contentType("application/json")
                         .content(corpoEmprestimo(cliente, prazo, caucao)))
                 .andExpect(status().isCreated());
+    }
+
+    private static String idOf(String json) throws Exception {
+        return JSON.readTree(json).get("id").asText();
     }
 
     private static String corpoEmprestimo(String cliente, LocalDate prazo, String caucao) {

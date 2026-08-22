@@ -15,6 +15,7 @@ import br.com.brew.brassia.container.domain.IdentifierTechnology;
 import br.com.brew.brassia.container.domain.LocationKind;
 import br.com.brew.brassia.container.domain.Ownership;
 import br.com.brew.brassia.container.domain.UnknownContainerException;
+import br.com.brew.brassia.container.domain.UnknownIdentifierException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -57,9 +58,19 @@ public class ContainerHandlers {
         return identifier.id();
     }
 
+    /**
+     * Aposenta a etiqueta — e recusa quando não havia etiqueta para aposentar (DEB-CON-003 #6).
+     *
+     * <p>O `UPDATE` já filtrava por cervejaria e por "ainda não aposentada", mas ninguém olhava quantas
+     * linhas ele tinha tocado: uma etiqueta inexistente, já aposentada ou de outra cervejaria devolvia
+     * {@code 204} e gravava auditoria de sucesso. Quem conferisse a trilha depois leria uma aposentadoria
+     * que não existiu — e quem tentou aposentar a etiqueta errada acharia que tinha conseguido.
+     */
     @Transactional
     public void retireIdentifier(UUID breweryId, UUID identifierId) {
-        containers.retireIdentifier(breweryId, identifierId, Instant.now());
+        if (!containers.retireIdentifier(breweryId, identifierId, Instant.now())) {
+            throw new UnknownIdentifierException(identifierId);
+        }
     }
 
     @Transactional
@@ -160,6 +171,7 @@ public class ContainerHandlers {
 
     private void apply(UUID breweryId, UUID containerId, Consumer<Container> acao) {
         var container = require(breweryId, containerId);
+        var estadoAntes = container.state();
         acao.accept(container);
         if (!containers.update(container)) {
             // Alguém alterou o mesmo vasilhame entre a leitura e agora. Recusar é o certo: não há como
@@ -169,8 +181,15 @@ public class ContainerHandlers {
         }
         // A posição acompanha o ciclo sem ninguém digitar: o registro que depende de alguém lembrar é o
         // registro que falta justamente no dia em que o keg some.
-        posicaoDe(container.state()).ifPresent(kind ->
-                fills.locate(ContainerLocation.at(containerId, kind, null, Instant.now())));
+        //
+        // SÓ QUANDO O ESTADO MUDA (DEB-CON-003 #5). Antes disto toda escrita gravava posição, e inspecionar
+        // ou marcar avaria num keg que está no cliente criava uma linha nova dizendo "chegou no cliente
+        // agora" — reiniciando o relógio de permanência, que é o número da fila de atrasados da CON-003. O
+        // keg não se moveu; alguém só escreveu sobre ele.
+        if (container.state() != estadoAntes) {
+            posicaoDe(container.state()).ifPresent(kind ->
+                    fills.locate(ContainerLocation.at(containerId, kind, null, Instant.now())));
+        }
     }
 
     /**

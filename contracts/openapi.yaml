@@ -9255,6 +9255,12 @@ paths:
         **Aposentar não apaga.** O registro de que aquele valor um dia apontou para este contêiner é o que
         permite entender uma leitura antiga. O valor pode voltar a viver depois, em outro vasilhame — o
         índice único é parcial de propósito, e o que ele proíbe é o mesmo código em dois vínculos vivos.
+
+
+        **Aposentar o que não existe é `404`, e não `204`.** Etiqueta inexistente, já aposentada ou de
+        outra cervejaria recebem a mesma recusa, sem distinção — distingui-las diria a quem tenta quais
+        etiquetas existem na casa ao lado. O código é `identifier_not_found`, e não `container_not_found`:
+        o que não foi encontrado é o adesivo, e o vasilhame pode estar ótimo.
       parameters:
         - name: identifierId
           in: path
@@ -9263,6 +9269,12 @@ paths:
       responses:
         '204': {description: Aposentada}
         '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: >-
+            `identifier_not_found` — não há etiqueta ativa desta cervejaria com esse identificador.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
   /containers/{id}/inspections:
     post:
       tags: [Contêineres]
@@ -9416,9 +9428,13 @@ paths:
         '404': {$ref: '#/components/responses/Problem'}
         '409':
           description: >-
-            `fill_not_allowed` com `reasonCode`: `already_full`, `over_capacity`, `content_required`, ou o
-            código do impedimento do lote (`expired`, `quarantined`). · `container_not_fillable` quando o
-            problema é o vasilhame.
+            `fill_not_allowed` com `reasonCode`: `already_full`, `over_capacity`, `content_required`,
+            `lot_not_found`, ou o código do impedimento do lote (`expired`, `quarantined`). ·
+            `container_not_fillable` quando o problema é o vasilhame. · `container_modified` quando outra
+            operação alterou o vasilhame entre a leitura e a escrita.
+            **`lot_not_found`** é o lote informado não existir: a recusa é do CONTEÚDO, e não do
+            vasilhame — antes ela vinha como `404 container_not_found` e mandava o operador procurar um
+            keg que está ótimo, quando o errado era o número que ele digitou.
           content:
             application/problem+json:
               schema: {$ref: '#/components/schemas/Problem'}
@@ -9436,6 +9452,13 @@ paths:
         fábrica, descarte de lote reprovado. **A coleta já esvazia sozinha** — o que volta do cliente volta
         vazio, e o registro que depende de alguém lembrar é o que falta justamente no dia em que o keg
         some.
+
+
+        **E o vasilhame acompanha.** O keg que estava `FILLED` passa a `RETURNED` — sujo, esperando alguém
+        declarar que está limpo. Ele teve cerveja dentro, tenha viajado ou não, e mandá-lo direto para a
+        enchedeira é o que a distinção entre `RETURNED` e `EMPTY` existe para impedir. Quem foi esvaziado
+        na rua (`AT_CUSTOMER`, `IN_TRANSIT`) **não se move**: o conteúdo saiu, o keg continua onde está,
+        e dizer que ele voltou seria inventar uma coleta que ninguém fez.
       parameters:
         - name: id
           in: path
@@ -9445,6 +9468,13 @@ paths:
         '204': {description: Período fechado}
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: >-
+            `container_modified` — outra operação alterou o vasilhame entre a leitura e a escrita;
+            recarregue e refaça.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
   /containers/{id}/locations:
     get:
       tags: [Contêineres]
@@ -9578,7 +9608,15 @@ paths:
                   maxLength: 160
                   description: 'Congelado: renomear o cliente não reescreve o comprovante de caução que ele tem na mão.'
                 dueOn: {type: string, format: date}
-                depositAmount: {type: number, format: double, nullable: true}
+                depositAmount:
+                  type: number
+                  format: double
+                  nullable: true
+                  description: >-
+                    **Em centavos, no máximo duas casas.** Caução é dinheiro que entra e sai do caixa;
+                    fração de centavo é recusada com `400`. `0.004` viraria `0.00` na gravação (caução
+                    que não é caução) e `0.006` viraria `0.01` — valor diferente do que foi cotado ao
+                    cliente, sem erro nenhum para avisar. Nulo é legítimo: nem toda casa cobra caução.
                 depositCurrency: {type: string, minLength: 3, maxLength: 3, nullable: true}
       responses:
         '201':
@@ -9697,6 +9735,29 @@ paths:
           in: path
           required: true
           schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: >-
+                    "Apareceu" não basta: quem lê seis meses depois precisa saber se o bar reabriu, se
+                    estava no depósito do cliente, ou se voltou por engano de outra rota.
+      responses:
+        '204': {description: Recuperado}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: '`loan_not_allowed` com `reasonCode`: `no_lost_loan`.'
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
   /containers/inspection-policies:
     get:
       tags: [Contêineres]
@@ -9725,29 +9786,18 @@ paths:
 
         **Sem política nada afrouxa**: o vasilhame continua exigindo inspeção válida para ser enchido, e a
         data continua vindo de quem inspeciona. A ausência só deixa de sugerir.
+
+
+        **Redefinir mantém a linha que existe.** A política é uma por cervejaria e tipo: um segundo `PUT`
+        do mesmo tipo atualiza a que está lá, e o `id` devolvido é o **dela** — não um novo. Devolver um
+        identificador recém-criado faria a resposta e a auditoria de uma alçada crítica apontarem para
+        linha nenhuma.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [reason]
-              properties:
-                reason:
-                  type: string
-                  maxLength: 500
-                  description: >-
-                    "Apareceu" não basta: quem lê seis meses depois precisa saber se o bar reabriu, se
-                    estava no depósito do cliente, ou se voltou por engano de outra rota.
-      responses:
-        '204': {description: Recuperado}
-        '400': {$ref: '#/components/responses/Problem'}
-        '403': {$ref: '#/components/responses/Problem'}
-        '409':
-          description: '`loan_not_allowed` com `reasonCode`: `no_lost_loan`.'
-          content:
-            application/problem+json:
-              schema: {$ref: '#/components/schemas/Problem'}
               required: [kind, intervalMonths]
               properties:
                 kind: {type: string, enum: [KEG, CASK, GROWLER]}

@@ -216,6 +216,51 @@ class ContainerIT {
     }
 
     @Test
+    void aposentarEtiquetaQueNaoExisteRecusaEmVezDeFingirQueDeuCerto() throws Exception {
+        // DEB-CON-003 #6. O UPDATE já filtrava por cervejaria e por "ainda ativa" — a garantia estava
+        // lá —, mas ninguém olhava quantas linhas ele tinha tocado. Etiqueta inexistente, já aposentada
+        // ou da cervejaria vizinha devolvia 204 e gravava auditoria de SUCESSO: quem conferisse a trilha
+        // depois leria uma aposentadoria que não aconteceu.
+        var session = login();
+        var keg = registra(session);
+        var etiquetaId = etiqueta(session, keg, "QR-UNICA", "QR");
+
+        aposenta(session, etiquetaId).andExpect(status().isNoContent());
+
+        // A segunda vez não tem o que aposentar — e o 404 é da ETIQUETA, não do vasilhame, que está bem.
+        aposenta(session, etiquetaId).andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("identifier_not_found")));
+
+        // E uma que nunca existiu recebe a mesma recusa.
+        aposenta(session, UUID.randomUUID().toString()).andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("identifier_not_found")));
+    }
+
+    @Test
+    void aEtiquetaDeOutraCervejariaNaoSeAposentaDaqui() throws Exception {
+        // O mesmo 404, e de propósito indistinguível do "não existe": dizer "existe, mas não é sua"
+        // deixaria alguém mapear o inventário da casa ao lado uma tentativa por vez.
+        var session = login();
+        var keg = registra(session);
+        var etiquetaId = etiqueta(session, keg, "QR-ALHEIA", "QR");
+
+        var outra = principal(UUID.randomUUID(), Set.of("container.manage", "container.read"));
+        mockMvc.perform(post(BASE + "/identifiers/" + etiquetaId + "/retire")
+                        .with(authentication(outra)).with(csrf()))
+                .andExpect(status().isNotFound());
+
+        // E a etiqueta continua ativa para quem é dono dela.
+        mockMvc.perform(get(BASE + "/by-identifier").param("value", "QR-ALHEIA").session(session))
+                .andExpect(jsonPath("$.id", is(keg)));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions aposenta(MockHttpSession session,
+            String etiquetaId) throws Exception {
+        return mockMvc.perform(post(BASE + "/identifiers/" + etiquetaId + "/retire").session(session)
+                .with(csrf()));
+    }
+
+    @Test
     void oAvariadoNaoRecebeCervejaEAManutencaoODevolve() throws Exception {
         var session = login();
         var keg = registra(session);

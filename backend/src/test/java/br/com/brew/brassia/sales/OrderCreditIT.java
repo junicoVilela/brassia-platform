@@ -13,10 +13,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup;
 
+import br.com.brew.brassia.sales.application.port.inbound.OrderCommands;
+import br.com.brew.brassia.sales.domain.CreditLimitExceededException;
 import br.com.brew.brassia.support.BrewScenario;
 import br.com.brew.brassia.support.CommercialTestSupport;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +53,10 @@ class OrderCreditIT extends CommercialTestSupport {
 
     @Autowired
     WebApplicationContext context;
+
+    /** Para o teste de concorrência: o que precisa correr em paralelo são duas transações do serviço. */
+    @Autowired
+    OrderCommands orders;
 
     @BeforeEach
     void setUp() {
@@ -240,6 +252,90 @@ class OrderCreditIT extends CommercialTestSupport {
         org.assertj.core.api.Assertions.assertThat(comMotivo)
                 .as("nenhuma entrada deste pedido pode perder a autorização registrada")
                 .isEqualTo(doPedido).isPositive();
+    }
+
+    @Test
+    void duasVendasSimultaneasParaOMesmoClienteNaoFuramOTetoJuntas() throws Exception {
+        // DEB-SAL-006. A conferência lê o comprometido e escreve o pedido; sob READ COMMITTED, duas
+        // chamadas simultâneas para o mesmo cliente liam ZERO as duas, ambas concluíam que cabia, e o
+        // cliente terminava acima do teto SEM NENHUM credit_override registrado — que é pior que furar o
+        // limite com autorização, porque não deixa rastro para ninguém conferir depois.
+        //
+        // O teste roda pelo SERVIÇO, e não pelo MockMvc: o que precisa correr de verdade são duas
+        // transações, e é o serviço que as abre. Em série este teste passaria mesmo com o defeito no
+        // lugar — foi por isso que o critério de remoção do débito exigiu concorrência de verdade.
+        var session = login();
+        var cena = cenaVendavel(session);
+        teto(session, cena, "200.00");
+        var brewery = breweryDoCliente(cena);
+
+        // 10 unidades custam 120,00: uma cabe no teto de 200,00, as duas juntas não.
+        var largada = new CyclicBarrier(2);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            // Com prazo: `invokeAll` sem ele espera para sempre. O banco não tem `lock_timeout`, então
+            // uma regressão que prendesse uma das transações na trava travaria o job inteiro em vez de
+            // falhar aqui, com nome, dizendo o que aconteceu.
+            var tentativas = executor.invokeAll(List.of(
+                    tentaVender(brewery, cena, largada), tentaVender(brewery, cena, largada)),
+                    30, TimeUnit.SECONDS);
+            var desfechos = new ArrayList<String>();
+            for (var t : tentativas) {
+                // `invokeAll` com prazo só devolve futuros encerrados: quem estourou o prazo vem
+                // cancelado, e `get` acusa na hora em vez de esperar de novo.
+                desfechos.add(t.get());
+            }
+
+            org.assertj.core.api.Assertions.assertThat(desfechos)
+                    .as("uma venda entra e a outra é recusada — nunca as duas")
+                    .containsExactlyInAnyOrder("aceita", "recusada");
+        } finally {
+            executor.shutdownNow();
+        }
+
+        // A prova independente do desfecho relatado: o cliente terminou dentro do teto. Se as duas
+        // tivessem passado, o comprometido seria 240,00.
+        var comprometido = jdbc.sql("""
+                SELECT COALESCE(SUM(l.quantity * l.unit_amount), 0)
+                FROM sales_order o
+                JOIN sales_order_line l ON l.order_id = o.id
+                WHERE o.customer_id = :customer AND o.status = 'PLACED'
+                """)
+                .param("customer", UUID.fromString(cena.customerId()))
+                .query(java.math.BigDecimal.class).single();
+        org.assertj.core.api.Assertions.assertThat(comprometido)
+                .as("o comprometido não pode passar do teto sem autorização registrada")
+                .isEqualByComparingTo("120.00");
+    }
+
+    /**
+     * Uma tentativa de venda que espera a outra na barreira antes de começar.
+     *
+     * <p>A barreira não garante que as duas leiam o comprometido no mesmo instante — nada garante isso.
+     * Ela aproxima o suficiente para que, sem a trava, as duas leiam zero; foi assim que o defeito foi
+     * reproduzido antes do conserto.
+     */
+    private Callable<String> tentaVender(UUID brewery, BrewScenario.SalesScene cena,
+            CyclicBarrier largada) {
+        return () -> {
+            largada.await(30, TimeUnit.SECONDS);
+            try {
+                orders.place(brewery, UUID.randomUUID(), new OrderCommands.PlaceOrder(
+                        "PED-" + UUID.randomUUID().toString().substring(0, 8),
+                        UUID.fromString(cena.customerId()), UUID.fromString(cena.channelId()),
+                        List.of(new OrderCommands.OrderItem(UUID.fromString(cena.productId()), 10)),
+                        null, null, null, null));
+                return "aceita";
+            } catch (CreditLimitExceededException e) {
+                return "recusada";
+            }
+        };
+    }
+
+    private UUID breweryDoCliente(BrewScenario.SalesScene cena) {
+        return jdbc.sql("SELECT brewery_id FROM sales_customer_credit WHERE customer_id = :customer")
+                .param("customer", UUID.fromString(cena.customerId()))
+                .query(UUID.class).single();
     }
 
     private void assertQueAuditoriaTem(String motivo) {

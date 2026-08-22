@@ -139,7 +139,12 @@ public class OrderHandlers implements OrderCommands {
      */
     private Optional<CreditOverride> conferirCredito(UUID breweryId, UUID actorId, PlaceOrder command,
             Money total) {
-        var limite = credit.creditOf(breweryId, command.customerId());
+        // TRAVA A LINHA DO CLIENTE ANTES DE LER O COMPROMETIDO (DEB-SAL-006). Sem isto, duas vendas
+        // simultâneas para o mesmo cliente liam o comprometido antes de qualquer uma commitar e ambas
+        // concluíam que cabia — e o excesso não deixava nem o rastro que uma autorização deixaria. A
+        // janela ficou maior quando a conferência passou a acontecer antes das reservas (DEB-SAL-005):
+        // entre a leitura e o insert passou a caber a ida e volta inteira do FEFO.
+        var limite = credit.lockCreditOf(breweryId, command.customerId());
         if (!limite.isDefined()) {
             // Sem teto tudo cabe: não recusar por falta de decisão é reversível.
             return Optional.empty();

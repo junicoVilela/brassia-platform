@@ -138,8 +138,9 @@ public abstract class CommercialTestSupport {
      * identificador inventado da primeira versão do teste do portal. É a garantia funcionando: um
      * vínculo de portal para um usuário que não existe seria uma porta aberta para ninguém.
      *
-     * <p>Mora aqui porque o limite de crédito só é cobrado no caminho do portal, e quem testa baixa de
-     * pagamento (DEB-SAL-002) precisa exatamente do mesmo cliente entrando pela mesma porta.
+     * <p>Mora aqui porque quem testa baixa de pagamento (DEB-SAL-002) precisa exatamente do mesmo cliente
+     * entrando pela mesma porta. <strong>O teto de crédito não é mais exclusividade do portal</strong>: a
+     * SAL-004 passou a cobrá-lo também na porta interna, e a `OrderCreditIT` é quem prova.
      */
     protected Authentication portalUser(MockHttpSession session, String clienteId, String canalId)
             throws Exception {
@@ -164,7 +165,7 @@ public abstract class CommercialTestSupport {
                 + "\",\"quantity\":" + quantidade + "}]}";
     }
 
-    /** O pedido pela porta do cliente — a única em que o teto de crédito é cobrado. */
+    /** O pedido pela porta do cliente. Desde a SAL-004 o teto vale nas duas portas, não só nesta. */
     protected ResultActions pedidoPortal(Authentication portal, BrewScenario.SalesScene cena,
             int quantidade) throws Exception {
         return mockMvc.perform(post("/api/v1/portal/orders").with(authentication(portal)).with(csrf())

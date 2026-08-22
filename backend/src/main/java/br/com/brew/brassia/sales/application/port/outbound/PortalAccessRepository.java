@@ -21,6 +21,32 @@ public interface PortalAccessRepository {
 
     CreditLimit creditOf(UUID breweryId, UUID customerId);
 
+    /**
+     * O mesmo teto, <strong>com a linha do cliente travada até o commit</strong> (DEB-SAL-006).
+     *
+     * <p><strong>Por que existe uma segunda leitura.</strong> O teto compara um agregado sobre várias
+     * linhas — a soma dos pedidos em aberto menos os recebimentos — contra um valor em outra tabela. Não
+     * há índice único nem {@code CHECK} que expresse isso, então a invariante que atravessa linhas não
+     * cabe no formato que esta casa usa em todo o resto. O que sobra é serializar por cliente: sob
+     * {@code READ COMMITTED}, duas vendas simultâneas para o mesmo cliente liam o comprometido antes de
+     * qualquer uma commitar, ambas concluíam que cabia, e o cliente terminava acima do teto <em>sem
+     * nenhum {@code credit_override} registrado</em> — pior que furar o limite com autorização, porque
+     * não deixava rastro.
+     *
+     * <p><strong>Trava o teto, e não os pedidos.</strong> A linha de {@code sales_customer_credit} é uma
+     * por cliente e quase nunca escrita, então ela serve de ponto de encontro barato: quem vende para
+     * clientes diferentes não espera ninguém. Travar as linhas de pedido não resolveria — a corrida é
+     * sobre um pedido que <em>ainda não existe</em>, e não há o que travar.
+     *
+     * <p><strong>Sem linha, sem trava, e está certo.</strong> Cliente sem teto cadastrado não tem
+     * invariante a proteger: tudo cabe, e não há corrida possível. Quem chama deve tratar o
+     * {@link CreditLimit} indefinido antes de olhar qualquer valor.
+     *
+     * <p>Só vale dentro de transação — fora dela o banco solta a trava no fim da consulta, e a chamada
+     * vira a leitura comum com um custo a mais.
+     */
+    CreditLimit lockCreditOf(UUID breweryId, UUID customerId);
+
     void setCredit(UUID breweryId, UUID customerId, java.math.BigDecimal ceiling, String currency,
             UUID actorId);
 

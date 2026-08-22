@@ -41,4 +41,7 @@
 - Migration Flyway idempotente no histórico e testada em banco limpo.
 - Autorização negativa e isolamento entre cervejarias testados.
 - Auditoria, métricas e logs estruturados para comandos críticos.
+- Jornada E2E pedida pelo `TEST_PLAN.md` da sprint escrita e passando, e revisão de código corrida sobre o
+  diff da história — ambas **antes** de escrever "Concluída". O portão está em `docs/17_SPRINT_WORKFLOW.md`;
+  o que não couber vira "Parcial" com pendência nomeada, não conclusão otimista.
 - Relatório final com arquivos alterados, testes executados, riscos e pendências.

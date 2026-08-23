@@ -46,17 +46,19 @@ sem evidência citada não é aceite — é opinião.
       acontece **sem** assinatura (`aEntregaAconteceSemAssinatura`): exigir o dado pessoal para operar o
       transformaria em obrigatório na prática.
 
-- [ ] **Simulado localiza todos os contêineres de um lote afetado.**
-      **Aberto, e a lacuna é nomeada.** `RecallIT#abrirRecallListaOsDestinos` prova que o recall alcança
-      `FINISHED_LOT` e `SHIPMENT`, e `ContainerFillIT#oEnchimentoEntraNaGenealogia` prova que o
-      enchimento entra na genealogia. **O que não existe é o teste que liga as duas pontas**: um recall
-      aberto sobre um lote e a lista dos vasilhames que o carregaram saindo no escopo. É exatamente a
-      pergunta que o keg responde e a caixa responde diferente — o mesmo vasilhame carregou outro lote no
-      mês seguinte, e o recall precisa alcançar o do período certo.
-      **Como fechar:** um IT que enche dois kegs com o lote afetado, abre o recall e afirma que os dois
-      aparecem no escopo com `node.type = CONTAINER` — e que um terceiro keg, enchido com outro lote, não
-      aparece. O contraponto é o que distingue "achou" de "listou tudo".
+- [x] **Simulado localiza todos os contêineres de um lote afetado.**
+      `RecallIT#oSimuladoAlcancaOsConteineresDoLote` (23/08) — dois kegs cheios do lote afetado saem no
+      escopo com `node.type = CONTAINER` e pelos seus identificadores, e **um terceiro keg, cheio de outro
+      lote, não sai**. O contraponto é o que distingue "achou" de "listou tudo": sem ele, um escopo que
+      devolvesse o inventário inteiro passaria no teste — e mandaria a operação recolher cerveja boa.
+      **Ficou aberto por um dia, e era teste, não funcionalidade.** `ContainerLineageSource.descendantsOf`
+      já ia do lote para os vasilhames desde a CON-002, e o recall já andava para a frente. As duas pontas
+      é que nunca tinham sido ligadas numa asserção: o dossiê provava alcançar expedição, e não keg.
+      Verificado contra a versão sem a aresta — com `descendantsOf` devolvendo vazio, o escopo traz
+      `PACKAGING_PLAN`, `PACKAGING_RUN` e `FINISHED_LOT`, e o teste falha.
 
 ## Débitos desta sprint
 
 `DEB-LOG-002` e `DEB-CON-003` (dois furos altos e os oito achados) — todos fechados. Ver `STATUS.md`.
+
+**A sprint 20 fecha com os sete itens marcados e a evidência de cada um citada pelo nome.**

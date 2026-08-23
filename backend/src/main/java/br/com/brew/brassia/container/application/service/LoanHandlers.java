@@ -111,14 +111,19 @@ public class LoanHandlers {
         containerHandlers.recover(breweryId, containerId, reason);
     }
 
-    /** A casa define a periodicidade; o sistema nunca a inventa (DUV-CON-001). */
+    /**
+     * A casa define a periodicidade; o sistema nunca a inventa (DUV-CON-001).
+     *
+     * <p>Devolve o id <strong>gravado</strong>, e não o sorteado: redefinir a política de um tipo que já
+     * tem uma mantém a linha existente, e anunciar o sorteado faria a resposta e a auditoria apontarem
+     * para um identificador que não existe (DEB-CON-003 #4).
+     */
     @Transactional
     public UUID definePolicy(UUID breweryId, ContainerKind kind, int intervalMonths, String note,
             UUID actor) {
         var policy = new InspectionPolicy(UUID.randomUUID(), breweryId, kind, intervalMonths, note,
                 actor);
-        loans.savePolicy(policy);
-        return policy.id();
+        return loans.savePolicy(policy);
     }
 
     @Transactional(readOnly = true)

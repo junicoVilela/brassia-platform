@@ -437,7 +437,7 @@ até um passar, e era exatamente isso que acontecia.
 
 **Entregue:** `e2e/tests/distribution-journey.spec.ts`, o `bootstrap-checker`, e os dois stores corrigidos.
 Ver PR #267.
-### DEB-CON-003 (2026-08-19) — Dois furos altos no `container`, corrigidos; oito registrados
+### DEB-CON-003 (2026-08-19) — **ENCERRADO em 2026-08-22**: dois furos altos e os oito achados, todos fechados
 
 **Como apareceram.** Uma passada de `/code-review` sobre o módulo inteiro — não sobre um diff, porque a
 sprint já estava encerrada. Dez achados. Os dois altos furavam decisões que esta sprint declara por
@@ -468,17 +468,82 @@ distingue "consertado" de "quebrado para todo lado".
 | # | O que | Efeito |
 |---|---|---|
 | 1 | ~~`version` incrementado e nunca conferido~~ | **RESOLVIDO em 2026-08-19** — ver abaixo |
-| 2 | `empty` fecha o período mas não move o estado | Keg esvaziado na fábrica fica preso em `FILLED`: não pode ser enchido nem liberado. O `ContainerFillIT` contorna forjando uma viagem inteira ao cliente, o que também fabrica histórico de posição |
-| 3 | `recover()` zera a condição para `GOOD` | Um keg avariado, perdido e reaparecido volta como bom — ninguém consertou nada, e a `DEC-CON-004` diz que quem volta é o que "ninguém olhou" |
-| 4 | `definePolicy` devolve `UUID` novo, mas o `ON CONFLICT` mantém o id existente | O segundo `PUT` responde `201` com um id que não existe, e a auditoria de uma permissão **crítica** aponta para linha nenhuma |
-| 5 | `apply()` grava posição em toda mutação, não só em movimento | Inspeção e avaria num keg no cliente reiniciam o relógio de permanência — que é o número da fila de atrasados da CON-003 |
-| 6 | `retireIdentifier` não confere se achou algo | Etiqueta inexistente, já aposentada ou de outra cervejaria devolve `204` e grava auditoria de sucesso |
-| 7 | Lote desconhecido no `fill` vira `container_not_found` | Diz ao operador que o keg na mão dele não existe, quando o problema é o lote — as duas exceções existem justamente para não confundir isso |
-| 8 | Caução abaixo de um centavo | `0.004` passa no `isPositive()` de `Money` (4 casas) e estoura o `CHECK` da coluna `NUMERIC(12,2)`: **500** em vez de 400, e `0.006` grava caução diferente da cotada |
+| 2 | ~~`empty` fecha o período mas não move o estado~~ | **RESOLVIDO em 2026-08-22** — ver abaixo |
+| 3 | ~~`recover()` zera a condição para `GOOD`~~ | **RESOLVIDO em 2026-08-22** |
+| 4 | ~~`definePolicy` devolve `UUID` novo, mas o `ON CONFLICT` mantém o id existente~~ | **RESOLVIDO em 2026-08-22** |
+| 5 | ~~`apply()` grava posição em toda mutação, não só em movimento~~ | **RESOLVIDO em 2026-08-22** |
+| 6 | ~~`retireIdentifier` não confere se achou algo~~ | **RESOLVIDO em 2026-08-22** |
+| 7 | ~~Lote desconhecido no `fill` vira `container_not_found`~~ | **RESOLVIDO em 2026-08-22** |
+| 8 | ~~Caução abaixo de um centavo~~ | **RESOLVIDO em 2026-08-22** |
 
-**Critério de remoção comum:** cada um fecha com um teste que exercite o caminho descrito. O #1 era o
-mais urgente dos oito — perda silenciosa de escrita — e **foi resolvido**; os sete restantes seguem
-abertos.
+**Critério de remoção comum:** cada um fecha com um teste que exercite o caminho descrito. O #1 foi
+resolvido em 2026-08-19 e **os sete restantes em 2026-08-22** — a tabela acima ficou inteira riscada, e o
+débito está encerrado.
+
+#### Os sete, resolvidos (2026-08-22)
+
+**#2 — esvaziar move o vasilhame.** `Container.emptyContents()` leva o keg de `FILLED` para `RETURNED`, e
+`FillHandlers.empty` grava a mudança. Vai para `RETURNED`, e não `EMPTY`, porque um vasilhame que teve
+cerveja dentro está sujo tenha ele viajado ou não — mandá-lo direto para a enchedeira é o que a distinção
+entre os dois estados existe para impedir. Quem foi esvaziado na rua não se move: o conteúdo saiu, o keg
+continua no bar, e dizer que ele voltou inventaria uma coleta que ninguém fez. **A fixture encolheu de
+quatro linhas para uma**: o `volta(...)` do `ContainerFillIT` forjava `IN_TRANSIT → AT_CUSTOMER →
+RETURNED → EMPTY` só para destravar o keg, e o teste novo confere que o histórico de posição fica vazio —
+o vasilhame não se moveu, e agora ninguém finge que sim.
+
+**#3 — a condição não volta a boa.** `recover()` deixou de zerar para `GOOD`. Um keg que sumiu avariado
+reaparecia consertado, e ninguém consertou nada: ele estava no depósito de um cliente esse tempo todo.
+Quem conserta é a oficina, e é `returnFromMaintenance` que registra isso.
+
+**#4 — o id devolvido é o que existe.** `savePolicy` ganhou `RETURNING id`, e a porta passou a devolver
+`UUID`. O `ON CONFLICT` mantém a linha antiga, então o identificador sorteado no serviço morria ali — e a
+resposta e a auditoria de uma alçada **crítica** apontavam para linha nenhuma.
+
+**#5 — posição só quando o estado muda.** `apply` compara o estado antes e depois. Inspecionar ou marcar
+avaria num keg que está no cliente gravava "chegou agora" e zerava o relógio de permanência, que é o
+número da fila de atrasados da CON-003. O keg não se moveu; alguém só escreveu sobre ele.
+
+**#6 — aposentar o que não existe é 404.** O `UPDATE` já filtrava por cervejaria e por "ainda ativa"; o
+que faltava era olhar quantas linhas ele tocou. E o 404 é da **etiqueta**
+(`identifier_not_found`), não do vasilhame: dizer `container_not_found` mandaria procurar um keg que está
+ótimo. Os três casos — inexistente, já aposentada, de outra cervejaria — recebem a mesma recusa de
+propósito, porque distingui-los deixaria alguém mapear o inventário da casa ao lado uma tentativa por vez.
+
+**#7 — lote desconhecido é recusa do conteúdo.** Virou `fill_not_allowed` com `reasonCode`
+`lot_not_found`, o mesmo código que a saída já usava. As duas famílias de recusa existem justamente para
+não mandar o operador trocar a coisa errada.
+
+**#8 — caução se cobra em centavos.** O empréstimo recusa fração de centavo. A regra vive no
+**empréstimo**, e não no `Money`: as quatro casas existem para o preço unitário de uma tampa não sumir no
+arredondamento, e proibi-las no tipo quebraria vendas para consertar contêineres. O caso silencioso era o
+pior: `0.006` gravava `0.01`, caução diferente da cotada, sem erro nenhum.
+
+**A revisão correu antes de isto ser declarado pronto, e achou três coisas** — o portão do
+`docs/17_SPRINT_WORKFLOW.md`, agora obrigatório por escrito:
+
+- **A mesma perda silenciosa do #1, num ponto que ninguém tinha olhado.** `FillHandlers.fill` engolia o
+  resultado de `update` — o `false` da versão otimista — duas linhas acima do `empty` que passou a
+  conferi-lo. Uma escrita concorrente entre a leitura e a gravação commitava a linha de conteúdo com o
+  vasilhame ainda em `EMPTY`: o keg dizia estar vazio e o histórico dizia ter cerveja dentro, e o próximo
+  enchimento legítimo batia no índice único parcial virando **500** no lugar de uma recusa. Corrigido.
+- **Uma regressão que eu mesmo tinha acabado de introduzir.** `emptyContents` recusava vasilhame baixado,
+  como as outras mutações fazem — mas um keg **pode** ser baixado estando cheio (`retire` só barra quem
+  está na rua) e aí o esvaziamento fechava o período, batia na recusa, e a transação desfazia o
+  fechamento junto: o vínculo com aquele lote ficaria aberto para sempre. O estado terminal já basta como
+  guarda, porque `RETIRED` nunca é `FILLED`. Tem teste, e ele foi conferido contra a versão defeituosa —
+  409 no lugar de 204.
+- **Um comentário que prometia mais do que o código entregava.** A limpeza que meu teste do #4 fazia no
+  fim do método só rodava se todas as asserções passassem, e outros dois testes da classe cadastram
+  política sem limpar. A afirmação central do `DUV-CON-001` — "o sistema não traz número nenhum de
+  fábrica" — continuava dependendo da ordem do JUnit. A limpeza foi para o `@BeforeEach`, onde ela de
+  fato torna cada teste independente.
+
+**Um defeito de contrato apareceu no caminho, e foi consertado junto.** O `requestBody` e as respostas do
+endpoint de recuperação do vasilhame estavam **dentro** do `PUT` de políticas de inspeção, no
+`openapi.yaml`. O YAML parseava — chave duplicada, a última vence —, então o CI de contratos passava
+enquanto a recuperação ficava sem corpo documentado e a política documentava o corpo da recuperação. Não
+é um dos oito; foi encontrado por estar editando o bloco vizinho, e deixá-lo ali sabendo disso seria pior
+que não ter visto.
 
 **#1, RESOLVIDO (2026-08-19).** O agregado não carregava versão nenhuma: a coluna existia e era
 incrementada, mas nunca chegava ao domínio nem ao `WHERE`. Agora `Container` carrega a versão com que foi

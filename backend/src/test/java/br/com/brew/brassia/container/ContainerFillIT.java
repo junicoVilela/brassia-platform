@@ -194,6 +194,99 @@ class ContainerFillIT {
     }
 
     @Test
+    void esvaziarNaFabricaLiberaOKegSemForjarViagemNenhuma() throws Exception {
+        // DEB-CON-003 #2. Fechar o período do conteúdo sem mover o vasilhame o deixava preso em FILLED:
+        // não podia ser enchido (o estado não é EMPTY) nem liberado (releaseToStock exige RETURNED). O
+        // único jeito de tirá-lo de lá era mandá-lo numa viagem que nunca aconteceu — e a viagem grava
+        // posição, então o histórico passava a dizer que o keg esteve no cliente.
+        var session = login();
+        var keg = pronto(session);
+        enche(session, keg, loteReal(session), 50, status().isCreated());
+
+        esvazia(session, keg);
+
+        // Sujo, e não disponível: teve cerveja dentro, viajou ou não.
+        mockMvc.perform(get(BASE + "/" + keg).session(session))
+                .andExpect(jsonPath("$.state", is("RETURNED")));
+
+        // E o caminho normal segue daqui: alguém declara limpo, e ele volta a encher.
+        move(session, keg, "EMPTY");
+        enche(session, keg, loteReal(session), 50, status().isCreated());
+
+        // A prova de que nada foi forjado: o keg não se moveu, então não há posição nenhuma no histórico.
+        mockMvc.perform(get(BASE + "/" + keg + "/locations").session(session))
+                .andExpect(jsonPath("$.length()", is(0)));
+    }
+
+    @Test
+    void oVasilhameBaixadoCheioAindaFechaOPeriodoDoConteudo() throws Exception {
+        // O contraponto do #2, e ele achou um defeito na primeira versão do conserto: `emptyContents`
+        // recusava o vasilhame baixado, como as outras mutações fazem. Mas um keg PODE ser baixado
+        // estando cheio — `retire` só barra quem está na rua —, e aí o esvaziamento fechava o período,
+        // batia na recusa e a transação desfazia o fechamento junto. O vínculo com aquele lote ficaria
+        // aberto para sempre, que é exatamente o que o histórico existe para não deixar acontecer.
+        var session = login();
+        var keg = pronto(session);
+        var lote = cenario.finishedLot(session);
+        enche(session, keg, UUID.fromString(lote.id()), 50, status().isCreated());
+
+        mockMvc.perform(post(BASE + "/" + keg + "/retire").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"reason\":\"solda rompida, sem recuperação\"}"))
+                .andExpect(status().isNoContent());
+
+        esvazia(session, keg);
+
+        mockMvc.perform(get(BASE + "/" + keg + "/fills").session(session))
+                .andExpect(jsonPath("$[0].lotCode", is(lote.code())))
+                .andExpect(jsonPath("$[0].current", is(false)))
+                .andExpect(jsonPath("$[0].emptiedAt").exists());
+
+        // E o baixado continua baixado: fechar o período não o traz de volta ao inventário.
+        mockMvc.perform(get(BASE + "/" + keg).session(session))
+                .andExpect(jsonPath("$.state", is("RETIRED")));
+    }
+
+    @Test
+    void escreverSobreOKegNoClienteNaoReiniciaORelogioDePermanencia() throws Exception {
+        // DEB-CON-003 #5. Toda escrita gravava posição, mudando o estado ou não. Inspecionar ou marcar
+        // avaria num keg que está no cliente criava uma linha nova dizendo "chegou agora" — e o tempo de
+        // permanência, que é o número da fila de atrasados da CON-003, voltava para zero. O keg não se
+        // moveu; alguém só escreveu sobre ele.
+        var session = login();
+        var keg = pronto(session);
+        enche(session, keg, loteReal(session), 50, status().isCreated());
+        move(session, keg, "IN_TRANSIT");
+        move(session, keg, "AT_CUSTOMER");
+
+        var chegada = JSON.readTree(mockMvc.perform(get(BASE + "/" + keg + "/locations").session(session))
+                        .andExpect(jsonPath("$.length()", is(2)))
+                        .andReturn().getResponse().getContentAsString())
+                .get(0).get("recordedAt").asText();
+
+        mockMvc.perform(post(BASE + "/" + keg + "/condition").session(session).with(csrf())
+                        .contentType("application/json").content("{\"condemned\":false}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get(BASE + "/" + keg + "/locations").session(session))
+                .andExpect(jsonPath("$.length()", is(2)))
+                .andExpect(jsonPath("$[0].recordedAt", is(chegada)));
+    }
+
+    @Test
+    void loteDesconhecidoRecusaFalandoDOLOTE() throws Exception {
+        // DEB-CON-003 #7. A recusa vinha como `container_not_found`: dizia ao operador que o keg na mão
+        // dele não existe, quando o keg está ótimo e o errado é o número do lote que ele digitou. As duas
+        // famílias de recusa existem justamente para não mandar trocar a coisa errada.
+        var session = login();
+        var keg = pronto(session);
+
+        enche(session, keg, UUID.randomUUID(), 50, status().isConflict())
+                .andExpect(jsonPath("$.code", is("fill_not_allowed")))
+                .andExpect(jsonPath("$.reasonCode", is("lot_not_found")));
+    }
+
+    @Test
     void aPosicaoTambemSeRegistraAMao() throws Exception {
         // O ciclo cobre a rua e o cliente, e não a troca de depósito.
         var session = login();
@@ -257,11 +350,16 @@ class ContainerFillIT {
                 .andExpect(status().isNoContent());
     }
 
-    /** Devolve o vasilhame ao estado vazio depois de um esvaziamento manual. */
+    /**
+     * Devolve o vasilhame ao estado vazio depois de um esvaziamento manual.
+     *
+     * <p><strong>Uma linha, e não quatro</strong> (DEB-CON-003 #2). Esvaziar deixava o keg preso em
+     * {@code FILLED}, e este método precisava forjar a viagem inteira — sair, chegar no cliente, voltar —
+     * para conseguir liberá-lo. Isso fabricava histórico de posição que nunca aconteceu, dentro de uma
+     * fixture, onde ninguém olha. Agora esvaziar deixa o keg {@code RETURNED}, que é o que ele é: sujo,
+     * esperando alguém dizer que está limpo.
+     */
     private void volta(MockHttpSession session, String keg) throws Exception {
-        move(session, keg, "IN_TRANSIT");
-        move(session, keg, "AT_CUSTOMER");
-        move(session, keg, "RETURNED");
         move(session, keg, "EMPTY");
     }
 

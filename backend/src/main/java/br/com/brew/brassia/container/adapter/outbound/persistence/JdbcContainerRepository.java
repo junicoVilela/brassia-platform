@@ -115,15 +115,17 @@ class JdbcContainerRepository implements ContainerRepository {
     }
 
     @Override
-    public void retireIdentifier(UUID breweryId, UUID identifierId, Instant at) {
-        jdbc.sql("""
+    public boolean retireIdentifier(UUID breweryId, UUID identifierId, Instant at) {
+        // O `WHERE` já era a garantia — cervejaria certa e etiqueta ainda ativa. O que faltava era
+        // alguém olhar o resultado dele (DEB-CON-003 #6).
+        return jdbc.sql("""
                 UPDATE container_identifier SET retired_at = :at
                 WHERE id = :id AND retired_at IS NULL
                   AND container_id IN (SELECT id FROM container WHERE brewery_id = :brewery)
                 """)
                 .param("at", Timestamp.from(at)).param("id", identifierId)
                 .param("brewery", breweryId)
-                .update();
+                .update() == 1;
     }
 
     @Override

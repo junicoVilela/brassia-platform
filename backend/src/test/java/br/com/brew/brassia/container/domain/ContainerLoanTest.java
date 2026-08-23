@@ -91,6 +91,25 @@ class ContainerLoanTest {
     }
 
     @Test
+    void caucaoComFracaoDeCentavoERecusadaAQUI() {
+        // DEB-CON-003 #8. `Money` guarda quatro casas — elas existem para o preço unitário de uma tampa
+        // não sumir no arredondamento —, mas caução é dinheiro que entra e sai do caixa, e a coluna tem
+        // duas. 0,004 passava no `isPositive()`, virava 0,00 na gravação e estourava o CHECK da coluna:
+        // 500 no lugar de 400, um erro de digitação virando falha de servidor.
+        assertThatThrownBy(() -> emprestimo(Money.of("0.004", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("centavos");
+
+        // E o caso silencioso, que é o pior dos dois: 0,006 gravaria 0,01 — caução diferente da que foi
+        // cotada ao cliente, sem erro nenhum para avisar.
+        assertThatThrownBy(() -> emprestimo(Money.of("0.006", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("centavos");
+
+        // O que é dinheiro de verdade continua passando.
+        assertThat(emprestimo(Money.of("0.01", "BRL")).hasDeposit()).isTrue();
+        assertThat(emprestimo(Money.of("150.00", "BRL")).hasDeposit()).isTrue();
+    }
+
+    @Test
     void oEmprestimoSemCaucaoEEstadoLegitimo() {
         // Nem toda casa cobra caução, e obrigar um valor faria alguém digitar 1 real para poder seguir.
         var e = emprestimo(null);

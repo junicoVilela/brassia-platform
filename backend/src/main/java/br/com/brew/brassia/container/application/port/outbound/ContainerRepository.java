@@ -26,7 +26,8 @@ public interface ContainerRepository {
 
     void assign(ContainerIdentifier identifier);
 
-    void retireIdentifier(UUID breweryId, UUID identifierId, java.time.Instant at);
+    /** @return {@code false} quando não havia etiqueta ativa desta cervejaria para aposentar */
+    boolean retireIdentifier(UUID breweryId, UUID identifierId, java.time.Instant at);
 
     List<ContainerIdentifier> identifiersOf(UUID containerId);
 

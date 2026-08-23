@@ -121,7 +121,9 @@ class ContainerShippingServiceTest {
         public void assign(ContainerIdentifier identifier) {}
 
         @Override
-        public void retireIdentifier(UUID breweryId, UUID identifierId, Instant at) {}
+        public boolean retireIdentifier(UUID breweryId, UUID identifierId, Instant at) {
+            return true;
+        }
 
         @Override
         public List<ContainerIdentifier> identifiersOf(UUID containerId) {

@@ -5,6 +5,7 @@ import br.com.brew.brassia.container.application.port.outbound.FillRepository;
 import br.com.brew.brassia.container.domain.Container;
 import br.com.brew.brassia.container.domain.ContainerFill;
 import br.com.brew.brassia.container.domain.ContainerLocation;
+import br.com.brew.brassia.container.domain.ContainerModifiedException;
 import br.com.brew.brassia.container.domain.FillNotAllowedException;
 import br.com.brew.brassia.container.domain.LocationKind;
 import br.com.brew.brassia.container.domain.UnknownContainerException;
@@ -70,8 +71,14 @@ public class FillHandlers {
             throw FillNotAllowedException.overCapacity();
         }
 
+        // Lote desconhecido é recusa do CONTEÚDO, e não do vasilhame (DEB-CON-003 #7). Devolver
+        // `container_not_found` dizia ao operador que o keg na mão dele não existe, quando o keg está
+        // ótimo e o problema é o número do lote que ele digitou — as duas famílias de recusa existem
+        // justamente para não mandar trocar a coisa errada.
         var status = lots.statusOf(breweryId, finishedLotId, LocalDate.now(ZoneOffset.UTC))
-                .orElseThrow(() -> new UnknownContainerException(finishedLotId));
+                .orElseThrow(() -> FillNotAllowedException.lot("lot_not_found",
+                        "O lote informado não foi encontrado. Sem ele não há o que registrar dentro "
+                                + "deste vasilhame."));
         status.blocker().filter(b -> BLOQUEIAM_ENCHIMENTO.contains(b.code()))
                 .ifPresent(b -> {
                     throw FillNotAllowedException.lot(b.code(), b.message());
@@ -81,7 +88,13 @@ public class FillHandlers {
                 volumeLiters, now, actor);
         fills.record(fill);
         container.fill(now);
-        containers.update(container);
+        // A MESMA CONFERÊNCIA DA ESCRITA (DEB-CON-003 #1). Engolir o `false` aqui deixava a transação
+        // commitar com a linha de conteúdo gravada e o vasilhame ainda em EMPTY: o keg dizia estar vazio
+        // e o histórico dizia ter cerveja dentro. O próximo enchimento legítimo passaria pelo
+        // `requireFillableAt` e bateria no índice único parcial, virando 500 no lugar de uma recusa.
+        if (!containers.update(container)) {
+            throw new ContainerModifiedException(containerId);
+        }
         return fill.id();
     }
 
@@ -93,8 +106,16 @@ public class FillHandlers {
      */
     @Transactional
     public void empty(UUID breweryId, UUID containerId) {
-        require(breweryId, containerId);
+        var container = require(breweryId, containerId);
         fills.empty(breweryId, containerId, Instant.now());
+        // E O VASILHAME ACOMPANHA (DEB-CON-003 #2). Fechar o período do conteúdo sem mover o keg o deixava
+        // preso em FILLED: não podia ser enchido nem liberado, e o único jeito de tirá-lo de lá era forjar
+        // uma viagem inteira ao cliente. Quem foi esvaziado na rua não se move — isso o agregado decide.
+        var antes = container.state();
+        container.emptyContents();
+        if (container.state() != antes && !containers.update(container)) {
+            throw new ContainerModifiedException(containerId);
+        }
     }
 
     @Transactional

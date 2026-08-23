@@ -132,18 +132,22 @@ class JdbcLoanRepository implements LoanRepository {
     }
 
     @Override
-    public void savePolicy(InspectionPolicy policy) {
-        jdbc.sql("""
+    public UUID savePolicy(InspectionPolicy policy) {
+        // `RETURNING id` porque o `ON CONFLICT` MANTÉM o id que já estava lá (DEB-CON-003 #4). O segundo
+        // `PUT` respondia 201 com o identificador recém-sorteado, que não existe em linha nenhuma — e a
+        // auditoria de uma permissão crítica apontava para o nada.
+        return jdbc.sql("""
                 INSERT INTO container_inspection_policy (id, brewery_id, kind, interval_months, note,
                                                         updated_by, updated_at)
                 VALUES (:id, :brewery, :kind, :months, :note, :by, now())
                 ON CONFLICT (brewery_id, kind) DO UPDATE
                 SET interval_months = :months, note = :note, updated_by = :by, updated_at = now()
+                RETURNING id
                 """)
                 .param("id", policy.id()).param("brewery", policy.breweryId())
                 .param("kind", policy.kind().name()).param("months", policy.intervalMonths())
                 .param("note", policy.note()).param("by", policy.updatedBy())
-                .update();
+                .query(UUID.class).single();
     }
 
     @Override

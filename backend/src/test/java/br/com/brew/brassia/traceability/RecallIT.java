@@ -1,5 +1,6 @@
 package br.com.brew.brassia.traceability;
 
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -149,6 +150,64 @@ class RecallIT {
                 .andExpect(jsonPath("$.notifications.length()", is(1)))
                 .andExpect(jsonPath("$.newDestinations.length()", is(1)))
                 .andExpect(jsonPath("$.newDestinations[0].destination", is("Mercado Central")));
+    }
+
+    @Test
+    @DisplayName("o simulado alcança TODOS os vasilhames do lote afetado — e nenhum de outro")
+    void oSimuladoAlcancaOsConteineresDoLote() throws Exception {
+        // O último item de aceite da Sprint 20. A genealogia já ligava lote a vasilhame
+        // (`ContainerLineageSource.descendantsOf`) e o recall já andava para a frente, mas ninguém tinha
+        // ligado as duas pontas num teste: o dossiê provava alcançar expedição, e não keg.
+        //
+        // A pergunta que o vasilhame responde diferente da caixa: ele ATRAVESSA lotes. O mesmo keg
+        // carrega um em março e outro em abril, então "quais kegs recolher" não é uma propriedade do
+        // lote — é uma travessia do período certo.
+        var session = login();
+        var afetado = packagedLot(session);
+        var outro = packagedLot(session);
+
+        var kegA = kegCheio(session, afetado.finishedLotId, "KEG-A");
+        var kegB = kegCheio(session, afetado.finishedLotId, "KEG-B");
+        // O CONTRAPONTO, e é ele que distingue "achou" de "listou tudo": um keg com outro lote dentro
+        // não pode entrar no recolhimento. Sem esta terceira linha, um escopo que devolvesse o inventário
+        // inteiro passaria no teste — e mandaria a operação recolher cerveja boa.
+        var kegDeFora = kegCheio(session, outro.finishedLotId, "KEG-C");
+
+        var recallId = idOf(openRecall(session, "BATCH", afetado.batchId, "vidro na linha de envase")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        mockMvc.perform(get(RECALLS + "/" + recallId).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scope[*].node.type", hasItem("CONTAINER")))
+                .andExpect(jsonPath("$.scope[*].node.id", hasItem(kegA)))
+                .andExpect(jsonPath("$.scope[*].node.id", hasItem(kegB)))
+                .andExpect(jsonPath("$.scope[*].node.id", not(hasItem(kegDeFora))));
+    }
+
+    /** Um vasilhame retornável cadastrado, inspecionado e cheio do lote informado. */
+    private String kegCheio(MockHttpSession session, String finishedLotId, String prefixo)
+            throws Exception {
+        var sfx = UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
+        var keg = idOf(mockMvc.perform(post("/api/v1/containers").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("""
+                                {"code":"%s-%s","kind":"KEG","nominalCapacityLiters":50,"ownership":"OWN"}
+                                """.formatted(prefixo, sfx)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        // Inspeção em dia é pré-requisito de encher, e não alerta: sem ela o enchimento é recusado.
+        var agora = Instant.now();
+        mockMvc.perform(post("/api/v1/containers/" + keg + "/inspections").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"performedAt\":\"%s\",\"validUntil\":\"%s\"}"
+                                .formatted(agora, agora.plus(Duration.ofDays(365)))))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/v1/containers/" + keg + "/fills").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"finishedLotId\":\"%s\",\"volumeLiters\":50}".formatted(finishedLotId)))
+                .andExpect(status().isCreated());
+        return keg;
     }
 
     @Test

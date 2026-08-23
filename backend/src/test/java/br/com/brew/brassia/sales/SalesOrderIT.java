@@ -14,13 +14,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup;
 
+import br.com.brew.brassia.sales.application.port.inbound.OrderCommands;
+import br.com.brew.brassia.sales.domain.InsufficientLotStockException;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
 import br.com.brew.brassia.support.BrewScenario;
 import br.com.brew.brassia.support.CommercialTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +61,10 @@ class SalesOrderIT extends CommercialTestSupport {
     @Autowired
     JdbcClient jdbc;
 
+    /** Para o teste de concorrência: o que precisa correr em paralelo são duas transações do serviço. */
+    @Autowired
+    OrderCommands orders;
+
     @BeforeEach
     void setUp() {
         mockMvc = webAppContextSetup(context).apply(springSecurity()).build();
@@ -73,6 +85,76 @@ class SalesOrderIT extends CommercialTestSupport {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code", is("insufficient_lot_stock")))
                 .andExpect(jsonPath("$.available", is(80)));
+    }
+
+    @Test
+    void duasVendasSimultaneasNaoVendemOMESMOEstoqueDuasVezes() throws Exception {
+        // O critério de aceite da sprint diz "CONCORRÊNCIA não vende estoque duas vezes", e o teste
+        // acima prova a versão sequencial — o segundo pedido encontra o estoque já preso. Sequencial não
+        // é concorrente: ele passaria mesmo se a reserva fosse ler-depois-escrever, que é justamente o
+        // padrão que quebra quando duas telas vendem o mesmo lote no mesmo segundo. Este aqui roda pelo
+        // SERVIÇO, com duas transações de verdade, pelo mesmo motivo que o teste do teto de crédito
+        // (DEB-SAL-006) precisou rodar assim.
+        var session = login();
+        var cena = cenaVendavel(session);
+        var brewery = breweryDoProduto(cena);
+
+        // Duas tentativas de 700 unidades contra um lote de 780: cabe uma, e só uma.
+        var largada = new CyclicBarrier(2);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var tentativas = executor.invokeAll(List.of(
+                    tentaVender(brewery, cena, 700, largada),
+                    tentaVender(brewery, cena, 700, largada)), 30, TimeUnit.SECONDS);
+            var desfechos = new ArrayList<String>();
+            for (var t : tentativas) {
+                desfechos.add(t.get());
+            }
+            assertThat(desfechos)
+                    .as("uma venda leva o lote e a outra é recusada — nunca as duas")
+                    .containsExactlyInAnyOrder("vendida", "sem estoque");
+        } finally {
+            executor.shutdownNow();
+        }
+
+        // A prova que não depende do que as threads relataram: o lote não ficou negativo nem entregou
+        // mais do que tinha. Reservado é exatamente o de um pedido.
+        var reservado = jdbc.sql("""
+                SELECT COALESCE(SUM(r.units), 0) FROM sales_lot_reservation r
+                JOIN sales_order_line l ON l.id = r.order_line_id
+                JOIN sales_order o ON o.id = l.order_id
+                WHERE o.brewery_id = :brewery AND o.customer_id = :customer
+                  AND o.status = 'PLACED'
+                """)
+                .param("brewery", brewery)
+                .param("customer", UUID.fromString(cena.customerId()))
+                .query(Integer.class).single();
+        assertThat(reservado).as("o estoque reservado não pode passar do que existe").isEqualTo(700);
+    }
+
+    /** Uma venda que espera a outra na barreira antes de começar. */
+    private Callable<String> tentaVender(UUID brewery, BrewScenario.SalesScene cena, int quantidade,
+            CyclicBarrier largada) {
+        return () -> {
+            largada.await(30, TimeUnit.SECONDS);
+            try {
+                orders.place(brewery, UUID.randomUUID(), new OrderCommands.PlaceOrder(
+                        "PED-" + UUID.randomUUID().toString().substring(0, 8),
+                        UUID.fromString(cena.customerId()), UUID.fromString(cena.channelId()),
+                        List.of(new OrderCommands.OrderItem(UUID.fromString(cena.productId()),
+                                quantidade)),
+                        null, null, null, null));
+                return "vendida";
+            } catch (InsufficientLotStockException e) {
+                return "sem estoque";
+            }
+        };
+    }
+
+    private UUID breweryDoProduto(BrewScenario.SalesScene cena) {
+        return jdbc.sql("SELECT brewery_id FROM sales_product WHERE id = :id")
+                .param("id", UUID.fromString(cena.productId()))
+                .query(UUID.class).single();
     }
 
     @Test

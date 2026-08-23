@@ -326,3 +326,28 @@ confiança convida a decisão errada com cara de dado.
 | COM-003 | Entregue | PR #239 · `V127` · fork independente, 7 de domínio e 9 de integração |
 | COM-004 | Entregue | PR #240 · `V128` · aceitar registra concordância, 10 de domínio e 8 de integração |
 | COM-005 | Entregue | PR #241 · `V129` · nota e denúncia, 11 de domínio e 12 de integração · `DUV-COM-001` |
+
+### DEB-COM-001 (2026-08-22) — A sprint não tem jornada E2E, e o aceite pedia uma
+
+**O que falta.** Não existe nenhum `.spec.ts` de comunidade em `e2e/tests/`: nem biblioteca, nem link
+compartilhado, nem fork, nem contribuição. O `TEST_PLAN.md` desta sprint pede E2E, e o item de aceite
+"testes de autorização, privacidade, abuso e **E2E** estão verdes" não pode ser marcado sem ela.
+
+**Como apareceu.** Na passagem de evidência do `ACCEPTANCE.md` (22/08), quando cada item de aceite foi
+ligado ao artefato que o prova. Cinco dos seis já estavam provados desde a entrega — a evidência existia e
+ninguém a tinha ligado ao critério. Este é o que não estava.
+
+**Por que importa, e não é formalidade.** É a mesma ausência que o `DEB-SAL-004` registrou nas sprints 19 e
+20. Quando aquelas jornadas foram finalmente escritas, elas encontraram oito stores do frontend lendo
+`e.error?.code` onde o interceptor entrega o campo no primeiro nível — **nenhuma mensagem do servidor
+chegava à tela**, em toda a aplicação. Os testes de backend estavam verdes o tempo todo; o defeito morava
+exatamente na costura que só o E2E atravessa. Não há razão para supor que a comunidade esteja imune: ela
+tem link público, token de compartilhamento e uma matriz de visibilidade, que é onde erro de costura vira
+vazamento em vez de mensagem feia.
+
+**Critério de remoção:** um `community-journey.spec.ts` que publique uma receita, abra o link
+compartilhado **de fora da sessão**, confira que a privada não aparece na vitrine, e exercite a denúncia
+com o direito de resposta do autor. Fecha quando ele passar no CI contra a stack real.
+
+**Prioridade:** alta entre os débitos abertos, e a mais alta do que sobrou no projeto — é a única sprint
+entregue cuja costura frontend/backend nunca foi atravessada por um teste.

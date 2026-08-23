@@ -327,9 +327,32 @@ confiança convida a decisão errada com cara de dado.
 | COM-004 | Entregue | PR #240 · `V128` · aceitar registra concordância, 10 de domínio e 8 de integração |
 | COM-005 | Entregue | PR #241 · `V129` · nota e denúncia, 11 de domínio e 12 de integração · `DUV-COM-001` |
 
-### DEB-COM-001 (2026-08-22) — A sprint não tem jornada E2E, e o aceite pedia uma
+### DEB-COM-001 (2026-08-22) — **RESOLVIDO em 2026-08-23**
 
-**O que falta.** Não existe nenhum `.spec.ts` de comunidade em `e2e/tests/`: nem biblioteca, nem link
+**O que foi feito.** `e2e/tests/community-journey.spec.ts` (PR #278): publica uma receita como PRIVADA e
+confere que ela não aparece na vitrine — nem pela tela, nem pela listagem pública por outro caminho —,
+abre para o público pelo seletor de visibilidade, cria o link compartilhado e lê o token que aparece uma
+vez só, confirma que um token inventado responde `404` (e não `403`, que confirmaria a existência) e que o
+retrato público não leva custo, fornecedor nem a cervejaria. Então uma **segunda pessoa** comenta e
+denuncia, e o autor vê a denúncia contra si sem descobrir quem a fez.
+
+**Precisa ser outra pessoa.** O autor não avalia nem denuncia a própria receita: com um usuário só, a
+jornada termina na recusa, que é a metade menos interessante. É a segunda pessoa que torna a moderação um
+fato em vez de um formulário.
+
+**A asserção do retrato público é sobre o corpo inteiro**, e não sobre campos conhecidos. Uma lista de
+campos não pega o campo novo que alguém acrescentar com custo dentro — e é justamente esse que vaza.
+
+**O teste achou dois defeitos nele mesmo, e o segundo vale registrar.** Ele passava sozinho e **falhava na
+suíte completa**: afirmava que a vitrine estava vazia, e o banco é compartilhado entre specs — a execução
+anterior deixava uma publicação pública. A asserção passou a ser sobre *aquela* receita. Um teste que
+depende de ninguém ter publicado antes falha por motivo alheio ao que investiga, e no dia em que apontar
+um vazamento de verdade ninguém vai acreditar nele. Só apareceu porque a suíte inteira foi rodada depois
+de a jornada passar isolada. **79/79** contra a stack real.
+
+**O que estava registrado quando o débito foi aberto** — mantido porque explica por que ele existia:
+
+**O que faltava.** Não existe nenhum `.spec.ts` de comunidade em `e2e/tests/`: nem biblioteca, nem link
 compartilhado, nem fork, nem contribuição. O `TEST_PLAN.md` desta sprint pede E2E, e o item de aceite
 "testes de autorização, privacidade, abuso e **E2E** estão verdes" não pode ser marcado sem ela.
 
@@ -350,4 +373,5 @@ compartilhado **de fora da sessão**, confira que a privada não aparece na vitr
 com o direito de resposta do autor. Fecha quando ele passar no CI contra a stack real.
 
 **Prioridade:** alta entre os débitos abertos, e a mais alta do que sobrou no projeto — é a única sprint
-entregue cuja costura frontend/backend nunca foi atravessada por um teste.
+entregue cuja costura frontend/backend nunca foi atravessada por um teste. **Fechado no dia seguinte ao
+registro.**

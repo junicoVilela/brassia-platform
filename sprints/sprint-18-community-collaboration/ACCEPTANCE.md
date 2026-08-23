@@ -37,17 +37,21 @@ sem evidência citada não é aceite — é opinião.
       uma exportação que remove tudo não é privacidade, é inutilidade.
       `ContributionIT#aRespostaNaoCarregaCervejariaNemIdentificadorDeUsuario` faz o mesmo para comentários.
 
-- [ ] **Testes de autorização, privacidade, abuso e E2E estão verdes.**
-      **Parcialmente aberto.** Autorização, privacidade e abuso: verdes, com os testes citados acima —
-      `semPermissaoNaoSeAvalia`, `oAutorNaoAvaliaAPropriaReceita`, `naoSeAvaliaOQueNaoSePodeLer`, e os de
-      isolamento entre cervejarias em cada IT. Suíte completa: 1525 testes verdes.
-      **O E2E não existe.** Não há nenhum `.spec.ts` de comunidade em `e2e/tests/` — nem biblioteca, nem
-      link compartilhado, nem fork, nem contribuição. É a mesma ausência que o `DEB-SAL-004` registrou nas
-      sprints 19 e 20: o plano de testes pedia jornada ponta a ponta e ela não foi escrita, e a falta não
-      apareceu em relatório nenhum até alguém ir procurar. Registrado como `DEB-COM-001` no `STATUS.md`.
+- [x] **Testes de autorização, privacidade, abuso e E2E estão verdes.**
+      Autorização, privacidade e abuso: `semPermissaoNaoSeAvalia`, `oAutorNaoAvaliaAPropriaReceita`,
+      `naoSeAvaliaOQueNaoSePodeLer`, e os de isolamento entre cervejarias em cada IT. Suíte completa:
+      1525 testes verdes.
+      **E o E2E, desde 23/08:** `e2e/tests/community-journey.spec.ts` (PR #278) — privada fora da vitrine,
+      link com token de uso único, `404` para token inventado, retrato público sem custo nem fornecedor, e
+      a moderação exercitada por uma **segunda pessoa**, porque o autor não denuncia a própria receita.
+      **79/79** contra a stack real.
+      Este item ficou aberto por um dia, como `DEB-COM-001`: era a mesma ausência que o `DEB-SAL-004`
+      registrou nas sprints 19 e 20 — o plano de testes pedia jornada ponta a ponta, ela não foi escrita,
+      e a falta não apareceu em relatório nenhum até alguém ir procurar.
 
 ## O que este aceite mudou
 
 Cinco dos seis itens estavam **provados desde a entrega** — a evidência existia e ninguém a tinha ligado ao
 critério. O sexto estava meio provado, e a metade que faltava é justamente a que a sprint 19 aprendeu a
-não deixar passar.
+não deixar passar: a jornada pela tela. Ela foi escrita no dia seguinte, e **a sprint 18 fecha com os seis
+itens marcados e a evidência de cada um citada pelo nome.**

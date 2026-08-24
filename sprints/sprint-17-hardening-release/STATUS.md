@@ -18,7 +18,7 @@ DEC-DEBT-001 e as decisões por módulo.
 | REL-002 | Concluída | Claude | `infra/perf/*`, `ListBatchesUseCase`, `JdbcBatchRepository`, `PageResponse` | Gargalo medido **e corrigido**: com 3.000 lotes, p95 caiu de 319 ms para 9,8 ms. Ver DEC-REL-007. |
 | REL-003 | Concluída | Claude | `InternalAddressGuard`, `SecurityConfiguration`, `.github/workflows/ci.yml`, `frontend/package-lock.json` | Um achado ALTO (SSRF no webhook) e dois médios resolvidos; varredura de CVE passou a barrar merge. Ver DEC-REL-001/002/003. |
 | REL-004 | Concluída | Claude | `infra/runbooks/deploy-rollback.md` | Ensaio executado em 2026-08-10: bloqueio de escrita medido migration a migration (`V100` = 143 ms) e retorno do artefato anterior contra o schema novo exercitado de verdade. Ambiente local, não cópia de produção — limitação registrada. Ver DEC-REL-006/009. |
-| REL-005 | **Parcial** — manual entregue, ciclo pendente | Claude | PR #202, `docs/44_MINIMUM_OPERATING_MANUAL.md` §4.1 (2026-08-23) | O entregável que não depende de ambiente está pronto, com o roteiro de homologação e a evidência exigida por etapa. O ciclo em homologação continua aberto: depende do ambiente e de quem opera. **Segue aberto no encerramento.** Em 2026-08-23 o roteiro passou a dizer, linha a linha, o que já tem prova automática: **13 das 25 linhas são exercitadas inteiras pela tela a cada build**, 5 em parte, 6 só pelo backend, e 1 não é teste. Ver DEC-REL-010 e DEC-REL-012. |
+| REL-005 | **Parcial** — manual entregue, ciclo pendente | Claude | PR #202, `docs/44_MINIMUM_OPERATING_MANUAL.md` §4.1 (2026-08-23) | O entregável que não depende de ambiente está pronto, com o roteiro de homologação e a evidência exigida por etapa. O ciclo em homologação continua aberto: depende do ambiente e de quem opera. **Segue aberto no encerramento.** Em 2026-08-23 o roteiro passou a dizer, linha a linha, o que já tem prova automática; em 2026-08-24 o bootstrap ganhou a conta de pouca alçada e a segunda cervejaria, e as duas linhas mais esquecidas viraram jornada. **15 das 25 linhas são exercitadas inteiras pela tela a cada build**, 5 em parte, 4 só pelo backend, e 1 não é teste. Ver DEC-REL-010, DEC-REL-012 e DEC-REL-013. |
 | Débitos 08–16 | Concluída (14 débitos) | Claude | PRs #212 a #224, ADR-0016 | Fora do escopo original, por decisão do mantenedor. Dez fechados com código, quatro por decisão sem código. Ver DEC-DEBT-001, DEC-CLN-001, DEC-AIA-001, DEC-FDS-001/002, DEC-PKG-001/002, DEC-QLT-001, DEC-CST-001/002, DEC-RPT-001. |
 
 ## Decisões e bloqueios
@@ -625,6 +625,88 @@ pelo formato que eu esperava encontrar achou exatamente o que eu esperava — e 
 O E2E foi a única barreira que pegou o segundo caso. Um teste que atravessa a stack real vale por isso:
 ele não sabe quantos clientes existem, só sabe que a tela ficou vazia.
 
+### DEC-REL-013 (REL-005) — **2026-08-24**: o bootstrap ganhou os dois eixos que faltavam
+
+**O que a DEC-REL-012 encontrou, esta fecha.** As duas linhas que o roteiro chama de "as que costumam
+faltar" não faltavam por esquecimento: **faltava alguém para logar**. As duas contas do perfil `local`
+estavam no mesmo grupo `ADMINISTRATORS` e o bootstrap criava uma cervejaria só, então nem a recusa por
+permissão nem a tentativa de outra casa tinham como ser encenadas em ambiente nenhum. O backend já provava
+as duas regras — 167 asserções de 403 e 26 testes de isolamento —, e nenhuma delas passava por uma tela.
+
+**Cada conta de bootstrap varia um eixo só, e é isso que as torna prova.** Admin e conferente: mesmas
+permissões, *pessoas* diferentes. Operador: mesma casa, *permissões* diferentes. Vizinha: mesma alçada,
+*cervejaria* diferente. Uma conta que variasse dois eixos provaria menos — ao levar 403, não se saberia se
+foi por permissão ou por casa errada, e são recusas diferentes com correções diferentes.
+
+**As duas jornadas novas** (`e2e/tests/authority-and-isolation.spec.ts`), e o que cada uma cobra além do
+óbvio:
+
+- **Alçada.** O operador *lê* o custo (sem esse contraponto, tela em branco não distingue "não tenho
+  alçada" de "a tela quebrou"); a tela **não lhe oferece** o botão de fechar; o **mesmo botão aparece**
+  para quem tem a alçada (sem isso, um botão renomeado deixaria a asserção verde para sempre); e o POST
+  direto responde `403` com `code: forbidden` — porque esconder o botão é cortesia com quem opera, e não
+  autorização. A última asserção é a que separa uma interface arrumada de um sistema seguro.
+- **Isolamento.** A vizinha alcança **uma** cervejaria; não vê o lote desta casa na tela; e **vê o lote
+  dela** — sem esse contraponto, uma tela quebrada ou uma sessão sem cervejaria ativa passariam por
+  isolamento.
+
+**As duas foram verificadas contra a versão quebrada**, e não só vistas passar: com `costing.cost.close`
+concedido ao grupo estreito, o botão aparece e a asserção falha; com a associação da vizinha trocada para
+global, ela passa a enxergar as duas casas — e, afrouxando a asserção de sessão para deixar o teste chegar
+mais longe, o lote alheio aparece na tela dela. Ambas as alterações foram desfeitas.
+
+**O que o teste de isolamento afirma mudou depois de rodar, e para melhor.** Eu esperava `404` no acesso
+direto ao lote alheio; a API responde `400`. A isolação está íntegra — o repositório filtra por cervejaria
+e a vizinha não recebe nada —, mas o status vem de um `IllegalArgumentException` genérico em
+`GetBatchHandler`. Em vez de cravar um código, o teste passou a afirmar o que de fato importa:
+**indistinguibilidade** — o lote da outra casa responde exatamente como um id sorteado que não existe em
+lugar nenhum, mesmo status, mesmo `code`, mesmo `detail`, e sem o código do lote no corpo. Essa é a
+propriedade que fecha o vazamento, e ela não depende de qual código o backend escolheu. Ver `DEB-PRD-002`.
+
+**O quarto initializer foi o que forçou a extração.** Admin e conferente já eram o mesmo procedimento
+escrito duas vezes; com operador e vizinha seriam quatro lugares para lembrar de mudar. O
+`BootstrapAccountSeeder` recolheu a mecânica, e os quatro passaram a declarar só o que os distingue.
+
+**Duas armadilhas de ordem, ambas encontradas antes de custar caro:**
+
+- **O código da vizinha precisa ordenar depois do da padrão.** A cervejaria ativa de uma sessão é a
+  *primeira por código* entre as acessíveis, e o admin tem associação global — ele alcança as duas. Um
+  código antes de `MATRIZ` trocaria a casa ativa de toda a suíte E2E, que passaria a semear numa e a ler
+  na outra. `VIZINHA` vem depois; está escrito no javadoc e no YAML.
+- **O guarda do `BreweryBootstrapInitializer` é "não existe cervejaria nenhuma".** Se a vizinha nascesse
+  primeiro num banco vazio, a `MATRIZ` nunca seria criada. Os `ApplicationRunner` passaram a ter ordem
+  declarada, e o caminho de banco vazio foi **executado** num banco novo para conferir: `MATRIZ`,
+  `VIZINHA`, e as quatro contas com o escopo certo.
+
+**O que isto NÃO promete.** Nada disto existe fora do perfil `local`: o grupo estreito é criado pelo
+initializer e não por migration, de propósito — uma migration o levaria para produção, e nenhuma casa
+pediu um grupo chamado `OPERADORES_LOCAIS`.
+
+**Efeito no roteiro:** de 25 linhas, **15 passam a ser percorridas inteiras pela tela** (eram 13), 5 em
+parte, 4 só pelo backend (eram 6), e 1 não é teste. O ciclo em homologação continua aberto — ele depende
+de ambiente e de quem opera —, mas as duas linhas mais esquecidas dele saíram da lista de "alguém precisa
+lembrar" e entraram na de "o build confere".
+
+### DEB-PRD-002 — Lote inexistente responde 400 onde a casa toda responde 404
+
+**O efeito.** `GET /production/batches/{id}` para um lote que não existe — ou que é de outra cervejaria —
+responde `400 bad_request` com "Requisição inválida.", porque `GetBatchHandler` lança
+`IllegalArgumentException` e o advice global o traduz assim. O pedido não era inválido: estava bem-formado
+e o recurso é que não existe para quem pediu. Quem integra recebe uma resposta que manda conferir o
+próprio pedido quando o que houve foi outra coisa, e o resto da plataforma responde `404` com código
+próprio em situação igual (`identifier_not_found`, `unknown_batch`, `unknown_node`).
+
+**Não é vazamento**, e por isso é débito e não achado: a resposta é idêntica para "não existe em lugar
+nenhum" e "existe noutra casa", e o E2E de isolamento passou a afirmar justamente essa igualdade.
+
+**Por que não foi corrigido junto.** A história autorizada era a do bootstrap. Trocar o status é mudança de
+contrato — mexe no `openapi.yaml` e no que o frontend trata —, e entraria de carona numa entrega sobre
+outro assunto.
+
+**Critério de remoção:** `GetBatchHandler` passa a lançar uma exceção própria traduzida para `404` com
+código estável, o `openapi.yaml` documenta, e o E2E de isolamento continua verde **sem alteração** — ele
+não depende do código escolhido, só da igualdade entre as duas respostas.
+
 ### DEC-REL-012 (REL-005) — **2026-08-23**: o roteiro passou a dizer o que já está provado
 
 **O que mudou.** A `DEC-REL-010` deixou o roteiro de homologação escrito e o ciclo aberto, e assim ficou
@@ -736,9 +818,10 @@ custo baixo — o que não é reversível é descobrir que o backup não restaur
     pedido do mantenedor. O risco não é técnico: é que ninguém sabe se o backup restaura. Ver DEC-REL-008.
   - **REL-005 não fecha.** O manual existe e o roteiro existe; o ciclo em homologação, não. Um manual
     que nunca foi seguido de ponta a ponta é hipótese escrita com capricho. Ver DEC-REL-010.
-    **Reduzido em 2026-08-23, não fechado:** 13 das 25 linhas do roteiro são percorridas inteiras pela
-    tela a cada build e outras 5 em parte, o que encolhe o ciclo manual — mas as 6 linhas provadas só pelo
-    backend, e as 2 que o bootstrap local não sabe montar, continuam dependendo de gente. Ver DEC-REL-012.
+    **Reduzido em 2026-08-23 e 24, não fechado:** 15 das 25 linhas do roteiro são percorridas inteiras
+    pela tela a cada build e outras 5 em parte, o que encolhe o ciclo manual — mas as 4 linhas provadas só
+    pelo backend continuam dependendo de gente, e o ciclo em si continua dependendo de ambiente e de quem
+    opera. Ver DEC-REL-012 e DEC-REL-013.
   - **O ensaio da REL-004 rodou em ambiente local**, não em cópia de produção. As medidas de bloqueio de
     escrita são reais, mas o volume de dados não é o de produção. Ver DEC-REL-009.
   - **Oito atualizações do Dependabot** (#204 a #211) ficaram armadas com auto-merge no encerramento, não

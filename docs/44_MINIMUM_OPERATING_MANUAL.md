@@ -274,9 +274,9 @@ Três estados, e a diferença entre os dois primeiros importa:
 | Genealogia | Tela | `business-journey`: a cadeia do insumo à expedição, lida na tela de genealogia. |
 | Simulado de recall | Tela | `business-journey`: escopo de 200 unidades (as 190 que ficaram não entram), e os **75% localizados** lidos na tela. |
 | Custo e relatório do lote | Só backend | `BatchCostIT`, `BatchVarianceIT`, `BatchReportIT`. As telas (`costing.spec`, `reporting.spec`) provam que carregam — **não que os números fecham**. |
-| Autorização (403) | Só backend | **167 asserções de 403** espalhadas pelos ITs de todos os módulos. Nenhuma na tela. Ver a nota abaixo. |
-| Isolamento | Só backend | 26 testes `outraCervejaria…` espalhados pelos módulos, mais o `TenantIsolationTest`, que varre todo SQL de escrita contra as tabelas com `brewery_id`. Nenhum E2E. Ver a nota abaixo. |
-| Bloqueadores | — | Não é teste: é o `STATUS.md` das sprints. Hoje, **zero débitos registrados em aberto**. |
+| Autorização (403) | Tela | `authority-and-isolation.spec.ts`: o operador **lê** o custo, a tela **não lhe oferece** o botão de fechar, o mesmo botão **aparece** para quem tem a alçada, e o POST direto responde `403` com `code: forbidden` — porque esconder o botão é cortesia, não autorização. Mais as **167 asserções de 403** dos ITs. |
+| Isolamento | Tela | `authority-and-isolation.spec.ts`: a vizinha alcança **uma** cervejaria, não vê o lote desta casa na tela, recebe do endereço direto a **mesma resposta** que um id inexistente daria, e **vê o lote dela** — o contraponto sem o qual uma tela quebrada passaria por isolamento. Mais os 26 testes `outraCervejaria…` e o `TenantIsolationTest`. |
+| Bloqueadores | — | Não é teste: é o `STATUS.md` das sprints. Hoje, **um débito em aberto** — `DEB-PRD-002`, lote inexistente responde `400` onde a casa toda responde `404`; não é vazamento, e tem critério de remoção. |
 | **Frota** | Tela + só backend | `distribution-journey` → `kegCheio()`: etiqueta e inspeção válida. A **recusa** do vasilhame sem inspeção está em `ContainerIT#oConteinerNasceSemInspecaoENaoSeEnche` e `aInspecaoVencidaBloqueiaOEnchimento`. |
 | **Enchimento** | Tela | `distribution-journey`: o histórico do keg ainda aponta para o lote **depois da volta inteira**. |
 | **Carga** | Tela | `distribution-journey`: liberar a própria carga responde 409, e a segunda pessoa libera **em contexto de navegador próprio** — reaproveitar a sessão do primeiro não provaria nada. |
@@ -286,18 +286,29 @@ Três estados, e a diferença entre os dois primeiros importa:
 | **Offline** | Só backend | `SyncIT#oReenvioDevolveOMesmoResultadoENaoCriaOutro` e `oConflitoNaoSeResolveSozinhoEEsperaGente`. |
 | **Recall com contêiner** | Só backend | `RecallIT#oSimuladoAlcancaOsConteineresDoLote`, com o contraponto: um terceiro keg, de outro lote, **não sai no escopo**. |
 
-**As duas linhas sem prova de tela são as duas que o próprio roteiro chama de "as que costumam faltar" — e
-não é coincidência: o bootstrap local não consegue produzi-las.**
+**As duas linhas que o roteiro chama de "as que costumam faltar" faltavam por uma causa, e não por
+esquecimento: o bootstrap local não sabia produzi-las.** O 403 na tela exigia alguém de pouca permissão
+para logar, e as duas contas do perfil `local` estavam no mesmo grupo `ADMINISTRATORS`; o isolamento exigia
+uma segunda cervejaria com gente dentro, e o bootstrap criava uma só. Não é coincidência que as linhas mais
+esquecidas fossem as que o ambiente de teste não sabia montar — é causa.
 
-- **403 na tela** exigiria alguém com pouca permissão para logar, e as duas contas do perfil `local` estão
-  no mesmo grupo `ADMINISTRATORS`, deliberadamente (ver o javadoc de `BootstrapCheckerInitializer`: a
-  segunda conta existe para exercitar a regra de **pessoas diferentes**, não a de permissões diferentes).
-- **Isolamento na tela** exigiria uma segunda cervejaria com gente dentro, e o bootstrap cria uma só. Não
-  há porta pública para criar conta com senha: o convite manda token por notificação, e o SCIM exige
-  credencial de serviço e não define senha.
+**Desde 24/08 ele sabe.** O perfil `local` passou a semear mais duas contas e uma segunda cervejaria, e
+cada conta de bootstrap varia **um eixo só** — que é o que as torna prova:
 
-Fechar as duas é trabalho de bootstrap, não de teste — e enquanto não for feito, **elas são obrigatórias na
-homologação**, com o corpo da resposta anexado.
+| Conta | O que ela varia | Para provar |
+|---|---|---|
+| `admin@brassia.local` | — (a linha de base) | o caminho feliz |
+| `conferente@brassia.local` | a **pessoa** | separação de deveres: quem monta a carga não a libera |
+| `operador@brassia.local` | as **permissões** | a recusa por alçada, e que a tela não oferece o que a API nega |
+| `vizinha@brassia.local` | a **cervejaria** | o isolamento entre casas |
+
+Uma conta que variasse dois eixos provaria menos: ao levar 403, não se saberia se foi por permissão ou por
+casa errada — e são recusas diferentes, com correções diferentes. Nada disto existe fora do perfil `local`;
+o grupo estreito é criado pelo initializer e não por migration, para não ir parar em produção.
+
+**Na homologação as duas linhas continuam valendo a pena**, agora por outro motivo: não para descobrir se a
+regra existe — isso o build confere —, mas para confirmar que o **ambiente** a aplica, com os grupos e as
+cervejarias reais da casa, que não são os do bootstrap.
 
 ---
 

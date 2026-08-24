@@ -12,11 +12,11 @@ O núcleo descrito abaixo — do insumo recebido ao simulado de recall, seções
 mesmo exercitado de ponta a ponta por `e2e/tests/business-journey.spec.ts`. Quando manual e teste
 divergirem, o teste está certo: ele roda contra a API real a cada mudança.
 
-> **As seções 2.8 (venda) e 2.9 (retornáveis) ainda não têm esse contrapeso.** Elas estão cobertas por
-> testes de domínio, de integração e de store, mas **nenhuma jornada E2E as percorre pela tela** — e os
-> planos de teste das Sprints 19 e 20 pedem uma para cada. Enquanto isso não existir, o que está escrito
-> aqui sobre essas duas seções é descrição revisada contra o código, e não afirmação verificada a cada
-> mudança. Trate-as com mais atenção na homologação, não com menos.
+As seções **2.8 (venda)** e **2.9 (retornáveis)** ganharam o mesmo contrapeso depois:
+`e2e/tests/sales-journey.spec.ts` percorre do cliente ao pedido com o teto de crédito recusando e
+autorizando **na tela**, e `e2e/tests/distribution-journey.spec.ts` vai do keg cheio à coleta e à
+higienização, com a carga liberada por uma segunda pessoa em sessão própria. As três jornadas rodam a cada
+mudança; o que cada linha do roteiro de homologação tem de prova automática está na seção 4.1.
 
 ---
 
@@ -243,6 +243,61 @@ muda é que **cada linha exige evidência anexada** — sem ela, "funcionou" é 
 
 Evidência mínima por linha: identificador do objeto criado (lote, plano, simulado) e captura da tela que o
 mostra. Para 403 e isolamento, o corpo da resposta — é ele que prova qual regra recusou.
+
+## 4.1 O que já tem prova automática, e o que não tem
+
+O roteiro acima nunca foi percorrido por gente. Mas boa parte das linhas dele **já é exercitada a cada
+build**, e saber quais muda o tamanho da homologação: quem for operá-la não precisa gastar o dia
+redescobrindo que a receita publica, e sim confirmando as linhas que nenhuma máquina alcança.
+
+Três estados, e a diferença entre os dois primeiros importa:
+
+- **Tela** — uma jornada E2E percorre a linha pela interface contra a stack real. O comportamento está
+  provado; a homologação confirma o **ambiente**, e não a regra.
+- **Só backend** — um teste de integração prova a regra pela API, e **ninguém nunca a viu numa tela**. É
+  aqui que mora o defeito de interface que passa despercebido: a regra recusa, e a recusa não aparece.
+- **Nenhuma** — não há prova automática. Estas são as linhas que a homologação existe para cobrir.
+
+| Linha do roteiro | Estado | Prova |
+|---|---|---|
+| Preparo | Tela (parcial) | `business-journey`: equipamento, ingredientes com atributos técnicos, fornecedores e POP de limpeza publicado. Parâmetros da casa: `parameters.spec.ts` grava a validade do CIP pela tela, e `BreweryParametersIT` cobre o resto. **Usuários e permissões não têm prova** — o bootstrap local os cria prontos. |
+| Recebimento | Tela | `business-journey` → `receive()`: lote do fornecedor, validade e inspeção `APPROVED`. |
+| Receita publicada | Tela | `business-journey`: `/metrics` antes de `/publish` — a ordem é a regra. |
+| Ordem | Tela | `business-journey`: criada, liberada com responsável, estoque reservado, iniciada, e a asserção de que **o lote nasceu** da ordem iniciada. |
+| Produção | Tela (parcial) | `business-journey`: transferência com OG (1.052) e perdas (8 L). **Apontamentos de processo não são asseridos.** |
+| Limpeza | Tela | `business-journey` → `releaseCleaning()`: ciclo com medições, verificação e liberação, na ordem que a linha cobra. |
+| Envase | Tela | `business-journey`: plano, os três itens do checklist, reserva, execução, e a asserção de que saiu **um** lote de produto acabado. |
+| Expedição | Tela | `business-journey`: expedição com destino e quantidade, e as **190 unidades sem destino** lidas na tela de produto acabado. |
+| Pedido | Tela | `sales-journey`: cliente, canal, preço vigente e o pedido registrado **pelo formulário**. |
+| Crédito | Tela + só backend | A porta interna está na tela (`sales-journey`): os três números da recusa, a justificativa, e a prova de que ela **não vaza para o pedido seguinte**. A recusa **no portal** só tem `CustomerPortalIT#oTetoDeCompromissoRecusaComOsTresNumeros`. |
+| Recebimento (pagamento) | Tela | `sales-journey`: pagos os dois pedidos, um terceiro volta a caber sob o teto **sem justificativa nenhuma**. |
+| Genealogia | Tela | `business-journey`: a cadeia do insumo à expedição, lida na tela de genealogia. |
+| Simulado de recall | Tela | `business-journey`: escopo de 200 unidades (as 190 que ficaram não entram), e os **75% localizados** lidos na tela. |
+| Custo e relatório do lote | Só backend | `BatchCostIT`, `BatchVarianceIT`, `BatchReportIT`. As telas (`costing.spec`, `reporting.spec`) provam que carregam — **não que os números fecham**. |
+| Autorização (403) | Só backend | **167 asserções de 403** espalhadas pelos ITs de todos os módulos. Nenhuma na tela. Ver a nota abaixo. |
+| Isolamento | Só backend | 26 testes `outraCervejaria…` espalhados pelos módulos, mais o `TenantIsolationTest`, que varre todo SQL de escrita contra as tabelas com `brewery_id`. Nenhum E2E. Ver a nota abaixo. |
+| Bloqueadores | — | Não é teste: é o `STATUS.md` das sprints. Hoje, **zero débitos registrados em aberto**. |
+| **Frota** | Tela + só backend | `distribution-journey` → `kegCheio()`: etiqueta e inspeção válida. A **recusa** do vasilhame sem inspeção está em `ContainerIT#oConteinerNasceSemInspecaoENaoSeEnche` e `aInspecaoVencidaBloqueiaOEnchimento`. |
+| **Enchimento** | Tela | `distribution-journey`: o histórico do keg ainda aponta para o lote **depois da volta inteira**. |
+| **Carga** | Tela | `distribution-journey`: liberar a própria carga responde 409, e a segunda pessoa libera **em contexto de navegador próprio** — reaproveitar a sessão do primeiro não provaria nada. |
+| **Entrega** | Tela + só backend | A prova e a recusa da segunda prova na mesma parada estão em `distribution-journey`. A **correção que aponta para a original** está em `DeliveryIT#aProvaNaoSeEditaESeCorrigePorEventoNovo`. |
+| **Consentimento** | Só backend | `DeliveryIT`: `aEntregaAconteceSemAssinatura`, `aAssinaturaSoEntraComQuemConsentiuEParaQue`, `aAssinaturaSemFinalidadeNaoEntra`. |
+| **Coleta** | Tela | `distribution-journey`: volta como `RETURNED` com `fillable: false`, e a higienização registra **o método**, que é o que se audita. |
+| **Offline** | Só backend | `SyncIT#oReenvioDevolveOMesmoResultadoENaoCriaOutro` e `oConflitoNaoSeResolveSozinhoEEsperaGente`. |
+| **Recall com contêiner** | Só backend | `RecallIT#oSimuladoAlcancaOsConteineresDoLote`, com o contraponto: um terceiro keg, de outro lote, **não sai no escopo**. |
+
+**As duas linhas sem prova de tela são as duas que o próprio roteiro chama de "as que costumam faltar" — e
+não é coincidência: o bootstrap local não consegue produzi-las.**
+
+- **403 na tela** exigiria alguém com pouca permissão para logar, e as duas contas do perfil `local` estão
+  no mesmo grupo `ADMINISTRATORS`, deliberadamente (ver o javadoc de `BootstrapCheckerInitializer`: a
+  segunda conta existe para exercitar a regra de **pessoas diferentes**, não a de permissões diferentes).
+- **Isolamento na tela** exigiria uma segunda cervejaria com gente dentro, e o bootstrap cria uma só. Não
+  há porta pública para criar conta com senha: o convite manda token por notificação, e o SCIM exige
+  credencial de serviço e não define senha.
+
+Fechar as duas é trabalho de bootstrap, não de teste — e enquanto não for feito, **elas são obrigatórias na
+homologação**, com o corpo da resposta anexado.
 
 ---
 

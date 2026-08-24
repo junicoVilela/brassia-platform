@@ -18,7 +18,7 @@ DEC-DEBT-001 e as decisões por módulo.
 | REL-002 | Concluída | Claude | `infra/perf/*`, `ListBatchesUseCase`, `JdbcBatchRepository`, `PageResponse` | Gargalo medido **e corrigido**: com 3.000 lotes, p95 caiu de 319 ms para 9,8 ms. Ver DEC-REL-007. |
 | REL-003 | Concluída | Claude | `InternalAddressGuard`, `SecurityConfiguration`, `.github/workflows/ci.yml`, `frontend/package-lock.json` | Um achado ALTO (SSRF no webhook) e dois médios resolvidos; varredura de CVE passou a barrar merge. Ver DEC-REL-001/002/003. |
 | REL-004 | Concluída | Claude | `infra/runbooks/deploy-rollback.md` | Ensaio executado em 2026-08-10: bloqueio de escrita medido migration a migration (`V100` = 143 ms) e retorno do artefato anterior contra o schema novo exercitado de verdade. Ambiente local, não cópia de produção — limitação registrada. Ver DEC-REL-006/009. |
-| REL-005 | **Parcial** — manual entregue, ciclo pendente | Claude | PR #202, `docs/44_MINIMUM_OPERATING_MANUAL.md` | O entregável que não depende de ambiente está pronto, com o roteiro de homologação e a evidência exigida por etapa. O ciclo em homologação continua aberto: depende do ambiente e de quem opera. **Segue aberto no encerramento.** Ver DEC-REL-010. |
+| REL-005 | **Parcial** — manual entregue, ciclo pendente | Claude | PR #202, `docs/44_MINIMUM_OPERATING_MANUAL.md` §4.1 (2026-08-23) | O entregável que não depende de ambiente está pronto, com o roteiro de homologação e a evidência exigida por etapa. O ciclo em homologação continua aberto: depende do ambiente e de quem opera. **Segue aberto no encerramento.** Em 2026-08-23 o roteiro passou a dizer, linha a linha, o que já tem prova automática: **13 das 25 linhas são exercitadas inteiras pela tela a cada build**, 5 em parte, 6 só pelo backend, e 1 não é teste. Ver DEC-REL-010 e DEC-REL-012. |
 | Débitos 08–16 | Concluída (14 débitos) | Claude | PRs #212 a #224, ADR-0016 | Fora do escopo original, por decisão do mantenedor. Dez fechados com código, quatro por decisão sem código. Ver DEC-DEBT-001, DEC-CLN-001, DEC-AIA-001, DEC-FDS-001/002, DEC-PKG-001/002, DEC-QLT-001, DEC-CST-001/002, DEC-RPT-001. |
 
 ## Decisões e bloqueios
@@ -625,6 +625,45 @@ pelo formato que eu esperava encontrar achou exatamente o que eu esperava — e 
 O E2E foi a única barreira que pegou o segundo caso. Um teste que atravessa a stack real vale por isso:
 ele não sabe quantos clientes existem, só sabe que a tela ficou vazia.
 
+### DEC-REL-012 (REL-005) — **2026-08-23**: o roteiro passou a dizer o que já está provado
+
+**O que mudou.** A `DEC-REL-010` deixou o roteiro de homologação escrito e o ciclo aberto, e assim ficou
+por oito dias. O ciclo continua aberto — ele depende de ambiente e de quem opera, e isso nenhuma linha de
+código resolve. O que foi feito é outra coisa: **cada uma das 25 linhas do roteiro passou a citar a prova
+automática que já existe para ela**, conferida contra o repositório e não de memória.
+
+**O resultado, e ele é melhor do que eu esperava:** 13 linhas são percorridas **inteiras pela tela** a cada
+build, 5 em parte, 6 só têm prova de backend, e 1 (bloqueadores) não é teste — é o `STATUS.md`. As três
+jornadas E2E que apareceram entre as sprints 18 e 20 cobriram, sem que ninguém tivesse cruzado as duas
+listas, a maior parte de um roteiro escrito antes delas.
+
+**Por que isso importa para quem for homologar.** A distinção que a tabela faz e que uma contagem de
+cobertura não faria é entre *"provado pela tela"* e *"provado só pelo backend"*. A segunda é onde mora o
+defeito que atravessa tudo: a regra recusa corretamente pela API, e a recusa **não aparece para quem
+opera**. Foi exatamente esse o defeito que a `SAL-004` custou a achar, e a jornada comercial só o pegou
+porque olhou a tela. Quem homologar deve gastar o tempo nessas seis linhas, e não redescobrindo que a
+receita publica.
+
+**O achado que só apareceu ao cruzar as listas.** As duas linhas que o próprio roteiro chama de "as que
+costumam faltar por não serem o fluxo" — o 403 com Problem Details e a tentativa de outra cervejaria — são
+justamente as duas que **o bootstrap local não consegue produzir**:
+
+- As duas contas do perfil `local` estão no mesmo grupo `ADMINISTRATORS`, por decisão registrada no
+  javadoc do `BootstrapCheckerInitializer`: a segunda conta existe para exercitar a regra de *pessoas
+  diferentes*, e não a de permissões diferentes. Não há ninguém de pouca permissão para logar.
+- O bootstrap cria **uma** cervejaria, e não há porta pública para criar conta com senha noutra: o convite
+  manda token por notificação, e o SCIM exige credencial de serviço e não define senha.
+
+Não é coincidência que as linhas mais esquecidas sejam as que o ambiente de teste não sabe montar — é
+causa. **Fechá-las é trabalho de bootstrap, não de teste**, e é história nova: uma terceira conta com
+alçada estreita e uma segunda cervejaria semeada. Enquanto não existir, as duas são **obrigatórias** na
+homologação, com o corpo da resposta anexado.
+
+**Correção de rumo no próprio manual.** O cabeçalho ainda avisava que venda e retornáveis não tinham
+jornada E2E. Elas têm desde as sprints 19 e 20 — `sales-journey.spec.ts` e `distribution-journey.spec.ts`.
+Um aviso desatualizado num manual é pior que aviso nenhum: ele manda desconfiar exatamente do que passou a
+ser a parte mais bem provada.
+
 ### DEC-REL-011 (REL-001) — **2026-08-19**: o ensaio voltou, no formato reduzido
 
 **O que mudou.** A `DEC-REL-008` removeu o ensaio e deixou registrado que o documento de retenção e o
@@ -697,6 +736,9 @@ custo baixo — o que não é reversível é descobrir que o backup não restaur
     pedido do mantenedor. O risco não é técnico: é que ninguém sabe se o backup restaura. Ver DEC-REL-008.
   - **REL-005 não fecha.** O manual existe e o roteiro existe; o ciclo em homologação, não. Um manual
     que nunca foi seguido de ponta a ponta é hipótese escrita com capricho. Ver DEC-REL-010.
+    **Reduzido em 2026-08-23, não fechado:** 13 das 25 linhas do roteiro são percorridas inteiras pela
+    tela a cada build e outras 5 em parte, o que encolhe o ciclo manual — mas as 6 linhas provadas só pelo
+    backend, e as 2 que o bootstrap local não sabe montar, continuam dependendo de gente. Ver DEC-REL-012.
   - **O ensaio da REL-004 rodou em ambiente local**, não em cópia de produção. As medidas de bloqueio de
     escrita são reais, mas o volume de dados não é o de produção. Ver DEC-REL-009.
   - **Oito atualizações do Dependabot** (#204 a #211) ficaram armadas com auto-merge no encerramento, não

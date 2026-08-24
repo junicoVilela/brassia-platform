@@ -31,7 +31,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties({BootstrapAdminProperties.class, BootstrapCheckerProperties.class})
+@EnableConfigurationProperties({BootstrapAdminProperties.class, BootstrapCheckerProperties.class,
+        BootstrapOperatorProperties.class, BootstrapNeighbourProperties.class})
 class SecurityUserConfiguration {
     @Bean
     InviteUserUseCase inviteUserUseCase(

@@ -22,6 +22,30 @@ export const CONFERENTE = {
 };
 
 /**
+ * A pessoa de **pouca alçada**, criada pelo mesmo bootstrap do perfil `local`.
+ *
+ * <p>Admin e conferente têm as mesmas permissões — eles existem para provar *pessoas diferentes*. Esta
+ * existe para provar *permissões diferentes*: ela lê lote e custo, e não fecha custo. Sem ela, a recusa
+ * por permissão só podia ser exercitada pela API, e nenhum teste a via chegar a quem opera.
+ */
+export const OPERADOR = {
+  email: process.env.E2E_OPERATOR_EMAIL || 'operador@brassia.local',
+  password: process.env.E2E_OPERATOR_PASSWORD || 'operador-local-123',
+};
+
+/**
+ * A pessoa da **outra cervejaria**, criada pelo mesmo bootstrap do perfil `local`.
+ *
+ * <p>Mesma alçada do admin, casa diferente: o que se prova com ela é que a **cervejaria** separa, e não a
+ * permissão. Se ela também tivesse pouca alçada, levaria 403 por permissão e o teste de isolamento
+ * passaria sem nunca ter exercitado isolamento nenhum.
+ */
+export const VIZINHA = {
+  email: process.env.E2E_NEIGHBOUR_EMAIL || 'vizinha@brassia.local',
+  password: process.env.E2E_NEIGHBOUR_PASSWORD || 'vizinha-local-123',
+};
+
+/**
  * Mensagens de erro do console que não indicam defeito.
  *
  * 1. `Failed to load resource` é ruído de rede do navegador: 4xx esperado é

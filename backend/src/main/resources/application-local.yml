@@ -42,6 +42,30 @@ brassia:
       email: ${BOOTSTRAP_CHECKER_EMAIL:conferente@brassia.local}
       password: ${BOOTSTRAP_CHECKER_PASSWORD:conferente-local-123}
       name: ${BOOTSTRAP_CHECKER_NAME:Conferente Local}
+    # A PESSOA DE POUCA ALÇADA — o terceiro eixo.
+    # Admin e conferente têm as mesmas permissões e existem para provar "pessoas diferentes". Faltava
+    # alguém para provar "permissões diferentes": sem ninguém de pouca alçada para logar, a recusa por
+    # permissão só existia na API, e nenhum teste a via numa tela. Ela lê lote e custo, e não fecha
+    # custo — a leitura é o contraponto, porque tela em branco não distingue recusa de defeito.
+    bootstrap-operator:
+      enabled: ${BOOTSTRAP_OPERATOR_ENABLED:true}
+      email: ${BOOTSTRAP_OPERATOR_EMAIL:operador@brassia.local}
+      password: ${BOOTSTRAP_OPERATOR_PASSWORD:operador-local-123}
+      name: ${BOOTSTRAP_OPERATOR_NAME:Operador Local}
+      group-code: ${BOOTSTRAP_OPERATOR_GROUP:OPERADORES_LOCAIS}
+    # A PESSOA DA OUTRA CERVEJARIA — o quarto eixo.
+    # Mesma alçada do admin, casa diferente: o que se prova é que a cervejaria separa, e não a permissão.
+    # A associação é ESCOPADA à cervejaria vizinha; global daria acesso a todas e inverteria o teste.
+    #
+    # `brewery-code` PRECISA BATER com `brassia.brewery.neighbour.code` lá embaixo. Trocar um sem o outro
+    # não quebra o boot: a conta simplesmente não é criada, com um aviso no log — e o teste de isolamento
+    # falha depois, no login, longe da causa. Por isso as duas variáveis têm nome escopado.
+    bootstrap-neighbour:
+      enabled: ${BOOTSTRAP_NEIGHBOUR_USER_ENABLED:true}
+      email: ${BOOTSTRAP_NEIGHBOUR_USER_EMAIL:vizinha@brassia.local}
+      password: ${BOOTSTRAP_NEIGHBOUR_USER_PASSWORD:vizinha-local-123}
+      name: ${BOOTSTRAP_NEIGHBOUR_USER_NAME:Vizinha Local}
+      brewery-code: ${BOOTSTRAP_NEIGHBOUR_BREWERY_CODE:VIZINHA}
   brewery:
     # Cervejaria default para o login já ter uma cervejaria ativa em dev.
     bootstrap:
@@ -49,3 +73,12 @@ brassia:
       code: ${BOOTSTRAP_BREWERY_CODE:MATRIZ}
       name: ${BOOTSTRAP_BREWERY_NAME:Cervejaria Matriz}
       timezone: ${BOOTSTRAP_BREWERY_TIMEZONE:America/Sao_Paulo}
+    # A SEGUNDA CERVEJARIA, para o isolamento poder ser encenado pela tela.
+    # O CÓDIGO PRECISA ORDENAR DEPOIS DO DA PADRÃO: a cervejaria ativa de uma sessão é a primeira por
+    # código entre as acessíveis, e o admin alcança as duas. Um código antes de MATRIZ trocaria a casa
+    # ativa de toda a suíte E2E, que passaria a semear numa e a ler na outra.
+    neighbour:
+      enabled: ${BOOTSTRAP_NEIGHBOUR_BREWERY_ENABLED:true}
+      code: ${BOOTSTRAP_NEIGHBOUR_BREWERY_CODE:VIZINHA}
+      name: ${BOOTSTRAP_NEIGHBOUR_BREWERY_NAME:Cervejaria Vizinha}
+      timezone: ${BOOTSTRAP_NEIGHBOUR_BREWERY_TIMEZONE:America/Sao_Paulo}

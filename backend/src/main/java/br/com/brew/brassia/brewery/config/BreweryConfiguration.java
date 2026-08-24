@@ -23,7 +23,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(BreweryBootstrapProperties.class)
+@EnableConfigurationProperties({BreweryBootstrapProperties.class, BreweryNeighbourProperties.class})
 class BreweryConfiguration {
     @Bean
     RegisterBreweryUseCase registerBreweryUseCase(

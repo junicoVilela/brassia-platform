@@ -208,7 +208,7 @@ export async function seedBatch(page: Page): Promise<{ recipeId: string; batchId
 export async function seedSellableLot(
   page: Page,
   sfx: string,
-): Promise<{ recipeId: string; containerId: string; lotId: string }> {
+): Promise<{ recipeId: string; containerId: string; lotId: string; batchId: string }> {
   const start = new Date(Date.now() + 60 * 60 * 1000);
   const end = new Date(Date.now() + 5 * 60 * 60 * 1000);
 
@@ -316,7 +316,10 @@ export async function seedSellableLot(
   expect(lots.length, 'o envase executado deve ter gerado lote de produto acabado').toBe(1);
   await post(page, `/api/v1/packaging/finished-lots/${lots[0].id}/release`, {});
 
-  return { recipeId, containerId: can, lotId: lots[0].id };
+  // O lote de produção vai junto: não há porta que vá do lote acabado de volta a ele, e quem precisa
+  // custear ou montar o dossiê precisa dele — as duas telas são sobre o lote de produção, não sobre o
+  // produto acabado.
+  return { recipeId, containerId: can, lotId: lots[0].id, batchId: batch.id };
 }
 
 async function receive(

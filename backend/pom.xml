@@ -21,7 +21,7 @@
     <spring-modulith.version>2.1.0</spring-modulith.version>
     <!-- Jackson 2 (com.fasterxml). O Spring Boot 4 traz Jackson 3
          (tools.jackson); nosso código usa a linha 2, declarada abaixo. -->
-    <jackson2.version>2.22.1</jackson2.version>
+    <jackson2.version>2.22.2</jackson2.version>
     <anthropic.version>2.54.0</anthropic.version>
   </properties>
 

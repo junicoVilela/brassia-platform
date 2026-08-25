@@ -38,12 +38,21 @@ class JdbcSecurityAlertRepository implements SecurityAlertRepository {
         return id;
     }
 
+    /**
+     * Alertas da cervejaria, opcionalmente filtrados por status.
+     *
+     * <p><strong>O {@code CAST(:status AS VARCHAR)} é obrigatório, e não estilo.</strong> Sem ele o
+     * PostgreSQL não consegue inferir o tipo do parâmetro em {@code :status IS NULL} e recusa a instrução
+     * com "could not determine data type of parameter" — ou seja, listar alertas <em>sem filtro</em>
+     * respondia 500, que é justamente como a tela abre. Só a listagem já filtrada funcionava.
+     */
     @Override
     public List<AlertView> listByBrewery(UUID breweryId, String status, int limit) {
         return jdbc.sql("""
                 SELECT id, brewery_id, user_id, alert_type, severity, status, evidence, created_at
                 FROM security_alert
-                WHERE brewery_id = :breweryId AND (:status IS NULL OR status = :status)
+                WHERE brewery_id = :breweryId
+                  AND (CAST(:status AS VARCHAR) IS NULL OR status = :status)
                 ORDER BY created_at DESC LIMIT :limit
                 """)
                 .param("breweryId", breweryId)
@@ -62,12 +71,13 @@ class JdbcSecurityAlertRepository implements SecurityAlertRepository {
     }
 
     @Override
-    public Optional<AlertView> findById(UUID id) {
+    public Optional<AlertView> findById(UUID breweryId, UUID id) {
         return jdbc.sql("""
                 SELECT id, brewery_id, user_id, alert_type, severity, status, evidence, created_at
                 FROM security_alert WHERE id = :id AND brewery_id = :brewery
                 """)
                 .param("id", id)
+                .param("brewery", breweryId)
                 .query((rs, n) -> new AlertView(
                         rs.getObject("id", UUID.class),
                         rs.getObject("brewery_id", UUID.class),

@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup;
 
+import br.com.brew.brassia.integration.application.port.outbound.WebhookDeliveryRepository;
 import br.com.brew.brassia.integration.application.service.EventEnqueuer;
 import br.com.brew.brassia.integration.domain.WebhookEventType;
 import br.com.brew.brassia.shared.security.SecurityPrincipal;
@@ -70,6 +71,7 @@ class WebhookIT {
     @Autowired WebApplicationContext context;
     @Autowired EventEnqueuer enqueuer;
     @Autowired JdbcClient jdbc;
+    @Autowired WebhookDeliveryRepository deliveries;
     @Autowired PlatformTransactionManager transactionManager;
 
     MockMvc mockMvc;
@@ -321,6 +323,51 @@ class WebhookIT {
     }
 
     // --- infraestrutura ---
+
+    /**
+     * O desfecho da tentativa é GRAVADO — e sem isto a entrega bem-sucedida volta para sempre.
+     *
+     * <p><strong>Esta é a metade do outbox que nenhum teste tocava.</strong> `DeliveryDispatcherTest`
+     * exercita o despachante contra um repositório dublê, e este IT cobria assinatura e enfileiramento; o
+     * {@code UPDATE} de verdade nunca rodou contra um banco. Ele filtrava por {@code brewery_id} e não
+     * ligava o parâmetro, então toda tentativa terminava em exceção — e a rodada inteira abortava na
+     * primeira entrega.
+     *
+     * <p>O efeito era o oposto exato do que o outbox promete: a entrega era despachada, o destino
+     * recebia, o desfecho não era gravado, a linha continuava {@code PENDING} e o mesmo evento saía de
+     * novo a cada rodada. `enqueueIfAbsent` e `FOR UPDATE SKIP LOCKED` existem para impedir duplicata, e
+     * a duplicata entrava pela porta seguinte.
+     */
+    @Test
+    @DisplayName("O DESFECHO DA TENTATIVA É GRAVADO — senão a entrega volta para sempre")
+    void oDesfechoDaTentativaEGravado() throws Exception {
+        var session = login();
+        var brewery = breweryOf(session);
+        var subscriptionId = subscriptionIdOf(read(create(session, uniqueName("ERP"),
+                "https://erp.example.com/hooks", Set.of("recipe.published"))
+                .andExpect(status().isCreated())));
+
+        var eventId = "recipe-" + UUID.randomUUID();
+        new TransactionTemplate(transactionManager).execute(s ->
+                enqueuer.enqueue(brewery, WebhookEventType.RECIPE_PUBLISHED, eventId, "{}"));
+
+        var pendente = deliveries.claimDue(Instant.now(), 50).stream()
+                .filter(d -> d.eventId().equals(eventId))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("a entrega enfileirada deveria estar devida"));
+
+        deliveries.update(pendente.succeededWith(200, Instant.now()));
+
+        // No banco, e não no que o objeto em memória diz: o que decide se a entrega volta é a linha.
+        var status = jdbc.sql("SELECT status FROM webhook_delivery WHERE id = :id")
+                .param("id", pendente.id()).query(String.class).single();
+        assertThat(status).isEqualTo("DELIVERED");
+
+        // E o contraponto, que é o efeito de verdade: ela não é mais devida.
+        assertThat(deliveries.claimDue(Instant.now(), 50))
+                .as("entrega concluída não volta na rodada seguinte")
+                .noneMatch(d -> d.id().equals(pendente.id()));
+    }
 
     private long countDeliveries(UUID subscriptionId, String eventId) {
         return jdbc.sql("SELECT count(*) FROM webhook_delivery "

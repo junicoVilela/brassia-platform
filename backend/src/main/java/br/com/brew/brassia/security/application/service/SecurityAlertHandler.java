@@ -4,7 +4,6 @@ import br.com.brew.brassia.audit.AuditEvent;
 import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.security.application.port.inbound.ManageSecurityAlertUseCase;
 import br.com.brew.brassia.security.application.port.outbound.SecurityAlertRepository;
-import br.com.brew.brassia.shared.security.ForbiddenException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -24,10 +23,11 @@ public final class SecurityAlertHandler {
     }
 
     public void updateStatus(UUID breweryId, UUID actorId, UUID alertId, String status) {
-        var alert = alerts.findById(alertId).orElseThrow(() -> new IllegalArgumentException("alerta inexistente"));
-        if (alert.breweryId() != null && !alert.breweryId().equals(breweryId)) {
-            throw new ForbiddenException("alerta de outra cervejaria");
-        }
+        // A busca já vem escopada (DEB-INT-003). Antes disto o escopo era uma conferência aqui, feita
+        // depois de ler o alerta — e o SQL, que também filtrava, não ligava o parâmetro: a chamada
+        // estourava antes de chegar à conferência, e resolver alerta nunca funcionou.
+        alerts.findById(breweryId, alertId)
+                .orElseThrow(() -> new IllegalArgumentException("alerta inexistente"));
         alerts.updateStatus(breweryId, alertId, status, actorId);
         audit.record(AuditEvent.success(breweryId, actorId, "security.alert.update",
                 "security_alert", alertId.toString(), Map.of("status", status)));

@@ -625,6 +625,54 @@ pelo formato que eu esperava encontrar achou exatamente o que eu esperava — e 
 O E2E foi a única barreira que pegou o segundo caso. Um teste que atravessa a stack real vale por isso:
 ele não sabe quantos clientes existem, só sabe que a tela ficou vazia.
 
+### DEB-INT-003 — RESOLVIDO em 2026-08-25: ALTO — o outbox de webhooks nunca concluía uma entrega
+
+**Achado por um aviso no log, não por um teste.** Ao subir a aplicação para outra tarefa, o
+`WebhookDispatchRunner` registrava, a cada quinze segundos:
+`rodada de webhooks falhou: No value supplied for the SQL parameter 'brewery'`.
+
+**A causa.** O `UPDATE` do outbox filtrava por `brewery_id = :brewery` e **nunca ligava o parâmetro**.
+
+**O efeito era o oposto exato do que o outbox promete.** A entrega era despachada, o destino recebia, o
+desfecho não era gravado, a linha continuava `PENDING` e o mesmo evento saía de novo na rodada seguinte —
+para sempre. `enqueueIfAbsent` e `FOR UPDATE SKIP LOCKED` existem precisamente para impedir duplicata, e
+ela entrava pela porta seguinte. Pior: a exceção **escapava do `catch` por entrega** do despachante,
+porque o próprio `catch` chama `update`. A rodada inteira abortava na primeira entrega, e **nenhum webhook
+da instalação era concluído**.
+
+**Por que nenhum teste pegou, e é a parte que vale carregar.** `DeliveryDispatcherTest` exercita o
+despachante contra um repositório **dublê** — e dublê não tem SQL. O `WebhookIT` cobria assinatura,
+outbox transacional, restrição única e alçadas, mas nunca o `UPDATE`. **SQL só falha quando roda**, e a
+instrução que nenhum teste executa é exatamente onde o parâmetro esquecido se esconde.
+
+**A barreira, que é a outra metade do trabalho.** `BoundParametersTest` varre os blocos
+`.sql(""" … """)` do `src/main/java` e reprova todo parâmetro nomeado que a cadeia fluente não liga —
+mesmo padrão da `TenantIsolationTest`. Ela falha com contagem mínima se a extração quebrar, e o `(?<!:)`
+do padrão é obrigatório: sem ele todo `::text` do PostgreSQL viraria infração falsa, e a barreira seria
+desligada na primeira semana.
+
+**E ela encontrou mais três defeitos no mesmo build, todos em `JdbcSecurityAlertRepository`:**
+
+| Defeito | Efeito |
+|---|---|
+| `findById` filtrava por `:brewery` e o método **nem recebia** a cervejaria | **Resolver um alerta de segurança nunca funcionou** — `PATCH /api/v1/security/alerts/{id}` sempre respondia 500 |
+| `listByBrewery` usava `:status IS NULL` sem `CAST` | **Listar alertas sem filtro sempre respondeu 500** — que é justamente como a tela abre |
+| `enqueueIfAbsent` tinha `.param("brewery", …)` duplicado | Inócuo, mas é a digital do copiar-e-colar de onde a ligação se perdeu |
+
+O arquivo inteiro não tinha teste — nem de unidade, nem de integração. Os quatro defeitos são a mesma
+causa: **caminho publicado que nenhum teste executa**.
+
+**Como o `findById` foi corrigido importa.** O escopo passou para a **consulta**, e a conferência
+posterior no handler (`if (alert.breweryId() != ...) throw Forbidden`) foi removida — é exatamente o que a
+`OBS-REL-001` pede: a garantia deixa de depender de quem chama lembrar de comparar. De quebra, alerta de
+outra cervejaria passou a responder como alerta que não existe, pela mesma razão da `DEB-PRD-002`.
+
+**Verificado:** `WebhookIT#oDesfechoDaTentativaEGravado` reproduz o defeito contra o banco real (falhava
+com `InvalidDataAccessApiUsageException` antes da correção) e afirma o efeito, não o código — a entrega
+concluída **não volta** na rodada seguinte. `SecurityAlertIT` cobre os quatro caminhos que não tinham
+teste. A `BoundParametersTest` não precisou ser verificada contra versão quebrada: **ela encontrou três
+defeitos reais no primeiro build em que rodou.**
+
 ### DEC-REL-014 (REL-005) — **2026-08-25**: custo e relatório saem do "só backend"
 
 **A linha do roteiro é "custo e relatório do lote fecham com o que foi produzido", e o que existia provava

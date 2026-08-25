@@ -137,7 +137,7 @@ class PerformLoginHandlerTest {
         }
 
         @Override
-        public Optional<AlertView> findById(UUID id) {
+        public Optional<AlertView> findById(UUID breweryId, UUID id) {
             return Optional.empty();
         }
 

@@ -47,7 +47,6 @@ class JdbcWebhookDeliveryRepository implements WebhookDeliveryRepository {
                 """)
                 .param("id", delivery.id())
                 .param("brewery", delivery.breweryId())
-                .param("brewery", delivery.breweryId())
                 .param("subscription", delivery.subscriptionId())
                 .param("type", delivery.eventType().externalName())
                 .param("event", delivery.eventId())
@@ -60,6 +59,19 @@ class JdbcWebhookDeliveryRepository implements WebhookDeliveryRepository {
                 .update() == 1;
     }
 
+    /**
+     * Grava o desfecho da tentativa.
+     *
+     * <p><strong>O {@code :brewery} do {@code WHERE} não estava ligado</strong>, e toda chamada terminava
+     * em {@code InvalidDataAccessApiUsageException}. O efeito era o oposto exato do que o outbox promete:
+     * a entrega saía, o destino recebia, o desfecho não era gravado, a linha continuava {@code PENDING} e
+     * o mesmo evento era despachado de novo a cada rodada — para sempre. {@code enqueueIfAbsent} e
+     * {@code FOR UPDATE SKIP LOCKED} existem para impedir duplicata, e ela entrava pela porta seguinte.
+     *
+     * <p>Pior: a exceção escapava do {@code catch} por entrega do despachante, porque o próprio
+     * {@code catch} chama este método. A rodada inteira abortava na primeira entrega, e nenhum webhook da
+     * instalação era concluído. O sintoma visível era uma linha de WARN a cada quinze segundos.
+     */
     @Override
     public void update(WebhookDelivery delivery) {
         jdbc.sql("""
@@ -78,6 +90,7 @@ class JdbcWebhookDeliveryRepository implements WebhookDeliveryRepository {
                 .param("responseStatus", delivery.lastResponseStatus())
                 .param("error", delivery.lastError())
                 .param("id", delivery.id())
+                .param("brewery", delivery.breweryId())
                 .update();
     }
 

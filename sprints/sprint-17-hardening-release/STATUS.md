@@ -18,7 +18,7 @@ DEC-DEBT-001 e as decisões por módulo.
 | REL-002 | Concluída | Claude | `infra/perf/*`, `ListBatchesUseCase`, `JdbcBatchRepository`, `PageResponse` | Gargalo medido **e corrigido**: com 3.000 lotes, p95 caiu de 319 ms para 9,8 ms. Ver DEC-REL-007. |
 | REL-003 | Concluída | Claude | `InternalAddressGuard`, `SecurityConfiguration`, `.github/workflows/ci.yml`, `frontend/package-lock.json` | Um achado ALTO (SSRF no webhook) e dois médios resolvidos; varredura de CVE passou a barrar merge. Ver DEC-REL-001/002/003. |
 | REL-004 | Concluída | Claude | `infra/runbooks/deploy-rollback.md` | Ensaio executado em 2026-08-10: bloqueio de escrita medido migration a migration (`V100` = 143 ms) e retorno do artefato anterior contra o schema novo exercitado de verdade. Ambiente local, não cópia de produção — limitação registrada. Ver DEC-REL-006/009. |
-| REL-005 | **Parcial** — manual entregue, ciclo pendente | Claude | PR #202, `docs/44_MINIMUM_OPERATING_MANUAL.md` §4.1 (2026-08-23) | O entregável que não depende de ambiente está pronto, com o roteiro de homologação e a evidência exigida por etapa. O ciclo em homologação continua aberto: depende do ambiente e de quem opera. **Segue aberto no encerramento.** Em 2026-08-23 o roteiro passou a dizer, linha a linha, o que já tem prova automática; em 2026-08-24 o bootstrap ganhou a conta de pouca alçada e a segunda cervejaria, e as duas linhas mais esquecidas viraram jornada. **15 das 25 linhas são exercitadas inteiras pela tela a cada build**, 5 em parte, 4 só pelo backend, e 1 não é teste. Ver DEC-REL-010, DEC-REL-012 e DEC-REL-013. |
+| REL-005 | **Parcial** — manual entregue, ciclo pendente | Claude | PR #202, `docs/44_MINIMUM_OPERATING_MANUAL.md` §4.1 (2026-08-23) | O entregável que não depende de ambiente está pronto, com o roteiro de homologação e a evidência exigida por etapa. O ciclo em homologação continua aberto: depende do ambiente e de quem opera. **Segue aberto no encerramento.** Em 2026-08-23 o roteiro passou a dizer, linha a linha, o que já tem prova automática; em 24 o bootstrap ganhou a conta de pouca alçada e a segunda cervejaria; em 25 custo e relatório ganharam jornada. **16 das 25 linhas são exercitadas inteiras pela tela a cada build**, 5 em parte, 3 só pelo backend, e 1 não é teste. Ver DEC-REL-010, DEC-REL-012, DEC-REL-013 e DEC-REL-014. |
 | Débitos 08–16 | Concluída (14 débitos) | Claude | PRs #212 a #224, ADR-0016 | Fora do escopo original, por decisão do mantenedor. Dez fechados com código, quatro por decisão sem código. Ver DEC-DEBT-001, DEC-CLN-001, DEC-AIA-001, DEC-FDS-001/002, DEC-PKG-001/002, DEC-QLT-001, DEC-CST-001/002, DEC-RPT-001. |
 
 ## Decisões e bloqueios
@@ -625,6 +625,45 @@ pelo formato que eu esperava encontrar achou exatamente o que eu esperava — e 
 O E2E foi a única barreira que pegou o segundo caso. Um teste que atravessa a stack real vale por isso:
 ele não sabe quantos clientes existem, só sabe que a tela ficou vazia.
 
+### DEC-REL-014 (REL-005) — **2026-08-25**: custo e relatório saem do "só backend"
+
+**A linha do roteiro é "custo e relatório do lote fecham com o que foi produzido", e o que existia provava
+outra coisa.** `BatchCostIT`, `BatchVarianceIT` e `BatchReportIT` provam a apuração pela API; as telas
+tinham teste, e o que ele afirmava era que elas **carregam**. Entre as duas coisas cabe o defeito que
+importa: um total certo na API que chega torto à tela é indistinguível, para quem lê, de um total errado —
+e foi assim que o `LOCALE_ID` ficou meses mostrando `200.00` onde a casa lê `200,00`, com todo o backend
+verde.
+
+**A jornada persegue três acordos, e nenhum deles é "a tela abriu":**
+
+1. **A tela concorda com a API.** O total exibido é o total apurado, formatado como a casa lê dinheiro.
+2. **As duas telas concordam entre si.** Custo e dossiê derivam da mesma apuração; se divergirem, um dos
+   dois sai da casa com o número errado e não há como saber qual olhando só um deles.
+3. **O número se move quando a produção muda.** Sem isto, um total gravado uma vez e nunca recalculado
+   passaria nos dois primeiros.
+
+**A conta fecha de verdade, e não é "um número apareceu":** o teste confirma o consumo da brassagem pela
+proposta de reserva, calcula o esperado do preço de entrada semeado (1,50 por unidade de compra) e confere
+parcela a parcela — 90,00 de lúpulo, 30,00 de malte, 1,50 de levedura, 592,50 de embalagem, **714,00** de
+total, com o custo por litro caindo sobre os 390 L **transferidos** e não sobre o volume planejado.
+
+**A lacuna é o contraponto do teste inteiro.** Um custeio que somasse zero de mão de obra mostraria um
+número menor com cara de completo, e alguém precificaria em cima dele. A jornada exige a ressalva na tela,
+depois **fecha** a lacuna (taxa de hora + apontamento) e exige que o total suba — o que prova que o número
+é derivado, e não decorativo.
+
+**Descoberto ao escrever:** o `seedSellableLot` nunca confirmava o consumo da brassagem, então o custo de
+insumo ficava zerado e declarado como lacuna. A primeira versão da jornada teria passado afirmando um
+"total" que era só embalagem. Confirmar o consumo é o que faz a linha do roteiro ser sobre *o que foi
+produzido*.
+
+**Verificado contra a versão quebrada:** trocando o `number: '1.2-2'` do total para `'en-US'`, a tela passa
+a mostrar `714.00` e a jornada falha. A asserção da vírgula não é preciosismo — é o que segura o
+`LOCALE_ID` no lugar.
+
+**Efeito no roteiro:** de 25 linhas, **16 percorridas inteiras pela tela** (eram 15), 5 em parte, 3 só pelo
+backend (eram 4), 1 não é teste.
+
 ### DEC-REL-013 (REL-005) — **2026-08-24**: o bootstrap ganhou os dois eixos que faltavam
 
 **O que a DEC-REL-012 encontrou, esta fecha.** As duas linhas que o roteiro chama de "as que costumam
@@ -851,10 +890,10 @@ custo baixo — o que não é reversível é descobrir que o backup não restaur
     pedido do mantenedor. O risco não é técnico: é que ninguém sabe se o backup restaura. Ver DEC-REL-008.
   - **REL-005 não fecha.** O manual existe e o roteiro existe; o ciclo em homologação, não. Um manual
     que nunca foi seguido de ponta a ponta é hipótese escrita com capricho. Ver DEC-REL-010.
-    **Reduzido em 2026-08-23 e 24, não fechado:** 15 das 25 linhas do roteiro são percorridas inteiras
-    pela tela a cada build e outras 5 em parte, o que encolhe o ciclo manual — mas as 4 linhas provadas só
-    pelo backend continuam dependendo de gente, e o ciclo em si continua dependendo de ambiente e de quem
-    opera. Ver DEC-REL-012 e DEC-REL-013.
+    **Reduzido em 2026-08-23, 24 e 25, não fechado:** 16 das 25 linhas do roteiro são percorridas
+    inteiras pela tela a cada build e outras 5 em parte, o que encolhe o ciclo manual — mas as 3 linhas
+    provadas só pelo backend continuam dependendo de gente, e o ciclo em si continua dependendo de
+    ambiente e de quem opera. Ver DEC-REL-012, DEC-REL-013 e DEC-REL-014.
   - **O ensaio da REL-004 rodou em ambiente local**, não em cópia de produção. As medidas de bloqueio de
     escrita são reais, mas o volume de dados não é o de produção. Ver DEC-REL-009.
   - **Oito atualizações do Dependabot** (#204 a #211) ficaram armadas com auto-merge no encerramento, não

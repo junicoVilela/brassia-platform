@@ -5,12 +5,13 @@ import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.equipment.EquipmentCapacityLookup;
 import br.com.brew.brassia.equipment.EquipmentCleanlinessLookup;
 import br.com.brew.brassia.equipment.EquipmentUsageCommands;
-import br.com.brew.brassia.production.domain.DirtyEquipmentException;
 import br.com.brew.brassia.production.application.port.inbound.TransferBatchUseCase;
 import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
 import br.com.brew.brassia.production.application.port.outbound.TransferRepository;
 import br.com.brew.brassia.production.domain.BatchStatus;
 import br.com.brew.brassia.production.domain.BatchTransfer;
+import br.com.brew.brassia.production.domain.DirtyEquipmentException;
+import br.com.brew.brassia.production.domain.UnknownBatchException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Map;
@@ -44,7 +45,7 @@ public final class TransferBatchHandler implements TransferBatchUseCase {
     @Override
     public BatchTransfer handle(Command command) {
         var batch = batches.findById(command.breweryId(), command.batchId())
-                .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
+                .orElseThrow(() -> new UnknownBatchException(command.batchId()));
         if (batch.status() != BatchStatus.IN_PROGRESS) {
             throw new IllegalStateException("lote não está em andamento (já transferido ou encerrado)");
         }

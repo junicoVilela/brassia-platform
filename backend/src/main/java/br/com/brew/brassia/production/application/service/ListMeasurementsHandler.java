@@ -4,6 +4,7 @@ import br.com.brew.brassia.production.application.port.inbound.ListMeasurementsU
 import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
 import br.com.brew.brassia.production.application.port.outbound.MeasurementRepository;
 import br.com.brew.brassia.production.domain.Measurement;
+import br.com.brew.brassia.production.domain.UnknownBatchException;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -21,7 +22,7 @@ public final class ListMeasurementsHandler implements ListMeasurementsUseCase {
     @Override
     public List<Measurement> handle(UUID breweryId, UUID batchId) {
         batches.findById(breweryId, batchId)
-                .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
+                .orElseThrow(() -> new UnknownBatchException(batchId));
         return measurements.findByBatch(breweryId, batchId);
     }
 }

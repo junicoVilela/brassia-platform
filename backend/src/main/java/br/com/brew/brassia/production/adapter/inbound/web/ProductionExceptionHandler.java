@@ -1,13 +1,16 @@
 package br.com.brew.brassia.production.adapter.inbound.web;
 
 import br.com.brew.brassia.production.domain.BrewConsumptionException;
+import br.com.brew.brassia.production.domain.DirtyEquipmentException;
+import br.com.brew.brassia.production.domain.UnknownAlertException;
+import br.com.brew.brassia.production.domain.UnknownBatchException;
+import br.com.brew.brassia.production.domain.UnknownStepException;
 import br.com.brew.brassia.shared.web.ProblemDetails;
 import java.util.List;
 import java.util.Map;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
-import br.com.brew.brassia.production.domain.DirtyEquipmentException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -20,6 +23,45 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(0)
 @RestControllerAdvice
 class ProductionExceptionHandler {
+
+    /**
+     * Lote que não existe para quem pediu (DEB-PRD-002).
+     *
+     * <p>404 e não 400: o pedido estava bem-formado, e o recurso é que não existe. Antes disto a produção
+     * respondia "Requisição inválida.", herdado de um {@code IllegalArgumentException} genérico — mandando
+     * conferir o próprio pedido quando o problema era outro, e destoando de custo, relatório e IA, que já
+     * respondiam {@code 404 unknown_batch}.
+     *
+     * <p><strong>"Não existe" e "é de outra cervejaria" respondem igual</strong>, porque o repositório
+     * filtra por cervejaria e o lote alheio não chega até aqui. Essa igualdade é o que impede confirmar a
+     * existência do lote para quem só tem o identificador.
+     */
+    @ExceptionHandler(UnknownBatchException.class)
+    ProblemDetail handleUnknownBatch(UnknownBatchException ex) {
+        var problem = ProblemDetails.of(HttpStatus.NOT_FOUND, "unknown_batch",
+                "Este lote não existe nesta cervejaria.");
+        problem.setProperty("batchId", ex.batchId().toString());
+        return problem;
+    }
+
+    /** Etapa que não existe neste lote (DEB-PRD-002). Ver {@link UnknownStepException}. */
+    @ExceptionHandler(UnknownStepException.class)
+    ProblemDetail handleUnknownStep(UnknownStepException ex) {
+        var problem = ProblemDetails.of(HttpStatus.NOT_FOUND, "unknown_step",
+                "Esta etapa não existe neste lote.");
+        problem.setProperty("batchId", ex.batchId().toString());
+        problem.setProperty("stepId", ex.stepId().toString());
+        return problem;
+    }
+
+    /** Alerta que não existe neste lote (DEB-PRD-002). Ver {@link UnknownAlertException}. */
+    @ExceptionHandler(UnknownAlertException.class)
+    ProblemDetail handleUnknownAlert(UnknownAlertException ex) {
+        var problem = ProblemDetails.of(HttpStatus.NOT_FOUND, "unknown_alert",
+                "Este alerta não existe neste lote.");
+        problem.setProperty("alertId", ex.alertId().toString());
+        return problem;
+    }
 
     /**
      * Tanque sem limpeza liberada (CLN-004-A).

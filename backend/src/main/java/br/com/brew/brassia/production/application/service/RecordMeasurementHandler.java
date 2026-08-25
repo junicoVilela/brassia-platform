@@ -9,6 +9,7 @@ import br.com.brew.brassia.production.domain.BatchStatus;
 import br.com.brew.brassia.production.domain.Measurement;
 import br.com.brew.brassia.production.domain.MeasurementKind;
 import br.com.brew.brassia.production.domain.MeasurementSource;
+import br.com.brew.brassia.production.domain.UnknownBatchException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
@@ -39,7 +40,7 @@ public final class RecordMeasurementHandler implements RecordMeasurementUseCase 
     @Override
     public Result handle(Command command) {
         var batch = batches.findById(command.breweryId(), command.batchId())
-                .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
+                .orElseThrow(() -> new UnknownBatchException(command.batchId()));
         // Medição de brassa exige lote em andamento: acrescentar temperatura de mostura a um lote
         // encerrado descreveria um dia que já acabou.
         //

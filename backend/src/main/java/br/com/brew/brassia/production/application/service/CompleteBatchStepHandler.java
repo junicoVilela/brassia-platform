@@ -7,6 +7,8 @@ import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
 import br.com.brew.brassia.production.domain.Batch;
 import br.com.brew.brassia.production.domain.BatchStatus;
 import br.com.brew.brassia.production.domain.BatchStep;
+import br.com.brew.brassia.production.domain.UnknownBatchException;
+import br.com.brew.brassia.production.domain.UnknownStepException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
@@ -29,7 +31,7 @@ public final class CompleteBatchStepHandler implements CompleteBatchStepUseCase 
     @Override
     public Batch handle(Command command) {
         var batch = repository.findById(command.breweryId(), command.batchId())
-                .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
+                .orElseThrow(() -> new UnknownBatchException(command.batchId()));
         if (batch.status() != BatchStatus.IN_PROGRESS) {
             throw new IllegalStateException("lote não está em andamento");
         }
@@ -37,7 +39,7 @@ public final class CompleteBatchStepHandler implements CompleteBatchStepUseCase 
         var step = batch.steps().stream()
                 .filter(s -> s.id().equals(command.stepId()))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("etapa inexistente no lote"));
+                .orElseThrow(() -> new UnknownStepException(command.batchId(), command.stepId()));
         if (!step.isActive()) {
             throw new IllegalStateException("apenas a etapa ativa pode ser concluída");
         }

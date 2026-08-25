@@ -180,9 +180,17 @@ class BrewConsumptionIT {
         var other = principal(UUID.randomUUID(),
                 Set.of("production.batch.read", "production.batch.manage"));
 
+        // 404 `unknown_batch` desde a DEB-PRD-002 — e a mesma resposta que um id sorteado daria, que é o
+        // que impede confirmar a existência do lote para quem só tem o identificador.
         mockMvc.perform(get("/api/v1/production/batches/" + scene.batchId + "/consumption/proposal")
                         .with(authentication(other)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("unknown_batch")));
+
+        mockMvc.perform(get("/api/v1/production/batches/" + UUID.randomUUID() + "/consumption/proposal")
+                        .with(authentication(other)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("unknown_batch")));
     }
 
     // --- cenário ---

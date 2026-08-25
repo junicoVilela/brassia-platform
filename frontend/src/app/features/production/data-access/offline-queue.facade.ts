@@ -158,9 +158,14 @@ export class OfflineQueueFacade {
    * não passa a ser aceito na décima tentativa: insistir só gastaria a fila. 5xx fica de fora
    * deliberadamente: erro do servidor costuma passar, e tratá-lo como conflito jogaria na mão de quem
    * opera uma decisão que era só esperar.
+   *
+   * <p><strong>404 entrou com a DEB-PRD-002</strong>, e não é detalhe de arrumação. O lote inexistente
+   * respondia 400 e caía aqui; ao virar 404 ele passaria a ser tratado como falha transitória, e o
+   * aparelho retentaria para sempre um apontamento cujo lote não vai voltar a existir. Recurso que não
+   * existe não passa a existir na décima tentativa — é conflito, e quem opera precisa vê-lo na fila.
    */
   private isConflict(status: number): boolean {
-    return status === 409 || status === 400 || status === 422;
+    return status === 409 || status === 404 || status === 400 || status === 422;
   }
 
   private reasonFor(response: HttpErrorResponse): string {

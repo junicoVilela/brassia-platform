@@ -7,6 +7,7 @@ import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
 import br.com.brew.brassia.production.application.port.outbound.LaborRepository;
 import br.com.brew.brassia.production.domain.BatchStatus;
 import br.com.brew.brassia.production.domain.LaborEntry;
+import br.com.brew.brassia.production.domain.UnknownBatchException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
@@ -33,7 +34,7 @@ public final class RecordLaborHandler implements RecordLaborUseCase {
     @Override
     public LaborEntry handle(Command command) {
         var batch = batches.findById(command.breweryId(), command.batchId())
-                .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
+                .orElseThrow(() -> new UnknownBatchException(command.batchId()));
         if (batch.status() == BatchStatus.CANCELLED) {
             throw new IllegalStateException("lote cancelado não recebe apontamento de hora");
         }

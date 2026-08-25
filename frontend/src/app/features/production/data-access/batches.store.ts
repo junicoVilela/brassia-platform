@@ -121,9 +121,7 @@ export class BatchesStore {
           this.toast.success('Etapa concluída.');
         },
         error: (err: { status?: number }) =>
-          this.toast.error(err?.status === 409
-            ? 'Apenas a etapa ativa pode ser concluída.'
-            : 'Não foi possível concluir a etapa.'),
+          this.toast.error(mensagemDaEtapa(err?.status)),
       });
   }
 
@@ -321,4 +319,22 @@ export class BatchesStore {
         error: () => this.alertError.set('Não foi possível carregar os alertas.'),
       });
   }
+}
+
+/**
+ * A recusa ao concluir etapa, traduzida pelo que ela afirma.
+ *
+ * <p>409 e 404 são coisas diferentes e a ação de quem opera muda com elas: no primeiro a etapa existe e o
+ * estado é que recusa — voltar um passo resolve; no segundo o lote ou a etapa não existem mais para esta
+ * sessão, e insistir na mesma tela não vai resolver nada. Antes da DEB-PRD-002 o segundo caso chegava
+ * como 400 e caía na mensagem genérica.
+ */
+function mensagemDaEtapa(status: number | undefined): string {
+  if (status === 409) {
+    return 'Apenas a etapa ativa pode ser concluída.';
+  }
+  if (status === 404) {
+    return 'Este lote ou esta etapa não existem mais. Recarregue a lista.';
+  }
+  return 'Não foi possível concluir a etapa.';
 }

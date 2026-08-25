@@ -4,6 +4,7 @@ import br.com.brew.brassia.production.application.port.inbound.ListAlertsUseCase
 import br.com.brew.brassia.production.application.port.outbound.AlertRepository;
 import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
 import br.com.brew.brassia.production.domain.BatchAlert;
+import br.com.brew.brassia.production.domain.UnknownBatchException;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -21,7 +22,7 @@ public final class ListAlertsHandler implements ListAlertsUseCase {
     @Override
     public List<BatchAlert> handle(UUID breweryId, UUID batchId) {
         batches.findById(breweryId, batchId)
-                .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
+                .orElseThrow(() -> new UnknownBatchException(batchId));
         return alerts.findByBatch(breweryId, batchId);
     }
 }

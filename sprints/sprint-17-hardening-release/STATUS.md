@@ -687,7 +687,7 @@ parte, 4 só pelo backend (eram 6), e 1 não é teste. O ciclo em homologação 
 de ambiente e de quem opera —, mas as duas linhas mais esquecidas dele saíram da lista de "alguém precisa
 lembrar" e entraram na de "o build confere".
 
-### DEB-PRD-002 — Lote inexistente responde 400 onde a casa toda responde 404
+### DEB-PRD-002 — RESOLVIDO em 2026-08-24: lote inexistente responde 400 onde a casa toda responde 404
 
 **O efeito.** `GET /production/batches/{id}` para um lote que não existe — ou que é de outra cervejaria —
 responde `400 bad_request` com "Requisição inválida.", porque `GetBatchHandler` lança
@@ -706,6 +706,39 @@ outro assunto.
 **Critério de remoção:** `GetBatchHandler` passa a lançar uma exceção própria traduzida para `404` com
 código estável, o `openapi.yaml` documenta, e o E2E de isolamento continua verde **sem alteração** — ele
 não depende do código escolhido, só da igualdade entre as duas respostas.
+
+**Critério cumprido em 2026-08-24, e o escopo foi maior do que a linha do débito dizia.** O efeito estava
+escrito sobre o `GET`, mas a causa era do módulo: **treze** lugares na produção lançavam o mesmo
+`IllegalArgumentException("lote inexistente")`. Corrigir só o `GET` deixaria doze respostas erradas e a
+aparência de resolvido.
+
+- **`UnknownBatchException` → `404 unknown_batch`**, nos treze. É o código que custo, relatório e IA já
+  usavam — não inventei vocabulário novo.
+- **`UnknownStepException` e `UnknownAlertException` → `404`** vieram junto por necessidade, não por
+  capricho: deixá-las em `400` criaria, *no mesmo controlador*, a inconsistência que o débito veio remover.
+- **As duas cobrem "de outro lote" com a mesma resposta de "não existe"**, pela razão que o E2E de
+  isolamento já usava um nível acima: o endereço é um par, e responder diferente confirmaria a existência
+  do recurso para quem só tem o identificador. `ConfirmAlertHandler` tinha um "alerta não pertence ao lote"
+  distinguível; não tem mais.
+
+**O que NÃO mudou, e é a metade que importa da decisão.** Continuam `400` os casos em que o problema é um
+**campo do corpo**: etapa informada numa medição, medição de origem numa correção, calculadora que não é
+correção de brassa, fermentador de destino inexistente. Ali o pedido *é* inválido e quem opera precisa
+saber qual campo consertar — 404 apagaria essa informação. A regra que separa os dois é "o recurso do
+endereço" contra "a referência no corpo".
+
+**O defeito que a correção quase introduziu, achado revisando o frontend.** `OfflineQueueFacade#isConflict`
+tratava 400/409/422 como conflito e o resto como falha transitória. O lote inexistente respondia 400 e caía
+como conflito; ao virar 404 ele passaria a ser **retentado para sempre** por um aparelho de chão de fábrica,
+contra um lote que não vai voltar a existir. O 404 entrou na lista, e o teste que guarda a passagem foi
+verificado contra a versão sem ele — falha.
+
+**Verificado:** `StepProgressIT#loteDeOutraCasaRespondeExatamenteComoLoteQueNaoExiste` compara as duas
+respostas inteiras (status, `code`, `detail`, `title`) em vez de cravar um código;
+`etapaDeOutroLoteRespondeComoEtapaQueNaoExiste` e
+`AlertCenterIT#alertaDeOutroLoteRespondeComoAlertaQueNaoExiste` fazem o mesmo um nível abaixo. O E2E de
+isolamento seguiu verde **sem uma linha alterada**, como o critério pedia — e é isso que prova que ele
+afirmava a propriedade certa desde o começo.
 
 ### DEC-REL-012 (REL-005) — **2026-08-23**: o roteiro passou a dizer o que já está provado
 

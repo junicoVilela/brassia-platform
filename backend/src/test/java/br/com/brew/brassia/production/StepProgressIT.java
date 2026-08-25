@@ -100,6 +100,66 @@ class StepProgressIT {
                 .andExpect(status().isForbidden());
     }
 
+    /**
+     * DEB-PRD-002: o lote que não existe e o lote de outra cervejaria respondem <strong>igual</strong>.
+     *
+     * <p>Era 400 "Requisição inválida." nos dois casos — o pedido estava correto, e a resposta mandava
+     * conferi-lo. Agora é 404 {@code unknown_batch}, como custo, relatório e IA já respondiam.
+     *
+     * <p>O que o teste guarda não é o código: é a <strong>igualdade</strong> entre as duas respostas. Se um
+     * dia alguém achar que "existe, mas não é seu" merece resposta própria, é aqui que a mudança será
+     * barrada — porque essa resposta própria confirmaria a existência do lote para quem só tem o id.
+     */
+    @Test
+    void loteDeOutraCasaRespondeExatamenteComoLoteQueNaoExiste() throws Exception {
+        var session = login();
+        var batchId = startedBatch(session).get("id").asText();
+        var forasteiro = principal(UUID.randomUUID(), Set.of("production.batch.read"));
+
+        var alheio = mockMvc.perform(get("/api/v1/production/batches/" + batchId)
+                        .with(authentication(forasteiro)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("unknown_batch")))
+                .andReturn().getResponse().getContentAsString();
+
+        var inexistente = mockMvc.perform(get("/api/v1/production/batches/" + UUID.randomUUID())
+                        .with(authentication(forasteiro)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("unknown_batch")))
+                .andReturn().getResponse().getContentAsString();
+
+        var a = JSON.readTree(alheio);
+        var b = JSON.readTree(inexistente);
+        org.assertj.core.api.Assertions.assertThat(a.get("detail")).isEqualTo(b.get("detail"));
+        org.assertj.core.api.Assertions.assertThat(a.get("title")).isEqualTo(b.get("title"));
+        // E nada do lote vaza no corpo — nem o código, que é o que a tela mostraria.
+        org.assertj.core.api.Assertions.assertThat(alheio).doesNotContain("steps").doesNotContain("code\":\"B");
+    }
+
+    /**
+     * DEB-PRD-002: etapa de outro lote responde como etapa que não existe.
+     *
+     * <p>Mesma razão do lote, um nível abaixo: o endereço é o par {@code /batches/{id}/steps/{stepId}}, e
+     * distinguir os dois casos diria a quem tem o identificador que a etapa existe em algum lugar.
+     */
+    @Test
+    void etapaDeOutroLoteRespondeComoEtapaQueNaoExiste() throws Exception {
+        var session = login();
+        var meu = startedBatch(session).get("id").asText();
+        var alheio = startedBatch(session);
+        var etapaDoOutro = alheio.get("steps").get(0).get("id").asText();
+
+        mockMvc.perform(post("/api/v1/production/batches/" + meu + "/steps/" + etapaDoOutro + "/complete")
+                        .session(session).with(csrf()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("unknown_step")));
+
+        mockMvc.perform(post("/api/v1/production/batches/" + meu + "/steps/" + UUID.randomUUID() + "/complete")
+                        .session(session).with(csrf()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("unknown_step")));
+    }
+
     // --- helpers ---
 
     /** Cria uma OP liberada, inicia a produção e devolve o detalhe do Batch criado. */

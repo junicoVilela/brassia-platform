@@ -8,6 +8,7 @@ import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
 import br.com.brew.brassia.production.domain.Batch;
 import br.com.brew.brassia.production.domain.BatchStatus;
 import br.com.brew.brassia.production.domain.BrewConsumptionException;
+import br.com.brew.brassia.production.domain.UnknownBatchException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -92,6 +93,6 @@ public final class BrewConsumptionHandlers {
 
     private static Batch batch(BatchRepository batches, UUID breweryId, UUID batchId) {
         return batches.findById(breweryId, batchId)
-                .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
+                .orElseThrow(() -> new UnknownBatchException(batchId));
     }
 }

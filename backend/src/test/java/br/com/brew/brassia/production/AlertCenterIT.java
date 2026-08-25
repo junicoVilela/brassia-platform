@@ -86,11 +86,37 @@ class AlertCenterIT {
                         .content("{\"kind\":\"ADDITION\",\"message\":\"Adicionar lúpulo de aroma\"}"))
                 .andExpect(status().isCreated());
 
-        // Outra cervejaria não enxerga sequer o lote → 400 (não vaza dado algum).
+        // Outra cervejaria não enxerga sequer o lote → 404 `unknown_batch` (DEB-PRD-002). Era 400 antes,
+        // o que mandava conferir um pedido que estava correto. O que não muda, e é o que importa, é a
+        // resposta não carregar nada do lote.
         mockMvc.perform(get("/api/v1/production/batches/" + batchId + "/alerts")
                         .with(authentication(principal(UUID.randomUUID(),
                                 Set.of("production.batch.read")))))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("unknown_batch")));
+    }
+
+    @Test
+    void alertaDeOutroLoteRespondeComoAlertaQueNaoExiste() throws Exception {
+        // DEB-PRD-002: os dois casos respondem igual, e de propósito. O endereço é o par lote+alerta;
+        // dizer "existe, mas é de outro lote" confirmaria a existência do alerta para quem só tem o id.
+        var session = login();
+        var meu = startedBatch(session).get("id").asText();
+        var outro = startedBatch(session).get("id").asText();
+        var alertaDoOutro = idOf(mockMvc.perform(post("/api/v1/production/batches/" + outro + "/alerts")
+                        .session(session).with(csrf()).contentType("application/json")
+                        .content("{\"kind\":\"ADDITION\",\"message\":\"Lúpulo de aroma\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        mockMvc.perform(post("/api/v1/production/batches/" + meu + "/alerts/" + alertaDoOutro + "/confirm")
+                        .session(session).with(csrf()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("unknown_alert")));
+
+        mockMvc.perform(post("/api/v1/production/batches/" + meu + "/alerts/" + UUID.randomUUID() + "/confirm")
+                        .session(session).with(csrf()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("unknown_alert")));
     }
 
     @Test

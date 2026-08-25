@@ -4,6 +4,7 @@ import br.com.brew.brassia.production.application.port.inbound.GetBatchTransferU
 import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
 import br.com.brew.brassia.production.application.port.outbound.TransferRepository;
 import br.com.brew.brassia.production.domain.BatchTransfer;
+import br.com.brew.brassia.production.domain.UnknownBatchException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,7 +22,7 @@ public final class GetBatchTransferHandler implements GetBatchTransferUseCase {
     @Override
     public Optional<BatchTransfer> handle(UUID breweryId, UUID batchId) {
         batches.findById(breweryId, batchId)
-                .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
+                .orElseThrow(() -> new UnknownBatchException(batchId));
         return transfers.findByBatch(breweryId, batchId);
     }
 }

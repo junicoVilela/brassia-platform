@@ -12,6 +12,7 @@ import br.com.brew.brassia.production.application.port.outbound.ProductionEventP
 import br.com.brew.brassia.production.domain.AppliedCorrection;
 import br.com.brew.brassia.production.domain.BatchStatus;
 import br.com.brew.brassia.production.domain.BrewCorrections;
+import br.com.brew.brassia.production.domain.UnknownBatchException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
@@ -44,7 +45,7 @@ public final class ApplyCorrectionHandler implements ApplyCorrectionUseCase {
     @Override
     public AppliedCorrection handle(Command command) {
         var batch = batches.findById(command.breweryId(), command.batchId())
-                .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
+                .orElseThrow(() -> new UnknownBatchException(command.batchId()));
         if (batch.status() != BatchStatus.IN_PROGRESS) {
             throw new IllegalStateException("lote não está em andamento");
         }

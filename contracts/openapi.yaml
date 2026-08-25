@@ -587,6 +587,7 @@ paths:
         '200': {description: Lote}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
   /production/corrections:
     get:
       operationId: listBrewCorrections
@@ -609,6 +610,7 @@ paths:
         '200': {description: Impacto calculado}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
         '409': {$ref: '#/components/responses/Problem'}
   /production/batches/{id}/corrections/apply:
     post:
@@ -625,6 +627,7 @@ paths:
         '201': {description: Correção aplicada (registrada)}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
         '409': {$ref: '#/components/responses/Problem'}
   /production/batches/{id}/corrections/applied:
     get:
@@ -635,6 +638,7 @@ paths:
       responses:
         '200': {description: Correções aplicadas}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
   /production/batches/{id}/measurements:
     get:
       operationId: listBatchMeasurements
@@ -644,6 +648,7 @@ paths:
       responses:
         '200': {description: Medições do lote}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
     post:
       operationId: recordBatchMeasurement
       summary: "Registra uma medição (unidade validada contra a grandeza; imutável)"
@@ -658,6 +663,7 @@ paths:
         '201': {description: Medição registrada}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
         '409': {$ref: '#/components/responses/Problem'}
   /production/batches/{id}/alerts:
     get:
@@ -669,6 +675,7 @@ paths:
         '200': {description: Alertas do lote}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
     post:
       operationId: createBatchAlert
       summary: Cria um item na central (adição/etapa/medição/decisão)
@@ -683,6 +690,7 @@ paths:
         '201': {description: Alerta criado}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
   /production/batches/{id}/alerts/{alertId}/confirm:
     post:
       operationId: confirmBatchAlert
@@ -694,6 +702,14 @@ paths:
         '200': {description: Alerta confirmado (idempotente)}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: >-
+            `unknown_batch` ou `unknown_alert` (DEB-PRD-002). O alerta que pertence a **outro lote**
+            responde igual ao que não existe: o endereço é o par lote+alerta, e distinguir os dois casos
+            confirmaria a existência do alerta para quem só tem o identificador
+          content:
+            application/problem+json:
+              schema: {type: object}
   /production/batches/{id}/transfer:
     get:
       operationId: getBatchTransfer
@@ -704,6 +720,7 @@ paths:
         '200': {description: Transferência}
         '204': {description: Lote ainda não transferido}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
     post:
       operationId: transferBatch
       summary: "Transfere o lote ao fermentador (valida capacidade, balanço de massa e limpeza; move para FERMENTING)"
@@ -718,6 +735,7 @@ paths:
         '201': {description: Lote transferido}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
         '409':
           description: >-
             Capacidade do fermentador ou balanço de massa excedido; já transferido; ou o tanque de destino
@@ -736,7 +754,14 @@ paths:
         '200': {description: Etapa concluída; lote atualizado}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
-        '409': {$ref: '#/components/responses/Problem'}
+        '404':
+          description: >-
+            `unknown_batch` ou `unknown_step` (DEB-PRD-002). A etapa que pertence a **outro lote** responde
+            igual à que não existe, pela mesma razão do lote entre cervejarias. Etapa fora de ordem é
+            outra coisa e continua `409`: ali ela existe, e o que recusa é o estado
+          content:
+            application/problem+json:
+              schema: {type: object}
   /fermentation/profiles:
     get:
       operationId: listFermentationProfiles
@@ -4362,6 +4387,7 @@ paths:
               schema: {$ref: '#/components/schemas/BrewConsumptionProposal'}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
   /production/batches/{id}/consumption:
     post:
       tags: [Produção]
@@ -4400,6 +4426,7 @@ paths:
         '200': {description: Consumo registrado}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
         '409':
           description: >-
             `brew_consumption_shortfall` — declarado acima do que o lote tem, com a falta lote a
@@ -4528,6 +4555,7 @@ paths:
                     people: {type: integer}
                     manHours: {type: number}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
     post:
       tags: [Produção]
       summary: Apontar horas trabalhadas no lote (CST-001-A)
@@ -4565,6 +4593,7 @@ paths:
         '201': {description: Apontamento registrado}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/UnknownBatch'}
         '409': {$ref: '#/components/responses/Problem'}
   /costing/batches/{batchId}/variance:
     get:
@@ -15266,6 +15295,30 @@ components:
   responses:
     Problem:
       description: Problem Details
+      content:
+        application/problem+json:
+          schema: {type: object}
+    UnknownBatch:
+      description: >-
+        `unknown_batch` — o lote não existe nesta cervejaria (DEB-PRD-002). A resposta é **a mesma** para
+        "não existe em lugar nenhum" e "existe em outra cervejaria": distinguir as duas contaria a quem tem
+        o identificador que o lote existe em algum lugar. Antes da DEB-PRD-002 a produção respondia `400`
+        aqui, o que mandava conferir um pedido que estava correto
+      content:
+        application/problem+json:
+          schema: {type: object}
+    UnknownStep:
+      description: >-
+        `unknown_step` — a etapa não existe neste lote (DEB-PRD-002). Mesma resposta para a etapa que não
+        existe e para a que pertence a outro lote, pela mesma razão de `unknown_batch`. Não confundir com a
+        etapa informada **no corpo** de uma medição: ali o problema é um campo, e a resposta é `400`
+      content:
+        application/problem+json:
+          schema: {type: object}
+    UnknownAlert:
+      description: >-
+        `unknown_alert` — o alerta não existe neste lote (DEB-PRD-002). Cobre os dois casos, o alerta
+        inexistente e o de outro lote, pela mesma razão de `unknown_batch`
       content:
         application/problem+json:
           schema: {type: object}

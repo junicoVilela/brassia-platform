@@ -5,6 +5,7 @@ import br.com.brew.brassia.audit.AuditTrail;
 import br.com.brew.brassia.production.application.port.inbound.ConfirmAlertUseCase;
 import br.com.brew.brassia.production.application.port.outbound.AlertRepository;
 import br.com.brew.brassia.production.domain.BatchAlert;
+import br.com.brew.brassia.production.domain.UnknownAlertException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
@@ -26,9 +27,11 @@ public final class ConfirmAlertHandler implements ConfirmAlertUseCase {
     @Override
     public BatchAlert handle(Command command) {
         var alert = alerts.findById(command.breweryId(), command.alertId())
-                .orElseThrow(() -> new IllegalArgumentException("alerta inexistente"));
+                .orElseThrow(() -> new UnknownAlertException(command.alertId()));
         if (!alert.batchId().equals(command.batchId())) {
-            throw new IllegalArgumentException("alerta não pertence ao lote");
+            // Mesma recusa de "não existe", e de propósito: o endereço é o par lote+alerta, e responder
+            // diferente aqui diria a quem tem o identificador que o alerta existe noutro lote.
+            throw new UnknownAlertException(command.alertId());
         }
         if (alert.confirmed()) {
             return alert; // idempotente: já confirmado, sem novo efeito

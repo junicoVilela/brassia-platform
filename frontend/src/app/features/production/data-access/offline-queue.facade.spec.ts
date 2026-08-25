@@ -140,6 +140,22 @@ describe('OfflineQueueFacade', () => {
     expect(facade.hasConflicts()).toBe(true);
   });
 
+  // DEB-PRD-002: o lote inexistente respondia 400 e caía como conflito. Ao virar 404 ele passaria a ser
+  // tratado como falha transitória, e o aparelho retentaria para sempre um lote que não vai voltar a
+  // existir. Este teste é o que guarda a passagem de um código para o outro.
+  it('404 é conflito, não retry: lote que não existe não passa a existir na décima tentativa', async () => {
+    facade.enqueue('b1', 'LOTE-001', payload);
+    const flushing = facade.flush();
+
+    http.expectOne(URL).flush(
+      { code: 'unknown_batch', detail: 'Este lote não existe nesta cervejaria.' },
+      { status: 404, statusText: 'Not Found' },
+    );
+    await flushing;
+
+    expect(facade.hasConflicts()).toBe(true);
+  });
+
   it('descartar é a única forma de o conflito sair da fila', async () => {
     facade.enqueue('b1', 'LOTE-001', payload);
     const flushing = facade.flush();

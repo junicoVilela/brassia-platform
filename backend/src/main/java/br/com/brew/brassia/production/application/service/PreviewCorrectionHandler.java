@@ -5,6 +5,7 @@ import br.com.brew.brassia.production.application.port.inbound.PreviewCorrection
 import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
 import br.com.brew.brassia.production.domain.BatchStatus;
 import br.com.brew.brassia.production.domain.BrewCorrections;
+import br.com.brew.brassia.production.domain.UnknownBatchException;
 import java.util.Objects;
 
 /**
@@ -25,7 +26,7 @@ public final class PreviewCorrectionHandler implements PreviewCorrectionUseCase 
     @Override
     public CalculatorEngine.Computation handle(Command command) {
         var batch = batches.findById(command.breweryId(), command.batchId())
-                .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
+                .orElseThrow(() -> new UnknownBatchException(command.batchId()));
         if (batch.status() != BatchStatus.IN_PROGRESS) {
             throw new IllegalStateException("lote não está em andamento");
         }

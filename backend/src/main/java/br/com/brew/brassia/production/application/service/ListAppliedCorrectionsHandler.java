@@ -4,6 +4,7 @@ import br.com.brew.brassia.production.application.port.inbound.ListAppliedCorrec
 import br.com.brew.brassia.production.application.port.outbound.AppliedCorrectionRepository;
 import br.com.brew.brassia.production.application.port.outbound.BatchRepository;
 import br.com.brew.brassia.production.domain.AppliedCorrection;
+import br.com.brew.brassia.production.domain.UnknownBatchException;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -21,7 +22,7 @@ public final class ListAppliedCorrectionsHandler implements ListAppliedCorrectio
     @Override
     public List<AppliedCorrection> handle(UUID breweryId, UUID batchId) {
         batches.findById(breweryId, batchId)
-                .orElseThrow(() -> new IllegalArgumentException("lote inexistente"));
+                .orElseThrow(() -> new UnknownBatchException(batchId));
         return corrections.findByBatch(breweryId, batchId);
     }
 }

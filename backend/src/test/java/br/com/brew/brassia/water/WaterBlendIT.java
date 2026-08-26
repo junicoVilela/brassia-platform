@@ -5,6 +5,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -124,6 +125,57 @@ class WaterBlendIT {
                                 + ",\"magnesium\":0,\"sodium\":0,\"sulfate\":0,\"chloride\":0,\"bicarbonate\":0}"))
                 .andExpect(status().isCreated());
         return id;
+    }
+
+    /**
+     * Corrigir um perfil de água já cadastrado.
+     *
+     * <p>O endpoint não tinha teste. O que ele precisa ter, e é o que o teste cobra, é o
+     * <strong>bloqueio otimista</strong>: dois cervejeiros ajustando o mesmo perfil de água ao mesmo tempo
+     * não podem terminar com o de quem salvou por último, em silêncio — a água define a receita, e o
+     * ajuste perdido reaparece na cerveja.
+     */
+    @Test
+    void corrigirOPerfilRespeitaAVersaoQueQuemEditouLeu() throws Exception {
+        var session = login();
+        var id = profileWithCalcium(session, "AGUA-" + java.util.UUID.randomUUID().toString().substring(0, 6), "50");
+
+        // A correção com a versão que se leu passa.
+        mockMvc.perform(put("/api/v1/water/profiles/" + id).session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"name\":\"Alvo corrigido\",\"calcium\":80,\"magnesium\":0,"
+                                + "\"sodium\":0,\"sulfate\":0,\"chloride\":0,\"bicarbonate\":0,"
+                                + "\"version\":0}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name", is("Alvo corrigido")));
+
+        // A segunda, com a mesma versão de antes, perde: é a edição de quem leu a tela desatualizada.
+        mockMvc.perform(put("/api/v1/water/profiles/" + id).session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"name\":\"Alvo de outro\",\"calcium\":10,\"magnesium\":0,"
+                                + "\"sodium\":0,\"sulfate\":0,\"chloride\":0,\"bicarbonate\":0,"
+                                + "\"version\":0}"))
+                .andExpect(status().isConflict());
+
+        // E o que ficou gravado é a primeira correção, não a segunda. A listagem é paginada (REL-002):
+        // o array vem em `content`.
+        mockMvc.perform(get("/api/v1/water/profiles").session(session))
+                .andExpect(jsonPath("$.content[?(@.id=='" + id + "')].name",
+                        is(java.util.List.of("Alvo corrigido"))));
+    }
+
+    @Test
+    void corrigirPerfilExigeAlcadaDeGerirAgua() throws Exception {
+        var session = login();
+        var id = profileWithCalcium(session, "AGUA-" + java.util.UUID.randomUUID().toString().substring(0, 6), "50");
+
+        mockMvc.perform(put("/api/v1/water/profiles/" + id)
+                        .with(authentication(principal(java.util.UUID.randomUUID(), Set.of("water.read"))))
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"name\":\"Tentativa\",\"calcium\":10,\"magnesium\":0,"
+                                + "\"sodium\":0,\"sulfate\":0,\"chloride\":0,\"bicarbonate\":0,"
+                                + "\"version\":0}"))
+                .andExpect(status().isForbidden());
     }
 
     private String profileWithCalcium(MockHttpSession session, String code, String calcium) throws Exception {

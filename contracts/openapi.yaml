@@ -1555,18 +1555,6 @@ paths:
               schema: {$ref: '#/components/schemas/StockBalance'}
         '400': {$ref: '#/components/responses/Problem'}
         '403': {$ref: '#/components/responses/Problem'}
-  /batches/{batchId}/measurements:
-    post:
-      operationId: recordMeasurement
-      parameters:
-        - {name: batchId, in: path, required: true, schema: {type: string, format: uuid}}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/Measurement'}
-      responses:
-        '201': {description: Recorded}
   /planning/schedule:
     get:
       operationId: listScheduleEntries
@@ -12778,15 +12766,6 @@ components:
               unit: {type: string, enum: [KG, G, MG, L, ML, UNIT]}
               timingMinutes: {type: integer}
               percentage: {type: number}
-    Measurement:
-      type: object
-      required: [parameter, value, unit, measuredAt, source]
-      properties:
-        parameter: {type: string}
-        value: {type: number}
-        unit: {type: string}
-        measuredAt: {type: string, format: date-time}
-        source: {type: string, enum: [MANUAL, SENSOR, IMPORT]}
     CreateScheduleEntry:
       type: object
       required: [recipeId, equipmentId, assignedUserId, plannedVolumeLiters, scheduledStart, scheduledEnd]

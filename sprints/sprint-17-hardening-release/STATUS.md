@@ -14,7 +14,7 @@ DEC-DEBT-001 e as decisões por módulo.
 
 | História | Estado | Responsável | Evidência/PR | Observação |
 |---|---|---|---|---|
-| REL-001 | **Parcial** — RTO medido, RPO não | Claude | `infra/runbooks/restore-drill.md` (2026-08-19) | Reaberta em 2026-08-19 no formato reduzido da `REL-001-PROPOSTA`. O ensaio rodou de ponta a ponta: dump, restauração isolada, integridade conferida em 204 tabelas, aplicação de pé contra a cópia. **Ainda não fecha como especificada** — o RPO depende de política de backup que não existe, e o RTO foi medido em máquina de desenvolvimento com dados semeados. Ver DEC-REL-008 e DEC-REL-011. |
+| REL-001 | **Parcial** — RTO medido; RPO decidido, não medido | Claude | `infra/runbooks/restore-drill.md` (2026-08-19), `docs/21_DATA_RETENTION_BACKUP.md` (2026-08-26) | Reaberta em 2026-08-19 no formato reduzido da `REL-001-PROPOSTA`. O ensaio rodou de ponta a ponta: dump, restauração isolada, integridade conferida em 204 tabelas, aplicação de pé contra a cópia. **Ainda não fecha como especificada.** Até 2026-08-25 o bloqueio era a ausência de política de backup; em 2026-08-26 ela passou a existir e fixou **RPO de 5 minutos**. O bloqueio mudou de natureza, e não sumiu: a história pede RPO **medido**, e medi-lo exige o WAL archiving rodando. O RTO segue medido em máquina de desenvolvimento com dados semeados. Ver DEC-REL-008, DEC-REL-011 e DEC-REL-017. |
 | REL-002 | Concluída | Claude | `infra/perf/*`, `ListBatchesUseCase`, `JdbcBatchRepository`, `PageResponse` | Gargalo medido **e corrigido**: com 3.000 lotes, p95 caiu de 319 ms para 9,8 ms. Ver DEC-REL-007. |
 | REL-003 | Concluída | Claude | `InternalAddressGuard`, `SecurityConfiguration`, `.github/workflows/ci.yml`, `frontend/package-lock.json` | Um achado ALTO (SSRF no webhook) e dois médios resolvidos; varredura de CVE passou a barrar merge. Ver DEC-REL-001/002/003. |
 | REL-004 | Concluída | Claude | `infra/runbooks/deploy-rollback.md` | Ensaio executado em 2026-08-10: bloqueio de escrita medido migration a migration (`V100` = 143 ms) e retorno do artefato anterior contra o schema novo exercitado de verdade. Ambiente local, não cópia de produção — limitação registrada. Ver DEC-REL-006/009. |
@@ -731,6 +731,46 @@ concluída **não volta** na rodada seguinte. `SecurityAlertIT` cobre os quatro 
 teste. A `BoundParametersTest` não precisou ser verificada contra versão quebrada: **ela encontrou três
 defeitos reais no primeiro build em que rodou.**
 
+### DEC-REL-017 (REL-001) — **2026-08-26**: a política de backup existe, e o RPO é de 5 minutos
+
+**O bloqueio que estava em pé desde 2026-08-15 mudou de natureza.** A `DEC-REL-011` registrou que o RPO
+dependia de uma política que não existia, e que nenhum ensaio o produz a partir de uma ausência. A política
+agora existe (`docs/21_DATA_RETENTION_BACKUP.md`), decidida pelo mantenedor.
+
+| | | |
+|---|---|---|
+| **RPO** | 5 min | WAL contínuo com PITR |
+| **RTO** | 4 h | a restauração leva 56 s; o resto é perceber, decidir e conferir |
+| **Retenção** | 30 dias de janela PITR | o prazo em que se percebe corrupção lenta |
+
+**O argumento que decidiu o RPO.** Apontamento, pedido e entrega se refazem com dor. **Auditoria e
+genealogia não se refazem** — são a evidência, e são o que um recall precisa para dizer que este keg
+carregou aquele lote. Uma casa com três barreiras de build guardando a rastreabilidade não pode ter backup
+que a perde por atacado. Réplica em streaming foi descartada por comprar segundos onde o WAL compra
+minutos, ao custo de outra máquina sempre ligada — e a indisponibilidade não é o gargalo, já que a volta
+mede 56 segundos. Entra na conta um atenuante do próprio desenho: a fila offline da entrega vive **no
+aparelho** até sincronizar (PWA-002), então perder o servidor não perde o que o entregador registrou.
+
+**A distinção que muda o desenho, e que quase virou custo inútil:** *backup não é arquivo morto*. A
+retenção legal plurianual da rastreabilidade se resolve **exportando dossiês** (RPT-001), não guardando
+dumps velhos — restaurar um dump de três anos num schema duzentas migrations à frente não é plano, é
+esperança. Backup responde "o sistema volta"; arquivo responde "provo o que aconteceu em março de 2024".
+Guardar backup por anos paga caro por um artefato velho demais para restaurar e opaco demais para auditar.
+
+**Duas decisões que existem para não serem tomadas às três da manhã:**
+
+- **Banco e objetos: o banco manda.** Restaura-se o Postgres ao ponto escolhido e os objetos ficam como
+  estão. É seguro porque o armazenamento é *append-only* na prática, e o efeito é objeto órfão — lixo, não
+  corrupção. O oposto seria dossiê apontando para arquivo inexistente, que é documento que mente.
+- **Quem decide restaurar tem nome**, e não cargo: restaurar descarta tudo depois do ponto escolhido. Quem
+  decide deveria ser outra pessoa que quem executa, pela mesma razão da LOG-001 — a carga não é liberada
+  por quem a montou. **Os três nomes estão em branco na política, aguardando o mantenedor.**
+
+**A REL-001 NÃO fecha com isto, e a distinção importa.** A história pede "RPO/RTO **medidos**". O RPO agora
+está **decidido**; medi-lo exige o WAL archiving configurado e rodando, para observar o atraso real do
+arquivamento. O que mudou é a natureza do bloqueio: era "falta uma decisão que só o negócio toma", e passou
+a ser "falta ambiente" — a mesma dependência que segura a REL-005.
+
 ### DEC-REL-015 (REL-005) — **2026-08-26**: o consentimento da entrega sai do "só backend"
 
 **A regra é de dado pessoal, e o lugar onde ela se perde é a tela.** `DeliveryIT` prova as três coisas
@@ -1018,8 +1058,10 @@ custo baixo — o que não é reversível é descobrir que o backup não restaur
 - **Contratos atualizados:** `contracts/openapi.yaml` — **256 caminhos**, três a mais que no encerramento
   da Sprint 16.
 - **Riscos remanescentes:**
-  - **REL-001 não fecha.** Não há RPO nem RTO medidos, e o ensaio de restauração saiu do repositório a
-    pedido do mantenedor. O risco não é técnico: é que ninguém sabe se o backup restaura. Ver DEC-REL-008.
+  - **REL-001 não fecha.** O RTO está medido e o ensaio voltou ao repositório (DEC-REL-011); a política
+    de backup existe e fixou o RPO em 5 minutos (DEC-REL-017). **Falta medir o RPO**, o que exige o WAL
+    archiving rodando — e ambiente. O risco deixou de ser "ninguém sabe se o backup restaura" e passou a
+    ser "ninguém exercitou a recuperação a ponto no tempo, que é a que a política promete".
   - **REL-005 não fecha.** O manual existe e o roteiro existe; o ciclo em homologação, não. Um manual
     que nunca foi seguido de ponta a ponta é hipótese escrita com capricho. Ver DEC-REL-010.
     **Reduzido em 2026-08-23 a 26, não fechado:** 17 das 25 linhas do roteiro são percorridas inteiras

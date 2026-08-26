@@ -62,9 +62,25 @@ A retenção legal plurianual da rastreabilidade **não** se resolve guardando b
 Guardar backup por anos paga caro por um artefato que não cumpre nenhum dos dois papéis: velho demais para
 restaurar, opaco demais para auditar.
 
-> **A confirmar com quem responde pela conformidade:** o prazo legal aplicável à rastreabilidade de
-> alimento nesta jurisdição. A política fixa o backup em 30 dias; o prazo do **arquivo** é obrigação
-> externa e não se decide aqui.
+### Prazo do arquivo: 5 anos, provisório
+
+**O custo aqui é assimétrico, e é isso que decide.** O arquivo são dossiês exportados — arquivos pequenos.
+Guardá-los por tempo demais custa centavos; guardá-los de menos **não se desfaz**. Diante de assimetria
+dessas, esperar a resposta exata para começar a guardar é o pior dos caminhos: o campo fica em branco por
+tempo indeterminado, e é assim que esse tipo de decisão morre.
+
+**A âncora:** validade do produto mais alguns anos. A reclamação que aciona um dossiê chega enquanto o
+produto está no mercado, e depois ainda há a janela de quem pergunta. Com 180 dias de validade nos lotes
+desta casa, **cinco anos** cobre com folga qualquer cenário plausível.
+
+> **A confirmar com quem responde pela conformidade**, e a política não substitui essa confirmação: o
+> prazo legal aplicável à rastreabilidade de alimento, e **a partir de quando ele conta**. Cervejaria no
+> Brasil tem registro de bebida no MAPA, e rastreabilidade de alimento toca a ANVISA — mas qual norma
+> alcança este caso é pergunta para assessoria, não para quem escreveu esta política.
+>
+> Os cinco anos são **piso provisório escolhido pelo lado seguro**, não interpretação de norma. Se a
+> confirmação vier menor, nada se perde por ter guardado a mais; se vier maior, ajusta-se antes de
+> qualquer descarte — e é por isso que o provisório é generoso.
 
 ## Cópia fora do ambiente
 
@@ -91,17 +107,34 @@ incidente**, e às três da manhã.
 
 ## Quem decide restaurar
 
-| Papel | Nome |
-|---|---|
-| Decide restaurar e escolhe o ponto no tempo | *a definir pelo mantenedor* |
-| Executa o runbook | *a definir pelo mantenedor* |
-| Confere a integridade e libera o retorno | *a definir pelo mantenedor* |
+| Papel | Titular | Suplente |
+|---|---|---|
+| Decide restaurar e escolhe o ponto no tempo | Valdemir Vilela Junior | *vago* |
+| Executa o runbook | Valdemir Vilela Junior | *vago* |
+| Confere a integridade e libera o retorno | Valdemir Vilela Junior | *vago* |
 
 **Restaurar é destrutivo:** descarta tudo o que veio depois do ponto escolhido. Por isso a decisão tem
 dono, e o dono é uma **pessoa nomeada**, não um cargo — cargo não atende o telefone.
 
-Quem executa e quem libera podem ser a mesma pessoa numa casa pequena; quem decide deveria ser outra, pela
-mesma razão que a carga de distribuição não é liberada por quem a montou (`LOG-001`).
+### A limitação, registrada em vez de disfarçada
+
+Hoje os três papéis são a mesma pessoa, porque hoje há uma pessoa. Isso é **estado conhecido, não
+desenho** — e fica escrito para que a próxima contratação saiba o que muda.
+
+**O que muda quando entrar a segunda pessoa**, em ordem de importância:
+
+1. **Quem decide restaurar deveria ser alguém do negócio.** Restaurar é decidir *perder dados de
+   propósito*, e o custo disso é operacional, não técnico. Quem escreveu o código pesa "o sistema volta";
+   quem toca a cervejaria pesa "perco os apontamentos de hoje". É a mesma razão da `LOG-001`: a carga não
+   é liberada por quem a montou.
+2. **Quem confere e libera deveria conhecer a operação.** Aqui mora o engano mais fácil: quem opera o
+   sistema confirma que a restauração funcionou *tecnicamente* — 204 tabelas conferem, o Flyway validou,
+   a API responde. Só quem conhece a casa consegue dizer **"o lote que estava no tanque ontem está lá"**.
+   São perguntas diferentes, e é a segunda que autoriza voltar a operar.
+3. **Executar pode continuar com quem opera o sistema.** É procedimento escrito, sem julgamento.
+
+**Os suplentes valem tanto quanto os titulares.** Um nome que não atende o telefone às três da manhã é o
+mesmo que campo em branco — e é justamente às três da manhã que este documento é lido.
 
 ## O que ainda não está provado
 

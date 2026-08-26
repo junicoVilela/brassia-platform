@@ -831,7 +831,22 @@ Guardar backup por anos paga caro por um artefato velho demais para restaurar e 
   corrupção. O oposto seria dossiê apontando para arquivo inexistente, que é documento que mente.
 - **Quem decide restaurar tem nome**, e não cargo: restaurar descarta tudo depois do ponto escolhido. Quem
   decide deveria ser outra pessoa que quem executa, pela mesma razão da LOG-001 — a carga não é liberada
-  por quem a montou. **Os três nomes estão em branco na política, aguardando o mantenedor.**
+  por quem a montou.
+
+**Os dois campos que ficaram em branco foram preenchidos em 2026-08-26**, e os dois por escolha explícita
+em vez de espera:
+
+- **Os três papéis são a mesma pessoa**, porque hoje há uma pessoa. Registrado como **limitação conhecida,
+  não desenho**, com o que muda quando entrar a segunda: quem *decide* deveria ser do negócio (restaurar é
+  perder dados de propósito, e o custo é operacional), e quem *confere e libera* deveria conhecer a
+  operação — quem opera o sistema confirma que a restauração funcionou tecnicamente; só quem conhece a casa
+  diz "o lote que estava no tanque ontem está lá". São perguntas diferentes, e é a segunda que autoriza
+  voltar a operar. Os suplentes seguem vagos, e valem tanto quanto os titulares.
+- **Prazo do arquivo: 5 anos, provisório.** O custo é assimétrico — dossiê exportado é arquivo pequeno,
+  guardar demais custa centavos, guardar de menos não se desfaz. Esperar a resposta legal exata para
+  começar a guardar seria deixar o campo em branco por tempo indeterminado, que é como esse tipo de
+  decisão morre. A âncora é validade do produto mais alguns anos. **Não é interpretação de norma**: é piso
+  escolhido pelo lado seguro, com a confirmação registrada como pendente da assessoria.
 
 **A REL-001 NÃO fecha com isto, e a distinção importa.** A história pede "RPO/RTO **medidos**". O RPO agora
 está **decidido**; medi-lo exige o WAL archiving configurado e rodando, para observar o atraso real do

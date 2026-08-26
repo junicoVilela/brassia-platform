@@ -200,12 +200,15 @@ Estes números são **ordem de grandeza e prova de procedimento**, não compromi
 
 ### O que esta execução não estabelece
 
-- **RPO.** Depende de política de backup — frequência, retenção, cópia fora do ambiente — que ainda não
-  existe. Sem ela não há janela de perda a medir, e este ensaio não a inventa.
+- **RPO.** A política existe desde 2026-08-26 (`docs/21_DATA_RETENTION_BACKUP.md`) e fixa **5 minutos**,
+  por arquivamento de WAL com PITR. Mas este ensaio **não o mede**: medir exige o arquivamento
+  configurado e rodando, para observar o atraso real. Enquanto não houver ambiente, o número é
+  compromisso, e não medida — e nenhum ensaio de dump o produz.
 - **RTO em volume de produção.** 1,5 GB semeados neste hardware; produção tem outro tamanho e outro
   disco. O tempo escala com ambos.
 - **Restauração de objetos.** Nenhum objeto havia sido gravado nesta execução
   (`backend/data/objects` ausente), então o passo 7 não foi exercitado com conteúdo. O procedimento
   está escrito; falta rodá-lo com objetos de verdade.
 - **Restauração parcial ou a ponto no tempo (PITR).** Este ensaio restaura um dump inteiro. Recuperar
-  até um instante escolhido exige WAL archiving, que é outra configuração e outro ensaio.
+  até um instante escolhido exige WAL archiving, que é outra configuração e outro ensaio — e é o ensaio
+  que a política de 2026-08-26 passou a exigir, porque é dele que sai o RPO medido.

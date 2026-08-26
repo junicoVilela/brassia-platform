@@ -18,7 +18,7 @@ DEC-DEBT-001 e as decisões por módulo.
 | REL-002 | Concluída | Claude | `infra/perf/*`, `ListBatchesUseCase`, `JdbcBatchRepository`, `PageResponse` | Gargalo medido **e corrigido**: com 3.000 lotes, p95 caiu de 319 ms para 9,8 ms. Ver DEC-REL-007. |
 | REL-003 | Concluída | Claude | `InternalAddressGuard`, `SecurityConfiguration`, `.github/workflows/ci.yml`, `frontend/package-lock.json` | Um achado ALTO (SSRF no webhook) e dois médios resolvidos; varredura de CVE passou a barrar merge. Ver DEC-REL-001/002/003. |
 | REL-004 | Concluída | Claude | `infra/runbooks/deploy-rollback.md` | Ensaio executado em 2026-08-10: bloqueio de escrita medido migration a migration (`V100` = 143 ms) e retorno do artefato anterior contra o schema novo exercitado de verdade. Ambiente local, não cópia de produção — limitação registrada. Ver DEC-REL-006/009. |
-| REL-005 | **Parcial** — manual entregue, ciclo pendente | Claude | PR #202, `docs/44_MINIMUM_OPERATING_MANUAL.md` §4.1 (2026-08-23) | O entregável que não depende de ambiente está pronto, com o roteiro de homologação e a evidência exigida por etapa. O ciclo em homologação continua aberto: depende do ambiente e de quem opera. **Segue aberto no encerramento.** Em 2026-08-23 o roteiro passou a dizer, linha a linha, o que já tem prova automática; em 24 o bootstrap ganhou a conta de pouca alçada e a segunda cervejaria; em 25 custo e relatório ganharam jornada. **16 das 25 linhas são exercitadas inteiras pela tela a cada build**, 5 em parte, 3 só pelo backend, e 1 não é teste. Ver DEC-REL-010, DEC-REL-012, DEC-REL-013 e DEC-REL-014. |
+| REL-005 | **Parcial** — manual entregue, ciclo pendente | Claude | PR #202, `docs/44_MINIMUM_OPERATING_MANUAL.md` §4.1 (2026-08-23) | O entregável que não depende de ambiente está pronto, com o roteiro de homologação e a evidência exigida por etapa. O ciclo em homologação continua aberto: depende do ambiente e de quem opera. **Segue aberto no encerramento.** Em 2026-08-23 o roteiro passou a dizer, linha a linha, o que já tem prova automática; em 24 o bootstrap ganhou a conta de pouca alçada e a segunda cervejaria; em 25 custo e relatório ganharam jornada. **17 das 25 linhas são exercitadas inteiras pela tela a cada build**, 5 em parte, 2 só pelo backend, e 1 não é teste. Ver DEC-REL-010, DEC-REL-012, DEC-REL-013, DEC-REL-014 e DEC-REL-015. |
 | Débitos 08–16 | Concluída (14 débitos) | Claude | PRs #212 a #224, ADR-0016 | Fora do escopo original, por decisão do mantenedor. Dez fechados com código, quatro por decisão sem código. Ver DEC-DEBT-001, DEC-CLN-001, DEC-AIA-001, DEC-FDS-001/002, DEC-PKG-001/002, DEC-QLT-001, DEC-CST-001/002, DEC-RPT-001. |
 
 ## Decisões e bloqueios
@@ -731,6 +731,32 @@ concluída **não volta** na rodada seguinte. `SecurityAlertIT` cobre os quatro 
 teste. A `BoundParametersTest` não precisou ser verificada contra versão quebrada: **ela encontrou três
 defeitos reais no primeiro build em que rodou.**
 
+### DEC-REL-015 (REL-005) — **2026-08-26**: o consentimento da entrega sai do "só backend"
+
+**A regra é de dado pessoal, e o lugar onde ela se perde é a tela.** `DeliveryIT` prova as três coisas
+pela API: a entrega acontece sem assinatura, a mídia não existe sem finalidade, e a chave do arquivo não
+sai na listagem. Nenhuma tinha sido vista numa tela — e uma tela que exigisse o nome de quem assinou para
+o botão funcionar transformaria o dado pessoal em **obrigatório na prática**, com a API impecável e a
+regra revogada na ponta. É na ponta que o entregador está, com o cliente esperando na porta.
+
+**A jornada exercita as duas metades pelo formulário:** o campo de assinatura fica em branco e a entrega
+acontece; com nome, a tela mostra de quem é a assinatura.
+
+**A finalidade é a metade menos óbvia, e é a que a tela resolve bem.** Quem opera não digita para que
+serve a assinatura — e não deveria: pedir isso a cada parada produziria "entrega" mil vezes e um cheque em
+branco na milésima. A tela a fornece, e o teste cobra que ela chegue gravada. O operador **não tem como**
+produzir mídia sem finalidade, porque esse caminho não existe na interface.
+
+**E a chave do arquivo não chega ao navegador.** A listagem diz que existe assinatura e de quem; onde ela
+está guardada é outra conversa. Sem essa asserção, "a mídia é protegida" seria promessa de servidor.
+
+**Verificado contra a versão quebrada:** tornando `consentedByName` obrigatório no formulário, a entrega
+sem assinatura não acontece e a tela nunca mostra "Entregue" — a jornada falha. É exatamente o defeito que
+ela existe para barrar, e é um defeito que nenhum teste de backend pegaria.
+
+**Efeito no roteiro:** de 25 linhas, **17 percorridas inteiras pela tela** (eram 16), 5 em parte, 2 só pelo
+backend (eram 3), 1 não é teste.
+
 ### DEC-REL-014 (REL-005) — **2026-08-25**: custo e relatório saem do "só backend"
 
 **A linha do roteiro é "custo e relatório do lote fecham com o que foi produzido", e o que existia provava
@@ -996,10 +1022,10 @@ custo baixo — o que não é reversível é descobrir que o backup não restaur
     pedido do mantenedor. O risco não é técnico: é que ninguém sabe se o backup restaura. Ver DEC-REL-008.
   - **REL-005 não fecha.** O manual existe e o roteiro existe; o ciclo em homologação, não. Um manual
     que nunca foi seguido de ponta a ponta é hipótese escrita com capricho. Ver DEC-REL-010.
-    **Reduzido em 2026-08-23, 24 e 25, não fechado:** 16 das 25 linhas do roteiro são percorridas
-    inteiras pela tela a cada build e outras 5 em parte, o que encolhe o ciclo manual — mas as 3 linhas
-    provadas só pelo backend continuam dependendo de gente, e o ciclo em si continua dependendo de
-    ambiente e de quem opera. Ver DEC-REL-012, DEC-REL-013 e DEC-REL-014.
+    **Reduzido em 2026-08-23 a 26, não fechado:** 17 das 25 linhas do roteiro são percorridas inteiras
+    pela tela a cada build e outras 5 em parte, o que encolhe o ciclo manual — mas as 2 linhas provadas
+    só pelo backend continuam dependendo de gente, e o ciclo em si continua dependendo de ambiente e de
+    quem opera. Ver DEC-REL-012 a DEC-REL-015.
   - **O ensaio da REL-004 rodou em ambiente local**, não em cópia de produção. As medidas de bloqueio de
     escrita são reais, mas o volume de dados não é o de produção. Ver DEC-REL-009.
   - **Oito atualizações do Dependabot** (#204 a #211) ficaram armadas com auto-merge no encerramento, não

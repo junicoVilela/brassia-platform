@@ -165,6 +165,37 @@ class SyncIT {
                         org.hamcrest.Matchers.not(org.hamcrest.Matchers.empty())));
     }
 
+    /**
+     * A fila de uma carga só: é por ela que se investiga o dia de um entregador.
+     *
+     * <p>{@code /sync/conflicts} traz a fila da casa inteira e serve a quem decide; esta traz o que
+     * aquele caminhão mandou, e serve a quem pergunta "o que aconteceu na rota de ontem". O endpoint não
+     * tinha teste — e a diferença entre as duas leituras é o que faz a segunda existir.
+     */
+    @Test
+    void aFilaDeUmaCargaTrazOQueAquelaRotaMandou() throws Exception {
+        var session = login();
+        var cena = cenaNaRua(session);
+        var outra = cenaNaRua(session);
+
+        sincroniza(session, UUID.randomUUID(),
+                operacao(UUID.randomUUID(), 1, cena, "DELIVERED", cena.keg()));
+        sincroniza(session, UUID.randomUUID(),
+                operacao(UUID.randomUUID(), 1, outra, "DELIVERED", outra.keg()));
+
+        // A da carga pedida vem...
+        mockMvc.perform(get(SYNC + "/loads/" + cena.loadId()).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.stopId == '" + cena.stopId() + "')]",
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.empty())));
+
+        // ...e a da outra NÃO. Sem este contraponto, um endpoint que devolvesse a fila inteira da casa
+        // passaria no teste — e quem investiga uma rota leria as operações de outra.
+        mockMvc.perform(get(SYNC + "/loads/" + cena.loadId()).session(session))
+                .andExpect(jsonPath("$[?(@.stopId == '" + outra.stopId() + "')]",
+                        org.hamcrest.Matchers.empty()));
+    }
+
     @Test
     void umItemRecusadoNaoDerrubaOsOutros() throws Exception {
         // O entregador ficaria com o dia inteiro por sincronizar por causa de uma parada que o

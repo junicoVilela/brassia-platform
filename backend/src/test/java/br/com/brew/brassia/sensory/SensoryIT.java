@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -91,6 +92,63 @@ class SensoryIT {
 
         mockMvc.perform(post(SESSIONS + "/" + id + "/open").session(session).with(csrf()))
                 .andExpect(status().isConflict());
+    }
+
+    /**
+     * Tirar uma amostra do rascunho, e a porta que se fecha quando a sessão abre.
+     *
+     * <p>O endpoint não tinha teste. Ele existe porque montar uma sessão é trabalho de mesa: erra-se o
+     * lote, e desfazer não pode exigir recomeçar a sessão. Mas <strong>a mesma permissão some quando a
+     * sessão abre</strong> — tirar uma amostra que os provadores já têm na frente inutilizaria as fichas
+     * que eles já preencheram, e é a metade que o teste precisa cobrar.
+     */
+    @Test
+    void aAmostraSaiDoRascunhoENaoSaiDaSessaoAberta() throws Exception {
+        var session = login();
+        var id = createSession(session);
+        var batch = fermentingBatch(session);
+        var corpo = addSample(session, id, batch).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        var amostra = JSON.readTree(corpo).get("samples").get(0).get("id").asText();
+
+        mockMvc.perform(delete(SESSIONS + "/" + id + "/samples/" + amostra).session(session).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.samples.length()", is(0)));
+
+        // E a sessão volta a não poder abrir: sem amostra não há o que provar.
+        mockMvc.perform(post(SESSIONS + "/" + id + "/open").session(session).with(csrf()))
+                .andExpect(status().isConflict());
+
+        // Com a sessão aberta, a porta fecha.
+        var aberta = openSessionWithSample(session);
+        var corpoAberta = mockMvc.perform(get(SESSIONS + "/" + aberta).session(session))
+                .andReturn().getResponse().getContentAsString();
+        var amostraAberta = JSON.readTree(corpoAberta).get("samples").get(0).get("id").asText();
+
+        mockMvc.perform(delete(SESSIONS + "/" + aberta + "/samples/" + amostraAberta)
+                        .session(session).with(csrf()))
+                .andExpect(status().isConflict());
+    }
+
+    /**
+     * O vocabulário da ficha vem do servidor.
+     *
+     * <p>Uma lista de atributos escrita na tela vira dois vocabulários no dia em que alguém publica o
+     * aplicativo e esquece o site — e sessões da mesma casa passam a medir coisas com o mesmo nome e
+     * significados diferentes. Ler, aqui, é alçada de quem participa da sessão.
+     */
+    @Test
+    void osAtributosDaFichaVemDoServidorEExigemAlcadaDeLeitura() throws Exception {
+        var session = login();
+
+        mockMvc.perform(get(SESSIONS + "/attributes").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()", org.hamcrest.Matchers.greaterThan(0)))
+                .andExpect(jsonPath("$[0].code", notNullValue()));
+
+        mockMvc.perform(get(SESSIONS + "/attributes")
+                        .with(authentication(principal(UUID.randomUUID(), Set.of()))))
+                .andExpect(status().isForbidden());
     }
 
     @Test

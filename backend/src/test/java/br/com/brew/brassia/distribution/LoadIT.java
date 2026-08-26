@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.is;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -226,6 +227,79 @@ class LoadIT {
                         .content("{\"containerId\":\"%s\"}".formatted(keg)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.reasonCode", is("already_loaded")));
+    }
+
+    /**
+     * Tirar um vasilhame da carga o devolve ao mundo.
+     *
+     * <p>O endpoint não tinha teste, e a propriedade que ele precisa ter é o par de
+     * {@code oMesmoKegNaoVaiEmDuasCargas}: se montar um keg o prende, desmontar tem de soltá-lo — senão
+     * um erro de leitura de etiqueta aposenta o vasilhame até alguém mexer no banco.
+     */
+    @Test
+    void tirarOVasilhameDaCargaOLiberaParaOutra() throws Exception {
+        var session = login();
+        var keg = vasilhames.pronto("KEG-U", new BigDecimal("50"));
+        var primeira = planeja(session);
+        poeNaCarga(session, primeira, adicionaParada(session, primeira, cliente(session), 1), keg);
+
+        // Preso: é o estado que o teste vizinho já garante, e aqui é a premissa.
+        var segunda = planeja(session);
+        var paradaDaSegunda = adicionaParada(session, segunda, cliente(session), 1);
+        mockMvc.perform(post(BASE + "/" + segunda + "/stops/" + paradaDaSegunda + "/containers")
+                        .session(session).with(csrf()).contentType("application/json")
+                        .content("{\"containerId\":\"%s\"}".formatted(keg)))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(delete(BASE + "/" + primeira + "/containers/" + keg).session(session).with(csrf()))
+                .andExpect(status().isNoContent());
+
+        // Solto: entra na outra carga.
+        mockMvc.perform(post(BASE + "/" + segunda + "/stops/" + paradaDaSegunda + "/containers")
+                        .session(session).with(csrf()).contentType("application/json")
+                        .content("{\"containerId\":\"%s\"}".formatted(keg)))
+                .andExpect(status().isNoContent());
+    }
+
+    /**
+     * A carga conferida congela para tirar também, e não só para pôr.
+     *
+     * <p>{@code aCargaLiberadaCongela} prova isso ao acrescentar parada. Tirar um keg é o caminho mais
+     * perigoso dos dois: o papel que o motorista leva continuaria dizendo que ele está no caminhão.
+     */
+    @Test
+    void naoSeTiraVasilhameDeCargaJaConferida() throws Exception {
+        var session = login();
+        var keg = vasilhames.pronto("KEG-C", new BigDecimal("50"));
+        var carga = planeja(session);
+        poeNaCarga(session, carga, adicionaParada(session, carga, cliente(session), 1), keg);
+        atribui(session, carga);
+        libera(carga);
+
+        mockMvc.perform(delete(BASE + "/" + carga + "/containers/" + keg).session(session).with(csrf()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("illegal_load_transition")));
+    }
+
+    /** As duas leituras da entrega: por parada e pela carga inteira, que é como o escritório confere. */
+    @Test
+    void asProvasDaCargaSaemJuntasEIsolamPorCervejaria() throws Exception {
+        var session = login();
+        var carga = cargaPronta(session);
+        libera(carga);
+
+        // Sem prova nenhuma ainda, a leitura existe e vem vazia — que é diferente de dar erro.
+        mockMvc.perform(get(BASE + "/" + carga + "/proofs").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", is(java.util.List.of())));
+
+        // E a carga de outra casa responde 404, e não lista vazia — que é a resposta certa: uma lista
+        // vazia diria "esta carga existe e não teve entrega", e é justamente o que não se quer contar a
+        // quem não é dono dela.
+        mockMvc.perform(get(BASE + "/" + carga + "/proofs")
+                        .with(authentication(principal(UUID.randomUUID(),
+                                Set.of("distribution.load.read")))))
+                .andExpect(status().isNotFound());
     }
 
     @Test

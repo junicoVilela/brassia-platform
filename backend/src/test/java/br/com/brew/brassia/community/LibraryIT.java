@@ -85,6 +85,47 @@ class LibraryIT {
         assertThat(corpo).contains("ingredientName");
     }
 
+    /**
+     * Trocar a licença da própria publicação.
+     *
+     * <p>O endpoint não tinha teste. A troca vale <strong>daqui para a frente</strong>: quem já leu a
+     * receita sob a licença anterior leu sob ela, e nada aqui desfaz isso — é o mesmo princípio do
+     * despublicar, que também não apaga o que já saiu.
+     *
+     * <p>A parte que precisa de guarda é a de fora: relicenciar publicação alheia é 404, e não 403, pela
+     * mesma razão de sempre — um 403 confirmaria que a publicação existe.
+     */
+    @Test
+    void aLicencaSeTrocaEDaquiParaFrente() throws Exception {
+        var session = login();
+        var id = publica(session, "PUBLIC", "CC_BY");
+
+        mockMvc.perform(get(LIBRARY + "/" + id).session(session))
+                .andExpect(jsonPath("$.licenseLabel", is("CC BY 4.0")));
+
+        mockMvc.perform(put(LIBRARY + "/" + id + "/license").session(session).with(csrf())
+                        .contentType("application/json").content("{\"license\":\"CC_BY_SA\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get(LIBRARY + "/" + id).session(session))
+                .andExpect(jsonPath("$.licenseLabel", is("CC BY-SA 4.0")));
+    }
+
+    @Test
+    void naoSeRelicenciaPublicacaoAlheia() throws Exception {
+        var session = login();
+        var id = publica(session, "PUBLIC", "CC_BY");
+        var deFora = principal(UUID.randomUUID(), Set.of("community.recipe.publish"));
+
+        mockMvc.perform(put(LIBRARY + "/" + id + "/license").with(authentication(deFora)).with(csrf())
+                        .contentType("application/json").content("{\"license\":\"CC0\"}"))
+                .andExpect(status().isNotFound());
+
+        // E continua como estava: a recusa é sobre o efeito, não sobre o código de resposta.
+        mockMvc.perform(get(LIBRARY + "/" + id).session(session))
+                .andExpect(jsonPath("$.licenseLabel", is("CC BY 4.0")));
+    }
+
     @Test
     void aMatrizDeVisibilidadeDecideQuemAlcanca() throws Exception {
         // O plano de testes pede a matriz inteira. Aqui ela é exercida de fora: outra cervejaria.

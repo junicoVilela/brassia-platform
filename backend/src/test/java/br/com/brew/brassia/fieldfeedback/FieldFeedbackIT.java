@@ -74,6 +74,47 @@ class FieldFeedbackIT {
                 .andExpect(jsonPath("$.status").value("CLOSED"));
     }
 
+    /**
+     * Abrir a análise da reclamação.
+     *
+     * <p>O endpoint não tinha teste. Ele é o passo que tira a reclamação da caixa de entrada e a põe em
+     * apuração — e o estado importa porque é ele que distingue "ninguém olhou ainda" de "está sendo
+     * apurado", que é a primeira pergunta de quem cobra resposta.
+     */
+    @Test
+    @DisplayName("abrir a análise tira a reclamação da fila, e a segunda vez é conflito")
+    void abrirAnaliseTiraDaFila() throws Exception {
+        var session = login();
+        var id = idOf(register(session, "FOREIGN_BODY", "SAFETY", null)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("OPEN")));
+
+        mockMvc.perform(post(COMPLAINTS + "/" + id + "/analysis").session(session).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UNDER_ANALYSIS"));
+
+        // Repetir é 409, e não repetição silenciosa: a transição já aconteceu, e devolver 200 diria a
+        // quem clicou duas vezes que a segunda também valeu. O estado não retrocede.
+        mockMvc.perform(post(COMPLAINTS + "/" + id + "/analysis").session(session).with(csrf()))
+                .andExpect(status().isConflict());
+        mockMvc.perform(get(COMPLAINTS + "/" + id).session(session))
+                .andExpect(jsonPath("$.status").value("UNDER_ANALYSIS"));
+    }
+
+    @Test
+    @DisplayName("abrir análise exige alçada de escrita, não de leitura")
+    void abrirAnaliseExigeAlcadaDeEscrita() throws Exception {
+        var session = login();
+        var id = idOf(register(session, "OFF_FLAVOR", "QUALITY", null)
+                .andExpect(status().isCreated()));
+
+        mockMvc.perform(post(COMPLAINTS + "/" + id + "/analysis")
+                        .with(authentication(principal(UUID.randomUUID(),
+                                Set.of("feedback.complaint.read"))))
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
     @Test
     @DisplayName("CORPO ESTRANHO EXIGE QUARENTENA mesmo classificado como severidade baixa")
     void corpoEstranhoExige() throws Exception {

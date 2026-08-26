@@ -625,6 +625,64 @@ pelo formato que eu esperava encontrar achou exatamente o que eu esperava — e 
 O E2E foi a única barreira que pegou o segundo caso. Um teste que atravessa a stack real vale por isso:
 ele não sabe quantos clientes existem, só sabe que a tela ficou vazia.
 
+### DEB-INT-004 — RESOLVIDO em 2026-08-26: o contrato publicava um caminho que ninguém servia
+
+**O levantamento que a `DEB-INT-003` sugeriu, feito.** A pergunta era: *quantos caminhos publicados nenhum
+teste executa?* — porque o defeito do outbox existia sob um teste verde contra dublê.
+
+**A parte que vale mais que o resultado: os três primeiros números estavam errados, e eu não os mostrei.**
+A varredura deu 198, depois 153, depois 20. As duas primeiras eram ficção da ferramenta e não do código:
+os testes montam URL por constante (`WEBHOOKS + "/event-types"`) e por concatenação, e o casamento não
+atravessava isso. Só houve número reportável depois de **calibrar contra oito endpoints sabidamente
+testados** e ver os oito darem positivo. Um 198 apresentado teria mandado caçar 180 fantasmas.
+
+**Dos 20 finais, 5 eram falso positivo** — URL montada por método auxiliar (`base(equipmentId)`,
+`schedule(batchId)`), que nenhuma resolução de constante alcança. Os 20 foram conferidos **um a um, na
+mão**. Sobraram 15.
+
+**O achado que não era falta de teste.** `POST /api/v1/batches/{batchId}/measurements` estava no
+`openapi.yaml` e **nenhum controlador o servia**: rascunho antigo do endpoint que hoje vive em
+`/production/batches/{id}/measurements`, com um schema `Measurement` órfão junto. Quem integrasse pelo
+contrato bateria num 404. **Contrato e implementação divergindo em silêncio é pior que contrato ausente:**
+um contrato ausente manda perguntar; um contrato errado manda confiar. Caminho e schema removidos.
+
+**A barreira.** `PublishedPathsTest` cruza os caminhos do contrato com os `@RequestMapping`/`@*Mapping` do
+código e reprova o que ninguém serve. Verificada reintroduzindo o fantasma: ela falha nomeando o caminho.
+Duas decisões nela:
+
+- **Só a direção contrato → código.** A oposta pegaria endpoint interno legítimo e exigiria lista de
+  exceção, que envelhece — e portão ruidoso é portão desligado.
+- **Nome de parâmetro é normalizado.** O contrato diz `{batchId}` onde o controlador diz `{id}`; barrar
+  divergência de vocabulário não é o que se quer.
+
+**Os 14 endpoints restantes ganharam teste**, e o critério em cada um foi procurar a regra que o endpoint
+guarda, não exercitar o caminho feliz:
+
+| Endpoint | O que o teste passou a cobrar |
+|---|---|
+| `PUT /sales/orders/{id}/promise` | **A regra da validade vale na remarcação, não só na criação** — o furo clássico de regra que mora só no caminho de entrada |
+| `PUT /sales/channels/{id}/active` | desativar some da lista padrão e **continua existindo**, e volta |
+| `DELETE /distribution/loads/{id}/containers/{containerId}` | tirar **solta** o keg para outra carga, e não se tira de carga já conferida |
+| `GET /distribution/loads/{loadId}/proofs` | carga de outra casa é `404`, e não lista vazia — vazia diria "existe e não teve entrega" |
+| `GET /distribution/sync/loads/{loadId}` | a fila de **uma** carga, com o contraponto de a de outra não aparecer |
+| `POST /reporting/saved-reports/runs/{runId}/link` | o link é token **novo** e **nunca vive mais que o artefato** |
+| `POST /reporting/saved-reports/{reportId}/active` | desativar para a programação e **não apaga o histórico** |
+| `GET /sensory/sessions/attributes` | o vocabulário da ficha vem do servidor, e ler exige alçada |
+| `DELETE /sensory/sessions/{id}/samples/{sampleId}` | sai do rascunho, **não sai da sessão aberta** |
+| `PUT /community/library/{id}/license` | troca daqui para a frente; publicação alheia é `404` |
+| `POST /field-feedback/complaints/{id}/analysis` | tira da fila, e a segunda vez é `409` |
+| `GET /portal/credit` | sem teto o valor é **nulo, não zero**, e o comprometido acompanha o pedido |
+| `DELETE /quality/control-plans/{id}/points/{pointId}` | sai do rascunho, **não sai do plano publicado** |
+| `PUT /water/profiles/{id}` | **bloqueio otimista**: o ajuste de quem leu a tela velha não vence em silêncio |
+
+**Três expectativas minhas estavam erradas, e o código certo** — corrigi os testes, não o código: a
+listagem de água é paginada, o status inicial de reclamação é `OPEN`, e abrir análise duas vezes responde
+`409` em vez de ser idempotente. A terceira é decisão defensável do módulo, e o teste passou a dizer por
+que ela é assim.
+
+**Resultado:** das 447 operações publicadas, a varredura acusa 5 sem teste — e as 5 são os falso positivos
+já conferidos na mão. **Nenhuma operação publicada ficou sem teste.**
+
 ### DEB-INT-003 — RESOLVIDO em 2026-08-25: ALTO — o outbox de webhooks nunca concluía uma entrega
 
 **Achado por um aviso no log, não por um teste.** Ao subir a aplicação para outra tarefa, o

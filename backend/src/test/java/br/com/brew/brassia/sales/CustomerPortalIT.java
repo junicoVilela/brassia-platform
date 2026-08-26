@@ -164,6 +164,47 @@ class CustomerPortalIT extends CommercialTestSupport {
                 .andExpect(jsonPath("$.requested", is(120.0000)));
     }
 
+    /**
+     * O cliente consulta o próprio limite antes de montar o pedido.
+     *
+     * <p>O endpoint não tinha teste, e ele existe para que a recusa por crédito não seja a primeira
+     * notícia: no portal não há vendedor por perto, e descobrir o teto batendo nele é a pior forma de
+     * descobri-lo. Os dois números que a tela precisa são os mesmos da recusa — o teto e o comprometido.
+     */
+    @Test
+    void oClienteConsultaOProprioLimiteAntesDeEsbarrarNele() throws Exception {
+        var session = login();
+        var cena = cenaVendavel(session);
+        var portal = portalUser(session, cena.customerId(), cena.channelId());
+
+        // Sem teto definido, a resposta é honesta: nulo, e não zero. "Sem limite" e "limite zero" são
+        // opostos, e um zero aqui diria ao cliente que ele não pode comprar nada.
+        mockMvc.perform(get("/api/v1/portal/credit").with(authentication(portal)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ceiling").doesNotExist())
+                .andExpect(jsonPath("$.committed", is(0)));
+
+        mockMvc.perform(put("/api/v1/sales/portal/credit/" + cena.customerId()).session(session)
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"ceiling\":200.00,\"currency\":\"BRL\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/portal/credit").with(authentication(portal)))
+                .andExpect(jsonPath("$.ceiling", is(200.00)))
+                .andExpect(jsonPath("$.currency", is("BRL")))
+                .andExpect(jsonPath("$.committed", is(0)));
+
+        // E o comprometido acompanha o pedido: é o número que muda, e por isso o que prova a consulta
+        // ser derivada e não um retrato do cadastro.
+        mockMvc.perform(post("/api/v1/portal/orders").with(authentication(portal)).with(csrf())
+                        .contentType("application/json").content(corpoPortal(cena, 10)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/v1/portal/credit").with(authentication(portal)))
+                .andExpect(jsonPath("$.ceiling", is(200.00)))
+                .andExpect(jsonPath("$.committed", is(120.0000)));
+    }
+
     @Test
     void semTetoTudoCabe() throws Exception {
         // Não recusar por falta de decisão é reversível; recusar um pedido bom porque alguém chutou um

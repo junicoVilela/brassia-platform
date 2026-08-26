@@ -281,7 +281,7 @@ Três estados, e a diferença entre os dois primeiros importa:
 | **Enchimento** | Tela | `distribution-journey`: o histórico do keg ainda aponta para o lote **depois da volta inteira**. |
 | **Carga** | Tela | `distribution-journey`: liberar a própria carga responde 409, e a segunda pessoa libera **em contexto de navegador próprio** — reaproveitar a sessão do primeiro não provaria nada. |
 | **Entrega** | Tela + só backend | A prova e a recusa da segunda prova na mesma parada estão em `distribution-journey`. A **correção que aponta para a original** está em `DeliveryIT#aProvaNaoSeEditaESeCorrigePorEventoNovo`. |
-| **Consentimento** | Só backend | `DeliveryIT`: `aEntregaAconteceSemAssinatura`, `aAssinaturaSoEntraComQuemConsentiuEParaQue`, `aAssinaturaSemFinalidadeNaoEntra`. |
+| **Consentimento** | Tela | `delivery-consent-journey.spec.ts`: o campo de assinatura fica **em branco** e a entrega acontece; com nome, a tela mostra de quem é; a **finalidade vai gravada sem ninguém digitá-la**; e a chave do arquivo **não chega ao navegador**. Mais `DeliveryIT` pela API. |
 | **Coleta** | Tela | `distribution-journey`: volta como `RETURNED` com `fillable: false`, e a higienização registra **o método**, que é o que se audita. |
 | **Offline** | Só backend | `SyncIT#oReenvioDevolveOMesmoResultadoENaoCriaOutro` e `oConflitoNaoSeResolveSozinhoEEsperaGente`. |
 | **Recall com contêiner** | Só backend | `RecallIT#oSimuladoAlcancaOsConteineresDoLote`, com o contraponto: um terceiro keg, de outro lote, **não sai no escopo**. |

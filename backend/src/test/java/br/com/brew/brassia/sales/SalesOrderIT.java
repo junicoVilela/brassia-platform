@@ -272,6 +272,62 @@ class SalesOrderIT extends CommercialTestSupport {
                 .andExpect(jsonPath("$.code", is("no_price_for_product")));
     }
 
+    /**
+     * Remarcar a entrega depois do pedido feito.
+     *
+     * <p><strong>A regra da validade vale na remarcação, e não só na criação.</strong> É o furo clássico
+     * de uma regra que mora no caminho de entrada: cria-se com data boa e move-se depois para além do
+     * vencimento do lote, prometendo ao cliente cerveja que vai estar velha no dia. O endpoint não tinha
+     * teste nenhum — a regra estava certa no agregado, e ninguém provava que a porta a chamava.
+     */
+    @Test
+    void remarcarAEntregaRespeitaAMesmaValidadeDaCriacao() throws Exception {
+        var session = login();
+        var cena = cenaVendavel(session);
+        var body = pedido(session, cena, 10, null).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        var pedidoId = JSON.readTree(body).get("id").asText();
+
+        // O caminho feliz primeiro: sem ele, a recusa abaixo não distingue "a regra pegou" de "o
+        // endpoint não funciona".
+        var amanha = java.time.LocalDate.now().plusDays(1);
+        promessa(session, pedidoId, amanha).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/sales/orders/" + pedidoId).session(session))
+                .andExpect(jsonPath("$.promisedFor", is(amanha.toString())));
+
+        // E a regra que guarda a criação guarda a mudança, com os mesmos três dados na recusa.
+        promessa(session, pedidoId, java.time.LocalDate.now().plusDays(5000))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("promise_after_shelf_life")))
+                .andExpect(jsonPath("$.lotCode", is(cena.lotCode())));
+
+        // A promessa recusada não ficou gravada pela metade.
+        mockMvc.perform(get("/api/v1/sales/orders/" + pedidoId).session(session))
+                .andExpect(jsonPath("$.promisedFor", is(amanha.toString())));
+    }
+
+    @Test
+    void remarcarExigeAAlcadaDeGerirPedido() throws Exception {
+        var session = login();
+        var cena = cenaVendavel(session);
+        var body = pedido(session, cena, 10, null).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        var pedidoId = JSON.readTree(body).get("id").asText();
+
+        mockMvc.perform(put("/api/v1/sales/orders/" + pedidoId + "/promise")
+                        .with(authentication(principal(UUID.randomUUID(), Set.of("sales.catalog.manage"))))
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"promisedFor\":\"" + java.time.LocalDate.now().plusDays(1) + "\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    private org.springframework.test.web.servlet.ResultActions promessa(
+            MockHttpSession session, String pedidoId, java.time.LocalDate data) throws Exception {
+        return mockMvc.perform(put("/api/v1/sales/orders/" + pedidoId + "/promise").session(session)
+                .with(csrf()).contentType("application/json")
+                .content("{\"promisedFor\":\"" + data + "\"}"));
+    }
+
     @Test
     void pedidoExigeAlcadaPropria() throws Exception {
         var session = login();

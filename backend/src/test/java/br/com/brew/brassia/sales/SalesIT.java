@@ -212,6 +212,58 @@ class SalesIT {
                 .andExpect(jsonPath("$[?(@.id=='" + produto + "')].sku", is(java.util.List.of("IPA-G"))));
     }
 
+    /**
+     * Desativar canal: some da lista padrão e continua existindo.
+     *
+     * <p>Mesma regra do produto descontinuado, e pelo mesmo motivo — apagar o canal apagaria a leitura
+     * dos pedidos que saíram por ele. O endpoint não tinha teste, e o par
+     * "some da padrão / aparece com `onlyActive=false`" é o que separa desativar de excluir.
+     */
+    @Test
+    void canalDesativadoSomeDaListaPadraoMasContinuaExistindo() throws Exception {
+        var session = login();
+        var canal = criaCanal(session, "CANAL-OFF", "Canal desativado");
+
+        // Antes: está na lista padrão. Sem esta metade, um canal que nunca apareceu passaria no teste.
+        mockMvc.perform(get(SALES + "/channels").session(session))
+                .andExpect(jsonPath("$[?(@.id=='" + canal + "')].code",
+                        is(java.util.List.of("CANAL-OFF"))));
+
+        mockMvc.perform(put(SALES + "/channels/" + canal + "/active").session(session).with(csrf())
+                        .contentType("application/json").content("{\"active\":false}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get(SALES + "/channels").session(session))
+                .andExpect(jsonPath("$[?(@.id=='" + canal + "')]", is(java.util.List.of())));
+        mockMvc.perform(get(SALES + "/channels?onlyActive=false").session(session))
+                .andExpect(jsonPath("$[?(@.id=='" + canal + "')].code",
+                        is(java.util.List.of("CANAL-OFF"))));
+
+        // E volta: desativar não é caminho sem retorno.
+        mockMvc.perform(put(SALES + "/channels/" + canal + "/active").session(session).with(csrf())
+                        .contentType("application/json").content("{\"active\":true}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get(SALES + "/channels").session(session))
+                .andExpect(jsonPath("$[?(@.id=='" + canal + "')].code",
+                        is(java.util.List.of("CANAL-OFF"))));
+    }
+
+    @Test
+    void desativarCanalExigeAlcadaDeCatalogo() throws Exception {
+        var session = login();
+        var canal = criaCanal(session, "CANAL-ALC", "Canal alçada");
+
+        mockMvc.perform(put(SALES + "/channels/" + canal + "/active")
+                        .with(authentication(principal(UUID.randomUUID(), Set.of("sales.catalog.read"))))
+                        .with(csrf()).contentType("application/json").content("{\"active\":false}"))
+                .andExpect(status().isForbidden());
+
+        // E continua ativo: a recusa é sobre o efeito, não sobre o código de resposta.
+        mockMvc.perform(get(SALES + "/channels").session(session))
+                .andExpect(jsonPath("$[?(@.id=='" + canal + "')].code",
+                        is(java.util.List.of("CANAL-ALC"))));
+    }
+
     @Test
     void negaSemPermissaoEIsolaPorCervejaria() throws Exception {
         var session = login();

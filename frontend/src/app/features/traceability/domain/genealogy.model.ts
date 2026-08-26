@@ -7,7 +7,9 @@ export type NodeType =
   | 'YEAST_HARVEST'
   | 'PACKAGING_PLAN'
   | 'PACKAGING_RUN'
-  | 'FINISHED_LOT';
+  | 'FINISHED_LOT'
+  | 'SHIPMENT'
+  | 'CONTAINER';
 
 /** Ordem da cadeia produtiva; é ela que dá a leitura da esquerda para a direita na tela. */
 export const NODE_ORDER: readonly NodeType[] = [
@@ -18,6 +20,10 @@ export const NODE_ORDER: readonly NodeType[] = [
   'PACKAGING_PLAN',
   'PACKAGING_RUN',
   'FINISHED_LOT',
+  // As duas pontas de saída, e elas são paralelas: o produto sai por expedição (a caixa que se
+  // vende) ou dentro de um vasilhame retornável (o keg que volta). Um recall precisa das duas.
+  'SHIPMENT',
+  'CONTAINER',
 ];
 
 export const NODE_LABELS: Record<NodeType, string> = {
@@ -28,6 +34,8 @@ export const NODE_LABELS: Record<NodeType, string> = {
   PACKAGING_PLAN: 'Plano de envase',
   PACKAGING_RUN: 'Envase',
   FINISHED_LOT: 'Produto acabado',
+  SHIPMENT: 'Expedição',
+  CONTAINER: 'Vasilhame',
 };
 
 export const NODE_ICONS: Record<NodeType, string> = {
@@ -38,6 +46,8 @@ export const NODE_ICONS: Record<NodeType, string> = {
   PACKAGING_PLAN: 'ri-inbox-line',
   PACKAGING_RUN: 'ri-inbox-archive-line',
   FINISHED_LOT: 'ri-barcode-line',
+  SHIPMENT: 'ri-truck-line',
+  CONTAINER: 'ri-goblet-line',
 };
 
 export type Direction = 'BACKWARD' | 'FORWARD' | 'BOTH';

@@ -169,9 +169,17 @@ test.describe('jornada de negócio', () => {
     const finished = await get(page, `/api/v1/traceability/recall-drills/${drill}`);
     expect(finished.drill.status).toBe('FINISHED');
     expect(finished.drill.locatedPercent).toBe(75);
-    // O simulado não recolheu nada: nenhum recall de verdade foi aberto no caminho.
+    // O simulado não recolheu nada: nenhum recall de verdade foi aberto para ESTE lote.
+    //
+    // A asserção é sobre o próprio cenário, e não sobre a casa inteira. Ela já foi
+    // `recalls.length === 0`, o que só valia enquanto nenhum outro teste abrisse recall — a suíte
+    // compartilha banco, e a `recall-containers-journey` passou a abrir um de verdade. Estado global
+    // numa suíte de banco compartilhado é asserção que passa sozinha e falha na fila.
     const recalls = await get(page, '/api/v1/traceability/recalls');
-    expect(recalls.length).toBe(0);
+    expect(
+      recalls.filter((r: { origin: { id: string } }) => r.origin.id === batch.id),
+      'o simulado não abre recall de verdade',
+    ).toHaveLength(0);
   });
 });
 

@@ -200,6 +200,111 @@ class SavedReportIT {
         Assertions.assertThat(runsOf(id)).isEqualTo(1);
     }
 
+    /**
+     * Pedir um link novo para uma execução que já existe.
+     *
+     * <p>O endpoint não tinha teste. Ele existe porque o token que sai na execução vence, e quem precisa
+     * do documento uma semana depois não deve ter de <strong>reexecutar</strong> o relatório — reexecutar
+     * produz outro artefato, com outros números, e o que a pessoa queria era aquele.
+     *
+     * <p>A regra que o teste guarda é a que o comentário do código chama pelo nome: <strong>o link nunca
+     * vive mais que o artefato</strong>. Um link que sobrevive ao documento aponta para o vazio.
+     */
+    @Test
+    @DisplayName("o link novo de uma execução abre, e nunca vive mais que o artefato")
+    void oLinkNovoAbreENaoViveMaisQueOArtefato() throws Exception {
+        var session = login();
+        var owner = adminId(session);
+        var id = idOf(define(session, "Painel " + suffix(), "MANUAL", 30, owner)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        var run = JSON.readTree(mockMvc.perform(post(SAVED + "/" + id + "/runs").session(session)
+                        .with(csrf())).andReturn().getResponse().getContentAsString());
+        var runId = run.get("id").asText();
+
+        var link = JSON.readTree(mockMvc.perform(post(SAVED + "/runs/" + runId + "/link")
+                        .session(session).with(csrf()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+
+        var token = link.get("token").asText();
+        Assertions.assertThat(token).isNotBlank();
+        // É token NOVO: pedir um link não é reapresentar o da execução.
+        Assertions.assertThat(token).isNotEqualTo(run.get("downloadToken").asText());
+
+        // E ele abre o mesmo artefato.
+        mockMvc.perform(get("/api/v1/reporting/downloads/" + token).session(session))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("attachment")));
+
+        // O prazo do link não passa do prazo do artefato — a retenção curta é quem manda.
+        var expiraLink = java.time.Instant.parse(link.get("expiresAt").asText());
+        var expiraArtefato = expiresAtOf(runId);
+        Assertions.assertThat(expiraLink)
+                .as("o link não vive mais que o artefato que ele abre")
+                .isBeforeOrEqualTo(expiraArtefato);
+    }
+
+    @Test
+    @DisplayName("link de execução alheia não se pede: quem não é dono nem destinatário leva 403")
+    void oLinkNaoSePedeParaRelatorioAlheio() throws Exception {
+        var session = login();
+        var owner = adminId(session);
+        var id = idOf(define(session, "Painel " + suffix(), "MANUAL", 30, owner)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        var runId = JSON.readTree(mockMvc.perform(post(SAVED + "/" + id + "/runs").session(session)
+                        .with(csrf())).andReturn().getResponse().getContentAsString()).get("id").asText();
+
+        var estranho = principal(adminBrewery(session), Set.of("reporting.saved.read"));
+        mockMvc.perform(post(SAVED + "/runs/" + runId + "/link").with(authentication(estranho))
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * Desativar a definição: ela para de rodar e continua legível.
+     *
+     * <p>Apagar levaria junto o histórico de execuções — e é ele que responde "de onde veio o número que
+     * mandei ao cliente em março".
+     */
+    @Test
+    @DisplayName("desativar para a programação e não apaga o que já rodou")
+    void desativarParaAProgramacaoENaoApagaOHistorico() throws Exception {
+        var session = login();
+        var owner = adminId(session);
+        var id = idOf(define(session, "Painel " + suffix(), "MANUAL", 30, owner)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        mockMvc.perform(post(SAVED + "/" + id + "/runs").session(session).with(csrf()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post(SAVED + "/" + id + "/active").session(session).with(csrf())
+                        .contentType("application/json").content("{\"active\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active", is(false)));
+
+        // A execução de antes continua lá: desativar não é apagar.
+        Assertions.assertThat(runsOf(id)).isEqualTo(1);
+
+        // E volta a valer quando alguém a reativa.
+        mockMvc.perform(post(SAVED + "/" + id + "/active").session(session).with(csrf())
+                        .contentType("application/json").content("{\"active\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active", is(true)));
+    }
+
+    @Test
+    @DisplayName("desativar é alçada de gerir, não de consultar")
+    void desativarEhAlcadaDeGerir() throws Exception {
+        var session = login();
+        var id = idOf(define(session, "Painel " + suffix(), "MANUAL", 30, adminId(session))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        mockMvc.perform(post(SAVED + "/" + id + "/active")
+                        .with(authentication(principal(adminBrewery(session),
+                                Set.of("reporting.saved.read"))))
+                        .with(csrf()).contentType("application/json").content("{\"active\":false}"))
+                .andExpect(status().isForbidden());
+    }
+
     @Test
     @DisplayName("definir e programar é alçada própria, separada de consultar")
     void definirEhAlcadaPropria() throws Exception {
@@ -290,6 +395,13 @@ class SavedReportIT {
                 SELECT COUNT(*) FROM audit_event
                 WHERE action = 'reporting.saved.download' AND target_id = :run
                 """).param("run", runId).query(Integer.class).single();
+    }
+
+    /** Quando o artefato da execução vence — o teto do prazo de qualquer link para ele. */
+    private java.time.Instant expiresAtOf(String runId) {
+        return jdbc.sql("SELECT expires_at FROM reporting_report_run WHERE id = :run")
+                .param("run", UUID.fromString(runId))
+                .query(java.sql.Timestamp.class).single().toInstant();
     }
 
     private int runsOf(String reportId) {

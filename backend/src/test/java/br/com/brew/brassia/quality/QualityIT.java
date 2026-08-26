@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -86,6 +87,43 @@ class QualityIT {
         addPoint(session, plan, "Oxigênio dissolvido", "null", "50", "ppb", "MAJOR", false)
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.points[0].limits", is("≤ 50 ppb")));
+    }
+
+    /**
+     * Tirar um ponto do plano, e a porta que se fecha quando ele é publicado.
+     *
+     * <p>O endpoint não tinha teste. Ele existe porque montar um plano é trabalho de rascunho, e errar o
+     * ponto não pode custar o plano inteiro. Mas <strong>publicar congela a versão</strong>: tirar um
+     * ponto de um plano que já julgou medições reescreveria o critério com que elas foram julgadas —
+     * e o caminho para mudar um plano publicado é `new-version`, não `delete`.
+     */
+    @Test
+    void oPontoSaiDoRascunhoENaoSaiDoPlanoPublicado() throws Exception {
+        var session = login();
+        var plan = createPlan(session);
+        var corpo = addPoint(session, plan, "Oxigênio dissolvido", "null", "50", "ppb", "MAJOR", false)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        var ponto = JSON.readTree(corpo).get("points").get(0).get("id").asText();
+
+        mockMvc.perform(delete(PLANS + "/" + plan + "/points/" + ponto).session(session).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.points.length()", is(0)));
+
+        // Sem ponto, o plano volta a não poder publicar — que é a regra do teste vizinho, aqui como efeito.
+        mockMvc.perform(post(PLANS + "/" + plan + "/publish").session(session).with(csrf()))
+                .andExpect(status().isConflict());
+
+        // Publicado, o ponto não sai mais.
+        var publicado = createPlan(session);
+        var corpoPub = addPoint(session, publicado, "pH", "4.0", "4.6", "pH", "MAJOR", false)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        var pontoPub = JSON.readTree(corpoPub).get("points").get(0).get("id").asText();
+        mockMvc.perform(post(PLANS + "/" + publicado + "/publish").session(session).with(csrf()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete(PLANS + "/" + publicado + "/points/" + pontoPub).session(session)
+                        .with(csrf()))
+                .andExpect(status().isConflict());
     }
 
     @Test

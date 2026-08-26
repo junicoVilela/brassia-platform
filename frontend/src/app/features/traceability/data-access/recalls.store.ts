@@ -2,7 +2,7 @@ import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, finalize } from 'rxjs';
 import { ToastService } from '../../../core/notifications/toast.service';
-import { NodeType } from '../domain/genealogy.model';
+import { NODE_ORDER, NodeType } from '../domain/genealogy.model';
 import { Recall, RecallDossier } from '../domain/recall.model';
 import { RecallsApi } from './recalls.api';
 
@@ -41,6 +41,30 @@ export class RecallsStore {
 
   /** Destinos descobertos depois da abertura — o lote saiu depois, e ninguém os avisou ainda. */
   readonly newDestinations = computed(() => this.dossier()?.newDestinations ?? []);
+
+  /**
+   * O escopo do recall agrupado por tipo de nó, na ordem da cadeia.
+   *
+   * <p><strong>Existe porque os vasilhames não apareciam em lugar nenhum.</strong> A API devolve o
+   * escopo com os nós `CONTAINER` desde a CON-002, e a tela mostrava só os destinos — que vêm de
+   * expedição. Numa casa que opera retornável, o keg no cliente é exatamente o que o recall precisa
+   * recolher, e ele ficava invisível a um campo de distância (DEB-TRC-003).
+   *
+   * <p>Agrupar por tipo, e não listar corrido, é o que torna a leitura acionável: "recolher 12
+   * vasilhames" e "avisar 3 distribuidoras" são duas tarefas, de duas pessoas, em dois lugares.
+   */
+  readonly scopeByType = computed(() => {
+    const scope = this.dossier()?.scope ?? [];
+    return NODE_ORDER.map(type => ({
+      type,
+      nodes: scope.filter(affected => affected.node.type === type),
+    })).filter(group => group.nodes.length > 0);
+  });
+
+  /** Quantos vasilhames o recall alcança — o número que a operação de rua vai procurar. */
+  readonly containersInScope = computed(
+    () => (this.dossier()?.scope ?? []).filter(a => a.node.type === 'CONTAINER').length,
+  );
 
   load(): void {
     this.loading.set(true);

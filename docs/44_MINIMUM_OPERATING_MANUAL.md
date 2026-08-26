@@ -284,7 +284,7 @@ Três estados, e a diferença entre os dois primeiros importa:
 | **Consentimento** | Tela | `delivery-consent-journey.spec.ts`: o campo de assinatura fica **em branco** e a entrega acontece; com nome, a tela mostra de quem é; a **finalidade vai gravada sem ninguém digitá-la**; e a chave do arquivo **não chega ao navegador**. Mais `DeliveryIT` pela API. |
 | **Coleta** | Tela | `distribution-journey`: volta como `RETURNED` com `fillable: false`, e a higienização registra **o método**, que é o que se audita. |
 | **Offline** | Só backend | `SyncIT#oReenvioDevolveOMesmoResultadoENaoCriaOutro` e `oConflitoNaoSeResolveSozinhoEEsperaGente`. |
-| **Recall com contêiner** | Só backend | `RecallIT#oSimuladoAlcancaOsConteineresDoLote`, com o contraponto: um terceiro keg, de outro lote, **não sai no escopo**. |
+| **Recall com contêiner** | Tela | `recall-containers-journey.spec.ts`: o dossiê mostra **"N vasilhame(s) a recolher"** e os códigos dos kegs do lote afetado; um keg de outro lote **não aparece**. Mais `RecallIT` pela API. |
 
 **As duas linhas que o roteiro chama de "as que costumam faltar" faltavam por uma causa, e não por
 esquecimento: o bootstrap local não sabia produzi-las.** O 403 na tela exigia alguém de pouca permissão

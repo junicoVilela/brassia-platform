@@ -22,7 +22,7 @@
     <!-- Jackson 2 (com.fasterxml). O Spring Boot 4 traz Jackson 3
          (tools.jackson); nosso código usa a linha 2, declarada abaixo. -->
     <jackson2.version>2.22.2</jackson2.version>
-    <anthropic.version>2.54.0</anthropic.version>
+    <anthropic.version>2.57.0</anthropic.version>
   </properties>
 
   <repositories>

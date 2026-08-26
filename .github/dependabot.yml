@@ -13,6 +13,19 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     labels: [dependencies, frontend]
+    # O Angular é versionado em lockstep: `@angular/common@22.1.2` exige
+    # `@angular/core@22.1.2` como peer EXATO. Um PR por pacote é, por construção,
+    # immergeável — o `npm ci` morre em ERESOLVE antes de compilar qualquer coisa.
+    #
+    # Sem este agrupamento, cada semana abria cinco PRs vermelhos que ninguém podia
+    # mergear, e a única saída era fechá-los na mão. PR de dependência que não fecha
+    # envelhece, vira ruído, e o ruído é o que faz ninguém mais olhar para a fila.
+    groups:
+      angular:
+        patterns:
+          - "@angular/*"
+          - "@angular-devkit/*"
+          - "zone.js"
 
   - package-ecosystem: github-actions
     directory: /

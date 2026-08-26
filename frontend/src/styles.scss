@@ -237,9 +237,9 @@ body {
  * Sidebar: caber todos os itens sem zoom.
  *
  * O tema Fila foi feito para menus curtos: `.menu-inner > .menu-item` tem
- * `margin-bottom: 24px` e o `.layout-menu` é `height:100%` SEM overflow. Com os
- * ~19 itens da plataforma a lista estoura a altura fixa do sidebar e some no
- * rodapé (era preciso dar zoom out). Aqui: (1) sidebar vira coluna flex com o
+ * `margin-bottom: 24px` e o `.layout-menu` é `height:100%` SEM overflow. Fechado,
+ * o menu agrupado cabe na tela; com grupos abertos a lista volta a estourar a
+ * altura do sidebar e sumir no rodapé. Aqui: (1) sidebar vira coluna flex com o
  * menu rolável dentro da altura da viewport; (2) compactamos o ritmo vertical;
  * (3) hover/active viram uma "pílula" com área de clique confortável.
  * Não escopado por tema — vale no claro e no escuro (o dark recolore texto/ícone
@@ -281,15 +281,6 @@ body {
   margin-bottom: 2px;
 }
 
-// Título de seção compacto, com respiro só acima.
-.menu-vertical .menu-title {
-  margin-top: 14px;
-  margin-bottom: 6px;
-}
-.menu-vertical .menu-title:first-child {
-  margin-top: 0;
-}
-
 // Link como pílula: área de clique confortável, ícone e rótulo alinhados.
 .menu-vertical .menu-item .menu-link {
   display: flex;
@@ -301,6 +292,50 @@ body {
 }
 .menu-vertical .menu-item .menu-link .menu-icon {
   font-size: 18px;
+}
+// Rótulo longo trunca em vez de invadir a seta do grupo ou a borda da sidebar.
+.menu-vertical .menu-item .menu-link .title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/**
+ * Grupos (acordeão). O `<button>` do grupo usa `.menu-link` para herdar a pílula,
+ * mas precisa desfazer o que o navegador impõe a botões (fonte e cor próprias).
+ * O espaço à direita é da seta do tema (`.menu-toggle::after`, `right: 1rem`).
+ */
+.menu-vertical .menu-item .menu-link.menu-toggle {
+  font: inherit;
+  font-size: 0.9375rem;
+  color: inherit;
+  padding-right: 26px;
+  cursor: pointer;
+}
+.menu-vertical .menu-item .menu-link.menu-toggle::after {
+  opacity: 0.55;
+}
+
+/**
+ * Submenu: sem ícone. O fio-guia à esquerda já marca a hierarquia, e o rótulo
+ * fica com a largura toda — com ícone, "Leituras de fermentação" e companhia
+ * truncavam dentro dos 260px da sidebar.
+ */
+.menu-vertical .menu-sub {
+  margin: 2px 0 6px 20px;
+  padding: 0 0 0 8px;
+  border-left: 1px solid rgba(148, 163, 184, 0.35);
+}
+.menu-vertical .menu-sub .menu-item .menu-link {
+  padding: 7px 12px;
+  font-size: 0.9rem;
+}
+// O tema põe um ponto (`::before` de 6px em `left: 15px`) em cada link de submenu,
+// pensado para o recuo dele. No nosso recuo o ponto cai sobre a primeira letra —
+// e quem marca ativo/hover aqui já é a pílula, não o ponto.
+.menu-vertical .menu-sub .menu-item .menu-link::before {
+  content: none;
 }
 
 // Hover/active no claro: fundo suave + realce do acento do tema.
@@ -325,6 +360,53 @@ body {
 [data-theme='dark'] .menu-vertical .menu-item .menu-link.active .title,
 [data-theme='dark'] .menu-vertical .menu-item .menu-link.active .menu-icon {
   color: #7bb0ff !important;
+}
+
+/**
+ * Sidebar recolhida: o rail de 60px mostra só ícone.
+ *
+ * O tema esconde o rótulo com `visibility: hidden` — o texto some mas continua
+ * ocupando a linha e empurra o ícone para fora dos ~20px úteis que sobram do
+ * padding dele (`.layout-menu { padding: 17px 20px }`), que era o ícone cortado
+ * e desalinhado. Com o menu agrupado ainda entram a seta e o submenu aberto.
+ * Aqui, enquanto o mouse não está sobre a barra (o tema reexpande no `:hover`):
+ * rótulo, seta e submenu saem do fluxo e o ícone fica centrado no rail.
+ */
+[sidebar-data-theme='sidebar-hide'] .sidebar-area:not(:hover) {
+  .logo {
+    justify-content: center;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .logo .logo-text {
+    display: none;
+  }
+
+  .layout-menu {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .layout-menu .menu-item .menu-link {
+    justify-content: center;
+    gap: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .layout-menu .menu-item .menu-link .title {
+    display: none;
+  }
+  .layout-menu .menu-item .menu-link .menu-icon {
+    right: 0;
+    margin-right: 0;
+  }
+  .layout-menu .menu-item .menu-link.menu-toggle::after {
+    display: none;
+  }
+  // O tema deixa o submenu absoluto e transparente; sem isto ele continua
+  // capturando clique sobre o conteúdo ao lado do rail.
+  .layout-menu .menu-sub {
+    display: none;
+  }
 }
 
 /**

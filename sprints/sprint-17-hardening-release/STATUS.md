@@ -18,7 +18,7 @@ DEC-DEBT-001 e as decisões por módulo.
 | REL-002 | Concluída | Claude | `infra/perf/*`, `ListBatchesUseCase`, `JdbcBatchRepository`, `PageResponse` | Gargalo medido **e corrigido**: com 3.000 lotes, p95 caiu de 319 ms para 9,8 ms. Ver DEC-REL-007. |
 | REL-003 | Concluída | Claude | `InternalAddressGuard`, `SecurityConfiguration`, `.github/workflows/ci.yml`, `frontend/package-lock.json` | Um achado ALTO (SSRF no webhook) e dois médios resolvidos; varredura de CVE passou a barrar merge. Ver DEC-REL-001/002/003. |
 | REL-004 | Concluída | Claude | `infra/runbooks/deploy-rollback.md` | Ensaio executado em 2026-08-10: bloqueio de escrita medido migration a migration (`V100` = 143 ms) e retorno do artefato anterior contra o schema novo exercitado de verdade. Ambiente local, não cópia de produção — limitação registrada. Ver DEC-REL-006/009. |
-| REL-005 | **Parcial** — manual entregue, ciclo pendente | Claude | PR #202, `docs/44_MINIMUM_OPERATING_MANUAL.md` §4.1 (2026-08-23) | O entregável que não depende de ambiente está pronto, com o roteiro de homologação e a evidência exigida por etapa. O ciclo em homologação continua aberto: depende do ambiente e de quem opera. **Segue aberto no encerramento.** Em 2026-08-23 o roteiro passou a dizer, linha a linha, o que já tem prova automática; em 24 o bootstrap ganhou a conta de pouca alçada e a segunda cervejaria; em 25 custo e relatório ganharam jornada. **18 das 25 linhas são exercitadas inteiras pela tela a cada build**, 5 em parte, 1 só pelo backend, e 1 não é teste. Ver DEC-REL-010 e DEC-REL-012 a DEC-REL-016. |
+| REL-005 | **Parcial** — manual entregue, ciclo pendente | Claude | PR #202, `docs/44_MINIMUM_OPERATING_MANUAL.md` §4.1 (2026-08-23) | O entregável que não depende de ambiente está pronto, com o roteiro de homologação e a evidência exigida por etapa. O ciclo em homologação continua aberto: depende do ambiente e de quem opera. **Segue aberto no encerramento.** Em 2026-08-23 o roteiro passou a dizer, linha a linha, o que já tem prova automática; em 24 o bootstrap ganhou a conta de pouca alçada e a segunda cervejaria; em 25 custo e relatório ganharam jornada. **19 das 25 linhas são exercitadas inteiras pela tela a cada build**, 5 em parte, **nenhuma só pelo backend**, e 1 não é teste. Ver DEC-REL-010 e DEC-REL-012 a DEC-REL-016. |
 | Débitos 08–16 | Concluída (14 débitos) | Claude | PRs #212 a #224, ADR-0016 | Fora do escopo original, por decisão do mantenedor. Dez fechados com código, quatro por decisão sem código. Ver DEC-DEBT-001, DEC-CLN-001, DEC-AIA-001, DEC-FDS-001/002, DEC-PKG-001/002, DEC-QLT-001, DEC-CST-001/002, DEC-RPT-001. |
 
 ## Decisões e bloqueios
@@ -731,7 +731,7 @@ concluída **não volta** na rodada seguinte. `SecurityAlertIT` cobre os quatro 
 teste. A `BoundParametersTest` não precisou ser verificada contra versão quebrada: **ela encontrou três
 defeitos reais no primeiro build em que rodou.**
 
-### DEB-TRC-003 — A tela do recall não mostra os contêineres do escopo
+### DEB-TRC-003 — RESOLVIDO em 2026-08-26: a tela do recall não mostrava os contêineres do escopo
 
 **O efeito.** `RecallDossier` carrega `scope: Affected[]`, a API o preenche com os nós `CONTAINER` — é o
 que `RecallIT#oSimuladoAlcancaOsConteineresDoLote` prova —, e **o template nunca renderiza esse campo**. A
@@ -754,6 +754,26 @@ não de execução. Registrado em vez de escrito por iniciativa própria.
 contêineres identificados pelo código que a operação reconhece; e uma jornada E2E cobra que um keg do lote
 afetado apareça na tela e que um keg de outro lote **não** apareça — o mesmo contraponto que o
 `RecallIT` já usa.
+
+**Critério cumprido, e a causa era mais funda do que o débito dizia.** O `NodeType` do frontend não tinha
+`SHIPMENT` nem `CONTAINER` — os dois tipos que o backend emite desde a TRC-001-D e a CON-002. O vocabulário
+da tela nunca alcançou o do domínio, e a consequência não era só o escopo invisível: **a genealogia já
+renderizava o rótulo de expedição em branco**, porque `NODE_LABELS[SHIPMENT]` era `undefined`. Um defeito
+silencioso, vivo, que ninguém tinha visto.
+
+**O que entrou:** os dois tipos no vocabulário (rótulo, ícone e posição na ordem da cadeia); um
+`scopeByType` na store, que agrupa na ordem da cadeia em vez de listar corrido — "recolher 12 vasilhames" e
+"avisar 3 distribuidoras" são duas tarefas, de duas pessoas, em dois lugares; e a seção no dossiê, com o
+número de vasilhames em destaque, porque é o que a operação de rua vai procurar.
+
+**Verificado contra a versão sem a seção:** a jornada falha por não achar "O que este recall alcança".
+
+**E a terceira ocorrência da mesma armadilha, agora ao contrário.** A jornada nova abre um recall de
+verdade, e isso quebrou a `business-journey`, que afirmava `recalls.length === 0` — estado **global** numa
+suíte de banco compartilhado. Foi a `community-journey` (vitrine vazia), a `offline-sync` (fila de
+conflitos) e agora esta. Nas duas primeiras eu escrevi a asserção ruim; nesta eu **quebrei a de outro**. A
+correção é sempre a mesma, e vale como regra da casa: **afirmar sobre o próprio cenário, nunca sobre o
+estado global** — aqui, que o simulado não abriu recall *para este lote*.
 
 ### DEC-REL-016 (REL-005) — **2026-08-26**: a fila offline sai do "só backend"
 
@@ -1111,10 +1131,11 @@ custo baixo — o que não é reversível é descobrir que o backup não restaur
     ser "ninguém exercitou a recuperação a ponto no tempo, que é a que a política promete".
   - **REL-005 não fecha.** O manual existe e o roteiro existe; o ciclo em homologação, não. Um manual
     que nunca foi seguido de ponta a ponta é hipótese escrita com capricho. Ver DEC-REL-010.
-    **Reduzido em 2026-08-23 a 26, não fechado:** 18 das 25 linhas do roteiro são percorridas inteiras
-    pela tela a cada build e outras 5 em parte. A última linha do "só backend" — recall alcançando
-    contêiner — **não pode ser fechada com teste**: a tela não mostra o escopo (ver DEB-TRC-003). O ciclo
-    em si continua dependendo de ambiente e de quem opera. Ver DEC-REL-012 a DEC-REL-016.
+    **Reduzido em 2026-08-23 a 26, não fechado:** 19 das 25 linhas do roteiro são percorridas inteiras
+    pela tela a cada build e outras 5 em parte. **Nenhuma linha continua provada só pelo backend** — a
+    última delas exigia interface que não existia, e a DEB-TRC-003 a construiu. O que resta do ciclo é o
+    que sempre dependeu de gente: as 5 parciais, os bloqueadores, e a confirmação de que o **ambiente**
+    aplica as regras que o build confere. Ver DEC-REL-012 a DEC-REL-017.
   - **O ensaio da REL-004 rodou em ambiente local**, não em cópia de produção. As medidas de bloqueio de
     escrita são reais, mas o volume de dados não é o de produção. Ver DEC-REL-009.
   - **Oito atualizações do Dependabot** (#204 a #211) ficaram armadas com auto-merge no encerramento, não

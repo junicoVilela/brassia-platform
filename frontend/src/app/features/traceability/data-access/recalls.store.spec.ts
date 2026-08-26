@@ -108,6 +108,48 @@ describe('RecallsStore', () => {
     expect(store.newDestinations()).toHaveLength(1);
   });
 
+  it('AGRUPA O ESCOPO POR TIPO, e os vasilhames aparecem', () => {
+    // DEB-TRC-003: a API devolvia os nós CONTAINER e a tela mostrava só destinos, que vêm de
+    // expedição. O vasilhame retornável não passa por expedição nenhuma — sai cheio na carga e volta
+    // vazio —, e mostrar só destino mandaria a operação recolher metade.
+    const store = setup({
+      dossier: () =>
+        of(
+          dossier({
+            scope: [
+              { node: ACABADO, suspected: false },
+              { node: node('CONTAINER', 'KEG-A'), suspected: false },
+              { node: node('CONTAINER', 'KEG-B'), suspected: false },
+              { node: node('SHIPMENT', 'Distribuidora Sul'), suspected: false },
+            ],
+          }),
+        ),
+    });
+    store.load();
+
+    store.select('r1');
+
+    // Na ordem da cadeia, e não na ordem em que a API devolveu: produto acabado, expedição, vasilhame.
+    expect(store.scopeByType().map(g => g.type)).toEqual([
+      'FINISHED_LOT',
+      'SHIPMENT',
+      'CONTAINER',
+    ]);
+    expect(store.containersInScope()).toBe(2);
+    expect(store.scopeByType().find(g => g.type === 'CONTAINER')?.nodes.map(a => a.node.label))
+      .toEqual(['KEG-A', 'KEG-B']);
+  });
+
+  it('sem escopo, o agrupamento é vazio e não quebra a tela', () => {
+    const store = setup({ dossier: () => of(dossier({ scope: [] })) });
+    store.load();
+
+    store.select('r1');
+
+    expect(store.scopeByType()).toEqual([]);
+    expect(store.containersInScope()).toBe(0);
+  });
+
   it('selecionar o mesmo recall de novo fecha o dossiê', () => {
     const store = setup();
     store.load();
